@@ -101,8 +101,27 @@ def interview_node(state: InterviewState) -> InterviewState:
         # No user answer yet, just return
         return state
 
-    # TODO: Call LLM to determine follow-up
-    # For now, just check if we have more topics
+    # Call LLM to determine if follow-up is needed
+    try:
+        from src.services.llm import get_qwen_service
+
+        llm = get_qwen_service()
+
+        # Check if we should follow up
+        needs_followup, followup_type, reason = llm.is_followup_needed(
+            state["conversation_history"], state.get("extracted_info", {})
+        )
+
+        state["needs_followup"] = needs_followup
+        state["followup_type"] = followup_type
+
+        if needs_followup:
+            # Will generate follow-up in followup_node
+            return state
+    except Exception as e:
+        # If LLM fails, just continue without follow-up
+        state["needs_followup"] = False
+        state["followup_type"] = None
 
     # Get current topic
     current_idx = state["current_topic_index"]
@@ -123,10 +142,6 @@ def interview_node(state: InterviewState) -> InterviewState:
             {"role": "assistant", "content": state["pending_question"]}
         )
 
-    # Reset follow-up state
-    state["needs_followup"] = False
-    state["followup_type"] = None
-
     return state
 
 
@@ -143,26 +158,37 @@ def followup_node(state: InterviewState) -> InterviewState:
     Returns:
         Updated state with follow-up question
     """
-    # TODO: Call LLM to generate follow-up
-    # For now, use placeholder
-
+    # Get user answer
     user_answer = ""
     for msg in reversed(state["conversation_history"]):
         if msg.get("role") == "user":
             user_answer = msg.get("content", "")
             break
 
-    followup_type = state.get("followup_type", "deep")
+    followup_type = state.get("followup_type") or "deep"
+    domain_context = state.get("domain_context", "")
 
-    # Generate placeholder follow-up
-    if followup_type == "clarification":
-        followup_question = "您能具体说明一下吗？"
-    elif followup_type == "deep":
-        followup_question = "您能举个例子说明吗？"
-    elif followup_type == "validation":
-        followup_question = "您是说...对吗？"
-    else:  # expansion
-        followup_question = "除此之外，还有其他想法吗？"
+    # Try to generate intelligent follow-up using LLM
+    try:
+        from src.services.llm import get_qwen_service
+
+        llm = get_qwen_service()
+
+        followup_question = llm.generate_followup(
+            user_answer=user_answer,
+            followup_type=followup_type,
+            domain_context=domain_context,
+        )
+    except Exception:
+        # Fallback to simple follow-up
+        if followup_type == "clarification":
+            followup_question = "您能具体说明一下吗？"
+        elif followup_type == "deep":
+            followup_question = "您能举个例子说明吗？"
+        elif followup_type == "validation":
+            followup_question = "您是说...对吗？"
+        else:  # expansion
+            followup_question = "除此之外，还有其他想法吗？"
 
     state["pending_question"] = followup_question
 
@@ -190,42 +216,55 @@ def analysis_node(state: InterviewState) -> InterviewState:
     Returns:
         Updated state with generated report
     """
-    # TODO: Call LLM to generate report
-    # For now, generate simple report
+    # Try to generate report using LLM
+    try:
+        from src.services.llm import get_qwen_service
 
-    history = state.get("conversation_history", [])
+        llm = get_qwen_service()
 
-    report_lines = [
-        f"# {state.get('topic', '访谈')}报告",
-        "",
-        "## 一、访谈基本信息",
-        f"- 会话ID：{state.get('session_id', 'N/A')}",
-        f"- 用户ID：{state.get('user_id', 'N/A')}",
-        f"- 模板：{state.get('template_id', 'N/A')}",
-        "",
-        "## 二、对话摘要",
-        "",
-    ]
+        report = llm.generate_report(
+            conversation_history=state.get("conversation_history", []),
+            topics=state.get("topics", []),
+            topic=state.get("topic", "访谈"),
+        )
 
-    # Add conversation
-    for msg in history:
-        role = "受访者" if msg.get("role") == "user" else "访谈师"
-        content = msg.get("content", "")
-        report_lines.append(f"**{role}**: {content}")
-        report_lines.append("")
+        state["report"] = report
+    except Exception:
+        # Fallback to simple report
+        history = state.get("conversation_history", [])
 
-    report_lines.extend(
-        [
-            "## 三、提取的信息",
+        report_lines = [
+            f"# {state.get('topic', '访谈')}报告",
             "",
-            str(state.get("extracted_info", {})),
+            "## 一、访谈基本信息",
+            f"- 会话ID：{state.get('session_id', 'N/A')}",
+            f"- 用户ID：{state.get('user_id', 'N/A')}",
+            f"- 模板：{state.get('template_id', 'N/A')}",
             "",
-            "---",
-            "*报告自动生成*",
+            "## 二、对话摘要",
+            "",
         ]
-    )
 
-    state["report"] = "\n".join(report_lines)
+        # Add conversation
+        for msg in history:
+            role = "受访者" if msg.get("role") == "user" else "访谈师"
+            content = msg.get("content", "")
+            report_lines.append(f"**{role}**: {content}")
+            report_lines.append("")
+
+        report_lines.extend(
+            [
+                "## 三、提取的信息",
+                "",
+                str(state.get("extracted_info", {})),
+                "",
+                "---",
+                "*报告自动生成*",
+            ]
+        )
+
+        state["report"] = "\n".join(report_lines)
+
     state["status"] = "completed"
 
     return state
