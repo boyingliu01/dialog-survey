@@ -3,6 +3,7 @@ Tests for LangGraph core components.
 """
 
 import pytest
+from unittest.mock import patch, MagicMock
 from src.core.state import InterviewState, create_initial_state
 from src.core.nodes import (
     planning_node,
@@ -64,13 +65,22 @@ class TestInterviewNode:
     """Tests for interview node."""
 
     def test_interview_node_moves_to_next_topic(self):
-        """Test interview node moves to next topic."""
+        """Test interview node moves to next topic when no follow-up needed."""
         state = create_initial_state("test_001", "user_123")
         state["status"] = "interviewing"
         state["current_topic_index"] = 0
+        state["topics"] = [
+            {"id": "t1", "name": "产品质量", "initial_question": "Q1"},
+            {"id": "t2", "name": "服务质量", "initial_question": "Q2"},
+            {"id": "t3", "name": "改进建议", "initial_question": "Q3"},
+        ]
         state["conversation_history"] = [{"role": "user", "content": "产品质量还行"}]
 
-        result = interview_node(state)
+        mock_llm = MagicMock()
+        mock_llm.is_followup_needed.return_value = (False, None, "")
+
+        with patch("src.services.llm.get_qwen_service", return_value=mock_llm):
+            result = interview_node(state)
 
         assert result["current_topic_index"] == 1
 
@@ -150,8 +160,9 @@ class TestAnalysisNode:
     """Tests for analysis node."""
 
     def test_analysis_generates_report(self):
-        """Test analysis node generates report."""
+        """Test analysis node generates report using LLM."""
         state = create_initial_state("test_001", "user_123")
+        state["topic"] = "质量满意度调查"
         state["conversation_history"] = [
             {"role": "assistant", "content": "问题1"},
             {"role": "user", "content": "回答1"},
@@ -159,7 +170,11 @@ class TestAnalysisNode:
             {"role": "user", "content": "回答2"},
         ]
 
-        result = analysis_node(state)
+        mock_llm = MagicMock()
+        mock_llm.generate_report.return_value = "# 访谈报告\n\n## 一、发现\n模拟内容"
+
+        with patch("src.services.llm.get_qwen_service", return_value=mock_llm):
+            result = analysis_node(state)
 
         assert result["report"] is not None
         assert "访谈报告" in result["report"]

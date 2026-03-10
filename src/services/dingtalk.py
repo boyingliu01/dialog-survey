@@ -8,9 +8,15 @@ import hmac
 import base64
 from typing import Optional, Dict, Any
 import os
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
+
+DINGTALK_TOKEN_URL = "https://oapi.dingtalk.com/gettoken"
+DINGTALK_SEND_URL = (
+    "https://oapi.dingtalk.com/topapi/message/corpconversation/asyncsend_v2"
+)
 
 
 class DingTalkService:
@@ -22,9 +28,10 @@ class DingTalkService:
         app_secret: Optional[str] = None,
         agent_id: Optional[str] = None,
     ):
-        self.app_key = app_key or os.getenv("DINGTALK_APP_KEY")
-        self.app_secret = app_secret or os.getenv("DINGTALK_APP_SECRET")
-        self.agent_id = agent_id or os.getenv("DINGTALK_AGENT_ID")
+        # Use explicit values when provided (even empty string), fall back to env only when None
+        self.app_key = app_key if app_key is not None else os.getenv("DINGTALK_APP_KEY")
+        self.app_secret = app_secret if app_secret is not None else os.getenv("DINGTALK_APP_SECRET")
+        self.agent_id = agent_id if agent_id is not None else os.getenv("DINGTALK_AGENT_ID")
         self._access_token: Optional[str] = None
         self._token_expires_at: float = 0
 
@@ -50,47 +57,79 @@ class DingTalkService:
         return my_signature == signature
 
     def get_access_token(self) -> str:
-        """Get DingTalk access token.
+        """Get DingTalk access token, using cache when valid.
 
         Returns:
             Access token string
 
         Raises:
-            Exception if token retrieval fails
+            Exception: If credentials not configured or API returns error
         """
-        # Check if we have a valid cached token
-        if self._access_token and time.time() < self._token_expires_at:
-            return self._access_token
-
-        # In production, this would call DingTalk API
-        # For now, return a placeholder
-        # TODO: Implement actual DingTalk API call
         if not self.app_key or not self.app_secret:
             raise Exception("DingTalk credentials not configured")
 
-        # Placeholder - in production, call:
-        # https://oapi.dingtalk.com/gettoken?appkey=xxx&appsecret=xxx
-        self._access_token = "placeholder_token"
-        self._token_expires_at = time.time() + 7200 - 300  # 2 hours - 5 minutes
+        # Return cached token if still valid
+        if self._access_token and time.time() < self._token_expires_at:
+            return self._access_token
+
+        response = httpx.get(
+            DINGTALK_TOKEN_URL,
+            params={"appkey": self.app_key, "appsecret": self.app_secret},
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("errcode") != 0:
+            raise Exception(f"DingTalk token error: {data.get('errmsg', 'unknown')}")
+
+        self._access_token = data["access_token"]
+        expires_in = data.get("expires_in", 7200)
+        self._token_expires_at = time.time() + expires_in - 300  # 5-minute buffer
 
         return self._access_token
 
     def send_message(self, user_id: str, msg_type: str, content: str) -> Dict[str, Any]:
-        """Send message to user.
+        """Send message to a DingTalk user via work notification.
 
         Args:
-            user_id: Target user ID
-            msg_type: Message type (text, markdown, etc.)
+            user_id: Target user's staff ID
+            msg_type: Message type — "text" or "markdown"
             content: Message content
 
         Returns:
-            API response
+            Dict with code=0 on success
 
         Raises:
-            Exception if send fails
+            Exception: If API returns an error code
         """
-        # In production, this would call DingTalk API
-        # TODO: Implement actual DingTalk message sending
+        token = self.get_access_token()
+
+        if msg_type == "markdown":
+            lines = content.split("\n")
+            title = lines[0].lstrip("#").strip() if lines else "消息"
+            msg = {"msgtype": "markdown", "markdown": {"title": title, "text": content}}
+        else:
+            msg = {"msgtype": "text", "text": {"content": content}}
+
+        payload = {
+            "agent_id": self.agent_id,
+            "userid_list": user_id,
+            "msg": msg,
+        }
+
+        response = httpx.post(
+            DINGTALK_SEND_URL,
+            params={"access_token": token},
+            json=payload,
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("errcode") != 0:
+            raise Exception(f"DingTalk send error: {data.get('errmsg', 'unknown')}")
+
         return {"code": 0, "msg": "success", "user_id": user_id, "msg_type": msg_type}
 
     def parse_webhook_message(self, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -125,7 +164,6 @@ class DingTalkService:
         return result
 
 
-# Singleton instance for easy import
 def get_dingtalk_service() -> DingTalkService:
     """Get singleton DingTalk service instance."""
     return DingTalkService()
