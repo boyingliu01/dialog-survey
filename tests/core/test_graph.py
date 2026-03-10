@@ -179,3 +179,62 @@ class TestAnalysisNode:
         assert result["report"] is not None
         assert "访谈报告" in result["report"]
         assert result["status"] == "completed"
+
+    def test_analysis_persists_report_to_file(self, tmp_path, monkeypatch):
+        """Test analysis node writes report to a file and stores the path."""
+        import os
+
+        monkeypatch.setenv("REPORTS_DIR", str(tmp_path))
+
+        state = create_initial_state("sess_file_test", "user_123")
+        state["topic"] = "文件测试访谈"
+        state["conversation_history"] = [
+            {"role": "assistant", "content": "问题"},
+            {"role": "user", "content": "回答"},
+        ]
+
+        mock_llm = MagicMock()
+        mock_llm.generate_report.return_value = "# 访谈报告\n\n内容"
+
+        with patch("src.services.llm.get_qwen_service", return_value=mock_llm):
+            result = analysis_node(state)
+
+        assert result["report_path"] is not None
+        assert os.path.exists(result["report_path"])
+        with open(result["report_path"], encoding="utf-8") as f:
+            content = f.read()
+        assert "# 访谈报告" in content
+
+    def test_analysis_report_path_contains_session_id(self, tmp_path, monkeypatch):
+        """Test report file path is scoped under the session directory."""
+        monkeypatch.setenv("REPORTS_DIR", str(tmp_path))
+
+        state = create_initial_state("my_session_abc", "user_x")
+        state["topic"] = "测试"
+        state["conversation_history"] = [{"role": "user", "content": "回答"}]
+
+        mock_llm = MagicMock()
+        mock_llm.generate_report.return_value = "# 访谈报告\n内容"
+
+        with patch("src.services.llm.get_qwen_service", return_value=mock_llm):
+            result = analysis_node(state)
+
+        assert "my_session_abc" in result["report_path"]
+
+    def test_analysis_file_write_failure_does_not_crash(self, monkeypatch):
+        """Test that a file write failure is handled gracefully."""
+        monkeypatch.setenv("REPORTS_DIR", "/nonexistent/readonly/path/xyz")
+
+        state = create_initial_state("sess_fail", "user_y")
+        state["topic"] = "测试"
+        state["conversation_history"] = [{"role": "user", "content": "回答"}]
+
+        mock_llm = MagicMock()
+        mock_llm.generate_report.return_value = "# 访谈报告\n内容"
+
+        with patch("src.services.llm.get_qwen_service", return_value=mock_llm):
+            result = analysis_node(state)
+
+        # Report is still generated even if file write fails
+        assert result["report"] is not None
+        assert result["status"] == "completed"

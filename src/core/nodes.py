@@ -2,6 +2,8 @@
 LangGraph nodes for interview conversation flow.
 """
 
+import os
+from datetime import datetime
 from typing import Dict, Any
 from langgraph.graph import END
 
@@ -99,6 +101,8 @@ def interview_node(state: InterviewState) -> InterviewState:
 
     if not user_answer:
         # No user answer yet, just return
+        # Mark as waiting for user input
+        state["status"] = "waiting_for_user"
         return state
 
     # Call LLM to determine if follow-up is needed
@@ -265,6 +269,19 @@ def analysis_node(state: InterviewState) -> InterviewState:
 
         state["report"] = "\n".join(report_lines)
 
+    # Persist report to file
+    try:
+        reports_dir = os.getenv("REPORTS_DIR", "reports")
+        session_dir = os.path.join(reports_dir, state["session_id"])
+        os.makedirs(session_dir, exist_ok=True)
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        report_path = os.path.join(session_dir, f"report_{timestamp}.md")
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(state["report"])
+        state["report_path"] = report_path
+    except Exception:
+        state["report_path"] = None
+
     state["status"] = "completed"
 
     return state
@@ -283,6 +300,10 @@ def should_continue(state: InterviewState) -> str:
     """
     # If completed, end
     if state.get("status") == "completed":
+        return "end"
+
+    # If waiting for user input, end (wait for next message)
+    if state.get("status") == "waiting_for_user":
         return "end"
 
     # If analyzing, go to analysis
