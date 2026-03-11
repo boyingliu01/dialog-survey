@@ -2,6 +2,7 @@
 Webhook handler for receiving DingTalk messages.
 """
 
+import logging
 from fastapi import APIRouter, Request, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
@@ -12,8 +13,10 @@ from src.models.database import get_db
 from src.models.interview import Interview, InterviewStatus
 from src.models.message import Message
 from src.services.dingtalk import DingTalkService, get_dingtalk_service
+from src.core.graph import run_interview
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class WebhookCallback(BaseModel):
@@ -90,6 +93,8 @@ async def handle_webhook(
     user_id = message_data["user_id"]
     content = message_data["content"]
 
+    logger.info("Received message from user=%s type=%s", user_id, msg_type)
+
     if not user_id:
         return {"code": 400, "msg": "Missing user_id"}
 
@@ -101,7 +106,7 @@ async def handle_webhook(
         interview = (
             db.query(Interview)
             .filter(
-                Interview.user_id == user_id,
+                Interview.user_id == str(user_id),
                 Interview.status == InterviewStatus.IN_PROGRESS,
             )
             .first()
@@ -114,6 +119,7 @@ async def handle_webhook(
         # Create new session if "开始" is received
         if content.strip() in ["开始", "start", "开始访谈"]:
             session_id = f"interview_{uuid.uuid4().hex[:12]}"
+            logger.info("Creating new interview session=%s user=%s", session_id, user_id)
             interview = Interview(
                 session_id=session_id,
                 user_id=user_id,
@@ -134,12 +140,44 @@ async def handle_webhook(
             db.add(msg)
             db.commit()
 
-            return {
-                "code": 0,
-                "msg": "success",
-                "session_id": session_id,
-                "message": "访谈已开始，请回答第一个问题。",
-            }
+            # Initialize interview with LangGraph (without user message)
+            try:
+                result_state = run_interview(
+                    session_id=str(session_id),
+                    user_id=str(user_id),
+                    template_id=str(interview.template_id) if interview.template_id else "quality_survey",
+                    topic=str(interview.topic) if interview.topic else "质量满意度调查",
+                    user_message=None,  # First initialization without message
+                )
+
+                # Update interview with initial state
+                interview.conversation_history = result_state.get("conversation_history") or []
+                interview.updated_at = __import__("datetime").datetime.utcnow()
+                db.commit()
+
+                # Get welcome message or first question
+                response_message = "访谈已开始"
+                history = result_state.get("conversation_history", [])
+                if history:
+                    # Get last assistant message
+                    for msg in reversed(history):
+                        if msg.get("role") == "assistant":
+                            response_message = msg.get("content", "")
+                            break
+
+                return {
+                    "code": 0,
+                    "msg": "success",
+                    "session_id": session_id,
+                    "message": response_message,
+                }
+            except Exception as e:
+                db.rollback()
+                return {
+                    "code": 500,
+                    "msg": f"Error initializing interview: {str(e)}",
+                    "message": "抱歉，启动访谈时出错，请重试。",
+                }
         else:
             return {"code": 0, "msg": "success", "message": "请回复'开始'启动访谈。"}
 
@@ -163,15 +201,54 @@ async def handle_webhook(
 
     db.commit()
 
-    # TODO: Call conversation engine to process message
-    # This will be implemented in Task 5-7
+    # Call conversation engine to process message
+    try:
+        # Run interview conversation through LangGraph
+        result_state = run_interview(
+            session_id=session_id,
+            user_id=user_id,
+            template_id=interview.template_id,
+            topic=interview.topic,
+            user_message=content,
+        )
 
-    return {
-        "code": 0,
-        "msg": "success",
-        "session_id": session_id,
-        "message": "感谢您的回答。",
-    }
+        # Update interview with latest state
+        interview.conversation_history = result_state.get("conversation_history", [])
+        interview.updated_at = __import__("datetime").datetime.utcnow()
+
+        # Get the last assistant message as response
+        response_message = "感谢您的回答。"
+        history = result_state.get("conversation_history", [])
+        for msg in reversed(history):
+            if msg.get("role") == "assistant":
+                response_message = msg.get("content", "")
+                break
+
+        # Store assistant response in database
+        assistant_message = Message(
+            interview_id=interview.id,
+            role="assistant",
+            content=response_message,
+            message_type="text",
+        )
+        db.add(assistant_message)
+        db.commit()
+
+        return {
+            "code": 0,
+            "msg": "success",
+            "session_id": session_id,
+            "message": response_message,
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error("LangGraph error session=%s: %s", session_id, e, exc_info=True)
+        return {
+            "code": 500,
+            "msg": f"Error processing message: {str(e)}",
+            "session_id": session_id,
+            "message": "抱歉，处理您的消息时出错，请重试。",
+        }
 
 
 @router.post("/webhook/voice")

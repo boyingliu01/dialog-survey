@@ -125,6 +125,29 @@ def run_interview(
             session_id=session_id, user_id=user_id, template_id=template_id, topic=topic
         )
 
+    # Ensure required fields exist (for restored sessions)
+    required_fields = {
+        "conversation_history": [],
+        "extracted_info": {},
+        "topics": [],
+        "current_topic_index": 0,
+        "status": "planning",
+        "pending_question": None,
+        "needs_followup": False,
+        "followup_type": None,
+        "report": None,
+        "report_path": None,
+        "domain_context": "",
+        "topic": topic,
+        "user_id": user_id,
+        "template_id": template_id,
+        "session_id": session_id,
+    }
+
+    for field, default_value in required_fields.items():
+        if field not in initial_state:
+            initial_state[field] = default_value
+
     # Add user message if provided
     if user_message:
         initial_state["conversation_history"].append(
