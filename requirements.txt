@@ -12,4 +12,5 @@ fastapi>=0.100
 uvicorn>=0.23
 pytest>=7.0
 pytest-asyncio>=0.21
-httpx>=0.24
+alembic>=1.0
+funasr>=1.0.0
