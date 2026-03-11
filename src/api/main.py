@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from src.models.database import init_db
-from src.api import webhook, template
+from src.api import webhook, template, interviews
 
 
 @asynccontextmanager
@@ -42,6 +42,7 @@ app.add_middleware(
 # Include routers
 app.include_router(webhook.router, prefix="/api", tags=["webhook"])
 app.include_router(template.router, prefix="/api", tags=["template"])
+app.include_router(interviews.router, prefix="/api", tags=["interviews"])
 
 
 @app.get("/")

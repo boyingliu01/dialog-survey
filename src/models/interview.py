@@ -34,6 +34,7 @@ class Interview(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
+    report_path = Column(String(500), nullable=True)
 
     def __repr__(self):
         return f"<Interview(session_id={self.session_id}, status={self.status.value})>"
