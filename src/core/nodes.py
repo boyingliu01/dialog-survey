@@ -2,12 +2,15 @@
 LangGraph nodes for interview conversation flow.
 """
 
+import logging
 import os
 from datetime import datetime
 from typing import Dict, Any
 from langgraph.graph import END
 
 from src.core.state import InterviewState
+
+logger = logging.getLogger(__name__)
 
 
 def planning_node(state: InterviewState) -> InterviewState:
@@ -74,6 +77,8 @@ def planning_node(state: InterviewState) -> InterviewState:
 
     state["status"] = "interviewing"
     state["current_topic_index"] = 0
+
+    logger.info("Interview session initialized session=%s user=%s", state.get("session_id"), state.get("user_id"))
 
     return state
 
@@ -279,6 +284,7 @@ def analysis_node(state: InterviewState) -> InterviewState:
         with open(report_path, "w", encoding="utf-8") as f:
             f.write(state["report"])
         state["report_path"] = report_path
+        logger.info("Report saved session=%s path=%s", state.get("session_id"), report_path)
     except Exception:
         state["report_path"] = None
 

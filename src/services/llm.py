@@ -4,6 +4,8 @@ Qwen (通义千问) LLM service for interview bot.
 
 import os
 import json
+import time
+import concurrent.futures
 from typing import List, Dict, Any, Optional, Tuple
 from dotenv import load_dotenv
 
@@ -80,24 +82,49 @@ class QwenService:
 
         formatted_messages.extend(messages)
 
-        try:
-            response = client.call(
-                model=self.model,
-                messages=formatted_messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                result_format="message",
-            )
+        max_retries = int(os.getenv("MAX_LLM_RETRIES", "2"))
+        timeout_sec = int(os.getenv("LLM_TIMEOUT", "0")) or None
 
-            if response.status_code == 200:
-                return response.output.choices[0].message.content
-            else:
-                raise Exception(
-                    f"LLM call failed: {response.code} - {response.message}"
-                )
-        except Exception as e:
-            # Return mock for testing
-            return self._mock_response(messages)
+        last_exc: Optional[Exception] = None
+        for attempt in range(max_retries + 1):
+            if attempt > 0:
+                time.sleep(2 ** (attempt - 1))
+
+            try:
+                if timeout_sec:
+                    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                    future = executor.submit(
+                        client.call,
+                        model=self.model,
+                        messages=formatted_messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        result_format="message",
+                    )
+                    executor.shutdown(wait=False)
+                    try:
+                        response = future.result(timeout=timeout_sec)
+                    except concurrent.futures.TimeoutError:
+                        last_exc = TimeoutError(f"LLM call timed out after {timeout_sec}s")
+                        continue
+                else:
+                    response = client.call(
+                        model=self.model,
+                        messages=formatted_messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        result_format="message",
+                    )
+
+                if response.status_code == 200:
+                    return response.output.choices[0].message.content
+                else:
+                    raise Exception(f"LLM call failed: {response.code} - {response.message}")
+
+            except Exception as e:
+                last_exc = e
+
+        raise last_exc or Exception("LLM call failed after retries")
 
     def _mock_response(self, messages: List[Dict[str, str]]) -> str:
         """Generate mock response for testing."""
