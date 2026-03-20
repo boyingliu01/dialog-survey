@@ -33,6 +33,9 @@ pytest tests/models/test_database.py::TestClassName::test_method_name
 
 # Run with coverage
 pytest --cov=src --cov-report=html
+
+# Run with Docker
+docker-compose up -d
 ```
 
 ## Architecture
@@ -59,8 +62,19 @@ interview-bot/src/
 ├── api/          # FastAPI routers, Pydantic request/response models
 ├── core/         # LangGraph graph definition, InterviewState TypedDict, node functions
 ├── services/     # QwenService (LLM singleton), AsrService (voice), DingTalk adapter
-└── models/       # SQLAlchemy ORM: Interview, Message; database.py has get_db() + init_db()
+├── models/       # SQLAlchemy ORM: Interview, Message; database.py has get_db() + init_db()
+├── templates/    # JSON interview templates (loaded by TemplateService)
+└── reports/      # Generated Markdown reports
 ```
+
+### Testing Fixtures
+
+Use pytest fixtures from `tests/conftest.py`:
+- `mock_llm_service` — Mocked LLM service for testing without API calls
+- `temp_dir` — Temporary directory for file operations
+- `template_manager` — TemplateService with isolated templates
+- `base_interview_state` / `populated_interview_state` — InterviewState for testing
+- `mock_dingtalk_service` — Mocked DingTalk service
 
 ### Service Singletons
 
@@ -95,3 +109,15 @@ Reports are saved as Markdown files under `reports/{session_id}/report_{timestam
 ## Design Docs
 
 Detailed requirements, architecture, and implementation plans are in `docs/plans/`.
+
+## Docker Deployment
+
+The project includes `Dockerfile` and `docker-compose.yml` for containerized deployment:
+
+```bash
+# Build and run with Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+```
