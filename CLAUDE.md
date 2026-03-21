@@ -19,6 +19,10 @@ pip install -r requirements.txt
 # Initialize database tables
 python -c "from src.models.database import init_db; init_db()"
 
+# Run database migrations (Alembic)
+alembic upgrade head
+alembic downgrade -1
+
 # Run development server
 uvicorn src.api.main:app --reload
 
@@ -67,6 +71,13 @@ interview-bot/src/
 └── reports/      # Generated Markdown reports
 ```
 
+### Interview Templates
+
+Templates are JSON files in `templates/` with this structure:
+- `topics[]` — Interview topics, each with `id`, `name`, `description`, `initial_question`
+- `questions[]` — Questions with `id`, `type` (rating/text/single_choice/yes_no), `text`, optional `follow_ups[]`, optional `condition` for conditional display
+- `domain_context` — Context passed to LLM for domain-specific understanding
+
 ### Testing Fixtures
 
 Use pytest fixtures from `tests/conftest.py`:
@@ -96,11 +107,13 @@ Optional:
 ## API Endpoints
 
 - `GET /api/webhook` — DingTalk webhook verification
-- `POST /api/webhook` — DingTalk message handler
-- `GET /api/interviews` — List interviews (supports `status`, `limit`, `offset` query params)
-- `GET /api/interviews/{session_id}` — Get interview details
+- `POST /api/webhook` — DingTalk message handler (text and voice)
+- `GET /api/interviews` — List interviews (`status`, `limit`, `offset` query params)
+- `GET /api/interviews/{session_id}` — Get interview details with messages
 - `GET /api/interviews/{session_id}/report` — Get generated report
 - `POST /api/interviews/{session_id}/end` — End an in-progress interview
+- `GET /api/templates` — List available interview templates
+- `GET /api/templates/{template_id}` — Get template details
 
 ## Generated Reports
 
