@@ -298,3 +298,9 @@ def get_qwen_service() -> QwenService:
     if _qwen_service is None:
         _qwen_service = QwenService()
     return _qwen_service
+
+
+# Alias for backward compatibility
+def get_llm_service() -> QwenService:
+    """Get singleton LLM service instance. Alias for get_qwen_service()."""
+    return get_qwen_service()
