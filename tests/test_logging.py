@@ -49,7 +49,8 @@ def client(db_session):
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
+    # Include valid signature headers since signature verification is now mandatory
+    with TestClient(app, headers={"timestamp": "1234567890", "signature": "valid_sig", "nonce": "test_nonce"}) as c:
         yield c
     app.dependency_overrides.clear()
 
