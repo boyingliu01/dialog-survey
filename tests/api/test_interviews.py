@@ -22,6 +22,15 @@ from src.models.interview import Interview, InterviewStatus
 
 SQLITE_URL = "sqlite:///:memory:"
 
+# Test API key for auth tests
+TEST_API_KEY = "test-secret-api-key-12345"
+
+
+@pytest.fixture(autouse=True)
+def setup_test_api_key(monkeypatch):
+    """Set up test API key environment variable."""
+    monkeypatch.setenv("INTERNAL_API_KEY", TEST_API_KEY)
+
 
 @pytest.fixture()
 def db_engine():
@@ -54,7 +63,7 @@ def client(db_session):
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
+    with TestClient(app, headers={"X-API-Key": TEST_API_KEY}) as c:
         yield c
     app.dependency_overrides.clear()
 

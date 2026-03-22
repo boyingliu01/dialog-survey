@@ -3,7 +3,8 @@ Interview management API endpoints.
 """
 
 import os
-from fastapi import APIRouter, Depends, HTTPException, Query
+import logging
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from typing import Optional
 from sqlalchemy.orm import Session
 
@@ -11,6 +12,20 @@ from src.models.database import get_db
 from src.models.interview import Interview, InterviewStatus
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
+
+
+def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
+    """Verify API key from X-API-Key header."""
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="Missing API key")
+    expected_key = os.environ.get("INTERNAL_API_KEY")
+    if not expected_key:
+        logger.warning("INTERNAL_API_KEY not configured - rejecting all requests")
+        raise HTTPException(status_code=401, detail="API key not configured")
+    if x_api_key != expected_key:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    return x_api_key
 
 # Map query param strings to enum values
 _STATUS_MAP = {
@@ -43,6 +58,7 @@ def list_interviews(
     limit: int = Query(default=20),
     offset: int = Query(default=0),
     db: Session = Depends(get_db),
+    _=Depends(verify_api_key),
 ):
     query = db.query(Interview)
 
@@ -62,7 +78,11 @@ def list_interviews(
 
 
 @router.get("/interviews/{session_id}/report")
-def get_interview_report(session_id: str, db: Session = Depends(get_db)):
+def get_interview_report(
+    session_id: str,
+    db: Session = Depends(get_db),
+    _=Depends(verify_api_key),
+):
     interview = db.query(Interview).filter_by(session_id=session_id).first()
     if interview is None:
         raise HTTPException(status_code=404, detail="Interview not found")
@@ -81,7 +101,11 @@ def get_interview_report(session_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/interviews/{session_id}")
-def get_interview(session_id: str, db: Session = Depends(get_db)):
+def get_interview(
+    session_id: str,
+    db: Session = Depends(get_db),
+    _=Depends(verify_api_key),
+):
     interview = db.query(Interview).filter_by(session_id=session_id).first()
     if interview is None:
         raise HTTPException(status_code=404, detail="Interview not found")
@@ -89,7 +113,11 @@ def get_interview(session_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/interviews/{session_id}/end")
-def end_interview(session_id: str, db: Session = Depends(get_db)):
+def end_interview(
+    session_id: str,
+    db: Session = Depends(get_db),
+    _=Depends(verify_api_key),
+):
     interview = db.query(Interview).filter_by(session_id=session_id).first()
     if interview is None or interview.status != InterviewStatus.IN_PROGRESS:
         raise HTTPException(status_code=404, detail="Interview not found or not in progress")

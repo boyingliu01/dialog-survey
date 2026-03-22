@@ -11,7 +11,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Module-level shared executor for LLM calls (avoids per-request ThreadPoolExecutor creation)
+_llm_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
 
+# Default LLM timeout in seconds (used when LLM_TIMEOUT env var is not set)
+DEFAULT_LLM_TIMEOUT_SEC = 30
+
+
+def _get_llm_executor() -> concurrent.futures.ThreadPoolExecutor:
+    """Get or create shared ThreadPoolExecutor for LLM calls."""
+    global _llm_executor
+    if _llm_executor is None:
+        _llm_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+    return _llm_executor
 class QwenService:
     """Qwen LLM service for interview bot.
 
@@ -83,7 +95,8 @@ class QwenService:
         formatted_messages.extend(messages)
 
         max_retries = int(os.getenv("MAX_LLM_RETRIES", "2"))
-        timeout_sec = int(os.getenv("LLM_TIMEOUT", "0")) or None
+        # Use default timeout if LLM_TIMEOUT not set, to prevent infinite waits
+        timeout_sec = int(os.getenv("LLM_TIMEOUT", str(DEFAULT_LLM_TIMEOUT_SEC))) or DEFAULT_LLM_TIMEOUT_SEC
 
         last_exc: Optional[Exception] = None
         for attempt in range(max_retries + 1):
@@ -91,30 +104,20 @@ class QwenService:
                 time.sleep(2 ** (attempt - 1))
 
             try:
-                if timeout_sec:
-                    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-                    future = executor.submit(
-                        client.call,
-                        model=self.model,
-                        messages=formatted_messages,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        result_format="message",
-                    )
-                    executor.shutdown(wait=False)
-                    try:
-                        response = future.result(timeout=timeout_sec)
-                    except concurrent.futures.TimeoutError:
-                        last_exc = TimeoutError(f"LLM call timed out after {timeout_sec}s")
-                        continue
-                else:
-                    response = client.call(
-                        model=self.model,
-                        messages=formatted_messages,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        result_format="message",
-                    )
+                executor = _get_llm_executor()
+                future = executor.submit(
+                    client.call,
+                    model=self.model,
+                    messages=formatted_messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    result_format="message",
+                )
+                try:
+                    response = future.result(timeout=timeout_sec)
+                except concurrent.futures.TimeoutError:
+                    last_exc = TimeoutError(f"LLM call timed out after {timeout_sec}s")
+                    continue
 
                 if response.status_code == 200:
                     return response.output.choices[0].message.content
