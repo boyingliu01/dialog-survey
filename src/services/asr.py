@@ -10,6 +10,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+class ASRServiceError(Exception):
+    """Raised when ASR service fails."""
+
+
+class AudioFormatError(Exception):
+    """Raised when audio format is not supported."""
+
+
 class ASRService:
     """Alibaba Cloud Fun-ASR service for speech recognition.
 
