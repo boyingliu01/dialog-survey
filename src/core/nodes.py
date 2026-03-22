@@ -5,12 +5,29 @@ LangGraph nodes for interview conversation flow.
 import logging
 import os
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 from langgraph.graph import END
 
 from src.core.state import InterviewState
 
 logger = logging.getLogger(__name__)
+
+# Maximum conversation history size to prevent unbounded growth
+MAX_CONVERSATION_HISTORY = 100
+
+
+def _truncate_history(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Truncate conversation history to max size, keeping most recent messages.
+
+    Args:
+        history: Current conversation history
+
+    Returns:
+        Truncated history keeping most recent messages
+    """
+    if len(history) > MAX_CONVERSATION_HISTORY:
+        return history[-MAX_CONVERSATION_HISTORY:]
+    return history
 
 
 def planning_node(state: InterviewState) -> InterviewState:
@@ -150,6 +167,7 @@ def interview_node(state: InterviewState) -> InterviewState:
         state["conversation_history"].append(
             {"role": "assistant", "content": state["pending_question"]}
         )
+        state["conversation_history"] = _truncate_history(state["conversation_history"])
 
     return state
 
@@ -205,6 +223,7 @@ def followup_node(state: InterviewState) -> InterviewState:
     state["conversation_history"].append(
         {"role": "assistant", "content": followup_question}
     )
+    state["conversation_history"] = _truncate_history(state["conversation_history"])
 
     # Reset follow-up state
     state["needs_followup"] = False
