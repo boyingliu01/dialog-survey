@@ -5,8 +5,7 @@ LangGraph nodes for interview conversation flow.
 import logging
 import os
 from datetime import datetime
-from typing import Dict, Any, List
-from langgraph.graph import END
+from typing import Any
 
 from src.core.state import InterviewState
 
@@ -15,8 +14,23 @@ logger = logging.getLogger(__name__)
 # Maximum conversation history size to prevent unbounded growth
 MAX_CONVERSATION_HISTORY = 100
 
+# FR-002 AC-003: Maximum follow-up questions per topic
+MAX_FOLLOWUP_PER_TOPIC = 2
 
-def _truncate_history(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+
+def _get_topic_key(topic: dict[str, Any]) -> str:
+    """Get unique key for a topic (use id if available, else name).
+
+    Args:
+        topic: Topic dict with 'id' and/or 'name' fields
+
+    Returns:
+        Unique key string for the topic
+    """
+    return topic.get("id") or topic.get("name") or "unknown_topic"
+
+
+def _truncate_history(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Truncate conversation history to max size, keeping most recent messages.
 
     Args:
@@ -33,7 +47,7 @@ def _truncate_history(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 def planning_node(state: InterviewState) -> InterviewState:
     """Planning node: Initialize interview with template.
 
-    This node loads the interview template and generates the first question.
+    This node loads the interview template and generates the first question using LLM.
     It transitions from "planning" to "interviewing" status.
 
     Args:
@@ -42,8 +56,20 @@ def planning_node(state: InterviewState) -> InterviewState:
     Returns:
         Updated state with first question
     """
-    # TODO: Load template from TemplateManager
-    # For now, use default structure
+    # 🔧 FIX: Check if already initialized - skip if conversation already started
+    existing_history = state.get("conversation_history", [])
+    has_assistant_message = any(msg.get("role") == "assistant" for msg in existing_history)
+    if has_assistant_message:
+        # Already initialized, skip planning and go directly to interviewing
+        logger.info(
+            "Interview already initialized, skipping planning. session=%s",
+            state.get("session_id"),
+        )
+        state["status"] = "interviewing"
+        # Ensure followup_count is initialized (FR-002 AC-003)
+        if state.get("followup_count") is None:
+            state["followup_count"] = {}
+        return state
 
     # Set default topics if not set
     if not state.get("topics"):
@@ -52,19 +78,16 @@ def planning_node(state: InterviewState) -> InterviewState:
                 "id": "product_quality",
                 "name": "产品质量",
                 "description": "对产品质量的评价",
-                "initial_question": "请您对产品的整体质量做一个评价？",
             },
             {
                 "id": "service_quality",
                 "name": "服务质量",
                 "description": "对服务体验的评价",
-                "initial_question": "您对我们服务的整体体验如何？",
             },
             {
                 "id": "improvement",
                 "name": "改进建议",
                 "description": "需要改进的地方",
-                "initial_question": "您认为我们在哪些方面还有提升空间？",
             },
         ]
 
@@ -79,23 +102,55 @@ def planning_node(state: InterviewState) -> InterviewState:
 5. 整体满意度：综合评价
 """
 
-    # Generate first question
-    first_topic = state["topics"][0]
-    state["pending_question"] = first_topic.get(
-        "initial_question", "请开始分享您的想法"
-    )
+    # Get persona config from template or use default
+    persona_config = state.get("persona_config") or {
+        "role_name": "用户体验研究员",
+        "personality": "友善、善于倾听、专业但不刻板",
+        "conversation_style": "轻松自然的对话式，像朋友聊天一样",
+        "tone": "友好、开放、鼓励分享",
+        "topic_name": state.get("topic", "用户访谈"),
+        "topic_scope": "产品质量、服务体验、改进建议",
+    }
 
-    # Add welcome message to history
-    welcome_msg = f"您好！欢迎参加「{state['topic']}」访谈。我会问您几个问题，您可以按照自己的节奏回答。"
+    # Generate opening question using LLM
+    try:
+        from src.services.llm import get_qwen_service
+
+        llm = get_qwen_service()
+
+        first_topic = state["topics"][0]
+        opening = llm.generate_opening_question(
+            topic_name=state.get("topic", "用户访谈"),
+            topic_description=state.get("domain_context", ""),
+            first_topic=first_topic["name"],
+            persona_config=persona_config,
+        )
+
+        state["pending_question"] = opening
+        logger.info("Generated opening question using LLM")
+    except Exception as e:
+        logger.warning("Failed to generate opening with LLM, using fallback: %s", e)
+        # Fallback to simple welcome
+        first_topic = state["topics"][0]
+        state["pending_question"] = (
+            f"你好！欢迎参加今天的访谈。我想先聊聊{first_topic['name']}，你能分享一下你的想法吗？"
+        )
+
+    # Add to conversation history
     state["conversation_history"] = [
-        {"role": "assistant", "content": welcome_msg},
         {"role": "assistant", "content": state["pending_question"]},
     ]
 
     state["status"] = "interviewing"
     state["current_topic_index"] = 0
+    state["persona_config"] = persona_config
+    state["followup_count"] = {}  # FR-002 AC-003: Initialize empty follow-up count
 
-    logger.info("Interview session initialized session=%s user=%s", state.get("session_id"), state.get("user_id"))
+    logger.info(
+        "Interview session initialized session=%s user=%s",
+        state.get("session_id"),
+        state.get("user_id"),
+    )
 
     return state
 
@@ -141,10 +196,31 @@ def interview_node(state: InterviewState) -> InterviewState:
         state["needs_followup"] = needs_followup
         state["followup_type"] = followup_type
 
+        # FR-002 AC-003: Check if follow-up limit reached for current topic
         if needs_followup:
-            # Will generate follow-up in followup_node
-            return state
-    except Exception as e:
+            topics = state.get("topics", [])
+            current_idx = state.get("current_topic_index", 0)
+            followup_count = state.get("followup_count", {})
+
+            if current_idx < len(topics):
+                current_topic = topics[current_idx]
+                topic_key = _get_topic_key(current_topic)
+                current_count = followup_count.get(topic_key, 0)
+
+                # If limit reached, skip follow-up and move to next topic
+                if current_count >= MAX_FOLLOWUP_PER_TOPIC:
+                    logger.info(
+                        "Follow-up limit reached for topic '%s' (count=%d), skipping followup",
+                        topic_key,
+                        current_count,
+                    )
+                    state["needs_followup"] = False
+                    state["followup_type"] = None
+                    # Continue to next topic logic below
+                else:
+                    # Will generate follow-up in followup_node
+                    return state
+    except Exception:
         # If LLM fails, just continue without follow-up
         state["needs_followup"] = False
         state["followup_type"] = None
@@ -158,15 +234,42 @@ def interview_node(state: InterviewState) -> InterviewState:
         # All topics covered, move to analysis
         state["status"] = "analyzing"
     else:
-        # Move to next topic
+        # Move to next topic - generate question using LLM
         next_topic = state["topics"][current_idx + 1]
-        state["pending_question"] = next_topic.get("initial_question", "请继续分享")
+
+        try:
+            from src.services.llm import get_qwen_service
+
+            llm = get_qwen_service()
+
+            persona_config = state.get("persona_config") or {
+                "role_name": "用户体验研究员",
+                "personality": "友善、善于倾听、专业但不刻板",
+                "conversation_style": "轻松自然的对话式，像朋友聊天一样",
+                "tone": "友好、开放、鼓励分享",
+            }
+            next_question = llm.generate_next_question_enhanced(
+                conversation_history=state["conversation_history"],
+                current_topic=next_topic["name"],
+                topic_description=next_topic.get("description", ""),
+                current_topic_index=current_idx + 1,
+                total_topics=total_topics,
+                extracted_info=state.get("extracted_info", {}),
+                persona_config=persona_config,
+            )
+            state["pending_question"] = next_question
+            logger.info("Generated next question using LLM for topic: %s", next_topic["name"])
+        except Exception as e:
+            logger.warning("Failed to generate next question with LLM, using fallback: %s", e)
+            # Fallback to simple transition
+            state["pending_question"] = (
+                f"接下来我想聊聊{next_topic['name']}，{next_topic.get('description', '你有什么想法？')}"
+            )
+
         state["current_topic_index"] = current_idx + 1
 
         # Add question to history
-        state["conversation_history"].append(
-            {"role": "assistant", "content": state["pending_question"]}
-        )
+        state["conversation_history"].append({"role": "assistant", "content": state["pending_question"]})
         state["conversation_history"] = _truncate_history(state["conversation_history"])
 
     return state
@@ -178,6 +281,7 @@ def followup_node(state: InterviewState) -> InterviewState:
     This node generates a follow-up question based on:
     - The user's previous answer
     - The follow-up type (clarification, deep, validation, expansion)
+    - Full conversation context
 
     Args:
         state: Current interview state
@@ -193,41 +297,93 @@ def followup_node(state: InterviewState) -> InterviewState:
             break
 
     followup_type = state.get("followup_type") or "deep"
-    domain_context = state.get("domain_context", "")
+    followup_reason = state.get("followup_reason", "需要更多信息")
 
-    # Try to generate intelligent follow-up using LLM
+    # Try to generate intelligent follow-up using LLM with full context
     try:
         from src.services.llm import get_qwen_service
+        from src.services.prompts import (
+            FOLLOWUP_GENERATE_PROMPT,
+            build_system_prompt,
+            format_conversation_history,
+        )
 
         llm = get_qwen_service()
 
-        followup_question = llm.generate_followup(
+        persona_config = state.get("persona_config") or {
+            "role_name": "用户体验研究员",
+            "personality": "友善、善于倾听、专业但不刻板",
+            "conversation_style": "轻松自然的对话式，像朋友聊天一样",
+            "tone": "友好、开放、鼓励分享",
+        }
+        system_prompt = build_system_prompt(**persona_config) if persona_config else ""
+
+        prompt = FOLLOWUP_GENERATE_PROMPT.format(
+            system_prompt=system_prompt,
+            conversation_history=format_conversation_history(state["conversation_history"]),
             user_answer=user_answer,
             followup_type=followup_type,
-            domain_context=domain_context,
+            followup_reason=followup_reason,
         )
-    except Exception:
+
+        followup_question = llm.chat(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+        )
+
+        logger.info("Generated follow-up question using LLM: %s", followup_question[:50])
+    except Exception as e:
+        logger.warning("Failed to generate follow-up with LLM, using fallback: %s", e)
         # Fallback to simple follow-up
         if followup_type == "clarification":
-            followup_question = "您能具体说明一下吗？"
+            followup_question = "你能具体说说吗？"
         elif followup_type == "deep":
-            followup_question = "您能举个例子说明吗？"
+            followup_question = "能多分享一些细节吗？"
         elif followup_type == "validation":
-            followup_question = "您是说...对吗？"
+            followup_question = "我理解得对吗？"
         else:  # expansion
-            followup_question = "除此之外，还有其他想法吗？"
+            followup_question = "还有其他想法吗？"
 
     state["pending_question"] = followup_question
 
     # Add to conversation history
-    state["conversation_history"].append(
-        {"role": "assistant", "content": followup_question}
-    )
+    state["conversation_history"].append({"role": "assistant", "content": followup_question})
     state["conversation_history"] = _truncate_history(state["conversation_history"])
+
+    # FR-002 AC-003: Increment follow-up count for current topic
+    # Initialize followup_count if missing (edge case handling)
+    if state.get("followup_count") is None:
+        state["followup_count"] = {}
+
+    followup_count = state["followup_count"]
+    topics = state.get("topics", [])
+    current_idx = state.get("current_topic_index", 0)
+
+    if current_idx < len(topics):
+        current_topic = topics[current_idx]
+        topic_key = _get_topic_key(current_topic)
+        current_count = followup_count.get(topic_key, 0)
+
+        # Cap at MAX_FOLLOWUP_PER_TOPIC (don't exceed)
+        if current_count < MAX_FOLLOWUP_PER_TOPIC:
+            followup_count[topic_key] = current_count + 1
+            logger.info(
+                "Follow-up count for topic '%s' incremented to %d",
+                topic_key,
+                followup_count[topic_key],
+            )
+        else:
+            # Edge case: somehow reached followup_node when limit was already reached
+            logger.warning(
+                "Follow-up count for topic '%s' already at max (%d), not incrementing",
+                topic_key,
+                current_count,
+            )
 
     # Reset follow-up state
     state["needs_followup"] = False
     state["followup_type"] = None
+    state["followup_reason"] = None
 
     return state
 
@@ -293,15 +449,12 @@ def analysis_node(state: InterviewState) -> InterviewState:
 
         state["report"] = "\n".join(report_lines)
 
-    # Persist report to file
+    # Persist report to file using ReportService
     try:
-        reports_dir = os.getenv("REPORTS_DIR", "reports")
-        session_dir = os.path.join(reports_dir, state["session_id"])
-        os.makedirs(session_dir, exist_ok=True)
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        report_path = os.path.join(session_dir, f"report_{timestamp}.md")
-        with open(report_path, "w", encoding="utf-8") as f:
-            f.write(state["report"])
+        from src.services.report_service import get_report_service
+
+        report_service = get_report_service()
+        report_path = report_service.save_report(state["session_id"], state["report"])
         state["report_path"] = report_path
         logger.info("Report saved session=%s path=%s", state.get("session_id"), report_path)
     except Exception:

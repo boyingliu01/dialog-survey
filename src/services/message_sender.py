@@ -2,17 +2,18 @@
 Message sender service for DingTalk messages.
 """
 
-from typing import Optional, Dict, Any
+from typing import Any
+
 from src.services.dingtalk import DingTalkService
 
 
 class MessageSender:
     """Service for sending messages to DingTalk users."""
 
-    def __init__(self, dingtalk_service: Optional[DingTalkService] = None):
+    def __init__(self, dingtalk_service: DingTalkService | None = None):
         self.dingtalk = dingtalk_service or DingTalkService()
 
-    def send_text(self, user_id: str, text: str) -> Dict[str, Any]:
+    def send_text(self, user_id: str, text: str) -> dict[str, Any]:
         """Send text message to user.
 
         Args:
@@ -24,7 +25,7 @@ class MessageSender:
         """
         return self.dingtalk.send_message(user_id, "text", text)
 
-    def send_markdown(self, user_id: str, title: str, content: str) -> Dict[str, Any]:
+    def send_markdown(self, user_id: str, title: str, content: str) -> dict[str, Any]:
         """Send markdown message to user.
 
         Args:
@@ -38,7 +39,7 @@ class MessageSender:
         markdown = f"## {title}\n\n{content}"
         return self.dingtalk.send_message(user_id, "markdown", markdown)
 
-    def send_interview_question(self, user_id: str, question: str) -> Dict[str, Any]:
+    def send_interview_question(self, user_id: str, question: str) -> dict[str, Any]:
         """Send interview question to user.
 
         Args:
@@ -53,7 +54,7 @@ class MessageSender:
 
     def send_interview_invite(
         self, user_id: str, topic: str, duration: str = "15分钟"
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Send interview invitation to user.
 
         Args:
@@ -84,7 +85,7 @@ class MessageSender:
 
     def send_followup_question(
         self, user_id: str, question: str, context: str = ""
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Send follow-up question to user.
 
         Args:
@@ -95,7 +96,7 @@ class MessageSender:
         Returns:
             API response
         """
-        message = f"""【追问】"""
+        message = """【追问】"""
         if context:
             message += f"\n\n您之前提到：{context}"
         message += f"\n\n{question}"
@@ -104,7 +105,7 @@ class MessageSender:
 
     def send_interview_complete(
         self, user_id: str, report_path: str = ""
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Send interview completion message.
 
         Args:
@@ -126,7 +127,7 @@ class MessageSender:
 
         return self.send_text(user_id, message)
 
-    def send_reminder(self, user_id: str, topic: str) -> Dict[str, Any]:
+    def send_reminder(self, user_id: str, topic: str) -> dict[str, Any]:
         """Send interview reminder to user.
 
         Args:
@@ -147,7 +148,7 @@ class MessageSender:
 """
         return self.send_text(user_id, message)
 
-    def send_error_message(self, user_id: str, error: str) -> Dict[str, Any]:
+    def send_error_message(self, user_id: str, error: str) -> dict[str, Any]:
         """Send error message to user.
 
         Args:
@@ -166,7 +167,7 @@ class MessageSender:
 
 
 # Singleton instance
-_message_sender: Optional[MessageSender] = None
+_message_sender: MessageSender | None = None
 
 
 def get_message_sender() -> MessageSender:

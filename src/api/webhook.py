@@ -4,18 +4,19 @@ Webhook handler for receiving DingTalk messages.
 
 import asyncio
 import logging
-from fastapi import APIRouter, Request, HTTPException, Depends
-from pydantic import BaseModel
-from typing import Optional, Dict, Any
-from sqlalchemy.orm import Session
 import uuid
+from typing import Any
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from src.core.graph import run_interview
 from src.models.database import get_db
 from src.models.interview import Interview, InterviewStatus
 from src.models.message import Message
+from src.services.asr import ASRServiceError, get_asr_service
 from src.services.dingtalk import DingTalkService, get_dingtalk_service
-from src.services.asr import ASRService, get_asr_service, ASRServiceError
-from src.core.graph import run_interview
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -27,16 +28,16 @@ class WebhookCallback(BaseModel):
     msg_type: str
     user_id: str
     content: str
-    session_id: Optional[str] = None
-    conversation_id: Optional[str] = None
+    session_id: str | None = None
+    conversation_id: str | None = None
 
 
 @router.get("/webhook")
 async def verify_webhook(
     request: Request,
-    signature: Optional[str] = None,
-    timestamp: Optional[str] = None,
-    nonce: Optional[str] = None,
+    signature: str | None = None,
+    timestamp: str | None = None,
+    nonce: str | None = None,
 ):
     """Verify webhook URL for DingTalk callback configuration.
 
@@ -60,9 +61,7 @@ async def verify_webhook(
 
 
 @router.post("/webhook")
-async def handle_webhook(
-    request: Request, db: Session = Depends(get_db)
-) -> Dict[str, Any]:
+async def handle_webhook(request: Request, db: Session = Depends(get_db)) -> dict[str, Any]:
     """Handle incoming DingTalk webhook messages.
 
     This endpoint receives messages from DingTalk and processes them:
@@ -101,15 +100,13 @@ async def handle_webhook(
 
     # Handle voice message
     if msg_type == "voice":
-        return await _handle_voice_message(
-            body, user_id, message_data, db, dingtalk
-        )
+        return await _handle_voice_message(body, user_id, message_data, db, dingtalk)
 
     if not user_id:
         return {"code": 400, "msg": "Missing user_id"}
 
     # Find or create interview session
-    session_id = body.get("session_id")
+    session_id = body.get("session_id") if isinstance(body, dict) else None
 
     if not session_id:
         # Check if there's an active interview for this user
@@ -200,9 +197,7 @@ async def handle_webhook(
         return {"code": 404, "msg": "Interview not found"}
 
     # Store user message
-    user_message = Message(
-        interview_id=interview.id, role="user", content=content, message_type=msg_type
-    )
+    user_message = Message(interview_id=interview.id, role="user", content=content, message_type=msg_type)
     db.add(user_message)
 
     # Update conversation history
@@ -265,12 +260,12 @@ async def handle_webhook(
 
 
 async def _handle_voice_message(
-    body: Dict[str, Any],
+    body: dict[str, Any],
     user_id: str,
-    message_data: Dict[str, Any],
+    message_data: dict[str, Any],
     db: Session,
     dingtalk: DingTalkService,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Handle voice message transcription and processing.
 
     Args:
@@ -300,18 +295,12 @@ async def _handle_voice_message(
 
     try:
         # Try to get audio URL from DingTalk and transcribe
-        # For now, we'll try to download and transcribe
-        # If DingTalk provides a download URL, we use it
-
-        # Check if there's a download URL in the message
         audio_url = body.get("voice", {}).get("recognition", "")
 
         if audio_url:
-            # Use URL-based transcription
             logger.info("Transcribing from URL for user=%s", user_id)
             transcribed_text = await asr_service.transcribe_from_url_async(audio_url)
         else:
-            # No URL available, return graceful error message
             logger.warning("No audio URL available for user=%s", user_id)
             return {
                 "code": 200,
@@ -319,9 +308,7 @@ async def _handle_voice_message(
                 "message": "已收到您的语音消息，正在处理中，请稍候...",
             }
 
-        # Check if transcription failed
         if transcribed_text.startswith("[") and transcribed_text.endswith("]"):
-            # Error message from ASR service
             logger.error("ASR transcription failed for user=%s: %s", user_id, transcribed_text)
             return {
                 "code": 200,
@@ -331,25 +318,12 @@ async def _handle_voice_message(
 
         logger.info("Voice transcription successful for user=%s: %s", user_id, transcribed_text[:50])
 
-        # Now process the transcribed text as a regular text message
-        # Forward to the main webhook handler logic
-        # Create a modified body with the transcribed text
         text_body = body.copy()
         text_body["msgtype"] = "text"
         text_body["text"] = {"content": transcribed_text}
 
-        # Import the main handler function
-        from src.api.webhook import handle_webhook
-
-        # Process as text message
-        # Note: This creates a recursive call pattern, so we handle it differently
-        # Instead, we'll directly process the message here
-
-        # Find or create session
         session_id = body.get("session_id")
-
         if not session_id:
-            # Check for active interview
             interview = (
                 db.query(Interview)
                 .filter(
@@ -358,25 +332,20 @@ async def _handle_voice_message(
                 )
                 .first()
             )
-
             if interview:
                 session_id = interview.session_id
 
         if not session_id:
-            # No active session
             return {
                 "code": 200,
                 "msg": "success",
                 "message": f"识别结果：{transcribed_text}\n\n请回复'开始'启动访谈。",
             }
 
-        # Process with existing session
         interview = db.query(Interview).filter(Interview.session_id == session_id).first()
-
         if not interview:
             return {"code": 404, "msg": "Interview not found"}
 
-        # Store transcribed message
         user_message = Message(
             interview_id=interview.id,
             role="user",
@@ -385,15 +354,12 @@ async def _handle_voice_message(
         )
         db.add(user_message)
 
-        # Update conversation history
         history = interview.conversation_history or []
         history.append({"role": "user", "content": transcribed_text})
         interview.conversation_history = history
         interview.updated_at = __import__("datetime").datetime.utcnow()
-
         db.commit()
 
-        # Call conversation engine (offload sync operation to thread pool)
         try:
             from src.core.graph import run_interview
 
@@ -406,18 +372,15 @@ async def _handle_voice_message(
                 user_message=transcribed_text,
             )
 
-            # Update interview state
             interview.conversation_history = result_state.get("conversation_history", [])
             interview.updated_at = __import__("datetime").datetime.utcnow()
 
-            # Get response
             response_message = "感谢您的回答。"
             for msg in reversed(result_state.get("conversation_history", [])):
                 if msg.get("role") == "assistant":
                     response_message = msg.get("content", "")
                     break
 
-            # Store assistant response
             assistant_message = Message(
                 interview_id=interview.id,
                 role="assistant",
@@ -433,7 +396,6 @@ async def _handle_voice_message(
                 "session_id": session_id,
                 "message": response_message,
             }
-
         except Exception as e:
             db.rollback()
             logger.error("LangGraph error in voice handler session=%s: %s", session_id, e, exc_info=True)
@@ -443,7 +405,6 @@ async def _handle_voice_message(
                 "session_id": session_id,
                 "message": "抱歉，处理您的消息时出错，请重试。",
             }
-
     except ASRServiceError as e:
         logger.error("ASR service error for user=%s: %s", user_id, e)
         return {
@@ -458,56 +419,3 @@ async def _handle_voice_message(
             "msg": "success",
             "message": "处理语音消息时出错，请用文字发送您的回答。",
         }
-
-
-@router.post("/webhook/voice")
-async def handle_voice_callback(
-    request: Request, db: Session = Depends(get_db)
-) -> Dict[str, Any]:
-    """Handle voice message callback from DingTalk.
-
-    When a voice message is received, DingTalk may call this
-    endpoint with the transcribed text.
-
-    Deprecated: Voice messages are now handled in the main webhook handler.
-    This endpoint is kept for backward compatibility.
-    """
-    try:
-        body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON body")
-
-    user_id = body.get("senderStaffId", "")
-    content = body.get("text", {}).get("content", "")
-
-    if not user_id or not content:
-        return {"code": 400, "msg": "Missing required fields"}
-
-    # Find active interview
-    interview = (
-        db.query(Interview)
-        .filter(
-            Interview.user_id == user_id,
-            Interview.status == InterviewStatus.IN_PROGRESS,
-        )
-        .first()
-    )
-
-    if not interview:
-        return {"code": 0, "msg": "No active interview"}
-
-    # Store voice message
-    voice_message = Message(
-        interview_id=interview.id, role="user", content=content, message_type="voice"
-    )
-    db.add(voice_message)
-
-    # Update conversation history
-    history = interview.conversation_history or []
-    history.append({"role": "user", "content": content, "type": "voice"})
-    interview.conversation_history = history
-    interview.updated_at = __import__("datetime").datetime.utcnow()
-
-    db.commit()
-
-    return {"code": 0, "msg": "success"}

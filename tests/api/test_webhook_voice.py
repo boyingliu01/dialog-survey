@@ -2,8 +2,9 @@
 Tests for webhook voice message handling.
 """
 
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 
 
 class TestWebhookVoiceHandling:
@@ -12,7 +13,7 @@ class TestWebhookVoiceHandling:
     def test_voice_handler_imports(self):
         """Test that voice handler imports work correctly."""
         from src.api.webhook import _handle_voice_message
-        from src.services.asr import get_asr_service, ASRServiceError
+        from src.services.asr import ASRServiceError, get_asr_service
 
         assert callable(_handle_voice_message)
         assert callable(get_asr_service)
@@ -59,10 +60,9 @@ class TestASRServiceWebhookIntegration:
 
     def test_asr_service_singleton(self):
         """Test ASR service singleton pattern."""
-        from src.services.asr import get_asr_service, _asr_service
-
         # Reset singleton for test
         import src.services.asr as asr_module
+        from src.services.asr import get_asr_service
         original = asr_module._asr_service
         asr_module._asr_service = None
 
@@ -182,9 +182,9 @@ class TestVoiceHandlerImports:
         """Test ASR service imports."""
         from src.services.asr import (
             ASRService,
-            get_asr_service,
             ASRServiceError,
             AudioFormatError,
+            get_asr_service,
         )
         assert ASRService is not None
         assert callable(get_asr_service)

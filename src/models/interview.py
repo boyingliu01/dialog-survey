@@ -2,9 +2,12 @@
 Interview model for storing interview session data.
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Text, JSON, Enum as SQLEnum
-from datetime import datetime
 import enum
+from datetime import datetime
+
+from sqlalchemy import JSON, Column, DateTime, Integer, String
+from sqlalchemy import Enum as SQLEnum
+
 from src.models.database import Base
 
 

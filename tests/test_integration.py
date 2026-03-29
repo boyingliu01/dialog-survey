@@ -5,10 +5,7 @@ These tests use FastAPI TestClient with an in-memory SQLite database and
 mocked LLM/DingTalk services so no external APIs are required.
 """
 
-import os
-import json
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

@@ -1,21 +1,26 @@
 """
-Qwen (通义千问) LLM service for interview bot.
+LLM service for interview bot using OpenAI-compatible API.
+Supports Alibaba Cloud BaiLian (百炼) and other OpenAI-compatible endpoints.
 """
 
-import os
-import json
-import time
 import concurrent.futures
-from typing import List, Dict, Any, Optional, Tuple
+import json
+import os
+import time
+from typing import Any
+
 from dotenv import load_dotenv
+
+# Import OpenAI client
+from openai import OpenAI
 
 load_dotenv()
 
-# Module-level shared executor for LLM calls (avoids per-request ThreadPoolExecutor creation)
-_llm_executor: Optional[concurrent.futures.ThreadPoolExecutor] = None
+# Module-level shared executor for LLM calls
+_llm_executor: concurrent.futures.ThreadPoolExecutor | None = None
 
-# Default LLM timeout in seconds (used when LLM_TIMEOUT env var is not set)
-DEFAULT_LLM_TIMEOUT_SEC = 30
+# Default LLM timeout in seconds
+DEFAULT_LLM_TIMEOUT_SEC = 60
 
 
 def _get_llm_executor() -> concurrent.futures.ThreadPoolExecutor:
@@ -24,50 +29,49 @@ def _get_llm_executor() -> concurrent.futures.ThreadPoolExecutor:
     if _llm_executor is None:
         _llm_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
     return _llm_executor
-class QwenService:
-    """Qwen LLM service for interview bot.
 
-    This service wraps the DashScope API for Qwen models.
+
+class LLMService:
+    """LLM service using OpenAI-compatible API.
+
+    Default configuration uses Alibaba Cloud BaiLian (百炼):
+    - Base URL: https://coding.dashscope.aliyuncs.com/apps/anthropic
+    - Model: glm-5, glm-4.7
     """
 
-    def __init__(self, model: str = "qwen-max", api_key: Optional[str] = None):
-        """Initialize Qwen service.
+    def __init__(
+        self,
+        model: str = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ):
+        """Initialize LLM service.
 
         Args:
-            model: Model name (qwen-max, qwen-turbo, etc.)
-            api_key: DashScope API key (optional, uses env var if not provided)
+            model: Model name (default: glm-5)
+            api_key: API key (default: from env ANTHROPIC_AUTH_TOKEN or DASHSCOPE_API_KEY)
+            base_url: API base URL (default: from env ANTHROPIC_BASE_URL)
         """
-        self.model = model
-        self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY")
-        self._client = None
+        self.model = model or os.getenv("ANTHROPIC_MODEL", "glm-5")
+        self.api_key = api_key or os.getenv("ANTHROPIC_AUTH_TOKEN") or os.getenv("DASHSCOPE_API_KEY")
+        self.base_url = base_url or os.getenv(
+            "ANTHROPIC_BASE_URL", "https://coding.dashscope.aliyuncs.com/apps/anthropic"
+        )
 
-        # Lazy import to avoid import errors when not configured
-        self._dashscope_available = False
-        try:
-            import dashscope
-
-            dashscope.api_key = self.api_key
-            self._dashscope_available = True
-        except ImportError:
-            pass
-
-    def _get_client(self):
-        """Get or create DashScope client."""
-        if not self._dashscope_available:
-            raise RuntimeError("dashscope package not installed")
-
-        from dashscope import Generation
-
-        return Generation
+        # Initialize OpenAI client
+        self._client = OpenAI(
+            api_key=self.api_key,
+            base_url=self.base_url,
+        )
 
     def chat(
         self,
-        messages: List[Dict[str, str]],
-        system_prompt: Optional[str] = None,
+        messages: list[dict[str, str]],
+        system_prompt: str | None = None,
         temperature: float = 0.7,
         max_tokens: int = 2000,
     ) -> str:
-        """Send chat request to Qwen.
+        """Send chat request to LLM.
 
         Args:
             messages: List of message dicts with role and content
@@ -81,12 +85,7 @@ class QwenService:
         Raises:
             Exception if API call fails
         """
-        if not self._dashscope_available:
-            return self._mock_response(messages)
-
-        client = self._get_client()
-
-        # Format messages
+        # Prepare messages
         formatted_messages = []
 
         if system_prompt:
@@ -95,10 +94,9 @@ class QwenService:
         formatted_messages.extend(messages)
 
         max_retries = int(os.getenv("MAX_LLM_RETRIES", "2"))
-        # Use default timeout if LLM_TIMEOUT not set, to prevent infinite waits
         timeout_sec = int(os.getenv("LLM_TIMEOUT", str(DEFAULT_LLM_TIMEOUT_SEC))) or DEFAULT_LLM_TIMEOUT_SEC
 
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(max_retries + 1):
             if attempt > 0:
                 time.sleep(2 ** (attempt - 1))
@@ -106,48 +104,33 @@ class QwenService:
             try:
                 executor = _get_llm_executor()
                 future = executor.submit(
-                    client.call,
+                    self._client.chat.completions.create,
                     model=self.model,
                     messages=formatted_messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
-                    result_format="message",
                 )
+
                 try:
                     response = future.result(timeout=timeout_sec)
                 except concurrent.futures.TimeoutError:
                     last_exc = TimeoutError(f"LLM call timed out after {timeout_sec}s")
                     continue
 
-                if response.status_code == 200:
-                    return response.output.choices[0].message.content
+                if response.choices and len(response.choices) > 0:
+                    return response.choices[0].message.content
                 else:
-                    raise Exception(f"LLM call failed: {response.code} - {response.message}")
+                    raise Exception("LLM returned empty response")
 
             except Exception as e:
                 last_exc = e
+                print(f"LLM call attempt {attempt + 1} failed: {e}")
 
         raise last_exc or Exception("LLM call failed after retries")
 
-    def _mock_response(self, messages: List[Dict[str, str]]) -> str:
-        """Generate mock response for testing."""
-        last_message = messages[-1] if messages else {}
-        content = last_message.get("content", "")
-
-        if "判断" in content or "是否需要追问" in content:
-            return json.dumps(
-                {
-                    "needs_followup": False,
-                    "followup_type": "",
-                    "reason": "Mock response",
-                }
-            )
-
-        return "这是模拟回复。"
-
     def is_followup_needed(
-        self, conversation_history: List[Dict[str, str]], extracted_info: Dict[str, Any]
-    ) -> Tuple[bool, str, str]:
+        self, conversation_history: list[dict[str, str]], extracted_info: dict[str, Any]
+    ) -> tuple[bool, str, str]:
         """Determine if follow-up is needed.
 
         Args:
@@ -161,20 +144,11 @@ class QwenService:
 
         # Get recent messages
         recent_history = conversation_history[-6:]  # Last 3 turns
-        history_text = "\n".join(
-            [
-                f"{msg.get('role', 'unknown')}: {msg.get('content', '')}"
-                for msg in recent_history
-            ]
-        )
+        history_text = "\n".join([f"{msg.get('role', 'unknown')}: {msg.get('content', '')}" for msg in recent_history])
 
-        prompt = FOLLOWUP_JUDGE_PROMPT.format(
-            conversation_history=history_text, extracted_info=str(extracted_info)
-        )
+        prompt = FOLLOWUP_JUDGE_PROMPT.format(conversation_history=history_text, extracted_info=str(extracted_info))
 
-        result = self.chat(
-            messages=[{"role": "user", "content": prompt}], temperature=0.3
-        )
+        result = self.chat(messages=[{"role": "user", "content": prompt}], temperature=0.3)
 
         # Parse JSON result
         try:
@@ -187,9 +161,7 @@ class QwenService:
         except (json.JSONDecodeError, AttributeError):
             return False, "", "解析失败"
 
-    def generate_followup(
-        self, user_answer: str, followup_type: str, domain_context: str = ""
-    ) -> str:
+    def generate_followup(self, user_answer: str, followup_type: str, domain_context: str = "") -> str:
         """Generate follow-up question.
 
         Args:
@@ -208,9 +180,7 @@ class QwenService:
             domain_context=domain_context,
         )
 
-        result = self.chat(
-            messages=[{"role": "user", "content": prompt}], temperature=0.7
-        )
+        result = self.chat(messages=[{"role": "user", "content": prompt}], temperature=0.7)
 
         return result.strip()
 
@@ -219,7 +189,7 @@ class QwenService:
         current_topic: str,
         topic_description: str,
         user_answer: str,
-        extracted_info: Dict[str, Any],
+        extracted_info: dict[str, Any],
     ) -> str:
         """Generate next interview question.
 
@@ -241,17 +211,18 @@ class QwenService:
             extracted_info=str(extracted_info),
         )
 
-        result = self.chat(
-            messages=[{"role": "user", "content": prompt}], temperature=0.7
-        )
+        result = self.chat(messages=[{"role": "user", "content": prompt}], temperature=0.7)
 
         return result.strip()
 
     def generate_report(
         self,
-        conversation_history: List[Dict[str, str]],
-        topics: List[Dict[str, Any]],
+        conversation_history: list[dict[str, str]],
+        topics: list[dict[str, Any]],
         topic: str,
+        duration: int = 15,
+        quality_score: int = 8,
+        use_v2: bool = True,
     ) -> str:
         """Generate interview report.
 
@@ -259,11 +230,14 @@ class QwenService:
             conversation_history: Full conversation history
             topics: List of topics covered
             topic: Interview topic
+            duration: Estimated interview duration in minutes (default: 15)
+            quality_score: Answer quality score from 1-10 (default: 8)
+            use_v2: Use structured V2 prompt (default: True)
 
         Returns:
             Generated report in Markdown format
         """
-        from src.services.prompts import REPORT_GENERATE_PROMPT
+        from src.services.prompts import REPORT_GENERATE_PROMPT, REPORT_GENERATE_PROMPT_V2
 
         # Format conversation
         history_text = "\n\n".join(
@@ -274,12 +248,17 @@ class QwenService:
         )
 
         # Format topics
-        topics_text = "\n".join(
-            [f"- {t.get('name', '未命名')}: {t.get('description', '')}" for t in topics]
-        )
+        topics_text = "\n".join([f"- {t.get('name', '未命名')}: {t.get('description', '')}" for t in topics])
 
-        prompt = REPORT_GENERATE_PROMPT.format(
-            topic=topic, topics=topics_text, conversation_history=history_text
+        # Use V2 prompt by default for structured report
+        prompt_template = REPORT_GENERATE_PROMPT_V2 if use_v2 else REPORT_GENERATE_PROMPT
+
+        prompt = prompt_template.format(
+            topic=topic,
+            topics=topics_text,
+            conversation_history=history_text,
+            duration=duration,
+            quality_score=quality_score,
         )
 
         result = self.chat(
@@ -290,20 +269,110 @@ class QwenService:
 
         return result
 
+    def generate_opening_question(
+        self,
+        topic_name: str,
+        topic_description: str,
+        first_topic: str,
+        persona_config: dict[str, Any],
+    ) -> str:
+        """Generate opening question for interview.
+
+        Args:
+            topic_name: Interview topic name
+            topic_description: Interview topic description
+            first_topic: First topic to discuss
+            persona_config: Persona configuration dict
+
+        Returns:
+            Generated opening question with welcome message
+        """
+        from src.services.prompts import (
+            OPENING_QUESTION_PROMPT,
+            build_system_prompt,
+        )
+
+        system_prompt = build_system_prompt(**persona_config)
+
+        prompt = OPENING_QUESTION_PROMPT.format(
+            system_prompt=system_prompt,
+            topic_name=topic_name,
+            topic_description=topic_description,
+            first_topic=first_topic,
+        )
+
+        result = self.chat(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.8,
+            max_tokens=500,
+        )
+
+        return result.strip()
+
+    def generate_next_question_enhanced(
+        self,
+        conversation_history: list[dict[str, str]],
+        current_topic: str,
+        topic_description: str,
+        current_topic_index: int,
+        total_topics: int,
+        extracted_info: dict[str, Any],
+        persona_config: dict[str, Any],
+    ) -> str:
+        """Generate next question with full context awareness.
+
+        Args:
+            conversation_history: Full conversation history
+            current_topic: Current topic name
+            topic_description: Current topic description
+            current_topic_index: Current topic index
+            total_topics: Total number of topics
+            extracted_info: Extracted information so far
+            persona_config: Persona configuration dict
+
+        Returns:
+            Generated next question
+        """
+        from src.services.prompts import (
+            NEXT_QUESTION_PROMPT,
+            build_system_prompt,
+            format_conversation_history,
+        )
+
+        system_prompt = build_system_prompt(**persona_config)
+
+        prompt = NEXT_QUESTION_PROMPT.format(
+            system_prompt=system_prompt,
+            conversation_history=format_conversation_history(conversation_history),
+            current_topic=current_topic,
+            topic_description=topic_description,
+            current_topic_index=current_topic_index,
+            total_topics=total_topics,
+            extracted_info=str(extracted_info),
+        )
+
+        result = self.chat(
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+            max_tokens=300,
+        )
+
+        return result.strip()
+
 
 # Singleton instance
-_qwen_service: Optional[QwenService] = None
+_llm_service: LLMService | None = None
 
 
-def get_qwen_service() -> QwenService:
-    """Get singleton Qwen service instance."""
-    global _qwen_service
-    if _qwen_service is None:
-        _qwen_service = QwenService()
-    return _qwen_service
+def get_qwen_service() -> LLMService:
+    """Get singleton LLM service instance."""
+    global _llm_service
+    if _llm_service is None:
+        _llm_service = LLMService()
+    return _llm_service
 
 
 # Alias for backward compatibility
-def get_llm_service() -> QwenService:
+def get_llm_service() -> LLMService:
     """Get singleton LLM service instance. Alias for get_qwen_service()."""
     return get_qwen_service()
