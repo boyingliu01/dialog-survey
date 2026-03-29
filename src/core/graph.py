@@ -2,18 +2,20 @@
 LangGraph interview conversation graph.
 """
 
-from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
+from typing import Any
 
-from src.core.state import InterviewState, create_initial_state
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, StateGraph
+
 from src.core.nodes import (
-    planning_node,
-    interview_node,
-    followup_node,
     analysis_node,
     end_node,
+    followup_node,
+    interview_node,
+    planning_node,
     should_continue,
 )
+from src.core.state import InterviewState, create_initial_state
 
 
 def create_interview_graph() -> StateGraph:
@@ -84,7 +86,10 @@ def run_interview(
     user_id: str,
     template_id: str = "quality_survey",
     topic: str = "质量满意度调查",
-    user_message: str = None,
+    user_message: str | None = None,
+    conversation_history: list[dict[str, Any]] | None = None,
+    current_topic_index: int | None = None,
+    completed_topics: list[str] | None = None,
 ) -> InterviewState:
     """Run an interview conversation turn.
 
@@ -96,34 +101,56 @@ def run_interview(
         template_id: Template to use
         topic: Interview topic
         user_message: Optional user message to process
+        conversation_history: Optional conversation history from database
 
     Returns:
         Updated interview state
     """
-    # Create graph
-    graph = create_interview_graph()
+    # Use singleton graph to preserve state across calls
+    graph = get_interview_graph()
 
     # Create initial state
     config = {"configurable": {"thread_id": session_id}}
 
-    # Check if this is a new session
-    try:
-        # Try to get existing state
-        state = graph.get_state(config)
-        if state is None:
+    # 🔧 FIX: Prefer database history over MemorySaver (which is lost on restart)
+    # Check if we have history from database (source of truth)
+    if conversation_history:
+        # Use database history - this is the source of truth
+        initial_state = create_initial_state(
+            session_id=session_id,
+            user_id=user_id,
+            template_id=template_id,
+            topic=topic,
+        )
+        initial_state["conversation_history"] = list(conversation_history)
+
+        # Check if already initialized (has assistant messages)
+        has_assistant = any(m.get("role") == "assistant" for m in conversation_history)
+        if has_assistant:
+            initial_state["status"] = "interviewing"
+            # Estimate topic index from history
+            topic_count = sum(1 for m in conversation_history if m.get("role") == "assistant")
+            initial_state["current_topic_index"] = min(topic_count - 1, 2)
+    else:
+        # No database history - try MemorySaver or create new
+        try:
+            state = graph.get_state(config)
+            if state is None or not state.values:
+                initial_state = create_initial_state(
+                    session_id=session_id,
+                    user_id=user_id,
+                    template_id=template_id,
+                    topic=topic,
+                )
+            else:
+                initial_state = dict(state.values)
+        except Exception:
             initial_state = create_initial_state(
                 session_id=session_id,
                 user_id=user_id,
                 template_id=template_id,
                 topic=topic,
             )
-        else:
-            initial_state = state.values
-    except Exception:
-        # New session
-        initial_state = create_initial_state(
-            session_id=session_id, user_id=user_id, template_id=template_id, topic=topic
-        )
 
     # Ensure required fields exist (for restored sessions)
     required_fields = {
@@ -135,6 +162,7 @@ def run_interview(
         "pending_question": None,
         "needs_followup": False,
         "followup_type": None,
+        "followup_count": {},  # FR-002 AC-003: Follow-up count per topic
         "report": None,
         "report_path": None,
         "domain_context": "",
@@ -150,9 +178,7 @@ def run_interview(
 
     # Add user message if provided
     if user_message:
-        initial_state["conversation_history"].append(
-            {"role": "user", "content": user_message}
-        )
+        initial_state["conversation_history"].append({"role": "user", "content": user_message})
 
     # Run the graph
     result = graph.invoke(initial_state, config)

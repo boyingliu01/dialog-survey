@@ -3,18 +3,18 @@ Tests verifying that key operations emit structured log records.
 Uses pytest's caplog fixture — no external dependencies needed.
 """
 
-import pytest
 import logging
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-from fastapi.testclient import TestClient
 
 from src.api.main import app
 from src.models.database import Base, get_db
 from src.models.interview import Interview, InterviewStatus
-
 
 # ---------------------------------------------------------------------------
 # Shared DB fixture (same pattern as test_webhook.py)

@@ -2,12 +2,13 @@
 DingTalk service for message handling and API calls.
 """
 
-import hashlib
-import time
-import hmac
 import base64
-from typing import Optional, Dict, Any
+import hashlib
+import hmac
 import os
+import time
+from typing import Any
+
 import httpx
 from dotenv import load_dotenv
 
@@ -24,15 +25,15 @@ class DingTalkService:
 
     def __init__(
         self,
-        app_key: Optional[str] = None,
-        app_secret: Optional[str] = None,
-        agent_id: Optional[str] = None,
+        app_key: str | None = None,
+        app_secret: str | None = None,
+        agent_id: str | None = None,
     ):
         # Use explicit values when provided (even empty string), fall back to env only when None
         self.app_key = app_key if app_key is not None else os.getenv("DINGTALK_APP_KEY")
         self.app_secret = app_secret if app_secret is not None else os.getenv("DINGTALK_APP_SECRET")
         self.agent_id = agent_id if agent_id is not None else os.getenv("DINGTALK_AGENT_ID")
-        self._access_token: Optional[str] = None
+        self._access_token: str | None = None
         self._token_expires_at: float = 0
 
     def verify_signature(self, timestamp: str, signature: str, nonce: str) -> bool:
@@ -89,7 +90,7 @@ class DingTalkService:
 
         return self._access_token
 
-    def send_message(self, user_id: str, msg_type: str, content: str) -> Dict[str, Any]:
+    def send_message(self, user_id: str, msg_type: str, content: str) -> dict[str, Any]:
         """Send message to a DingTalk user via work notification.
 
         Args:
@@ -132,7 +133,7 @@ class DingTalkService:
 
         return {"code": 0, "msg": "success", "user_id": user_id, "msg_type": msg_type}
 
-    def parse_webhook_message(self, body: Dict[str, Any]) -> Dict[str, Any]:
+    def parse_webhook_message(self, body: dict[str, Any]) -> dict[str, Any]:
         """Parse incoming webhook message.
 
         Args:

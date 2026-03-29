@@ -2,10 +2,10 @@
 Extended tests for template service, covering edge cases and DEFAULT_TEMPLATES content.
 """
 
-import pytest
-import tempfile
 import os
-from src.services.template import TemplateManager, DEFAULT_TEMPLATES
+import tempfile
+
+from src.services.template import DEFAULT_TEMPLATES, TemplateManager
 
 
 class TestDefaultTemplates:

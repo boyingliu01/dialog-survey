@@ -3,8 +3,10 @@ Tests for DingTalk service.
 """
 
 import time
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+
 from src.services.dingtalk import DingTalkService
 
 
@@ -98,9 +100,8 @@ class TestDingTalkAccessToken:
         mock_response.raise_for_status = MagicMock()
         mock_response.json.return_value = {"errcode": 40001, "errmsg": "invalid credential"}
 
-        with patch("httpx.get", return_value=mock_response):
-            with pytest.raises(Exception) as exc_info:
-                service.get_access_token()
+        with patch("httpx.get", return_value=mock_response), pytest.raises(Exception) as exc_info:
+            service.get_access_token()
 
         assert "invalid credential" in str(exc_info.value)
 

@@ -1,8 +1,14 @@
 # Interview Bot Services
 
-from src.services.asr import ASRService, get_asr_service, ASRServiceError, AudioFormatError
+from src.services.asr import (
+    ASRService,
+    ASRServiceError,
+    AudioFormatError,
+    get_asr_service,
+)
 from src.services.dingtalk import DingTalkService, get_dingtalk_service
-from src.services.llm import QwenService, get_llm_service
+from src.services.dingtalk_sender import DingTalkSender, get_sender
+from src.services.llm import LLMService, get_llm_service
 
 __all__ = [
     "ASRService",
@@ -11,6 +17,8 @@ __all__ = [
     "AudioFormatError",
     "DingTalkService",
     "get_dingtalk_service",
-    "QwenService",
+    "DingTalkSender",
+    "get_sender",
+    "LLMService",
     "get_llm_service",
 ]

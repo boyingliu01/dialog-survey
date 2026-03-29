@@ -1,0 +1,14 @@
+{
+  "id": "imported_d2232599",
+  "version": "1.0.0",
+  "name": "API导入",
+  "description": "测试",
+  "topics": [
+    {
+      "id": "t1",
+      "name": "主题",
+      "description": "描述",
+      "initial_question": "问题?"
+    }
+  ]
+}

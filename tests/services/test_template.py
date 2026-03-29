@@ -2,10 +2,9 @@
 Tests for template service.
 """
 
-import pytest
 import tempfile
-import os
-from src.services.template import TemplateManager, DEFAULT_TEMPLATES
+
+from src.services.template import TemplateManager
 
 
 class TestTemplateManager:

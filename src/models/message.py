@@ -2,8 +2,10 @@
 Message model for storing individual messages in interviews.
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Boolean
 from datetime import datetime
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+
 from src.models.database import Base
 
 
