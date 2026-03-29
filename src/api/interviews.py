@@ -2,10 +2,10 @@
 Interview management API endpoints.
 """
 
-import os
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
-from typing import Optional
+import os
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from src.models.database import get_db
@@ -15,7 +15,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def verify_api_key(x_api_key: Optional[str] = Header(None)) -> str:
+def verify_api_key(x_api_key: str | None = Header(None)) -> str:
     """Verify API key from X-API-Key header."""
     if not x_api_key:
         raise HTTPException(status_code=401, detail="Missing API key")
@@ -54,7 +54,7 @@ def _interview_detail(interview: Interview) -> dict:
 
 @router.get("/interviews")
 def list_interviews(
-    status: Optional[str] = Query(default=None),
+    status: str | None = Query(default=None),
     limit: int = Query(default=20),
     offset: int = Query(default=0),
     db: Session = Depends(get_db),
@@ -90,7 +90,7 @@ def get_interview_report(
     if not interview.report_path or not os.path.exists(interview.report_path):
         raise HTTPException(status_code=404, detail="Report not available")
 
-    with open(interview.report_path, "r", encoding="utf-8") as f:
+    with open(interview.report_path, encoding="utf-8") as f:
         content = f.read()
 
     return {

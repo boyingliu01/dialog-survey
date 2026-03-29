@@ -98,20 +98,22 @@ Required in `interview-bot/.env` (copy from `.env.example`):
 - `DATABASE_URL` — PostgreSQL connection string
 - `DINGTALK_APP_KEY`, `DINGTALK_APP_SECRET`, `DINGTALK_AGENT_ID`
 - `PUBLIC_URL` — Public HTTPS URL for DingTalk callback registration
+- `INTERNAL_API_KEY` — API key for authenticating internal endpoints (required)
 
 Optional:
 - `MAX_LLM_RETRIES` — LLM call retry count (default: 2)
-- `LLM_TIMEOUT` — LLM call timeout in seconds (default: no timeout)
+- `LLM_TIMEOUT` — LLM call timeout in seconds (default: 30)
 - `REPORTS_DIR` — Directory for generated reports (default: `reports/`)
+- `CORS_ORIGINS` — Comma-separated list of allowed CORS origins (default: none, blocks cross-origin)
 
 ## API Endpoints
 
 - `GET /api/webhook` — DingTalk webhook verification
 - `POST /api/webhook` — DingTalk message handler (text and voice)
-- `GET /api/interviews` — List interviews (`status`, `limit`, `offset` query params)
-- `GET /api/interviews/{session_id}` — Get interview details with messages
-- `GET /api/interviews/{session_id}/report` — Get generated report
-- `POST /api/interviews/{session_id}/end` — End an in-progress interview
+- `GET /api/interviews` — List interviews (`status`, `limit`, `offset` query params) ⚠️ Requires `X-API-Key` header
+- `GET /api/interviews/{session_id}` — Get interview details with messages ⚠️ Requires `X-API-Key` header
+- `GET /api/interviews/{session_id}/report` — Get generated report ⚠️ Requires `X-API-Key` header
+- `POST /api/interviews/{session_id}/end` — End an in-progress interview ⚠️ Requires `X-API-Key` header
 - `GET /api/templates` — List available interview templates
 - `GET /api/templates/{template_id}` — Get template details
 

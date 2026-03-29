@@ -2,11 +2,13 @@
 Template API endpoints.
 """
 
+import json
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
-from typing import List, Dict, Any
 from pydantic import BaseModel
 
-from src.services.template import TemplateManager, get_template_manager
+from src.services.template import get_template_manager
 
 router = APIRouter()
 
@@ -25,11 +27,23 @@ class CreateTemplateRequest(BaseModel):
 
     name: str
     description: str
-    topics: List[TopicModel]
+    topics: list[TopicModel]
     domain_context: str = ""
 
 
-@router.get("/templates", response_model=List[Dict[str, Any]])
+class CloneTemplateRequest(BaseModel):
+    """Request model for cloning template."""
+
+    new_name: str | None = None
+
+
+class ImportTemplateRequest(BaseModel):
+    """Request model for importing template."""
+
+    template: dict[str, Any]
+
+
+@router.get("/templates", response_model=list[dict[str, Any]])
 def list_templates():
     """List all available templates.
 
@@ -69,7 +83,7 @@ def create_template(request: CreateTemplateRequest):
     template = manager.create_template(
         name=request.name,
         description=request.description,
-        topics=[t.dict() for t in request.topics],
+        topics=[t.model_dump() for t in request.topics],
         domain_context=request.domain_context,
     )
 
@@ -94,3 +108,76 @@ def delete_template(template_id: str):
         raise HTTPException(status_code=400, detail="Cannot delete default templates")
 
     return {"message": "Template deleted successfully"}
+
+
+@router.post("/templates/{template_id}/clone")
+def clone_template(template_id: str, request: CloneTemplateRequest | None = None):
+    """Clone a template.
+
+    Args:
+        template_id: Template ID to clone
+        request: Clone request with optional new name
+
+    Returns:
+        Cloned template
+
+    Raises:
+        HTTPException: 404 if template not found
+    """
+    manager = get_template_manager()
+
+    new_name = request.new_name if request else None
+    cloned = manager.clone_template(template_id, new_name)
+
+    if cloned is None:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    return cloned
+
+
+@router.get("/templates/{template_id}/export")
+def export_template(template_id: str):
+    """Export template as JSON.
+
+    Args:
+        template_id: Template ID to export
+
+    Returns:
+        Exported template as JSON object
+
+    Raises:
+        HTTPException: 404 if template not found
+    """
+    manager = get_template_manager()
+
+    exported = manager.export_template(template_id)
+
+    if exported is None:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    # Parse JSON to return as object
+    template_data = json.loads(exported)
+
+    return {"template": template_data}
+
+
+@router.post("/templates/import")
+def import_template(request: ImportTemplateRequest):
+    """Import template from JSON.
+
+    Args:
+        request: Import request with template data
+
+    Returns:
+        Imported template
+
+    Raises:
+        HTTPException: 400 if template validation fails
+    """
+    manager = get_template_manager()
+
+    try:
+        imported = manager.import_template(request.template)
+        return imported
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

@@ -2,14 +2,15 @@
 Tests for database models.
 """
 
-import pytest
 from datetime import datetime
+
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
 from src.models.database import Base
 from src.models.interview import Interview, InterviewStatus
 from src.models.message import Message
-
 
 # Use in-memory SQLite for testing
 TEST_DATABASE_URL = "sqlite:///:memory:"

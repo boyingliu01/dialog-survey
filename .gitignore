@@ -48,3 +48,23 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Ruff
+.ruff_cache/
+
+# MyPy
+.mypy_cache/
+
+# Reports (generated)
+reports/*.md
+!reports/.gitkeep
+
+# Local database
+interview_bot.db

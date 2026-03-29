@@ -4,7 +4,7 @@ ASR (Automatic Speech Recognition) service for voice message processing.
 
 import os
 import tempfile
-from typing import Optional
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -36,9 +36,10 @@ class ASRService:
 
         # Check if funasr is available
         try:
-            import funasr
+            from importlib.util import find_spec
 
-            self._funasr_available = True
+            if find_spec("funasr") is not None:
+                self._funasr_available = True
         except ImportError:
             pass
 
@@ -50,9 +51,7 @@ class ASRService:
         if self._model is None:
             from funasr import AutoModel
 
-            self._model = AutoModel(
-                model=self.model_name, model_revision="v2.0.4", disable_update=True
-            )
+            self._model = AutoModel(model=self.model_name, model_revision="v2.0.4", disable_update=True)
 
         return self._model
 
@@ -80,7 +79,7 @@ class ASRService:
             if result and len(result) > 0:
                 return result[0].get("text", "")
             return ""
-        except Exception as e:
+        except Exception:
             # Return mock on error
             return self._mock_transcribe()
         finally:
@@ -158,7 +157,7 @@ class ASRService:
 
 
 # Singleton instance
-_asr_service: Optional[ASRService] = None
+_asr_service: ASRService | None = None
 
 
 def get_asr_service() -> ASRService:

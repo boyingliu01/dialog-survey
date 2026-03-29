@@ -1,0 +1,27 @@
+{
+  "id": "clone_59375a62",
+  "version": "1.0.1",
+  "name": "API克隆",
+  "description": "针对产品和服务质量的满意度访谈",
+  "domain_context": "\n质量满意度评估维度：\n1. 产品功能：产品功能是否满足需求\n2. 产品性能：响应速度、稳定性等\n3. 服务态度：客服响应速度、态度\n4. 解决问题能力：能否有效解决问题\n5. 整体满意度：综合评价\n",
+  "topics": [
+    {
+      "id": "product_quality",
+      "name": "产品质量",
+      "description": "对产品质量的评价",
+      "initial_question": "请您对产品的整体质量做一个评价？"
+    },
+    {
+      "id": "service_quality",
+      "name": "服务质量",
+      "description": "对服务体验的评价",
+      "initial_question": "您对我们服务的整体体验如何？"
+    },
+    {
+      "id": "improvement",
+      "name": "改进建议",
+      "description": "需要改进的地方",
+      "initial_question": "您认为我们在哪些方面还有提升空间？"
+    }
+  ]
+}

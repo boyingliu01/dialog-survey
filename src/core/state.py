@@ -2,7 +2,7 @@
 Interview state definition for LangGraph.
 """
 
-from typing import TypedDict, List, Dict, Any, Optional
+from typing import Any, TypedDict
 
 
 class InterviewState(TypedDict):
@@ -18,25 +18,32 @@ class InterviewState(TypedDict):
 
     # Conversation state
     current_topic_index: int
-    conversation_history: List[Dict[str, str]]
-    extracted_info: Dict[str, Any]
+    conversation_history: list[dict[str, str]]
+    extracted_info: dict[str, Any]
 
     # Topic/content
-    topics: List[Dict[str, Any]]
+    topics: list[dict[str, Any]]
     topic: str  # Interview topic/title
     domain_context: str  # Domain knowledge context
 
     # Flow control
     status: str  # "planning", "interviewing", "analyzing", "completed"
 
+    # Follow-up tracking (FR-002 AC-003: max 2 follow-ups per topic)
+    followup_count: dict[str, int]  # topic_id -> count of follow-ups asked
+
     # Pending actions
-    pending_question: Optional[str]
-    needs_followup: Optional[bool]
-    followup_type: Optional[str]  # "clarification", "deep", "validation", "expansion"
+    pending_question: str | None
+    needs_followup: bool | None
+    followup_type: str | None  # "clarification", "deep", "validation", "expansion"
+    followup_reason: str | None  # Reason for follow-up
 
     # Report
-    report: Optional[str]
-    report_path: Optional[str]
+    report: str | None
+    report_path: str | None
+
+    # Persona configuration
+    persona_config: dict[str, Any] | None  # Role, personality, style settings
 
 
 def create_initial_state(
@@ -56,20 +63,23 @@ def create_initial_state(
     Returns:
         Initial InterviewState
     """
-    return InterviewState(
-        session_id=session_id,
-        user_id=user_id,
-        template_id=template_id,
-        current_topic_index=0,
-        conversation_history=[],
-        extracted_info={},
-        topics=[],
-        topic=topic,
-        domain_context="",
-        status="planning",
-        pending_question=None,
-        needs_followup=None,
-        followup_type=None,
-        report=None,
-        report_path=None,
-    )
+    return {
+        "session_id": session_id,
+        "user_id": user_id,
+        "template_id": template_id,
+        "current_topic_index": 0,
+        "conversation_history": [],
+        "extracted_info": {},
+        "topics": [],
+        "topic": topic,
+        "domain_context": "",
+        "status": "planning",
+        "followup_count": {},  # FR-002 AC-003: Initialize empty follow-up count per topic
+        "pending_question": None,
+        "needs_followup": None,
+        "followup_type": None,
+        "followup_reason": None,
+        "report": None,
+        "report_path": None,
+        "persona_config": None,
+    }

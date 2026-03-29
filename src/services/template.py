@@ -3,15 +3,14 @@ Interview template management service.
 """
 
 import json
-import os
-from typing import List, Dict, Any, Optional
 from pathlib import Path
-
+from typing import Any
 
 # Default templates
 DEFAULT_TEMPLATES = {
     "quality_survey": {
         "id": "quality_survey",
+        "version": "1.0.0",
         "name": "质量满意度调查",
         "description": "针对产品和服务质量的满意度访谈",
         "domain_context": """
@@ -45,6 +44,7 @@ DEFAULT_TEMPLATES = {
     },
     "customer_feedback": {
         "id": "customer_feedback",
+        "version": "1.0.0",
         "name": "客户反馈访谈",
         "description": "收集客户对产品和服务的反馈",
         "domain_context": """
@@ -81,7 +81,7 @@ DEFAULT_TEMPLATES = {
 class TemplateManager:
     """Manager for interview templates."""
 
-    def __init__(self, templates_dir: Optional[str] = None):
+    def __init__(self, templates_dir: str | None = None):
         """Initialize template manager.
 
         Args:
@@ -95,7 +95,7 @@ class TemplateManager:
 
         self.templates_dir.mkdir(exist_ok=True)
 
-    def get_template(self, template_id: str) -> Dict[str, Any]:
+    def get_template(self, template_id: str) -> dict[str, Any]:
         """Get interview template by ID.
 
         Args:
@@ -113,7 +113,7 @@ class TemplateManager:
         # Fall back to default templates
         return DEFAULT_TEMPLATES.get(template_id, DEFAULT_TEMPLATES["quality_survey"])
 
-    def list_templates(self) -> List[Dict[str, Any]]:
+    def list_templates(self) -> list[dict[str, Any]]:
         """List all available templates.
 
         Returns:
@@ -126,6 +126,7 @@ class TemplateManager:
             templates.append(
                 {
                     "id": template_id,
+                    "version": template.get("version", "1.0.0"),
                     "name": template["name"],
                     "description": template["description"],
                     "is_default": True,
@@ -142,6 +143,7 @@ class TemplateManager:
                         templates.append(
                             {
                                 "id": template_id,
+                                "version": template.get("version", "1.0.0"),
                                 "name": template.get("name", template_id),
                                 "description": template.get("description", ""),
                                 "is_default": False,
@@ -152,7 +154,7 @@ class TemplateManager:
 
         return templates
 
-    def save_template(self, template_id: str, template: Dict[str, Any]) -> str:
+    def save_template(self, template_id: str, template: dict[str, Any]) -> str:
         """Save custom template.
 
         Args:
@@ -192,9 +194,9 @@ class TemplateManager:
         self,
         name: str,
         description: str,
-        topics: List[Dict[str, Any]],
+        topics: list[dict[str, Any]],
         domain_context: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a new template.
 
         Args:
@@ -212,6 +214,7 @@ class TemplateManager:
 
         template = {
             "id": template_id,
+            "version": "1.0.0",
             "name": name,
             "description": description,
             "domain_context": domain_context,
@@ -222,9 +225,208 @@ class TemplateManager:
 
         return template
 
+    def _increment_version(self, version: str) -> str:
+        """Increment version number (patch level).
+
+        Args:
+            version: Current version string (e.g., "1.0.0")
+
+        Returns:
+            Incremented version string
+        """
+        parts = version.split(".")
+        if len(parts) == 3:
+            patch = int(parts[2]) + 1
+            return f"{parts[0]}.{parts[1]}.{patch}"
+        return "1.0.1"
+
+    def _validate_version_format(self, version: str) -> bool:
+        """Validate version format (semver: major.minor.patch).
+
+        Args:
+            version: Version string to validate
+
+        Returns:
+            True if valid, False otherwise
+        """
+        parts = version.split(".")
+        if len(parts) != 3:
+            return False
+        try:
+            int(parts[0])
+            int(parts[1])
+            int(parts[2])
+            return True
+        except ValueError:
+            return False
+
+    def _validate_template_schema(self, template: dict[str, Any]) -> None:
+        """Validate template schema.
+
+        Args:
+            template: Template dictionary to validate
+
+        Raises:
+            ValueError: If validation fails
+        """
+        # Required fields
+        required_fields = ["id", "name", "description", "topics"]
+        for field in required_fields:
+            if field not in template:
+                raise ValueError(f"Missing required field: {field}")
+
+        # Validate version format
+        if "version" in template:
+            if not self._validate_version_format(template["version"]):
+                raise ValueError(
+                    f"Invalid version format: {template['version']}. Expected format: major.minor.patch (e.g., 1.0.0)"
+                )
+
+        # Validate topics
+        if not isinstance(template["topics"], list):
+            raise ValueError("topics must be a list")
+
+        required_topic_fields = ["id", "name", "description", "initial_question"]
+        for i, topic in enumerate(template["topics"]):
+            if not isinstance(topic, dict):
+                raise ValueError(f"Topic {i} must be a dictionary")
+            for field in required_topic_fields:
+                if field not in topic:
+                    raise ValueError(f"Topic {i} missing required field: {field}")
+
+    def clone_template(
+        self,
+        template_id: str,
+        new_name: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Clone a template with new ID and incremented version.
+
+        Args:
+            template_id: Template ID to clone
+            new_name: New name for cloned template (optional)
+
+        Returns:
+            Cloned template dictionary, or None if source not found
+        """
+        import uuid
+
+        # Check if template exists (not just fallback)
+        if not self._template_exists(template_id):
+            return None
+
+        # Get source template
+        source = self.get_template(template_id)
+
+        # Generate new ID with clone prefix
+        clone_id = f"clone_{uuid.uuid4().hex[:8]}"
+
+        # Determine new name
+        if new_name:
+            cloned_name = new_name
+        else:
+            cloned_name = f"{source['name']} (克隆)"
+
+        # Increment version
+        source_version = source.get("version", "1.0.0")
+        new_version = self._increment_version(source_version)
+
+        # Create cloned template
+        cloned = {
+            "id": clone_id,
+            "version": new_version,
+            "name": cloned_name,
+            "description": source.get("description", ""),
+            "domain_context": source.get("domain_context", ""),
+            "topics": source.get("topics", []),
+        }
+
+        self.save_template(clone_id, cloned)
+        return cloned
+
+    def export_template(self, template_id: str) -> str | None:
+        """Export template as JSON string.
+
+        Args:
+            template_id: Template ID to export
+
+        Returns:
+            JSON string of template, or None if not found
+        """
+        # Check if template exists (not just fallback)
+        if not self._template_exists(template_id):
+            return None
+
+        template = self.get_template(template_id)
+
+        # Ensure version is included
+        if "version" not in template:
+            template["version"] = "1.0.0"
+
+        return json.dumps(template, ensure_ascii=False, indent=2)
+
+    def import_template(self, template_json: dict[str, Any]) -> dict[str, Any]:
+        """Import template from JSON, validating schema.
+
+        Args:
+            template_json: Template dictionary to import
+
+        Returns:
+            Imported template
+
+        Raises:
+            ValueError: If validation fails
+        """
+        import uuid
+
+        # Validate schema
+        self._validate_template_schema(template_json)
+
+        # Handle ID conflicts - generate new ID if exists
+        template_id = template_json.get("id", "")
+        if template_id in DEFAULT_TEMPLATES or self._template_file_exists(template_id):
+            template_id = f"imported_{uuid.uuid4().hex[:8]}"
+
+        # Ensure version
+        if "version" not in template_json:
+            template_json["version"] = "1.0.0"
+
+        # Save with potentially new ID
+        template_json["id"] = template_id
+        self.save_template(template_id, template_json)
+
+        return template_json
+
+    def _template_file_exists(self, template_id: str) -> bool:
+        """Check if template file exists.
+
+        Args:
+            template_id: Template ID to check
+
+        Returns:
+            True if file exists, False otherwise
+        """
+        template_file = self.templates_dir / f"{template_id}.json"
+        return template_file.exists()
+
+    def _template_exists(self, template_id: str) -> bool:
+        """Check if template actually exists (not just fallback).
+
+        Args:
+            template_id: Template ID to check
+
+        Returns:
+            True if template exists in defaults or custom files
+        """
+        # Check default templates
+        if template_id in DEFAULT_TEMPLATES:
+            return True
+
+        # Check custom templates
+        return self._template_file_exists(template_id)
+
 
 # Singleton instance
-_template_manager: Optional[TemplateManager] = None
+_template_manager: TemplateManager | None = None
 
 
 def get_template_manager() -> TemplateManager:

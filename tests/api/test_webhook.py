@@ -5,8 +5,9 @@ Uses FastAPI TestClient with an in-memory SQLite database so no external
 services are required.  DingTalk and LangGraph calls are mocked.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

@@ -5,7 +5,6 @@ Uses FastAPI TestClient with an in-memory SQLite database so no external
 services are required.
 """
 
-import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
