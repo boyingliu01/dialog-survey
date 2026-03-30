@@ -117,10 +117,7 @@ async def _process_message(
     )
     db.add(user_message)
 
-    # Update conversation history
-    history = interview.conversation_history or []
-    history.append({"role": "user", "content": content})
-    interview.conversation_history = history
+    # Update timestamp (conversation history updated by run_interview result)
     interview.updated_at = __import__("datetime").datetime.utcnow()
 
     try:

@@ -200,10 +200,8 @@ async def handle_webhook(request: Request, db: Session = Depends(get_db)) -> dic
     user_message = Message(interview_id=interview.id, role="user", content=content, message_type=msg_type)
     db.add(user_message)
 
-    # Update conversation history
-    history = interview.conversation_history or []
-    history.append({"role": "user", "content": content})
-    interview.conversation_history = history
+    # Update conversation history (without user message — run_interview will add it)
+    # This avoids duplicate messages since run_interview appends user_message internally
     interview.updated_at = __import__("datetime").datetime.utcnow()
 
     db.commit()
@@ -356,15 +354,14 @@ async def _handle_voice_message(
         )
         db.add(user_message)
 
-        history = interview.conversation_history or []
-        history.append({"role": "user", "content": transcribed_text})
-        interview.conversation_history = history
+        # Update timestamp (run_interview handles conversation_history)
         interview.updated_at = __import__("datetime").datetime.utcnow()
         db.commit()
 
         try:
             from src.core.graph import run_interview
 
+            # 🔧 FIX: Pass conversation_history for proper state sync
             result_state = await asyncio.to_thread(
                 run_interview,
                 session_id=session_id,
@@ -372,6 +369,7 @@ async def _handle_voice_message(
                 template_id=interview.template_id,
                 topic=interview.topic,
                 user_message=transcribed_text,
+                conversation_history=list(interview.conversation_history or []),
             )
 
             interview.conversation_history = result_state.get("conversation_history", [])
