@@ -20,7 +20,7 @@ from .analysis_prompts import (
 )
 from .llm import get_llm_service
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 class AnalysisService:
