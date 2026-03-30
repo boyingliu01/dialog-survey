@@ -68,3 +68,15 @@ reports/*.md
 
 # Local database
 interview_bot.db
+
+# TypeScript / Node.js
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Prisma
+prisma/migrations/
+
+# Vitest
+.nyc_output/

@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Interview {
+  id                  String   @id @default(uuid())
+  sessionId           String   @unique @map("session_id")
+  userId              String   @map("user_id")
+  templateId          String   @map("template_id")
+  status              InterviewStatus @default(IN_PROGRESS)
+  topic               String?
+  conversationHistory Json?    @map("conversation_history")
+  extractedInfo       Json?    @map("extracted_info")
+  report              String?  @db.Text
+  reportPath          String?  @map("report_path")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  messages Message[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([updatedAt])
+  @@map("interviews")
+}
+
+model Message {
+  id          String   @id @default(uuid())
+  interviewId String   @map("interview_id")
+  role        MessageRole
+  content     String   @db.Text
+  messageType String   @default("text") @map("message_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+enum InterviewStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+
+  @@map("interview_status")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+
+  @@map("message_role")
+}
