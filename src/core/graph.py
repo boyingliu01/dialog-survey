@@ -4,7 +4,6 @@ LangGraph interview conversation graph.
 
 from typing import Any
 
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
 from src.core.nodes import (
@@ -75,10 +74,9 @@ def create_interview_graph() -> StateGraph:
     # End
     workflow.add_edge("completed", END)
 
-    # Compile with memory checkpoint
-    checkpointer = MemorySaver()
-
-    return workflow.compile(checkpointer=checkpointer)
+    # Compile without checkpointer - database is the single source of truth
+    # MemorySaver is removed to avoid state drift across server restarts and multi-worker deployments
+    return workflow.compile()
 
 
 def run_interview(
@@ -94,6 +92,7 @@ def run_interview(
     """Run an interview conversation turn.
 
     This is the main entry point for processing interview messages.
+    Database is the single source of truth for conversation state.
 
     Args:
         session_id: Session identifier
@@ -101,27 +100,24 @@ def run_interview(
         template_id: Template to use
         topic: Interview topic
         user_message: Optional user message to process
-        conversation_history: Optional conversation history from database
+        conversation_history: Conversation history from database (required for multi-turn)
 
     Returns:
-        Updated interview state
+        Updated interview state (caller persists to database)
     """
-    # Use singleton graph to preserve state across calls
+    # Use singleton graph (stateless - no checkpointer)
     graph = get_interview_graph()
 
-    # Create initial state
-    config = {"configurable": {"thread_id": session_id}}
+    # Create initial state from database history (source of truth)
+    initial_state = create_initial_state(
+        session_id=session_id,
+        user_id=user_id,
+        template_id=template_id,
+        topic=topic,
+    )
 
-    # 🔧 FIX: Prefer database history over MemorySaver (which is lost on restart)
-    # Check if we have history from database (source of truth)
+    # Restore conversation history from database
     if conversation_history:
-        # Use database history - this is the source of truth
-        initial_state = create_initial_state(
-            session_id=session_id,
-            user_id=user_id,
-            template_id=template_id,
-            topic=topic,
-        )
         initial_state["conversation_history"] = list(conversation_history)
 
         # Check if already initialized (has assistant messages)
@@ -131,26 +127,6 @@ def run_interview(
             # Estimate topic index from history
             topic_count = sum(1 for m in conversation_history if m.get("role") == "assistant")
             initial_state["current_topic_index"] = min(topic_count - 1, 2)
-    else:
-        # No database history - try MemorySaver or create new
-        try:
-            state = graph.get_state(config)
-            if state is None or not state.values:
-                initial_state = create_initial_state(
-                    session_id=session_id,
-                    user_id=user_id,
-                    template_id=template_id,
-                    topic=topic,
-                )
-            else:
-                initial_state = dict(state.values)
-        except Exception:
-            initial_state = create_initial_state(
-                session_id=session_id,
-                user_id=user_id,
-                template_id=template_id,
-                topic=topic,
-            )
 
     # Ensure required fields exist (for restored sessions)
     required_fields = {
@@ -180,8 +156,8 @@ def run_interview(
     if user_message:
         initial_state["conversation_history"].append({"role": "user", "content": user_message})
 
-    # Run the graph
-    result = graph.invoke(initial_state, config)
+    # Run the graph (stateless - no config needed since no checkpointer)
+    result = graph.invoke(initial_state)
 
     return result
 
