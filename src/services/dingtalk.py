@@ -12,7 +12,7 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 DINGTALK_TOKEN_URL = "https://oapi.dingtalk.com/gettoken"
 DINGTALK_SEND_URL = (
