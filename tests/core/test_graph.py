@@ -581,8 +581,8 @@ class TestEndToEndConversation:
         first_assistant_msg = [m for m in result1["conversation_history"] if m["role"] == "assistant"][0]["content"]
 
         # Turn 2: User responds to opening question
+        # Note: Don't manually append user message - run_interview handles that
         history_after_turn1 = list(result1["conversation_history"])
-        history_after_turn1.append({"role": "user", "content": "我觉得质量还不错"})
 
         with patch("src.services.llm.get_qwen_service", return_value=mock_llm):
             result2 = run_interview(
