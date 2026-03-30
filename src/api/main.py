@@ -3,7 +3,8 @@
 from dotenv import load_dotenv
 
 # Load environment variables first (before importing modules that may depend on them)
-load_dotenv()
+# Use override=True so .env file takes precedence over system environment variables
+load_dotenv(override=True)
 
 import asyncio  # noqa: E402
 import os  # noqa: E402

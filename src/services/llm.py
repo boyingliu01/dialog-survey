@@ -14,7 +14,8 @@ from dotenv import load_dotenv
 # Import OpenAI client
 from openai import OpenAI
 
-load_dotenv()
+# Use override=True so .env file takes precedence over system environment variables
+load_dotenv(override=True)
 
 # Module-level shared executor for LLM calls
 _llm_executor: concurrent.futures.ThreadPoolExecutor | None = None
