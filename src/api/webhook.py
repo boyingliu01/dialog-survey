@@ -211,6 +211,7 @@ async def handle_webhook(request: Request, db: Session = Depends(get_db)) -> dic
     # Call conversation engine to process message
     try:
         # Run interview conversation through LangGraph (offload sync operation to thread pool)
+        # 🔧 FIX: Pass conversation_history to run_interview for proper state sync
         result_state = await asyncio.to_thread(
             run_interview,
             session_id=session_id,
@@ -218,6 +219,7 @@ async def handle_webhook(request: Request, db: Session = Depends(get_db)) -> dic
             template_id=interview.template_id,
             topic=interview.topic,
             user_message=content,
+            conversation_history=list(interview.conversation_history or []),  # Pass from DB
         )
 
         # Update interview with latest state
