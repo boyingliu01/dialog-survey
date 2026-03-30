@@ -5,6 +5,8 @@ This module provides WebSocket-based message handling as an alternative to HTTP 
 
 import logging
 import os
+import time
+from collections import OrderedDict
 
 import dingtalk_stream
 from dingtalk_stream import AckMessage
@@ -13,6 +15,47 @@ from src.services.message_service import handle_chat_message, start_new_intervie
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# Message deduplication cache (LRU with TTL)
+# Stores msgId -> timestamp, max 1000 entries, 5 minute TTL
+_PROCESSED_MESSAGES: OrderedDict[str, float] = OrderedDict()
+_MAX_CACHE_SIZE = 1000
+_MESSAGE_TTL_SECONDS = 300  # 5 minutes
+
+
+def _is_message_processed(msg_id: str) -> bool:
+    """Check if message has already been processed.
+
+    Uses LRU cache with TTL to prevent memory growth.
+
+    Args:
+        msg_id: Message ID from DingTalk
+
+    Returns:
+        True if message was already processed (should skip)
+    """
+    current_time = time.time()
+
+    # Clean up expired entries
+    expired_keys = [
+        k for k, v in _PROCESSED_MESSAGES.items()
+        if current_time - v > _MESSAGE_TTL_SECONDS
+    ]
+    for k in expired_keys:
+        del _PROCESSED_MESSAGES[k]
+
+    # Check if already processed
+    if msg_id in _PROCESSED_MESSAGES:
+        return True
+
+    # Mark as processed
+    _PROCESSED_MESSAGES[msg_id] = current_time
+
+    # LRU eviction if over size
+    while len(_PROCESSED_MESSAGES) > _MAX_CACHE_SIZE:
+        _PROCESSED_MESSAGES.popitem(last=False)
+
+    return False
 
 
 class InterviewStreamHandler(dingtalk_stream.ChatbotHandler):
@@ -47,6 +90,15 @@ class InterviewStreamHandler(dingtalk_stream.ChatbotHandler):
         self.logger.info("[Stream] Received callback: %s", callback)
 
         try:
+            # Extract msgId for deduplication
+            msg_id = callback.data.get("msgId", "")
+            if msg_id:
+                if _is_message_processed(msg_id):
+                    self.logger.info("[Stream] Skipping duplicate message msgId=%s", msg_id)
+                    print(f"[STREAM] SKIPPING DUPLICATE msgId={msg_id}")
+                    return AckMessage.STATUS_OK, "OK (duplicate)"
+                print(f"[STREAM] Processing new message msgId={msg_id}")
+
             # Parse the message
             message = dingtalk_stream.ChatbotMessage.from_dict(callback.data)
             self.logger.info("[Stream] Parsed message: %s", message)
