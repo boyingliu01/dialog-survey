@@ -1,5 +1,4 @@
-"""
-LLM service for interview bot using OpenAI-compatible API.
+"""LLM service for interview bot using OpenAI-compatible API.
 Supports Alibaba Cloud BaiLian (百炼) and other OpenAI-compatible endpoints.
 """
 
@@ -42,16 +41,17 @@ class LLMService:
 
     def __init__(
         self,
-        model: str = None,
+        model: str | None = None,
         api_key: str | None = None,
         base_url: str | None = None,
-    ):
+    ) -> None:
         """Initialize LLM service.
 
         Args:
             model: Model name (default: glm-5)
             api_key: API key (default: from env ANTHROPIC_AUTH_TOKEN or DASHSCOPE_API_KEY)
             base_url: API base URL (default: from env ANTHROPIC_BASE_URL)
+
         """
         self.model = model or os.getenv("ANTHROPIC_MODEL", "glm-5")
         self.api_key = api_key or os.getenv("ANTHROPIC_AUTH_TOKEN") or os.getenv("DASHSCOPE_API_KEY")
@@ -85,7 +85,9 @@ class LLMService:
 
         Raises:
             Exception if API call fails
+
         """
+        print(f"[LLM] chat called: model={self.model}, messages_count={len(messages)}", flush=True)
         # Prepare messages
         formatted_messages = []
 
@@ -96,14 +98,17 @@ class LLMService:
 
         max_retries = int(os.getenv("MAX_LLM_RETRIES", "2"))
         timeout_sec = int(os.getenv("LLM_TIMEOUT", str(DEFAULT_LLM_TIMEOUT_SEC))) or DEFAULT_LLM_TIMEOUT_SEC
+        print(f"[LLM] timeout_sec={timeout_sec}, max_retries={max_retries}", flush=True)
 
         last_exc: Exception | None = None
         for attempt in range(max_retries + 1):
             if attempt > 0:
+                print(f"[LLM] Retry attempt {attempt}, sleeping...", flush=True)
                 time.sleep(2 ** (attempt - 1))
 
             try:
                 executor = _get_llm_executor()
+                print("[LLM] Submitting to executor...", flush=True)
                 future = executor.submit(
                     self._client.chat.completions.create,
                     model=self.model,
@@ -113,19 +118,24 @@ class LLMService:
                 )
 
                 try:
+                    print(f"[LLM] Waiting for result (timeout={timeout_sec}s)...", flush=True)
                     response = future.result(timeout=timeout_sec)
+                    print("[LLM] Got response!", flush=True)
                 except concurrent.futures.TimeoutError:
                     last_exc = TimeoutError(f"LLM call timed out after {timeout_sec}s")
+                    print(f"[LLM] TIMEOUT after {timeout_sec}s", flush=True)
                     continue
 
                 if response.choices and len(response.choices) > 0:
-                    return response.choices[0].message.content
+                    content = response.choices[0].message.content
+                    print(f"[LLM] Response content: {content[:50] if content else 'None'}...", flush=True)
+                    return content
                 else:
                     raise Exception("LLM returned empty response")
 
             except Exception as e:
                 last_exc = e
-                print(f"LLM call attempt {attempt + 1} failed: {e}")
+                print(f"[LLM] Attempt {attempt + 1} failed: {e}", flush=True)
 
         raise last_exc or Exception("LLM call failed after retries")
 
@@ -140,7 +150,9 @@ class LLMService:
 
         Returns:
             Tuple of (needs_followup, followup_type, reason)
+
         """
+        print("[LLM] is_followup_needed called", flush=True)
         from src.services.prompts import FOLLOWUP_JUDGE_PROMPT
 
         # Get recent messages
@@ -149,17 +161,32 @@ class LLMService:
 
         prompt = FOLLOWUP_JUDGE_PROMPT.format(conversation_history=history_text, extracted_info=str(extracted_info))
 
+        print("[LLM] Calling chat for followup judgment...", flush=True)
         result = self.chat(messages=[{"role": "user", "content": prompt}], temperature=0.3)
+        print(f"[LLM] Followup result: {result[:100] if result else 'None'}...", flush=True)
 
-        # Parse JSON result
+        # Parse JSON result - handle markdown code blocks
         try:
-            parsed = json.loads(result)
+            # Strip markdown code block wrapper if present
+            cleaned_result = result.strip()
+            if cleaned_result.startswith("```"):
+                # Remove ```json or ``` at the start
+                first_newline = cleaned_result.find("\n")
+                if first_newline != -1:
+                    cleaned_result = cleaned_result[first_newline + 1:]
+                # Remove ``` at the end
+                if cleaned_result.endswith("```"):
+                    cleaned_result = cleaned_result[:-3]
+                cleaned_result = cleaned_result.strip()
+
+            parsed = json.loads(cleaned_result)
             return (
                 parsed.get("needs_followup", False),
                 parsed.get("followup_type", ""),
                 parsed.get("reason", ""),
             )
-        except (json.JSONDecodeError, AttributeError):
+        except (json.JSONDecodeError, AttributeError) as e:
+            print(f"[LLM] JSON parse error: {e}", flush=True)
             return False, "", "解析失败"
 
     def generate_followup(self, user_answer: str, followup_type: str, domain_context: str = "") -> str:
@@ -172,6 +199,7 @@ class LLMService:
 
         Returns:
             Generated follow-up question
+
         """
         from src.services.prompts import FOLLOWUP_GENERATE_PROMPT
 
@@ -202,6 +230,7 @@ class LLMService:
 
         Returns:
             Generated question
+
         """
         from src.services.prompts import NEXT_QUESTION_PROMPT
 
@@ -237,6 +266,7 @@ class LLMService:
 
         Returns:
             Generated report in Markdown format
+
         """
         from src.services.prompts import REPORT_GENERATE_PROMPT, REPORT_GENERATE_PROMPT_V2
 
@@ -287,6 +317,7 @@ class LLMService:
 
         Returns:
             Generated opening question with welcome message
+
         """
         from src.services.prompts import (
             OPENING_QUESTION_PROMPT,
@@ -333,6 +364,7 @@ class LLMService:
 
         Returns:
             Generated next question
+
         """
         from src.services.prompts import (
             NEXT_QUESTION_PROMPT,

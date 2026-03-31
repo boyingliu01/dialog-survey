@@ -1,7 +1,5 @@
-import 'dotenv/config';
+export const hello = (name: string): string => {
+  return `Hello, ${name}!`;
+};
 
-export function main(): void {
-  console.log('Interview Bot starting...');
-}
-
-main();
+console.log(hello('World'));

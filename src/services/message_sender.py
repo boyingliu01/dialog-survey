@@ -1,6 +1,4 @@
-"""
-Message sender service for DingTalk messages.
-"""
+"""Message sender service for DingTalk messages."""
 
 from typing import Any
 
@@ -10,7 +8,7 @@ from src.services.dingtalk import DingTalkService
 class MessageSender:
     """Service for sending messages to DingTalk users."""
 
-    def __init__(self, dingtalk_service: DingTalkService | None = None):
+    def __init__(self, dingtalk_service: DingTalkService | None = None) -> None:
         self.dingtalk = dingtalk_service or DingTalkService()
 
     def send_text(self, user_id: str, text: str) -> dict[str, Any]:
@@ -22,6 +20,7 @@ class MessageSender:
 
         Returns:
             API response
+
         """
         return self.dingtalk.send_message(user_id, "text", text)
 
@@ -35,6 +34,7 @@ class MessageSender:
 
         Returns:
             API response
+
         """
         markdown = f"## {title}\n\n{content}"
         return self.dingtalk.send_message(user_id, "markdown", markdown)
@@ -48,6 +48,7 @@ class MessageSender:
 
         Returns:
             API response
+
         """
         message = f"【访谈问题】\n\n{question}\n\n请根据您的实际体验回答。"
         return self.send_text(user_id, message)
@@ -64,6 +65,7 @@ class MessageSender:
 
         Returns:
             API response
+
         """
         message = f"""您好！诚邀您参加「{topic}」访谈。
 
@@ -95,6 +97,7 @@ class MessageSender:
 
         Returns:
             API response
+
         """
         message = """【追问】"""
         if context:
@@ -114,6 +117,7 @@ class MessageSender:
 
         Returns:
             API response
+
         """
         message = """✅ 访谈已完成！
 
@@ -136,6 +140,7 @@ class MessageSender:
 
         Returns:
             API response
+
         """
         message = f"""⏰ 访谈提醒
 
@@ -157,6 +162,7 @@ class MessageSender:
 
         Returns:
             API response
+
         """
         message = f"""❌ 抱歉，发生了一些问题
 

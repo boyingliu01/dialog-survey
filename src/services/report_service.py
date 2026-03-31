@@ -1,6 +1,4 @@
-"""
-ReportService for persisting interview reports to filesystem.
-"""
+"""ReportService for persisting interview reports to filesystem."""
 
 import os
 from datetime import datetime
@@ -16,12 +14,13 @@ class ReportService:
     The path is stored in Interview.report_path for later retrieval.
     """
 
-    def __init__(self, reports_dir: str | None = None):
+    def __init__(self, reports_dir: str | None = None) -> None:
         """Initialize ReportService with reports directory.
 
         Args:
             reports_dir: Directory for storing reports. Defaults to
                          REPORTS_DIR env var or 'reports' if not set.
+
         """
         self.reports_dir = Path(reports_dir or os.getenv("REPORTS_DIR", "reports"))
 
@@ -37,6 +36,7 @@ class ReportService:
 
         Returns:
             str: Absolute path to the saved report file
+
         """
         # Create session directory: {reports_dir}/{session_id}
         report_dir = self.reports_dir / session_id
@@ -62,6 +62,7 @@ def get_report_service() -> ReportService:
 
     Returns:
         ReportService: The singleton service instance
+
     """
     global _instance
     if _instance is None:

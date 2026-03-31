@@ -1,5 +1,4 @@
-"""
-InvitationService for interview invitation sending.
+"""InvitationService for interview invitation sending.
 
 This service provides methods for:
 - Sending single invitation to a user
@@ -8,7 +7,6 @@ This service provides methods for:
 """
 
 import logging
-from typing import Dict, List, Optional
 
 from src.services.dingtalk_sender import get_sender
 
@@ -25,9 +23,9 @@ class InvitationService:
     - Graceful error handling
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize InvitationService with queue."""
-        self._queue: List[Dict] = []
+        self._queue: list[dict] = []
 
     async def send_invitation(self, user_id: str, plan_name: str, start_url: str) -> bool:
         """Send interview invitation to a user.
@@ -39,6 +37,7 @@ class InvitationService:
 
         Returns:
             True if invitation sent successfully, False otherwise
+
         """
         if not user_id:
             logger.warning("Cannot send invitation to empty user_id")
@@ -56,10 +55,10 @@ class InvitationService:
             return result
 
         except Exception as e:
-            logger.error(f"Error sending invitation to {user_id}: {e}")
+            logger.exception(f"Error sending invitation to {user_id}: {e}")
             return False
 
-    async def send_batch_invitations(self, invitations: List[Dict]) -> Dict[str, bool]:
+    async def send_batch_invitations(self, invitations: list[dict]) -> dict[str, bool]:
         """Send batch invitations to multiple users.
 
         Args:
@@ -67,8 +66,9 @@ class InvitationService:
 
         Returns:
             Dict mapping user_id to success status (True/False)
+
         """
-        results: Dict[str, bool] = {}
+        results: dict[str, bool] = {}
 
         if not invitations:
             logger.info("No invitations to send")
@@ -83,7 +83,7 @@ class InvitationService:
                 success = await self.send_invitation(user_id, plan_name, start_url)
                 results[user_id] = success
             except Exception as e:
-                logger.error(f"Error in batch invitation for {user_id}: {e}")
+                logger.exception(f"Error in batch invitation for {user_id}: {e}")
                 results[user_id] = False
 
         # Log summary
@@ -100,16 +100,18 @@ class InvitationService:
             user_id: Target user's staff ID
             plan_name: Interview plan name
             start_url: URL to start interview
+
         """
         invitation = {"user_id": user_id, "plan_name": plan_name, "start_url": start_url}
         self._queue.append(invitation)
         logger.info(f"Added invitation for {user_id} to queue")
 
-    async def process_queue(self) -> Dict[str, bool]:
+    async def process_queue(self) -> dict[str, bool]:
         """Process all pending invitations in queue.
 
         Returns:
             Dict mapping user_id to success status
+
         """
         if not self._queue:
             logger.info("Queue is empty, nothing to process")
@@ -127,12 +129,13 @@ class InvitationService:
 
         Returns:
             Number of pending invitations in queue
+
         """
         return len(self._queue)
 
 
 # Singleton instance
-_invitation_service: Optional[InvitationService] = None
+_invitation_service: InvitationService | None = None
 
 
 def get_invitation_service() -> InvitationService:
@@ -140,6 +143,7 @@ def get_invitation_service() -> InvitationService:
 
     Returns:
         InvitationService singleton instance
+
     """
     global _invitation_service
     if _invitation_service is None:

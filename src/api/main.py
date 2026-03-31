@@ -8,7 +8,8 @@ load_dotenv(override=True)
 
 import asyncio  # noqa: E402
 import os  # noqa: E402
-from contextlib import asynccontextmanager  # noqa: E402
+from contextlib import asynccontextmanager, suppress  # noqa: E402
+
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
@@ -50,10 +51,8 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if stream_task:
         stream_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await stream_task
-        except asyncio.CancelledError:
-            pass
         print("[Stream] Stream client stopped")
 
 

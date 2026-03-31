@@ -1,0 +1,65 @@
+# Dev-Workflow 配置文件
+# 此文件定义项目的开发工作流和质量门禁规则
+
+# 项目基本信息
+project:
+  name: interview-bot
+  type: maintenance                    # 维护项目
+  primary_language: python
+  architecture: layered                # 分层架构
+  created_date: 2026-03-28
+
+# 固定方法论（不可修改）
+methodology:
+  tdd: true                    # TDD开发流程
+  solid: true                  # SOLID原则
+  boy_scout_rule: true          # 童子军规则：离开代码时比发现时更整洁
+  clean_architecture: true       # Clean Architecture
+
+# SDD模式（每个项目只能设置一次）
+sdd_mode: open-spec             # open-spec（轻量级，适合维护项目）
+sdd_mode_set_date: "2026-03-28"
+
+# 质量门禁（维护项目使用Incremental模式）
+quality_gate:
+  mode: incremental              # 增量模式：新文件0错误0警告，修改文件告警数必须减少
+  exclude:
+    directories:
+      - "venv/"
+      - ".venv/"
+      - "node_modules/"
+      - "htmlcov/"
+      - ".pytest_cache/"
+      - "__pycache__/"
+      - "reports/"
+    patterns:
+      - "*.generated.*"
+      - "*_pb2.py"
+      - "migrations/*.py"
+    files: []
+
+# Python 语言配置
+languages:
+  - id: python
+    name: Python
+    role: backend
+    path: ./
+    linter: ruff
+    formatter: ruff
+    type_checker: pyright
+    test_framework: pytest
+
+# Clean Architecture检测配置
+architecture_check:
+  enabled: true
+  strict: false                # 遗留项目设为false，逐步改进
+  tool: auto                   # auto | custom
+  config: {}
+
+# 项目复杂度评估
+complexity:
+  type: medium                 # small | medium | large
+  modules: 8                   # src/api, src/core, src/services, src/models, etc.
+  team_size: 1
+  expected_lines: 8000
+  estimated_date: "2026-03-28"

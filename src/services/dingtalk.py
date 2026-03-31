@@ -1,6 +1,4 @@
-"""
-DingTalk service for message handling and API calls.
-"""
+"""DingTalk service for message handling and API calls."""
 
 import base64
 import hashlib
@@ -28,7 +26,7 @@ class DingTalkService:
         app_key: str | None = None,
         app_secret: str | None = None,
         agent_id: str | None = None,
-    ):
+    ) -> None:
         # Use explicit values when provided (even empty string), fall back to env only when None
         self.app_key = app_key if app_key is not None else os.getenv("DINGTALK_APP_KEY")
         self.app_secret = app_secret if app_secret is not None else os.getenv("DINGTALK_APP_SECRET")
@@ -46,6 +44,7 @@ class DingTalkService:
 
         Returns:
             True if signature is valid
+
         """
         if not self.app_secret:
             return True  # Skip verification if no secret configured
@@ -65,6 +64,7 @@ class DingTalkService:
 
         Raises:
             Exception: If credentials not configured or API returns error
+
         """
         if not self.app_key or not self.app_secret:
             raise Exception("DingTalk credentials not configured")
@@ -103,6 +103,7 @@ class DingTalkService:
 
         Raises:
             Exception: If API returns an error code
+
         """
         token = self.get_access_token()
 
@@ -141,6 +142,7 @@ class DingTalkService:
 
         Returns:
             Parsed message with type, content, user_id
+
         """
         msg_type = body.get("msgtype", "text")
 

@@ -1,16 +1,12 @@
-"""
-Interview plan and interviewee management API endpoints.
-"""
+"""Interview plan and interviewee management API endpoints."""
 
 import csv
 import io
 import logging
 import os
-
 from datetime import datetime
-from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -30,29 +26,29 @@ class PlanCreateRequest(BaseModel):
     """Request model for creating an interview plan."""
 
     name: str = Field(..., min_length=1, max_length=255, description="Plan name")
-    description: Optional[str] = Field(None, description="Plan description")
+    description: str | None = Field(None, description="Plan description")
     template_id: str = Field(default="quality_survey", description="Template ID")
-    start_date: Optional[datetime] = Field(None, description="Start date")
-    end_date: Optional[datetime] = Field(None, description="End date")
+    start_date: datetime | None = Field(None, description="Start date")
+    end_date: datetime | None = Field(None, description="End date")
 
 
 class PlanUpdateRequest(BaseModel):
     """Request model for updating an interview plan."""
 
-    name: Optional[str] = Field(None, min_length=1, max_length=255, description="Plan name")
-    description: Optional[str] = Field(None, description="Plan description")
-    template_id: Optional[str] = Field(None, description="Template ID")
-    start_date: Optional[datetime] = Field(None, description="Start date")
-    end_date: Optional[datetime] = Field(None, description="End date")
-    status: Optional[str] = Field(None, description="Plan status")
+    name: str | None = Field(None, min_length=1, max_length=255, description="Plan name")
+    description: str | None = Field(None, description="Plan description")
+    template_id: str | None = Field(None, description="Template ID")
+    start_date: datetime | None = Field(None, description="Start date")
+    end_date: datetime | None = Field(None, description="End date")
+    status: str | None = Field(None, description="Plan status")
 
 
 class IntervieweeCreateRequest(BaseModel):
     """Request model for creating an interviewee."""
 
     name: str = Field(..., min_length=1, max_length=100, description="Interviewee name")
-    user_id: Optional[str] = Field(None, max_length=100, description="User ID")
-    phone: Optional[str] = Field(None, max_length=20, description="Phone number")
+    user_id: str | None = Field(None, max_length=100, description="User ID")
+    phone: str | None = Field(None, max_length=20, description="Phone number")
 
 
 class PlanResponse(BaseModel):
@@ -60,10 +56,10 @@ class PlanResponse(BaseModel):
 
     id: int
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     template_id: str
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
+    start_date: datetime | None = None
+    end_date: datetime | None = None
     status: str
     created_at: datetime
     updated_at: datetime
@@ -76,11 +72,11 @@ class IntervieweeResponse(BaseModel):
     id: int
     plan_id: int
     name: str
-    user_id: Optional[str] = None
-    phone: Optional[str] = None
+    user_id: str | None = None
+    phone: str | None = None
     status: str
-    invited_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    invited_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 class ImportResponse(BaseModel):
@@ -173,7 +169,7 @@ def create_plan(
 
 @router.get("/plans")
 def list_plans(
-    status: Optional[str] = Query(default=None, description="Filter by status"),
+    status: str | None = Query(default=None, description="Filter by status"),
     limit: int = Query(default=20, ge=1, le=100, description="Limit results"),
     offset: int = Query(default=0, ge=0, description="Offset results"),
     db: Session = Depends(get_db),
@@ -293,7 +289,7 @@ def add_interviewee(
 @router.get("/plans/{plan_id}/interviewees")
 def list_interviewees(
     plan_id: int,
-    status: Optional[str] = Query(default=None, description="Filter by status"),
+    status: str | None = Query(default=None, description="Filter by status"),
     limit: int = Query(default=50, ge=1, le=200, description="Limit results"),
     offset: int = Query(default=0, ge=0, description="Offset results"),
     db: Session = Depends(get_db),
@@ -392,9 +388,7 @@ def import_interviewees(
 
     # Handle Excel files
     elif (
-        content_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        or filename.endswith(".xlsx")
-        or filename.endswith(".xls")
+        content_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" or filename.endswith((".xlsx", ".xls"))
     ):
         try:
             import openpyxl
@@ -418,7 +412,7 @@ def import_interviewees(
             phone_idx = headers.index("phone") if "phone" in headers else -1
 
             # Process rows (skip header row)
-            for row_idx, row in enumerate(ws.iter_rows(min_row=2), start=2):
+            for _row_idx, row in enumerate(ws.iter_rows(min_row=2), start=2):
                 name_cell = row[name_idx].value
                 if not name_cell or str(name_cell).strip() == "":
                     continue
@@ -449,8 +443,8 @@ def import_interviewees(
         except ImportError:
             raise HTTPException(status_code=400, detail="Excel processing requires openpyxl library")
         except Exception as e:
-            logger.error(f"Excel import error: {e}")
-            raise HTTPException(status_code=400, detail=f"Failed to process Excel file: {str(e)}")
+            logger.exception(f"Excel import error: {e}")
+            raise HTTPException(status_code=400, detail=f"Failed to process Excel file: {e!s}")
 
     else:
         raise HTTPException(status_code=400, detail="Unsupported file type. Please upload CSV or Excel file.")

@@ -1,6 +1,4 @@
-"""
-Database configuration and session management for Interview Bot.
-"""
+"""Database configuration and session management for Interview Bot."""
 
 import os
 
@@ -21,10 +19,13 @@ Base = declarative_base()
 
 def get_db():
     """Get database session dependency for FastAPI."""
+    print("[DB] Creating new database session...", flush=True)
     db = SessionLocal()
     try:
+        print("[DB] Session created, yielding...", flush=True)
         yield db
     finally:
+        print("[DB] Closing session...", flush=True)
         db.close()
 
 

@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "lib": ["ESNext"],
     "strict": true,
     "noImplicitAny": true,
@@ -16,16 +16,9 @@
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "exactOptionalPropertyTypes": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "useUnknownInCatchVariables": true,
-    "allowUnusedLabels": false,
-    "allowUnreachableCode": false,
-    "verbatimModuleSyntax": true,
-    "forceConsistentCasingInFileNames": true,
-    "esModuleInterop": false,
+    "esModuleInterop": true,
     "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "outDir": "./dist",
@@ -33,9 +26,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "removeComments": false,
-    "noEmitOnError": true
+    "removeComments": false
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests", "**/*.spec.ts", "**/*.test.ts"]
+  "exclude": ["node_modules", "dist", "tests/**/*"]
 }

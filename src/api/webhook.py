@@ -1,6 +1,4 @@
-"""
-Webhook handler for receiving DingTalk messages.
-"""
+"""Webhook handler for receiving DingTalk messages."""
 
 import asyncio
 import logging
@@ -53,9 +51,8 @@ async def verify_webhook(
 
     # If no challenge, this is a regular callback
     # Verify signature if provided
-    if signature and timestamp and nonce:
-        if not dingtalk.verify_signature(timestamp, signature, nonce):
-            raise HTTPException(status_code=403, detail="Invalid signature")
+    if signature and timestamp and nonce and not dingtalk.verify_signature(timestamp, signature, nonce):
+        raise HTTPException(status_code=403, detail="Invalid signature")
 
     return {"code": 0, "msg": "success"}
 
@@ -71,6 +68,7 @@ async def handle_webhook(request: Request, db: Session = Depends(get_db)) -> dic
 
     Returns:
         Response to send back to DingTalk
+
     """
     # Parse request body
     try:
@@ -277,6 +275,7 @@ async def _handle_voice_message(
 
     Returns:
         Response dict for DingTalk
+
     """
     logger.info("Processing voice message from user=%s", user_id)
 
@@ -406,7 +405,7 @@ async def _handle_voice_message(
                 "message": "抱歉，处理您的消息时出错，请重试。",
             }
     except ASRServiceError as e:
-        logger.error("ASR service error for user=%s: %s", user_id, e)
+        logger.exception("ASR service error for user=%s: %s", user_id, e)
         return {
             "code": 200,
             "msg": "success",

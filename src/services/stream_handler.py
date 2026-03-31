@@ -1,5 +1,4 @@
-"""
-DingTalk Stream mode handler for receiving robot messages.
+"""DingTalk Stream mode handler for receiving robot messages.
 This module provides WebSocket-based message handling as an alternative to HTTP webhook.
 """
 
@@ -33,6 +32,7 @@ def _is_message_processed(msg_id: str) -> bool:
 
     Returns:
         True if message was already processed (should skip)
+
     """
     current_time = time.time()
 
@@ -59,28 +59,27 @@ def _is_message_processed(msg_id: str) -> bool:
 
 
 class InterviewStreamHandler(dingtalk_stream.ChatbotHandler):
-    """
-    DingTalk Stream mode message handler for interview bot.
+    """DingTalk Stream mode message handler for interview bot.
 
     This handler receives messages via WebSocket connection from DingTalk
     and processes them using the same logic as HTTP webhook.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the stream handler."""
         super().__init__()
         self.logger = logger
         self.logger.info("[Stream] InterviewStreamHandler initialized")
 
     async def process(self, callback: dingtalk_stream.CallbackMessage):
-        """
-        Process incoming message from DingTalk Stream.
+        """Process incoming message from DingTalk Stream.
 
         Args:
             callback: Message callback containing event data
 
         Returns:
             Tuple of (status, message) for acknowledgment
+
         """
         # 强制打印，确保能看到
         print("[STREAM] ========== RECEIVED CALLBACK ==========")
@@ -95,20 +94,24 @@ class InterviewStreamHandler(dingtalk_stream.ChatbotHandler):
             if msg_id:
                 if _is_message_processed(msg_id):
                     self.logger.info("[Stream] Skipping duplicate message msgId=%s", msg_id)
-                    print(f"[STREAM] SKIPPING DUPLICATE msgId={msg_id}")
+                    print(f"[STREAM] SKIPPING DUPLICATE msgId={msg_id}", flush=True)
                     return AckMessage.STATUS_OK, "OK (duplicate)"
-                print(f"[STREAM] Processing new message msgId={msg_id}")
+                print(f"[STREAM] Processing new message msgId={msg_id}", flush=True)
 
             # Parse the message
+            print("[STREAM] Parsing message...", flush=True)
             message = dingtalk_stream.ChatbotMessage.from_dict(callback.data)
+            print(f"[STREAM] Message parsed: sender_id={message.sender_id}", flush=True)
             self.logger.info("[Stream] Parsed message: %s", message)
 
             # Extract user info
             user_id = message.sender_id
             if not user_id:
                 self.logger.warning("[Stream] Received message without sender_id")
+                print("[STREAM] ERROR: No sender_id in message!", flush=True)
                 return AckMessage.STATUS_OK, "OK"
 
+            print(f"[STREAM] User ID: {user_id}", flush=True)
             self.logger.info("[Stream] Message from user=%s", user_id)
 
             # Extract message content based on type
@@ -119,6 +122,7 @@ class InterviewStreamHandler(dingtalk_stream.ChatbotHandler):
             if message.text and message.text.content:
                 content = message.text.content
                 msg_type = "text"
+                print(f"[STREAM] Text message: {content[:50]}", flush=True)
                 self.logger.info(
                     "[Stream] Text message from user=%s: %s", user_id, content[:50]
                 )
@@ -138,15 +142,20 @@ class InterviewStreamHandler(dingtalk_stream.ChatbotHandler):
                 self.logger.warning(
                     "[Stream] Unknown message type from user=%s", user_id
                 )
+                print("[STREAM] Unknown message type", flush=True)
                 return AckMessage.STATUS_OK, "OK"
+
+            print(f"[STREAM] Content: {content[:50] if content else 'empty'}", flush=True)
 
             # Handle "start" command
             if content.strip() in ["开始", "start", "开始访谈"]:
+                print("[STREAM] Starting new interview...", flush=True)
                 self.logger.info("[Stream] Starting new interview for user=%s", user_id)
                 response = await start_new_interview(
                     user_id=user_id,
                     content=content.strip(),
                 )
+                print(f"[STREAM] Interview started, response length: {len(response)}", flush=True)
                 self.logger.info(
                     "[Stream] Interview started, response: %s", response[:50]
                 )
@@ -154,6 +163,7 @@ class InterviewStreamHandler(dingtalk_stream.ChatbotHandler):
                 return AckMessage.STATUS_OK, "OK"
 
             # Handle normal conversation
+            print("[STREAM] Processing normal message...", flush=True)
             self.logger.info("[Stream] Processing normal message for user=%s", user_id)
             response = await handle_chat_message(
                 user_id=user_id,
@@ -161,16 +171,19 @@ class InterviewStreamHandler(dingtalk_stream.ChatbotHandler):
                 msg_type=msg_type,
                 voice_url=voice_url,
             )
+            print(f"[STREAM] Got response, length: {len(response)}", flush=True)
             self.logger.info(
                 "[Stream] Response for user=%s: %s", user_id, response[:50]
             )
 
             # Send reply
+            print("[STREAM] Sending reply...", flush=True)
             self.reply_text(response, message)
 
             return AckMessage.STATUS_OK, "OK"
 
         except Exception as e:
+            print(f"[STREAM] EXCEPTION: {e}", flush=True)
             self.logger.error("[Stream] Error processing message: %s", e, exc_info=True)
             return AckMessage.STATUS_LATER, str(e)
 
@@ -179,8 +192,7 @@ def create_stream_client(
     client_id: str | None = None,
     client_secret: str | None = None,
 ) -> dingtalk_stream.DingTalkStreamClient:
-    """
-    Create and configure DingTalk Stream client.
+    """Create and configure DingTalk Stream client.
 
     Args:
         client_id: DingTalk app client ID (AppKey)
@@ -188,6 +200,7 @@ def create_stream_client(
 
     Returns:
         Configured Stream client
+
     """
     # Use environment variables if not provided
     if client_id is None:

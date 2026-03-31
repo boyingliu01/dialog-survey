@@ -27,20 +27,20 @@ from src.models.analysis import (
 from src.models.database import Base, get_db, init_db
 from src.models.interview import Interview, InterviewStatus
 from src.models.message import Message
-from src.models.plan import InterviewPlan, Interviewee
+from src.models.plan import Interviewee, InterviewPlan
 
 __all__ = [
     "AnalysisJob",
     "AnalysisJobStatus",
-    "AnalysisTopic",
-    "KeyPoint",
     "AnalysisResult",
+    "AnalysisTopic",
     "Base",
+    "Interview",
+    "InterviewPlan",
+    "InterviewStatus",
+    "Interviewee",
+    "KeyPoint",
+    "Message",
     "get_db",
     "init_db",
-    "Interview",
-    "InterviewStatus",
-    "Message",
-    "InterviewPlan",
-    "Interviewee",
 ]

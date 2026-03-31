@@ -1,5 +1,4 @@
-"""
-Export service for generating PDF and Excel reports from analysis results.
+"""Export service for generating PDF and Excel reports from analysis results.
 
 Provides functionality to:
 - Generate PDF reports with complete analysis summary
@@ -44,6 +43,7 @@ class ExportService:
 
         Returns:
             bytes: PDF file content
+
         """
         # Build Markdown content first
         md_content = self._build_report_markdown(
@@ -142,8 +142,8 @@ class ExportService:
             neutral = sentiment.get("neutral", 0)
             lines.extend(
                 [
-                    f"| Sentiment | Percentage |",
-                    f"|-----------|------------|",
+                    "| Sentiment | Percentage |",
+                    "|-----------|------------|",
                     f"| Positive  | {positive}% |",
                     f"| Negative  | {negative}% |",
                     f"| Neutral   | {neutral}% |",
@@ -311,6 +311,7 @@ class ExportService:
 
         Returns:
             bytes: Excel file content
+
         """
         try:
             import pandas as pd
@@ -394,6 +395,7 @@ def get_export_service() -> ExportService:
 
     Returns:
         ExportService: The singleton service instance
+
     """
     global _instance
     if _instance is None:

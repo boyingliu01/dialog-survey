@@ -1,5 +1,4 @@
-"""
-Message service for handling chat messages.
+"""Message service for handling chat messages.
 This module provides a unified interface for processing messages from both
 HTTP Webhook and Stream modes.
 """
@@ -26,8 +25,7 @@ async def handle_chat_message(
     voice_url: str | None = None,
     db: Session | None = None,
 ) -> str:
-    """
-    Handle a chat message from user and return response.
+    """Handle a chat message from user and return response.
 
     This is the unified entry point for processing messages from both
     HTTP Webhook and Stream modes.
@@ -41,20 +39,29 @@ async def handle_chat_message(
 
     Returns:
         Response message text to send back to user
+
     """
+    print(f"[MSG_SERVICE] handle_chat_message called: user_id={user_id[:20]}...", flush=True)
     should_close_db = False
     if db is None:
+        print("[MSG_SERVICE] Getting new DB session...", flush=True)
         db = next(get_db())
         should_close_db = True
 
     try:
-        return await _process_message(
+        print("[MSG_SERVICE] Calling _process_message...", flush=True)
+        result = await _process_message(
             user_id=user_id,
             content=content,
             msg_type=msg_type,
             voice_url=voice_url,
             db=db,
         )
+        print(f"[MSG_SERVICE] _process_message returned: {result[:50] if result else 'None'}...", flush=True)
+        return result
+    except Exception as e:
+        print(f"[MSG_SERVICE] EXCEPTION in handle_chat_message: {e}", flush=True)
+        raise
     finally:
         if should_close_db:
             db.close()
@@ -68,8 +75,10 @@ async def _process_message(
     db: Session,
 ) -> str:
     """Internal message processing logic."""
+    print(f"[MSG_SERVICE] _process_message start: user_id={user_id[:20]}...", flush=True)
 
     # Check for active interview session
+    print("[MSG_SERVICE] Querying database for active interview...", flush=True)
     interview = (
         db.query(Interview)
         .filter(
@@ -81,7 +90,10 @@ async def _process_message(
 
     if not interview:
         # No active session - prompt to start
+        print("[MSG_SERVICE] No active interview found for user", flush=True)
         return "请回复'开始'启动访谈。"
+
+    print(f"[MSG_SERVICE] Found active interview: session_id={interview.session_id}", flush=True)
 
     session_id = interview.session_id
     logger.info("Processing message for session=%s user=%s", session_id, user_id)
@@ -102,13 +114,14 @@ async def _process_message(
             else:
                 return "语音识别失败，请重试或用文字回答。"
         except ASRServiceError as e:
-            logger.error("ASR failed for session=%s: %s", session_id, e)
+            logger.exception("ASR failed for session=%s: %s", session_id, e)
             return "语音识别出错，请用文字回答。"
         except Exception as e:
-            logger.error("ASR unexpected error for session=%s: %s", session_id, e)
+            logger.exception("ASR unexpected error for session=%s: %s", session_id, e)
             return "语音识别失败，请用文字回答。"
 
     # Store user message
+    print("[MSG_SERVICE] Storing user message...", flush=True)
     user_message = Message(
         interview_id=interview.id,
         role="user",
@@ -122,12 +135,15 @@ async def _process_message(
 
     try:
         db.commit()
+        print("[MSG_SERVICE] User message stored successfully", flush=True)
     except Exception as e:
         db.rollback()
-        logger.error("Failed to store user message for session=%s: %s", session_id, e)
+        logger.exception("Failed to store user message for session=%s: %s", session_id, e)
+        print(f"[MSG_SERVICE] DB commit failed: {e}", flush=True)
         return "消息存储失败，请重试。"
 
     # Process with LangGraph
+    print("[MSG_SERVICE] Calling LangGraph run_interview...", flush=True)
     try:
         # 🔧 FIX: Pass conversation_history to run_interview for proper state sync
         result_state = await asyncio.to_thread(
@@ -141,6 +157,7 @@ async def _process_message(
                 interview.conversation_history or []
             ),  # Pass from DB
         )
+        print(f"[MSG_SERVICE] LangGraph returned result_state keys: {list(result_state.keys())}", flush=True)
 
         # Update interview state
         interview.conversation_history = result_state.get("conversation_history", [])
@@ -169,6 +186,9 @@ async def _process_message(
     except Exception as e:
         db.rollback()
         logger.error("LangGraph error for session=%s: %s", session_id, e, exc_info=True)
+        print(f"[MSG_SERVICE] EXCEPTION in LangGraph: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
         return "处理消息时出错，请重试。"
 
 
@@ -177,8 +197,7 @@ async def start_new_interview(
     content: str,
     db: Session | None = None,
 ) -> str:
-    """
-    Start a new interview session for user.
+    """Start a new interview session for user.
 
     Args:
         user_id: User identifier
@@ -187,6 +206,7 @@ async def start_new_interview(
 
     Returns:
         Welcome message with first question
+
     """
     should_close_db = False
     if db is None:
@@ -206,7 +226,6 @@ async def _create_interview(
     db: Session,
 ) -> str:
     """Create new interview and return welcome message."""
-
     # Check if there's already an active interview - if so, end it first
     existing = (
         db.query(Interview)
