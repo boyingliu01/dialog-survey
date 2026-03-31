@@ -1,5 +1,4 @@
-"""
-DingTalkSender service for async message sending to DingTalk users.
+"""DingTalkSender service for async message sending to DingTalk users.
 
 This service provides async methods for:
 - Getting access tokens from DingTalk API
@@ -8,10 +7,9 @@ This service provides async methods for:
 - Sending interview invitations
 """
 
+import logging
 import os
 import time
-import logging
-from typing import Optional
 
 import httpx
 from dotenv import load_dotenv
@@ -37,21 +35,22 @@ class DingTalkSender:
 
     def __init__(
         self,
-        app_key: Optional[str] = None,
-        app_secret: Optional[str] = None,
-        agent_id: Optional[str] = None,
-    ):
+        app_key: str | None = None,
+        app_secret: str | None = None,
+        agent_id: str | None = None,
+    ) -> None:
         """Initialize DingTalkSender with credentials.
 
         Args:
             app_key: DingTalk app key (falls back to DINGTALK_APP_KEY env var)
             app_secret: DingTalk app secret (falls back to DINGTALK_APP_SECRET env var)
             agent_id: DingTalk agent ID (falls back to DINGTALK_AGENT_ID env var)
+
         """
         self.app_key = app_key if app_key is not None else os.getenv("DINGTALK_APP_KEY")
         self.app_secret = app_secret if app_secret is not None else os.getenv("DINGTALK_APP_SECRET")
         self.agent_id = agent_id if agent_id is not None else os.getenv("DINGTALK_AGENT_ID")
-        self._access_token: Optional[str] = None
+        self._access_token: str | None = None
         self._token_expires_at: float = 0
 
     async def _get_access_token(self) -> str:
@@ -64,6 +63,7 @@ class DingTalkSender:
             ValueError: If credentials not configured
             Exception: If API returns error response
             httpx.NetworkError: If network connection fails
+
         """
         if not self.app_key or not self.app_secret:
             raise ValueError("DingTalk credentials not configured")
@@ -97,6 +97,7 @@ class DingTalkSender:
 
         Returns:
             True if message sent successfully, False otherwise
+
         """
         if not user_id:
             logger.warning("Cannot send message to empty user_id")
@@ -123,13 +124,13 @@ class DingTalkSender:
             return True
 
         except httpx.NetworkError as e:
-            logger.error(f"Network error sending to {user_id}: {e}")
+            logger.exception(f"Network error sending to {user_id}: {e}")
             return False
         except httpx.TimeoutException as e:
-            logger.error(f"Timeout sending to {user_id}: {e}")
+            logger.exception(f"Timeout sending to {user_id}: {e}")
             return False
         except Exception as e:
-            logger.error(f"Error sending text to {user_id}: {e}")
+            logger.exception(f"Error sending text to {user_id}: {e}")
             return False
 
     async def send_markdown(self, user_id: str, title: str, content: str) -> bool:
@@ -142,6 +143,7 @@ class DingTalkSender:
 
         Returns:
             True if message sent successfully, False otherwise
+
         """
         if not user_id:
             logger.warning("Cannot send markdown to empty user_id")
@@ -151,7 +153,7 @@ class DingTalkSender:
             token = await self._get_access_token()
 
             # Use provided title or default
-            display_title = title if title else "消息"
+            display_title = title or "消息"
 
             payload = {
                 "agent_id": self.agent_id,
@@ -171,13 +173,13 @@ class DingTalkSender:
             return True
 
         except httpx.NetworkError as e:
-            logger.error(f"Network error sending markdown to {user_id}: {e}")
+            logger.exception(f"Network error sending markdown to {user_id}: {e}")
             return False
         except httpx.TimeoutException as e:
-            logger.error(f"Timeout sending markdown to {user_id}: {e}")
+            logger.exception(f"Timeout sending markdown to {user_id}: {e}")
             return False
         except Exception as e:
-            logger.error(f"Error sending markdown to {user_id}: {e}")
+            logger.exception(f"Error sending markdown to {user_id}: {e}")
             return False
 
     async def send_interview_invitation(self, user_id: str, plan_name: str, start_url: str) -> bool:
@@ -190,6 +192,7 @@ class DingTalkSender:
 
         Returns:
             True if invitation sent successfully, False otherwise
+
         """
         if not user_id:
             logger.warning("Cannot send invitation to empty user_id")
@@ -205,7 +208,7 @@ class DingTalkSender:
 - 方式：碎片时间回答，无需一次性完成
 
 🔗 **参与方式**
-点击链接开始访谈：{start_url if start_url else "请联系管理员获取"}
+点击链接开始访谈：{start_url or "请联系管理员获取"}
 
 💡 **提示**
 - 您可以在方便的时间回答问题
@@ -218,7 +221,7 @@ class DingTalkSender:
 
 
 # Singleton instance
-_sender_instance: Optional[DingTalkSender] = None
+_sender_instance: DingTalkSender | None = None
 
 
 def get_sender() -> DingTalkSender:
@@ -226,6 +229,7 @@ def get_sender() -> DingTalkSender:
 
     Returns:
         DingTalkSender singleton instance
+
     """
     global _sender_instance
     if _sender_instance is None:

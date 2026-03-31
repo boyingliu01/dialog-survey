@@ -1,6 +1,4 @@
-"""
-Interview template management service.
-"""
+"""Interview template management service."""
 
 import json
 from pathlib import Path
@@ -81,11 +79,12 @@ DEFAULT_TEMPLATES = {
 class TemplateManager:
     """Manager for interview templates."""
 
-    def __init__(self, templates_dir: str | None = None):
+    def __init__(self, templates_dir: str | None = None) -> None:
         """Initialize template manager.
 
         Args:
             templates_dir: Directory to store custom templates
+
         """
         if templates_dir:
             self.templates_dir = Path(templates_dir)
@@ -103,6 +102,7 @@ class TemplateManager:
 
         Returns:
             Template dictionary
+
         """
         # Try custom templates first
         template_file = self.templates_dir / f"{template_id}.json"
@@ -118,6 +118,7 @@ class TemplateManager:
 
         Returns:
             List of template summaries
+
         """
         templates = []
 
@@ -163,6 +164,7 @@ class TemplateManager:
 
         Returns:
             Path to saved template
+
         """
         template_file = self.templates_dir / f"{template_id}.json"
 
@@ -179,6 +181,7 @@ class TemplateManager:
 
         Returns:
             True if deleted, False if not found or is default
+
         """
         if template_id in DEFAULT_TEMPLATES:
             return False
@@ -207,6 +210,7 @@ class TemplateManager:
 
         Returns:
             Created template
+
         """
         import uuid
 
@@ -233,6 +237,7 @@ class TemplateManager:
 
         Returns:
             Incremented version string
+
         """
         parts = version.split(".")
         if len(parts) == 3:
@@ -248,6 +253,7 @@ class TemplateManager:
 
         Returns:
             True if valid, False otherwise
+
         """
         parts = version.split(".")
         if len(parts) != 3:
@@ -268,6 +274,7 @@ class TemplateManager:
 
         Raises:
             ValueError: If validation fails
+
         """
         # Required fields
         required_fields = ["id", "name", "description", "topics"]
@@ -276,11 +283,10 @@ class TemplateManager:
                 raise ValueError(f"Missing required field: {field}")
 
         # Validate version format
-        if "version" in template:
-            if not self._validate_version_format(template["version"]):
-                raise ValueError(
-                    f"Invalid version format: {template['version']}. Expected format: major.minor.patch (e.g., 1.0.0)"
-                )
+        if "version" in template and not self._validate_version_format(template["version"]):
+            raise ValueError(
+                f"Invalid version format: {template['version']}. Expected format: major.minor.patch (e.g., 1.0.0)"
+            )
 
         # Validate topics
         if not isinstance(template["topics"], list):
@@ -307,6 +313,7 @@ class TemplateManager:
 
         Returns:
             Cloned template dictionary, or None if source not found
+
         """
         import uuid
 
@@ -321,10 +328,7 @@ class TemplateManager:
         clone_id = f"clone_{uuid.uuid4().hex[:8]}"
 
         # Determine new name
-        if new_name:
-            cloned_name = new_name
-        else:
-            cloned_name = f"{source['name']} (克隆)"
+        cloned_name = new_name or f"{source['name']} (克隆)"
 
         # Increment version
         source_version = source.get("version", "1.0.0")
@@ -351,6 +355,7 @@ class TemplateManager:
 
         Returns:
             JSON string of template, or None if not found
+
         """
         # Check if template exists (not just fallback)
         if not self._template_exists(template_id):
@@ -375,6 +380,7 @@ class TemplateManager:
 
         Raises:
             ValueError: If validation fails
+
         """
         import uuid
 
@@ -404,6 +410,7 @@ class TemplateManager:
 
         Returns:
             True if file exists, False otherwise
+
         """
         template_file = self.templates_dir / f"{template_id}.json"
         return template_file.exists()
@@ -416,6 +423,7 @@ class TemplateManager:
 
         Returns:
             True if template exists in defaults or custom files
+
         """
         # Check default templates
         if template_id in DEFAULT_TEMPLATES:

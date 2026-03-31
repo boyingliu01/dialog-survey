@@ -1,5 +1,4 @@
-"""
-Analysis API endpoints for batch interview analysis and export.
+"""Analysis API endpoints for batch interview analysis and export.
 
 Endpoints:
     - POST /api/analysis/jobs - Create analysis job
@@ -15,7 +14,6 @@ import logging
 import os
 from datetime import datetime
 from io import BytesIO
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -48,10 +46,10 @@ class AnalysisJobResponse(BaseModel):
     id: int
     status: str
     interview_ids: list[str]
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
-    completed_at: Optional[str] = None
-    error_message: Optional[str] = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    completed_at: str | None = None
+    error_message: str | None = None
 
 
 class AnalysisResultResponse(BaseModel):
@@ -60,7 +58,7 @@ class AnalysisResultResponse(BaseModel):
     topics: list[dict]
     sentiment: dict
     key_points: list[dict]
-    satisfaction_score: Optional[int] = None
+    satisfaction_score: int | None = None
 
 
 class TopicsResponse(BaseModel):

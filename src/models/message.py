@@ -1,6 +1,4 @@
-"""
-Message model for storing individual messages in interviews.
-"""
+"""Message model for storing individual messages in interviews."""
 
 from datetime import datetime
 
@@ -21,5 +19,5 @@ class Message(Base):
     message_type = Column(String(20), default="text")  # "text" or "voice"
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Message(id={self.id}, role={self.role}, interview_id={self.interview_id})>"

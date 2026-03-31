@@ -1,6 +1,4 @@
-"""
-Interview management API endpoints.
-"""
+"""Interview management API endpoints."""
 
 import logging
 import os

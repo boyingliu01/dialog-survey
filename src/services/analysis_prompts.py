@@ -1,5 +1,4 @@
-"""
-Analysis prompts for interview content analysis.
+"""Analysis prompts for interview content analysis.
 
 Provides LLM prompt templates for:
 - Topic extraction (clustering)
