@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 import { DingTalkConfig, DingTalkMessage, DingTalkMessageSchema, SendMessageRequest } from './types';
 
 class DingTalkService {

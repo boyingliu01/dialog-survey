@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 import { z } from 'zod';
 import { config } from '../config.js';
 

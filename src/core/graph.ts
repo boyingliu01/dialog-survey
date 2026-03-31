@@ -14,7 +14,6 @@ export async function buildAndRunInterview(
 ): Promise<InterviewState> {
   let state = { ...initialState };
 
-
   // Run planning node
   if (state.status === 'planning') {
     const planningResult = await planningNode(state);
