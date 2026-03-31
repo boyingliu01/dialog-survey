@@ -1,5 +1,6 @@
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { WebSocket } from 'ws';
+import websocket from '@fastify/websocket';
 
 interface StreamConnection {
   socket: WebSocket;
@@ -9,16 +10,26 @@ interface StreamConnection {
   lastActivityAt: Date;
 }
 
+interface StreamMessage {
+  type: 'connect' | 'message' | 'disconnect';
+  userId?: string;
+  conversationId?: string;
+  payload?: unknown;
+}
+
 const streamRoutes: FastifyPluginAsync = async (fastify) => {
+  // Register websocket plugin
+  await fastify.register(websocket);
+  
   const connections = new Map<string, StreamConnection>();
 
-  fastify.get('/stream', { /* websocket: true */ }, (_connection, _req) => {
-    const clientId = (_req as any).headers['x-client-id'] as string || Math.random().toString(36).substring(2, 10);
+  fastify.get('/stream', { websocket: true }, (socket: WebSocket, req: FastifyRequest) => {
+    const clientId = (req.headers['x-client-id'] as string) || Math.random().toString(36).substring(2, 10);
 
     fastify.log.info('Stream connection established: %s', clientId);
 
     const streamConnection: StreamConnection = {
-      socket: _connection as any,
+      socket,
       userId: '',
       conversationId: '',
       connectedAt: new Date(),
@@ -28,9 +39,9 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
     connections.set(clientId, streamConnection);
 
     // Handle incoming messages
-    (_connection as any).on('message', async (data: Buffer) => {
+    socket.on('message', async (data: Buffer) => {
       try {
-        const message = JSON.parse(data.toString());
+        const message: StreamMessage = JSON.parse(data.toString());
         streamConnection.lastActivityAt = new Date();
 
         fastify.log.debug('Received stream message from %s: %j', clientId, message);
@@ -41,7 +52,7 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
             streamConnection.userId = message.userId || '';
             streamConnection.conversationId = message.conversationId || '';
             fastify.log.info('Stream connection authenticated: %s, user=%s', clientId, streamConnection.userId);
-            (_connection as any).send(JSON.stringify({
+            socket.send(JSON.stringify({
               type: 'connected',
               timestamp: new Date().toISOString(),
               message: 'Connection established',
@@ -54,12 +65,12 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
 
           case 'disconnect':
             fastify.log.info('Stream connection disconnected: %s', clientId);
-            (_connection as any).close();
+            socket.close();
             break;
 
           default:
             fastify.log.warn('Unknown stream message type: %s', message.type);
-            (_connection as any).send(JSON.stringify({
+            socket.send(JSON.stringify({
               type: 'error',
               timestamp: new Date().toISOString(),
               error: 'Unknown message type',
@@ -67,7 +78,7 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
         }
       } catch (error) {
         fastify.log.error('Error processing stream message from %s: %s', clientId, error);
-        (_connection as any).send(JSON.stringify({
+        socket.send(JSON.stringify({
           type: 'error',
           timestamp: new Date().toISOString(),
           error: 'Invalid message format',
@@ -76,20 +87,20 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     // Handle connection close
-    (_connection as any).on('close', (code: number, reason: string) => {
-      fastify.log.info('Stream connection closed: %s, code=%s, reason=%s', clientId, code, reason);
+    socket.on('close', (code: number, reason: Buffer) => {
+      fastify.log.info('Stream connection closed: %s, code=%s, reason=%s', clientId, code, reason.toString());
       connections.delete(clientId);
     });
 
     // Handle errors
-    (_connection as any).on('error', (error: Error) => {
+    socket.on('error', (error: Error) => {
       fastify.log.error('Stream connection error: %s, %s', clientId, error);
     });
 
     // Send heartbeat
     const heartbeatInterval = setInterval(() => {
-      if ((_connection as any).readyState === WebSocket.OPEN) {
-        (_connection as any).send(JSON.stringify({
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
           type: 'heartbeat',
           timestamp: new Date().toISOString(),
         }));
@@ -99,12 +110,12 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
     }, 30000);
   });
 
-  async function handleStreamMessage(connection: StreamConnection, payload: any): Promise<void> {
+  async function handleStreamMessage(connection: StreamConnection, payload: unknown): Promise<void> {
     try {
       const response = await processStreamMessage(connection, payload);
 
-      if ((connection.socket as any).readyState === WebSocket.OPEN) {
-        (connection.socket as any).send(JSON.stringify({
+      if (connection.socket.readyState === WebSocket.OPEN) {
+        connection.socket.send(JSON.stringify({
           type: 'response',
           timestamp: new Date().toISOString(),
           data: response,
@@ -112,8 +123,8 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
       }
     } catch (error) {
       fastify.log.error('Error processing stream message: %s', error);
-      if ((connection.socket as any).readyState === WebSocket.OPEN) {
-        (connection.socket as any).send(JSON.stringify({
+      if (connection.socket.readyState === WebSocket.OPEN) {
+        connection.socket.send(JSON.stringify({
           type: 'error',
           timestamp: new Date().toISOString(),
           error: 'Error processing message',
@@ -122,7 +133,7 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
     }
   }
 
-  async function processStreamMessage(_connection: StreamConnection, payload: any) {
+  async function processStreamMessage(_connection: StreamConnection, payload: unknown) {
     // TODO: Implement actual stream message processing
     // This should integrate with the interview engine
     return {

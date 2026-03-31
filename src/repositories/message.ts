@@ -1,5 +1,5 @@
 import { prisma } from '../db';
-import { Message, MessageRole, Interview, Prisma } from '@prisma/client';
+import { Message, MessageRole, Interview, Prisma } from '../generated/prisma/client/client.js';
 
 export interface CreateMessageData {
   interviewId: string;

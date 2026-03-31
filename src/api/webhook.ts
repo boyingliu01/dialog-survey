@@ -4,7 +4,7 @@ import { getDingtalkService } from '../services/dingtalk.js';
 import { getConversationEngine } from '../services/conversation/index.js';
 import { InterviewRepository } from '../repositories/interview.js';
 import { MessageRepository } from '../repositories/message.js';
-import { InterviewStatus, MessageRole } from '@prisma/client';
+import { InterviewStatus, MessageRole } from '../generated/prisma/client/client.js';
 import { getTemplateService, type Template } from '../services/template.js';
 import type { InterviewTemplate } from '../core/types.js';
 import * as crypto from 'crypto';
@@ -94,7 +94,9 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
     senderId: z.string().optional(),
   });
 
-  fastify.post<{ Body: any }>(
+  type WebhookBody = z.infer<typeof webhookBodySchema>;
+
+  fastify.post<{ Body: WebhookBody }>(
     '/webhook',
     {
       schema: {
@@ -128,7 +130,7 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
       fastify.log.info('Received message from user=%s type=%s', user_id, msg_type);
 
       // Find or create interview session
-      let sessionId = (request.body as any).session_id;
+      let sessionId = request.body.session_id;
 
       if (!sessionId) {
         const activeInterviews = await InterviewRepository.findByUserId(user_id, InterviewStatus.IN_PROGRESS);
