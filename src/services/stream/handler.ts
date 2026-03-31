@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import crypto from 'crypto';
-import { CallbackMessage } from '../dingtalk/types';
-import { StreamConfig, StreamEvent, StreamEventListener } from './types';
+import { CallbackMessage } from '../dingtalk.js';
+import { StreamConfig, StreamEvent, StreamEventListener } from './types.js';
 
 class DingTalkStreamHandler {
   private config: StreamConfig;
