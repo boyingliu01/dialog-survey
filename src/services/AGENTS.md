@@ -12,7 +12,7 @@ Service layer handles all external API integrations. Each service is isolated wi
 services/
 ├── llm/           # DashScope/Qwen provider
 ├── conversation/  # ConversationEngine orchestrator
-├── dingtalk/      # DingTalk message adapter
+├── dingtalk.ts    # DingTalk message adapter (parsing + sending)
 ├── asr/           # Fun-ASR voice transcription
 ├── stream/        # WebSocket stream handler
 └── template.ts    # Template loader
@@ -24,7 +24,7 @@ services/
 |------|----------|-------|
 | Add LLM provider | `llm/dashscope-provider.ts` | Extend DashScopeProvider |
 | Modify conversation flow | `conversation/engine.ts` | ConversationEngine class |
-| DingTalk integration | `dingtalk.ts`, `dingtalk/index.ts` | Message parsing + sending |
+| DingTalk integration | `dingtalk.ts` | Message parsing + sending |
 | WebSocket handling | `stream/handler.ts` | DingTalkStreamHandler |
 | Voice transcription | `asr/index.ts` | AsrService |
 

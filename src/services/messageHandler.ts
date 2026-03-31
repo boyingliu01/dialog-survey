@@ -1,6 +1,5 @@
-import { DingTalkService } from './dingtalk';
-import { CallbackMessage } from './dingtalk/types';
-import { TemplateLoader, InterviewTemplate } from './templateLoader';
+import { DingTalkService, CallbackMessage } from './dingtalk.js';
+import { TemplateLoader, InterviewTemplate } from './templateLoader.js';
 
 // Session state interface
 interface InterviewSession {

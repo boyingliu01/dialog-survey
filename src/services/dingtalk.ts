@@ -30,6 +30,25 @@ export interface ParsedMessage {
   conversation_id?: string;
 }
 
+// Callback message interface for Stream API (moved from ./dingtalk/types.ts)
+export interface CallbackMessage {
+  msgId: string;
+  createAt: number;
+  senderStaffId: string;
+  conversationId: string;
+  conversationType: '1' | '2' | '3';
+  senderCorpId: string;
+  conversationTitle: string;
+  msgtype: string;
+  text?: { content: string };
+  image?: { media_id: string };
+  voice?: { media_id: string; duration: number };
+  file?: { media_id: string };
+  location?: { title: string; address: string; latitude: number; longitude: number };
+  link?: { title: string; text: string; message_url: string; pic_url?: string };
+  markdown?: { title: string; text: string };
+}
+
 // Message types for sending
 interface TextMessage {
   msgtype: 'text';
@@ -261,24 +280,28 @@ export class DingTalkService {
   }
 
   /**
-   * Send message to user (legacy interface)
+   * Send message to user (legacy interface - supports text/markdown message objects)
    */
-  async sendToUser(userId: string, msg: { msgtype: string; content: string }): Promise<void> {
+  async sendToUser(userId: string, msg: { msgtype: string; text?: { content: string }; content?: string }): Promise<void> {
     if (msg.msgtype === 'text') {
-      await this.sendTextToUser(userId, msg.content);
+      const content = msg.text?.content || msg.content || '';
+      await this.sendTextToUser(userId, content);
     } else if (msg.msgtype === 'markdown') {
-      await this.sendMarkdownToUser(userId, msg.content, msg.content);
+      const content = (msg as any).markdown?.text || msg.text?.content || msg.content || '';
+      await this.sendMarkdownToUser(userId, content, content);
     }
   }
 
   /**
-   * Send message to conversation (legacy interface)
+   * Send message to conversation (legacy interface - supports text/markdown message objects)
    */
-  async sendToConversation(conversationId: string, msg: { msgtype: string; content: string }): Promise<void> {
+  async sendToConversation(conversationId: string, msg: { msgtype: string; text?: { content: string }; content?: string }): Promise<void> {
     if (msg.msgtype === 'text') {
-      await this.sendTextToConversation(conversationId, msg.content);
+      const content = msg.text?.content || msg.content || '';
+      await this.sendTextToConversation(conversationId, content);
     } else if (msg.msgtype === 'markdown') {
-      await this.sendMarkdownToConversation(conversationId, msg.content, msg.content);
+      const content = (msg as any).markdown?.text || msg.text?.content || msg.content || '';
+      await this.sendMarkdownToConversation(conversationId, content, content);
     }
   }
 }
