@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AI-powered interview robot that conducts async multi-turn interviews via DingTalk. Uses LangGraph for conversation flow, FastAPI for API, DashScope (Alibaba Qwen) for LLM, Fun-ASR for voice transcription, and PostgreSQL for persistence.
+AI-powered interview robot that conducts async multi-turn interviews via DingTalk. Uses LangGraph.js for conversation flow, Fastify for API, DashScope (Alibaba Qwen) for LLM, Fun-ASR for voice transcription, Prisma for ORM, and PostgreSQL for persistence.
 
-The actual application lives in `interview-bot/` subdirectory, which is also its own git repository.
+**Tech Stack**: TypeScript (strict mode), Fastify, LangGraph.js, Prisma, Vitest
 
 ## Commands
 
@@ -14,32 +14,34 @@ All commands run from `interview-bot/`:
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt
+npm install
 
-# Initialize database tables
-python -c "from src.models.database import init_db; init_db()"
+# Generate Prisma client
+npx prisma generate
 
-# Run database migrations (Alembic)
-alembic upgrade head
-alembic downgrade -1
+# Push database schema
+npx prisma db push
 
 # Run development server
-uvicorn src.api.main:app --reload
+npm run dev
+
+# Type check
+npm run type-check
 
 # Run all tests
-pytest
+npm test
 
 # Run single test file
-pytest tests/models/test_database.py
-
-# Run single test function
-pytest tests/models/test_database.py::TestClassName::test_method_name
+npm test tests/unit/core/graph.test.ts
 
 # Run with coverage
-pytest --cov=src --cov-report=html
+npm run test:coverage
 
-# Run with Docker
-docker-compose up -d
+# Lint
+npm run lint
+
+# Build
+npm run build
 ```
 
 ## Architecture
@@ -47,28 +49,36 @@ docker-compose up -d
 Four-layer architecture:
 
 1. **Access Layer** — DingTalk webhook (`/api/webhook`) receives text/voice messages, verifies signatures, ASR converts voice to text
-2. **Application Layer** — LangGraph state machine drives conversation; DingTalk adapter handles message parsing and session routing
-3. **AI Service Layer** — Two Qwen model roles: `qwen-max` for main dialogue + report generation, `qwen-turbo` for follow-up judgment
-4. **Storage Layer** — PostgreSQL for session state (via SQLAlchemy), JSON files for interview templates, Markdown files for generated reports under `reports/{interview_id}/`
+2. **Application Layer** — LangGraph.js StateGraph drives conversation; DingTalk adapter handles message parsing and session routing
+3. **AI Service Layer** — DashScope/Qwen LLM for dialogue, follow-up judgment, and report generation
+4. **Storage Layer** — PostgreSQL via Prisma ORM, JSON files for interview templates, Markdown files for generated reports under `reports/{interview_id}/`
 
-### LangGraph Conversation Flow
+### LangGraph.js Conversation Flow
 
 ```
-planning → interviewing → [follow-up? yes→followup→interviewing | no→next topic] → analyzing → completed
+START → planning → interviewing → [conditional edge] → followup → interviewing → ... → analyzing → END
 ```
 
-State is persisted via `MemorySaver` checkpointer across message turns. All state fields are TypedDict. The `should_continue` conditional edge function controls branching.
+State is defined using LangGraph `Annotation.Root` pattern. State persists across message turns via `MemorySaver` checkpointer.
 
 ### Key Source Layout
 
 ```
 interview-bot/src/
-├── api/          # FastAPI routers, Pydantic request/response models
-├── core/         # LangGraph graph definition, InterviewState TypedDict, node functions
-├── services/     # QwenService (LLM singleton), AsrService (voice), DingTalk adapter
-├── models/       # SQLAlchemy ORM: Interview, Message; database.py has get_db() + init_db()
-├── templates/    # JSON interview templates (loaded by TemplateService)
-└── reports/      # Generated Markdown reports
+├── api/              # Fastify routes, Zod validation schemas
+├── core/             # LangGraph StateGraph, nodes, edges, state annotation
+│   ├── graph.ts      # Conversation graph definition
+│   ├── state.ts      # InterviewState Annotation.Root
+│   ├── nodes.ts      # Node functions (planning, interviewing, followup, analyzing)
+│   └── edges.ts      # Conditional edge functions
+├── services/         # External service integrations
+│   ├── llm/          # DashScope/Qwen LLM provider
+│   ├── conversation/ # ConversationEngine orchestrator
+│   ├── dingtalk/     # DingTalk message adapter
+│   └── asr/          # Fun-ASR voice transcription
+├── repositories/     # Prisma data access layer
+├── utils/            # Validation, logging, helpers
+└── config.ts         # Environment configuration (Zod)
 ```
 
 ### Interview Templates
@@ -78,33 +88,28 @@ Templates are JSON files in `templates/` with this structure:
 - `questions[]` — Questions with `id`, `type` (rating/text/single_choice/yes_no), `text`, optional `follow_ups[]`, optional `condition` for conditional display
 - `domain_context` — Context passed to LLM for domain-specific understanding
 
-### Testing Fixtures
+### Testing with Vitest
 
-Use pytest fixtures from `tests/conftest.py`:
-- `mock_llm_service` — Mocked LLM service for testing without API calls
-- `temp_dir` — Temporary directory for file operations
-- `template_manager` — TemplateService with isolated templates
-- `base_interview_state` / `populated_interview_state` — InterviewState for testing
-- `mock_dingtalk_service` — Mocked DingTalk service
-
-### Service Singletons
-
-`QwenService` and `AsrService` use module-level `_instance` with `get_instance()` pattern. Always use `Depends(get_db)` for database sessions in FastAPI endpoints.
+Tests are in `tests/unit/` mirroring `src/` structure:
+- Use `vitest` `describe`, `it`, `expect` syntax
+- Mock external services with `vi.mock()` and `vi.fn()`
+- Use `beforeEach/afterEach` for setup/teardown
+- Run specific tests: `npm test tests/unit/core/graph.test.ts`
 
 ### Environment Variables
 
 Required in `interview-bot/.env` (copy from `.env.example`):
-- `DASHSCOPE_API_KEY` — Alibaba DashScope API key
+- `LLM_API_KEY` — DashScope API key
+- `LLM_ENDPOINT` — DashScope endpoint URL
 - `DATABASE_URL` — PostgreSQL connection string
 - `DINGTALK_APP_KEY`, `DINGTALK_APP_SECRET`, `DINGTALK_AGENT_ID`
 - `PUBLIC_URL` — Public HTTPS URL for DingTalk callback registration
 - `INTERNAL_API_KEY` — API key for authenticating internal endpoints (required)
 
 Optional:
-- `MAX_LLM_RETRIES` — LLM call retry count (default: 2)
-- `LLM_TIMEOUT` — LLM call timeout in seconds (default: 30)
-- `REPORTS_DIR` — Directory for generated reports (default: `reports/`)
-- `CORS_ORIGINS` — Comma-separated list of allowed CORS origins (default: none, blocks cross-origin)
+- `PORT` — Server port (default: 3000)
+- `LOG_LEVEL` — Logging level (default: info)
+- `CORS_ORIGINS` — Comma-separated list of allowed CORS origins
 
 ## API Endpoints
 
@@ -125,14 +130,10 @@ Reports are saved as Markdown files under `reports/{session_id}/report_{timestam
 
 Detailed requirements, architecture, and implementation plans are in `docs/plans/`.
 
-## Docker Deployment
+## Code Style
 
-The project includes `Dockerfile` and `docker-compose.yml` for containerized deployment:
-
-```bash
-# Build and run with Docker Compose
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-```
+- **TypeScript strict mode** enabled
+- Use Zod for runtime validation
+- Follow existing patterns in codebase
+- Keep changes minimal and focused
+- Never suppress type errors with `as any` or `@ts-ignore`
