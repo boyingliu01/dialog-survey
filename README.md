@@ -13,12 +13,13 @@ AI-powered interview robot with intelligent follow-up questions, multi-turn cont
 
 ## Tech Stack
 
-- **对话引擎**: LangGraph
+- **对话引擎**: LangGraph.js
 - **LLM服务**: 阿里云通义千问 (DashScope)
 - **语音识别**: 阿里云Fun-ASR
 - **消息平台**: 钉钉
-- **数据存储**: PostgreSQL
-- **Web框架**: FastAPI
+- **数据存储**: PostgreSQL (Prisma ORM)
+- **Web框架**: Fastify
+- **语言**: TypeScript (strict mode)
 
 ## Quick Start
 
@@ -26,7 +27,7 @@ AI-powered interview robot with intelligent follow-up questions, multi-turn cont
 
 ```bash
 cd interview-bot
-pip install -r requirements.txt
+npm install
 ```
 
 ### 2. 配置环境变量
@@ -39,13 +40,14 @@ cp .env.example .env
 ### 3. 初始化数据库
 
 ```bash
-python -c "from src.models.database import init_db; init_db()"
+npx prisma generate
+npx prisma db push
 ```
 
 ### 4. 启动服务
 
 ```bash
-uvicorn src.api.main:app --reload
+npm run dev
 ```
 
 ## 项目结构
@@ -53,14 +55,37 @@ uvicorn src.api.main:app --reload
 ```
 interview-bot/
 ├── src/
-│   ├── api/          # API层 (FastAPI)
-│   ├── core/         # 核心逻辑 (LangGraph)
+│   ├── api/          # API层 (Fastify routes)
+│   ├── core/         # 核心逻辑 (LangGraph StateGraph)
 │   ├── services/    # 服务层 (LLM, ASR, 钉钉)
-│   └── models/      # 数据模型
-├── tests/           # 测试
+│   ├── repositories/ # 数据访问层 (Prisma)
+│   └── utils/       # 工具函数
+├── tests/           # 测试 (Vitest)
+├── prisma/          # Prisma schema
 ├── templates/       # 访谈模板
-├── reports/        # 生成的报告
-└── requirements.txt
+├── reports/         # 生成的报告
+├── package.json
+├── tsconfig.json
+└── vitest.config.ts
+```
+
+## 开发命令
+
+```bash
+# 类型检查
+npm run type-check
+
+# 运行测试
+npm test
+
+# 测试覆盖率
+npm run test:coverage
+
+# 代码检查
+npm run lint
+
+# 构建
+npm run build
 ```
 
 ## 部署
