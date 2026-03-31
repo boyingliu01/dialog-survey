@@ -12,13 +12,13 @@ interface StreamConnection {
 const streamRoutes: FastifyPluginAsync = async (fastify) => {
   const connections = new Map<string, StreamConnection>();
 
-  fastify.get('/stream', { websocket: true }, (connection, req) => {
-    const clientId = req.headers['x-client-id'] as string || Math.random().toString(36).substring(2, 10);
+  fastify.get('/stream', { /* websocket: true */ }, (_connection, _req) => {
+    const clientId = (_req as any).headers['x-client-id'] as string || Math.random().toString(36).substring(2, 10);
 
     fastify.log.info('Stream connection established: %s', clientId);
 
     const streamConnection: StreamConnection = {
-      socket: connection as any,
+      socket: _connection as any,
       userId: '',
       conversationId: '',
       connectedAt: new Date(),
@@ -28,7 +28,7 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
     connections.set(clientId, streamConnection);
 
     // Handle incoming messages
-    (connection as any).on('message', async (data: Buffer) => {
+    (_connection as any).on('message', async (data: Buffer) => {
       try {
         const message = JSON.parse(data.toString());
         streamConnection.lastActivityAt = new Date();
@@ -41,7 +41,7 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
             streamConnection.userId = message.userId || '';
             streamConnection.conversationId = message.conversationId || '';
             fastify.log.info('Stream connection authenticated: %s, user=%s', clientId, streamConnection.userId);
-            (connection as any).send(JSON.stringify({
+            (_connection as any).send(JSON.stringify({
               type: 'connected',
               timestamp: new Date().toISOString(),
               message: 'Connection established',
@@ -54,12 +54,12 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
 
           case 'disconnect':
             fastify.log.info('Stream connection disconnected: %s', clientId);
-            (connection as any).close();
+            (_connection as any).close();
             break;
 
           default:
             fastify.log.warn('Unknown stream message type: %s', message.type);
-            (connection as any).send(JSON.stringify({
+            (_connection as any).send(JSON.stringify({
               type: 'error',
               timestamp: new Date().toISOString(),
               error: 'Unknown message type',
@@ -67,7 +67,7 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
         }
       } catch (error) {
         fastify.log.error('Error processing stream message from %s: %s', clientId, error);
-        (connection as any).send(JSON.stringify({
+        (_connection as any).send(JSON.stringify({
           type: 'error',
           timestamp: new Date().toISOString(),
           error: 'Invalid message format',
@@ -76,20 +76,20 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     // Handle connection close
-    (connection as any).on('close', (code: number, reason: string) => {
+    (_connection as any).on('close', (code: number, reason: string) => {
       fastify.log.info('Stream connection closed: %s, code=%s, reason=%s', clientId, code, reason);
       connections.delete(clientId);
     });
 
     // Handle errors
-    (connection as any).on('error', (error: Error) => {
+    (_connection as any).on('error', (error: Error) => {
       fastify.log.error('Stream connection error: %s, %s', clientId, error);
     });
 
     // Send heartbeat
     const heartbeatInterval = setInterval(() => {
-      if ((connection as any).readyState === WebSocket.OPEN) {
-        (connection as any).send(JSON.stringify({
+      if ((_connection as any).readyState === WebSocket.OPEN) {
+        (_connection as any).send(JSON.stringify({
           type: 'heartbeat',
           timestamp: new Date().toISOString(),
         }));
