@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { InterviewRepository } from '../repositories/interview.js';
-import { InterviewStatus } from '@prisma/client';
+import { InterviewStatus } from '../generated/prisma/client/client.js';
 import * as fs from 'fs';
 
 const interviewsRoutes: FastifyPluginAsync = async (fastify) => {
@@ -22,7 +22,7 @@ const interviewsRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request) => {
       const { status, limit, offset } = request.query;
-      const enumStatus = status as any ? InterviewStatus[status as keyof typeof InterviewStatus] : undefined;
+      const enumStatus = status ? InterviewStatus[status as keyof typeof InterviewStatus] : undefined;
 
       const interviews = await InterviewRepository.findAll(enumStatus, limit || 20, offset || 0);
 
