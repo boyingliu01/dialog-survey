@@ -1,17 +1,17 @@
-import { Template } from '../types';
+import { InterviewTemplate } from './types';
 
-export function PLANNING_PROMPT(template: Template): string {
+export function PLANNING_PROMPT(template: InterviewTemplate): string {
   return `你好！我是智能面试机器人，我们将进行一场关于"${template.name}"的访谈。
 
 ${template.description || ''}
 
 访谈将围绕以下主题展开：
-${template.topics.map((topic, index) => `${index + 1}. ${topic.name} - ${topic.description || ''}`).join('\n')}
+${template.topics.map((topic, index) => `${index + 1}. ${topic.name} - ${topic.description || ''}，首问：${topic.initial_question}`).join('\n')}
 `;
 }
 
 export function INTERVIEW_PROMPT(
-  template: Template,
+  template: InterviewTemplate,
   currentTopicIndex: number,
   currentQuestionIndex: number
 ): string {
@@ -32,7 +32,7 @@ export function FOLLOWUP_PROMPT(
 您的回答似乎比较简洁或不完整，能否请您详细说明一下？`;
 }
 
-export function ANALYZE_PROMPT(template: Template): string {
+export function ANALYZE_PROMPT(template: InterviewTemplate): string {
   return `请分析以下访谈内容，并生成一份详细的访谈报告。
 
 报告应包括：
@@ -44,7 +44,7 @@ export function ANALYZE_PROMPT(template: Template): string {
 访谈主题：
 ${template.topics.map((topic) => `- ${topic.name}: ${topic.description || ''}`).join('\n')}
 
-${template.domainContext || ''}
+${template.domain_context || ''}
 
 请根据以上信息和访谈记录生成报告。`;
 }

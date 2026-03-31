@@ -6,6 +6,8 @@ export interface CreateInterviewData {
   userId: string;
   templateId: string;
   topic?: string;
+  conversationHistory?: Prisma.JsonValue;
+  extractedInfo?: Prisma.JsonValue;
 }
 
 export interface UpdateInterviewData {

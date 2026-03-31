@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { shouldContinue, shouldFollowup, isInterviewComplete } from '../../../src/core/edges';
-import { InterviewState, InterviewTemplate } from '../../../src/core/types';
+import type { InterviewState } from '../../../src/core/state';
+import type { InterviewTemplate } from '../../../src/core/types';
 
 const mockTemplate: InterviewTemplate = {
   id: 'test-template',
@@ -44,7 +45,6 @@ describe('edges', () => {
     it('should return "analyzing" when interview is complete', () => {
       const state = createMockState({
         completedTopics: ['topic-1', 'topic-2'],
-        currentQuestionIndex: 2,
       });
       expect(shouldContinue(state)).toBe('analyzing');
     });
@@ -68,10 +68,9 @@ describe('edges', () => {
   });
 
   describe('isInterviewComplete', () => {
-    it('should return true when all topics and questions are completed', () => {
+    it('should return true when all topics are completed', () => {
       const state = createMockState({
         completedTopics: ['topic-1', 'topic-2'],
-        currentQuestionIndex: 2,
       });
       expect(isInterviewComplete(state)).toBe(true);
     });
@@ -79,15 +78,6 @@ describe('edges', () => {
     it('should return false when not all topics are completed', () => {
       const state = createMockState({
         completedTopics: ['topic-1'],
-        currentQuestionIndex: 2,
-      });
-      expect(isInterviewComplete(state)).toBe(false);
-    });
-
-    it('should return false when not all questions are completed', () => {
-      const state = createMockState({
-        completedTopics: ['topic-1', 'topic-2'],
-        currentQuestionIndex: 1,
       });
       expect(isInterviewComplete(state)).toBe(false);
     });
