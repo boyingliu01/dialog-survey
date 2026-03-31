@@ -1,5 +1,4 @@
-"""
-Analysis service for interview content analysis.
+"""Analysis service for interview content analysis.
 
 Provides methods for:
 - Topic extraction (clustering)
@@ -24,7 +23,7 @@ load_dotenv(override=True)
 
 
 class AnalysisService:
-    """访谈统计分析服务
+    """访谈统计分析服务.
 
     提供访谈内容的主题聚类、情感分析、关键观点提取等功能。
     支持大批量数据的分批处理。
@@ -32,7 +31,7 @@ class AnalysisService:
 
     BATCH_SIZE = 50  # 每批处理50个访谈
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化分析服务."""
         self.llm_service = get_llm_service()
 
@@ -48,6 +47,7 @@ class AnalysisService:
         Example:
             >>> topics = service.extract_topics(["产品质量还不错", "用户体验一般"])
             >>> topics[0]["name"]  # "产品质量"
+
         """
         if not contents:
             return []
@@ -91,6 +91,7 @@ class AnalysisService:
         Example:
             >>> sentiment = service.analyze_sentiment("我觉得产品质量还不错")
             >>> sentiment["sentiment"]  # "positive"
+
         """
         if not content or len(content.strip()) == 0:
             return {"sentiment": "neutral", "strength": "weak", "keywords": []}
@@ -130,6 +131,7 @@ class AnalysisService:
         Example:
             >>> points = service.extract_key_points("产品质量", "我觉得产品质量还不错")
             >>> points[0]["summary"]  # "产品质量有提升空间"
+
         """
         if not content or len(content.strip()) == 0:
             return []
@@ -160,6 +162,7 @@ class AnalysisService:
 
         Returns:
             分批后的列表
+
         """
         batch_size = batch_size or self.BATCH_SIZE
 
@@ -176,6 +179,7 @@ class AnalysisService:
 
         Returns:
             解析后的字典，如果解析失败返回 None
+
         """
         try:
             # 尝试直接解析
@@ -203,6 +207,7 @@ class AnalysisService:
 
         Returns:
             合并后的主题列表（简单去重）
+
         """
         if not topics:
             return []
@@ -229,6 +234,7 @@ def get_analysis_service() -> AnalysisService:
 
     Returns:
         AnalysisService 单例实例
+
     """
     global _analysis_service
     if _analysis_service is None:

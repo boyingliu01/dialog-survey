@@ -1,7 +1,6 @@
-"""
-ASR (Automatic Speech Recognition) service for voice message processing.
-"""
+"""ASR (Automatic Speech Recognition) service for voice message processing."""
 
+import contextlib
 import os
 import tempfile
 
@@ -24,11 +23,12 @@ class ASRService:
     This service handles voice message transcription.
     """
 
-    def __init__(self, model_name: str = "paraformer-zh"):
+    def __init__(self, model_name: str = "paraformer-zh") -> None:
         """Initialize ASR service.
 
         Args:
             model_name: Fun-ASR model name
+
         """
         self.model_name = model_name
         self._model = None
@@ -63,6 +63,7 @@ class ASRService:
 
         Returns:
             Transcribed text
+
         """
         if not self._funasr_available:
             return self._mock_transcribe()
@@ -84,10 +85,8 @@ class ASRService:
             return self._mock_transcribe()
         finally:
             # Clean up temp file
-            try:
+            with contextlib.suppress(Exception):
                 os.unlink(temp_path)
-            except Exception:
-                pass
 
     def transcribe_from_url(self, audio_url: str) -> str:
         """Transcribe audio from URL.
@@ -97,6 +96,7 @@ class ASRService:
 
         Returns:
             Transcribed text
+
         """
         if not self._funasr_available:
             return self._mock_transcribe()
@@ -120,10 +120,8 @@ class ASRService:
         except Exception:
             return self._mock_transcribe()
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 os.unlink(temp_path)
-            except Exception:
-                pass
 
     def transcribe_from_file(self, file_path: str) -> str:
         """Transcribe audio from file path.
@@ -133,6 +131,7 @@ class ASRService:
 
         Returns:
             Transcribed text
+
         """
         if not self._funasr_available:
             return self._mock_transcribe()
@@ -152,6 +151,7 @@ class ASRService:
 
         Returns:
             Placeholder text
+
         """
         return "[语音转文字结果]"
 

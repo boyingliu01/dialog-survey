@@ -1,6 +1,4 @@
-"""
-Interview state definition for LangGraph.
-"""
+"""Interview state definition for LangGraph."""
 
 from typing import Any, TypedDict
 
@@ -62,6 +60,7 @@ def create_initial_state(
 
     Returns:
         Initial InterviewState
+
     """
     return {
         "session_id": session_id,

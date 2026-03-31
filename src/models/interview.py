@@ -1,6 +1,4 @@
-"""
-Interview model for storing interview session data.
-"""
+"""Interview model for storing interview session data."""
 
 import enum
 from datetime import datetime
@@ -39,5 +37,5 @@ class Interview(Base):
     completed_at = Column(DateTime, nullable=True)
     report_path = Column(String(500), nullable=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Interview(session_id={self.session_id}, status={self.status.value})>"

@@ -1,6 +1,4 @@
-"""
-Prompt templates for interview conversation with persona and style control.
-"""
+"""Prompt templates for interview conversation with persona and style control."""
 
 from typing import Any
 

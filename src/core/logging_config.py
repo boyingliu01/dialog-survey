@@ -1,6 +1,4 @@
-"""
-Structured logging configuration for the interview bot.
-"""
+"""Structured logging configuration for the interview bot."""
 
 import logging
 import sys

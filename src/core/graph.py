@@ -1,6 +1,4 @@
-"""
-LangGraph interview conversation graph.
-"""
+"""LangGraph interview conversation graph."""
 
 from typing import Any
 
@@ -36,6 +34,7 @@ def create_interview_graph() -> StateGraph:
 
     Returns:
         Compiled LangGraph StateGraph
+
     """
     # Create workflow
     workflow = StateGraph(InterviewState)
@@ -104,9 +103,12 @@ def run_interview(
 
     Returns:
         Updated interview state (caller persists to database)
+
     """
+    print(f"[GRAPH] run_interview called: session_id={session_id}, user_message={user_message[:30] if user_message else 'None'}", flush=True)
     # Use singleton graph (stateless - no checkpointer)
     graph = get_interview_graph()
+    print("[GRAPH] Graph obtained, creating initial state...", flush=True)
 
     # Create initial state from database history (source of truth)
     initial_state = create_initial_state(
@@ -115,9 +117,11 @@ def run_interview(
         template_id=template_id,
         topic=topic,
     )
+    print("[GRAPH] Initial state created", flush=True)
 
     # Restore conversation history from database
     if conversation_history:
+        print(f"[GRAPH] Restoring conversation_history: {len(conversation_history)} messages", flush=True)
         initial_state["conversation_history"] = list(conversation_history)
 
         # Check if already initialized (has assistant messages)
@@ -127,6 +131,28 @@ def run_interview(
             # Estimate topic index from history
             topic_count = sum(1 for m in conversation_history if m.get("role") == "assistant")
             initial_state["current_topic_index"] = min(topic_count - 1, 2)
+            print(f"[GRAPH] Restored status=interviewing, topic_index={initial_state['current_topic_index']}", flush=True)
+
+            # 🔧 FIX: Ensure topics are populated for restored sessions
+            if not initial_state.get("topics"):
+                initial_state["topics"] = [
+                    {
+                        "id": "product_quality",
+                        "name": "产品质量",
+                        "description": "对产品质量的评价",
+                    },
+                    {
+                        "id": "service_quality",
+                        "name": "服务质量",
+                        "description": "对服务体验的评价",
+                    },
+                    {
+                        "id": "improvement",
+                        "name": "改进建议",
+                        "description": "需要改进的地方",
+                    },
+                ]
+                print(f"[GRAPH] Populated default topics for restored session", flush=True)
 
     # Ensure required fields exist (for restored sessions)
     required_fields = {
@@ -154,10 +180,13 @@ def run_interview(
 
     # Add user message if provided
     if user_message:
+        print(f"[GRAPH] Adding user message to history: {user_message[:30]}", flush=True)
         initial_state["conversation_history"].append({"role": "user", "content": user_message})
 
     # Run the graph (stateless - no config needed since no checkpointer)
+    print(f"[GRAPH] Invoking graph with state: status={initial_state.get('status')}, history_len={len(initial_state.get('conversation_history', []))}", flush=True)
     result = graph.invoke(initial_state)
+    print(f"[GRAPH] Graph completed, result keys: {list(result.keys())}", flush=True)
 
     return result
 

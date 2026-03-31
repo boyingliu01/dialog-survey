@@ -1,5 +1,4 @@
-"""
-InterviewPlan and Interviewee models for managing interview batches.
+"""InterviewPlan and Interviewee models for managing interview batches.
 
 InterviewPlan represents a batch interview plan that can have multiple interviewees.
 Interviewee represents an individual person to be interviewed within a plan.
@@ -11,7 +10,6 @@ from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from src.models.database import Base
-
 
 # Valid status values for InterviewPlan
 PLAN_STATUS_VALUES = ("draft", "active", "completed", "cancelled")
@@ -38,7 +36,7 @@ class InterviewPlan(Base):
     # Relationship to interviewees
     interviewees = relationship("Interviewee", back_populates="plan", cascade="all, delete-orphan")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<InterviewPlan(id={self.id}, name={self.name}, status={self.status})>"
 
     def is_valid_status(self) -> bool:
@@ -65,7 +63,7 @@ class Interviewee(Base):
     # Relationship to plan
     plan = relationship("InterviewPlan", back_populates="interviewees")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Interviewee(id={self.id}, name={self.name}, plan_id={self.plan_id}, status={self.status})>"
 
     def is_valid_status(self) -> bool:

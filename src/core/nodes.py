@@ -1,10 +1,6 @@
-"""
-LangGraph nodes for interview conversation flow.
-"""
+"""LangGraph nodes for interview conversation flow."""
 
 import logging
-import os
-from datetime import datetime
 from typing import Any
 
 from src.core.state import InterviewState
@@ -26,6 +22,7 @@ def _get_topic_key(topic: dict[str, Any]) -> str:
 
     Returns:
         Unique key string for the topic
+
     """
     return topic.get("id") or topic.get("name") or "unknown_topic"
 
@@ -38,6 +35,7 @@ def _truncate_history(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     Returns:
         Truncated history keeping most recent messages
+
     """
     if len(history) > MAX_CONVERSATION_HISTORY:
         return history[-MAX_CONVERSATION_HISTORY:]
@@ -55,6 +53,7 @@ def planning_node(state: InterviewState) -> InterviewState:
 
     Returns:
         Updated state with first question
+
     """
     # 🔧 FIX: Check if already initialized - skip if conversation already started
     existing_history = state.get("conversation_history", [])
@@ -168,7 +167,9 @@ def interview_node(state: InterviewState) -> InterviewState:
 
     Returns:
         Updated state with next question or analysis trigger
+
     """
+    print(f"[NODE] interview_node called: status={state.get('status')}, history_len={len(state.get('conversation_history', []))}", flush=True)
     # Extract last user answer
     user_answer = ""
     for msg in reversed(state["conversation_history"]):
@@ -176,23 +177,27 @@ def interview_node(state: InterviewState) -> InterviewState:
             user_answer = msg.get("content", "")
             break
 
+    print(f"[NODE] Extracted user_answer: {user_answer[:30] if user_answer else 'None'}", flush=True)
     if not user_answer:
         # No user answer yet, just return
         # Mark as waiting for user input
         state["status"] = "waiting_for_user"
+        print("[NODE] No user answer, setting status=waiting_for_user", flush=True)
         return state
 
     # Call LLM to determine if follow-up is needed
+    print("[NODE] Calling LLM to check if followup needed...", flush=True)
     try:
         from src.services.llm import get_qwen_service
 
         llm = get_qwen_service()
 
         # Check if we should follow up
-        needs_followup, followup_type, reason = llm.is_followup_needed(
+        needs_followup, followup_type, _reason = llm.is_followup_needed(
             state["conversation_history"], state.get("extracted_info", {})
         )
 
+        print(f"[NODE] LLM returned: needs_followup={needs_followup}, type={followup_type}", flush=True)
         state["needs_followup"] = needs_followup
         state["followup_type"] = followup_type
 
@@ -214,27 +219,33 @@ def interview_node(state: InterviewState) -> InterviewState:
                         topic_key,
                         current_count,
                     )
+                    print(f"[NODE] Followup limit reached for topic {topic_key}", flush=True)
                     state["needs_followup"] = False
                     state["followup_type"] = None
                     # Continue to next topic logic below
                 else:
                     # Will generate follow-up in followup_node
+                    print("[NODE] Will generate followup in followup_node", flush=True)
                     return state
-    except Exception:
+    except Exception as e:
         # If LLM fails, just continue without follow-up
+        print(f"[NODE] LLM exception: {e}", flush=True)
         state["needs_followup"] = False
         state["followup_type"] = None
 
     # Get current topic
     current_idx = state["current_topic_index"]
     total_topics = len(state.get("topics", []))
+    print(f"[NODE] current_idx={current_idx}, total_topics={total_topics}", flush=True)
 
     # Check if all topics are done
     if current_idx >= total_topics - 1:
         # All topics covered, move to analysis
         state["status"] = "analyzing"
+        print("[NODE] All topics done, setting status=analyzing", flush=True)
     else:
         # Move to next topic - generate question using LLM
+        print("[NODE] Moving to next topic...", flush=True)
         next_topic = state["topics"][current_idx + 1]
 
         try:
@@ -248,6 +259,7 @@ def interview_node(state: InterviewState) -> InterviewState:
                 "conversation_style": "轻松自然的对话式，像朋友聊天一样",
                 "tone": "友好、开放、鼓励分享",
             }
+            print(f"[NODE] Generating next question for topic: {next_topic['name']}", flush=True)
             next_question = llm.generate_next_question_enhanced(
                 conversation_history=state["conversation_history"],
                 current_topic=next_topic["name"],
@@ -259,8 +271,10 @@ def interview_node(state: InterviewState) -> InterviewState:
             )
             state["pending_question"] = next_question
             logger.info("Generated next question using LLM for topic: %s", next_topic["name"])
+            print(f"[NODE] Next question generated: {next_question[:50]}", flush=True)
         except Exception as e:
             logger.warning("Failed to generate next question with LLM, using fallback: %s", e)
+            print(f"[NODE] LLM failed for next question: {e}", flush=True)
             # Fallback to simple transition
             state["pending_question"] = (
                 f"接下来我想聊聊{next_topic['name']}，{next_topic.get('description', '你有什么想法？')}"
@@ -272,6 +286,7 @@ def interview_node(state: InterviewState) -> InterviewState:
         state["conversation_history"].append({"role": "assistant", "content": state["pending_question"]})
         state["conversation_history"] = _truncate_history(state["conversation_history"])
 
+    print(f"[NODE] interview_node done: status={state.get('status')}", flush=True)
     return state
 
 
@@ -288,6 +303,7 @@ def followup_node(state: InterviewState) -> InterviewState:
 
     Returns:
         Updated state with follow-up question
+
     """
     # Get user answer
     user_answer = ""
@@ -399,6 +415,7 @@ def analysis_node(state: InterviewState) -> InterviewState:
 
     Returns:
         Updated state with generated report
+
     """
     # Try to generate report using LLM
     try:
@@ -475,6 +492,7 @@ def should_continue(state: InterviewState) -> str:
 
     Returns:
         Next node name or "end"
+
     """
     # If completed, end
     if state.get("status") == "completed":
@@ -504,6 +522,7 @@ def end_node(state: InterviewState) -> InterviewState:
 
     Returns:
         Final state
+
     """
     state["status"] = "completed"
     return state

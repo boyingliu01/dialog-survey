@@ -1,5 +1,4 @@
-"""
-ReminderService for interview reminder sending.
+"""ReminderService for interview reminder sending.
 
 This service provides methods for:
 - Sending reminders to users
@@ -8,8 +7,7 @@ This service provides methods for:
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from src.services.dingtalk_sender import get_sender
 
@@ -39,6 +37,7 @@ class ReminderService:
 
         Returns:
             True if reminder sent successfully, False otherwise
+
         """
         if not user_id:
             logger.warning("Cannot send reminder to empty user_id")
@@ -63,10 +62,10 @@ class ReminderService:
             return result
 
         except Exception as e:
-            logger.error(f"Error sending reminder to {user_id}: {e}")
+            logger.exception(f"Error sending reminder to {user_id}: {e}")
             return False
 
-    def should_send_reminder(self, invited_at: Optional[datetime], reminder_count: int) -> bool:
+    def should_send_reminder(self, invited_at: datetime | None, reminder_count: int) -> bool:
         """Determine if reminder should be sent based on timing rules.
 
         Args:
@@ -75,6 +74,7 @@ class ReminderService:
 
         Returns:
             True if reminder should be sent, False otherwise
+
         """
         # Handle None invited_at
         if invited_at is None:
@@ -87,14 +87,13 @@ class ReminderService:
             return False
 
         # Handle negative reminder_count (treat as 0)
-        if reminder_count < 0:
-            reminder_count = 0
+        reminder_count = max(reminder_count, 0)
 
         # Calculate hours since invitation
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         # Ensure invited_at is timezone-aware for comparison
         if invited_at.tzinfo is None:
-            invited_at = invited_at.replace(tzinfo=timezone.utc)
+            invited_at = invited_at.replace(tzinfo=UTC)
         hours_since_invite = (now - invited_at).total_seconds() / 3600
 
         # Check if enough time has passed for next reminder
@@ -111,7 +110,7 @@ class ReminderService:
         logger.debug(f"Reminder not due: {hours_since_invite:.1f} hours since invite < {required_hours} hours")
         return False
 
-    def get_next_reminder_time(self, invited_at: datetime, reminder_count: int) -> Optional[datetime]:
+    def get_next_reminder_time(self, invited_at: datetime, reminder_count: int) -> datetime | None:
         """Calculate when the next reminder should be sent.
 
         Args:
@@ -120,13 +119,13 @@ class ReminderService:
 
         Returns:
             Datetime when next reminder should be sent, or None if limit reached
+
         """
         if reminder_count >= self.MAX_REMINDERS:
             return None
 
         # Handle negative reminder_count
-        if reminder_count < 0:
-            reminder_count = 0
+        reminder_count = max(reminder_count, 0)
 
         # Next reminder at (reminder_count + 1) * interval hours after invite
         next_hours = (reminder_count + 1) * self.REMINDER_INTERVAL_HOURS
@@ -134,7 +133,7 @@ class ReminderService:
 
 
 # Singleton instance
-_reminder_service: Optional[ReminderService] = None
+_reminder_service: ReminderService | None = None
 
 
 def get_reminder_service() -> ReminderService:
@@ -142,6 +141,7 @@ def get_reminder_service() -> ReminderService:
 
     Returns:
         ReminderService singleton instance
+
     """
     global _reminder_service
     if _reminder_service is None:

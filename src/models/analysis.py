@@ -1,5 +1,4 @@
-"""
-Analysis models for statistical analysis data.
+"""Analysis models for statistical analysis data.
 
 Models:
     - AnalysisJob: Analysis task/job tracking
@@ -60,7 +59,7 @@ class AnalysisJob(Base):
         return self.topics_data
 
     @topics.setter
-    def topics(self, value):
+    def topics(self, value) -> None:
         self.topics_data = value
 
     @property
@@ -68,10 +67,10 @@ class AnalysisJob(Base):
         return self.key_points_data
 
     @key_points.setter
-    def key_points(self, value):
+    def key_points(self, value) -> None:
         self.key_points_data = value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<AnalysisJob(id={self.id}, status={self.status.value}, total={self.total_interviews})>"
 
 
@@ -95,7 +94,7 @@ class AnalysisTopic(Base):
     job = relationship("AnalysisJob", back_populates="topic_records")
     key_points = relationship("KeyPoint", back_populates="topic", cascade="all, delete-orphan")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<AnalysisTopic(id={self.id}, name={self.name}, mentions={self.mention_count})>"
 
 
@@ -117,7 +116,7 @@ class KeyPoint(Base):
     topic = relationship("AnalysisTopic", back_populates="key_points")
     interview = relationship("Interview")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<KeyPoint(id={self.id}, sentiment={self.sentiment}, topic_id={self.topic_id})>"
 
 
@@ -138,5 +137,5 @@ class AnalysisResult(Base):
     # Relationships
     job = relationship("AnalysisJob", back_populates="results")
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<AnalysisResult(id={self.id}, job_id={self.job_id}, score={self.satisfaction_score})>"

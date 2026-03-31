@@ -1,6 +1,4 @@
-"""
-Template API endpoints.
-"""
+"""Template API endpoints."""
 
 import json
 from typing import Any
@@ -49,6 +47,7 @@ def list_templates():
 
     Returns:
         List of template summaries
+
     """
     manager = get_template_manager()
     return manager.list_templates()
@@ -63,6 +62,7 @@ def get_template(template_id: str):
 
     Returns:
         Template data
+
     """
     manager = get_template_manager()
     return manager.get_template(template_id)
@@ -77,6 +77,7 @@ def create_template(request: CreateTemplateRequest):
 
     Returns:
         Created template
+
     """
     manager = get_template_manager()
 
@@ -99,6 +100,7 @@ def delete_template(template_id: str):
 
     Returns:
         Success message
+
     """
     manager = get_template_manager()
 
@@ -123,6 +125,7 @@ def clone_template(template_id: str, request: CloneTemplateRequest | None = None
 
     Raises:
         HTTPException: 404 if template not found
+
     """
     manager = get_template_manager()
 
@@ -147,6 +150,7 @@ def export_template(template_id: str):
 
     Raises:
         HTTPException: 404 if template not found
+
     """
     manager = get_template_manager()
 
@@ -173,6 +177,7 @@ def import_template(request: ImportTemplateRequest):
 
     Raises:
         HTTPException: 400 if template validation fails
+
     """
     manager = get_template_manager()
 
