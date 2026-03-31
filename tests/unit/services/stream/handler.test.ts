@@ -116,7 +116,7 @@ describe('DingTalkStreamHandler', () => {
       handler['emit']('message', 'testData');
 
       expect(listener).toHaveBeenCalledTimes(2);
-      expect(listener).toHaveBeenCalledWith('connect');
+      expect(listener).toHaveBeenCalledWith('connect', undefined);
       expect(listener).toHaveBeenCalledWith('message', 'testData');
     });
 

@@ -1,6 +1,5 @@
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { WebSocket } from 'ws';
-import websocket from '@fastify/websocket';
 
 interface StreamConnection {
   socket: WebSocket;
@@ -18,9 +17,7 @@ interface StreamMessage {
 }
 
 const streamRoutes: FastifyPluginAsync = async (fastify) => {
-  // Register websocket plugin
-  await fastify.register(websocket);
-  
+  // Note: websocket plugin is registered in server.ts
   const connections = new Map<string, StreamConnection>();
 
   fastify.get('/stream', { websocket: true }, (socket: WebSocket, req: FastifyRequest) => {
