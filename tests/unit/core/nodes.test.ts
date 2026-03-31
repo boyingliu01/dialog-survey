@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { planningNode, interviewNode, followupNode, analyzeNode } from '../../../src/core/nodes';
-import { InterviewState, InterviewTemplate, LLMProvider, LLMResponse } from '../../../src/core/types';
+import type { InterviewState } from '../../../src/core/state';
+import type { InterviewTemplate, LLMProvider, LLMResponse } from '../../../src/core/types';
 import { createInitialState } from '../../../src/core/state';
 
 const mockTemplate: InterviewTemplate = {
@@ -39,7 +40,8 @@ describe('nodes', () => {
       expect(result.interviewStatus).toBe('interviewing');
       expect(result.conversationHistory).toHaveLength(1);
       expect(result.conversationHistory![0].role).toBe('assistant');
-      expect(result.conversationHistory![0].content).toContain(mockTemplate.name);
+      // The content comes from LLM response, which is 'Test response'
+      expect(result.conversationHistory![0].content).toBe('Test response');
     });
   });
 

@@ -1,11 +1,39 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { getDingtalkService } from '../services/dingtalk.js';
+import { getConversationEngine } from '../services/conversation/index.js';
 import { InterviewRepository } from '../repositories/interview.js';
 import { MessageRepository } from '../repositories/message.js';
 import { InterviewStatus, MessageRole } from '@prisma/client';
-import { getTemplateService } from '../services/template.js';
+import { getTemplateService, type Template } from '../services/template.js';
+import type { InterviewTemplate } from '../core/types.js';
 import * as crypto from 'crypto';
+
+/**
+ * Convert Template from template service to InterviewTemplate for graph
+ */
+function toInterviewTemplate(template: Template | null | undefined): InterviewTemplate | null {
+  if (!template) return null;
+  return {
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    topics: template.topics.map(t => ({
+      id: t.id,
+      name: t.name,
+      description: t.description,
+      initial_question: t.initial_question,
+    })),
+    questions: (template.questions ?? []).map(q => ({
+      id: q.id,
+      type: q.type,
+      text: q.text,
+      follow_ups: q.follow_ups,
+      condition: q.condition,
+    })),
+    domain_context: template.domain_context,
+  };
+}
 
 const webhookRoutes: FastifyPluginAsync = async (fastify) => {
   const dingtalkService = getDingtalkService();
@@ -114,7 +142,15 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
         sessionId = `interview_${crypto.randomBytes(6).toString('hex')}`;
         fastify.log.info('Creating new interview session=%s user=%s', sessionId, user_id);
 
-        const template = templateService.getTemplate('quality_survey') || templateService.listTemplates()[0];
+        // Try to get the quality_survey template, or any available template
+        let template = templateService.getTemplate('quality_survey');
+        if (!template) {
+          // Try to get any template by checking common template IDs
+          for (const id of ['quality_survey', 'customer_feedback', 'default']) {
+            template = templateService.getTemplate(id);
+            if (template) break;
+          }
+        }
 
         if (!template) {
           return reply.status(400).send({
@@ -123,26 +159,46 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
           });
         }
 
-        const newInterview = await InterviewRepository.create({
-          sessionId,
-          userId: user_id,
-          templateId: 'quality_survey',
-          topic: '质量满意度调查',
-        });
+        // Start interview through conversation engine
+        try {
+          const engine = getConversationEngine({
+            useLlm: !!process.env.LLM_API_KEY,
+            llmConfig: process.env.LLM_API_KEY ? {
+              apiKey: process.env.LLM_API_KEY,
+              model: process.env.LLM_MODEL,
+            } : undefined,
+          });
+          
+          const interviewTemplate = toInterviewTemplate(template);
+          if (!interviewTemplate) {
+            return reply.status(400).send({
+              code: 400,
+              msg: 'Invalid template format',
+            });
+          }
+          
+          const greetingMessage = await engine.startInterview(sessionId, user_id, 'quality_survey', interviewTemplate);
+          
+          await MessageRepository.create({
+            interviewId: (await InterviewRepository.findBySessionId(sessionId))!.id,
+            role: MessageRole.USER,
+            content,
+            messageType: msg_type,
+          });
 
-        await MessageRepository.create({
-          interviewId: newInterview.id,
-          role: MessageRole.USER,
-          content,
-          messageType: msg_type,
-        });
-
-        return {
-          code: 0,
-          msg: 'success',
-          session_id: sessionId,
-          message: '访谈已开始，请按提示回答问题。',
-        };
+          return {
+            code: 0,
+            msg: 'success',
+            session_id: sessionId,
+            message: greetingMessage,
+          };
+        } catch (error) {
+          fastify.log.error('Failed to start interview: %s', error);
+          return reply.status(500).send({
+            code: 500,
+            msg: 'Failed to start interview',
+          });
+        }
       }
 
       // If no session and not a start command, prompt to start
@@ -171,9 +227,47 @@ const webhookRoutes: FastifyPluginAsync = async (fastify) => {
         messageType: msg_type,
       });
 
-      // TODO: Call conversation engine to process message
-      // For now, just echo back
-      const responseMessage = `已收到您的消息: ${content}`;
+      // Process message through conversation engine
+      let template = templateService.getTemplate(interview.templateId);
+      if (!template) {
+        // Fallback to default templates
+        for (const id of ['quality_survey', 'customer_feedback', 'default']) {
+          template = templateService.getTemplate(id);
+          if (template) break;
+        }
+      }
+      
+      let responseMessage: string;
+      
+      if (template) {
+        const interviewTemplate = toInterviewTemplate(template);
+        if (!interviewTemplate) {
+          responseMessage = `已收到您的消息: ${content}`;
+        } else {
+          try {
+            const engine = getConversationEngine({
+              useLlm: !!process.env.LLM_API_KEY,
+              llmConfig: process.env.LLM_API_KEY ? {
+                apiKey: process.env.LLM_API_KEY,
+                model: process.env.LLM_MODEL,
+              } : undefined,
+            });
+            
+            responseMessage = await engine.processMessage(
+              sessionId,
+              user_id,
+              interview.templateId,
+              interviewTemplate,
+              content
+            );
+          } catch (error) {
+            fastify.log.error('Conversation engine error: %s', error);
+            responseMessage = '处理您的消息时出现错误，请稍后重试。';
+          }
+        }
+      } else {
+        responseMessage = `已收到您的消息: ${content}`;
+      }
 
       await MessageRepository.create({
         interviewId: interview.id,
