@@ -80,3 +80,11 @@ prisma/migrations/
 
 # Vitest
 .nyc_output/
+
+# Legacy archive
+legacy-python/
+
+# Cleaned duplicates
+dist-clean/
+src-clean/
+tests-clean/

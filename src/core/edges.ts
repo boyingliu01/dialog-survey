@@ -1,12 +1,12 @@
-import { InterviewState } from '../types/index';
+import type { InterviewState } from './state';
 
 export function shouldContinue(state: InterviewState): 'interviewing' | 'followup' | 'analyzing' {
-  if (state.needsFollowup) {
+  if (state.followupNeeded) {
     return 'followup';
   }
 
-  // Check if all topics are completed
-  const allTopicsCompleted = state.currentTopicIndex >= state.topics.length;
+  const totalTopics = state.template.topics.length;
+  const allTopicsCompleted = state.completedTopics.length >= totalTopics;
 
   if (allTopicsCompleted) {
     return 'analyzing';
@@ -16,10 +16,10 @@ export function shouldContinue(state: InterviewState): 'interviewing' | 'followu
 }
 
 export function shouldFollowup(state: InterviewState): boolean {
-  return state.needsFollowup ?? false;
+  return state.followupNeeded;
 }
 
 export function isInterviewComplete(state: InterviewState): boolean {
-  const allTopicsCompleted = state.currentTopicIndex >= state.topics.length;
-  return allTopicsCompleted;
+  const totalTopics = state.template.topics.length;
+  return state.completedTopics.length >= totalTopics;
 }
