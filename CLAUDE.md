@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AI-powered interview robot that conducts async multi-turn interviews via DingTalk. Uses LangGraph.js for conversation flow, Fastify for API, DashScope (Alibaba Qwen) for LLM, Fun-ASR for voice transcription, Prisma for ORM, and PostgreSQL for persistence.
+AI-powered interview robot that conducts async multi-turn interviews via DingTalk. Uses LangGraph.js for conversation flow, Fastify for API, DashScope (Alibaba Qwen) for LLM, Fun-ASR for voice transcription, Prisma 7.x for ORM, and PostgreSQL for persistence.
 
-**Tech Stack**: TypeScript (strict mode), Fastify, LangGraph.js, Prisma, Vitest
+**Tech Stack**: TypeScript (strict mode), Fastify, LangGraph.js, Prisma 7.x, Vitest
 
 ## Commands
 
@@ -16,11 +16,11 @@ All commands run from `interview-bot/`:
 # Install dependencies
 npm install
 
-# Generate Prisma client
-npx prisma generate
+# Generate Prisma client (requires DATABASE_URL in .env)
+bunx prisma generate
 
 # Push database schema
-npx prisma db push
+bunx prisma db push
 
 # Run development server
 npm run dev
@@ -51,7 +51,7 @@ Four-layer architecture:
 1. **Access Layer** — DingTalk webhook (`/api/webhook`) receives text/voice messages, verifies signatures, ASR converts voice to text
 2. **Application Layer** — LangGraph.js StateGraph drives conversation; DingTalk adapter handles message parsing and session routing
 3. **AI Service Layer** — DashScope/Qwen LLM for dialogue, follow-up judgment, and report generation
-4. **Storage Layer** — PostgreSQL via Prisma ORM, JSON files for interview templates, Markdown files for generated reports under `reports/{interview_id}/`
+4. **Storage Layer** — PostgreSQL via Prisma ORM 7.x with adapter pattern, JSON files for interview templates, Markdown files for generated reports under `reports/{interview_id}/`
 
 ### LangGraph.js Conversation Flow
 
@@ -74,12 +74,22 @@ interview-bot/src/
 ├── services/         # External service integrations
 │   ├── llm/          # DashScope/Qwen LLM provider
 │   ├── conversation/ # ConversationEngine orchestrator
-│   ├── dingtalk/     # DingTalk message adapter
+│   ├── dingtalk.ts   # DingTalk message adapter (parsing + sending)
 │   └── asr/          # Fun-ASR voice transcription
 ├── repositories/     # Prisma data access layer
+├── db/               # Prisma client with adapter
+├── generated/        # Generated Prisma client
 ├── utils/            # Validation, logging, helpers
 └── config.ts         # Environment configuration (Zod)
 ```
+
+### Prisma 7.x Configuration
+
+Prisma 7.x requires:
+- `prisma.config.ts` at project root for CLI operations
+- Adapter pattern in `src/db/index.ts` using `@prisma/adapter-pg`
+- Generated client in `src/generated/prisma/client/`
+- No `url` in schema datasource (configured in `prisma.config.ts`)
 
 ### Interview Templates
 
@@ -128,7 +138,7 @@ Reports are saved as Markdown files under `reports/{session_id}/report_{timestam
 
 ## Design Docs
 
-Detailed requirements, architecture, and implementation plans are in `docs/plans/`.
+Detailed requirements, architecture, and implementation plans are in `docs/plans/` and `.speckit/`.
 
 ## Code Style
 
@@ -137,3 +147,4 @@ Detailed requirements, architecture, and implementation plans are in `docs/plans
 - Follow existing patterns in codebase
 - Keep changes minimal and focused
 - Never suppress type errors with `as any` or `@ts-ignore`
+- Use Prisma adapter pattern for database connections
