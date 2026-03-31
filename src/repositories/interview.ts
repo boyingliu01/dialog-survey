@@ -1,20 +1,23 @@
 import { prisma } from '../db';
-import { Interview, InterviewStatus, Message, Prisma } from '@prisma/client';
+import { Interview, InterviewStatus, Message, Prisma } from '../generated/prisma/client/client.js';
+
+// Use Prisma's input types for JSON fields
+type JsonInput = Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue;
 
 export interface CreateInterviewData {
   sessionId: string;
   userId: string;
   templateId: string;
   topic?: string;
-  conversationHistory?: Prisma.JsonValue;
-  extractedInfo?: Prisma.JsonValue;
+  conversationHistory?: JsonInput;
+  extractedInfo?: JsonInput;
 }
 
 export interface UpdateInterviewData {
   status?: InterviewStatus;
   topic?: string;
-  conversationHistory?: Prisma.JsonValue;
-  extractedInfo?: Prisma.JsonValue;
+  conversationHistory?: JsonInput;
+  extractedInfo?: JsonInput;
   report?: string;
   reportPath?: string;
 }
@@ -26,9 +29,19 @@ export class InterviewRepository {
    * Create a new interview
    */
   static async create(data: CreateInterviewData): Promise<Interview> {
-    return prisma.interview.create({
-      data,
-    });
+    const createData: Prisma.InterviewCreateInput = {
+      sessionId: data.sessionId,
+      userId: data.userId,
+      templateId: data.templateId,
+      ...(data.topic && { topic: data.topic }),
+      ...(data.conversationHistory !== undefined && { 
+        conversationHistory: data.conversationHistory as Prisma.InputJsonValue 
+      }),
+      ...(data.extractedInfo !== undefined && { 
+        extractedInfo: data.extractedInfo as Prisma.InputJsonValue 
+      }),
+    };
+    return prisma.interview.create({ data: createData });
   }
 
   /**
@@ -48,12 +61,12 @@ export class InterviewRepository {
   /**
    * Update conversation history
    */
-  static async updateHistory(id: string, conversationHistory: Prisma.JsonValue): Promise<InterviewWithMessages> {
+  static async updateHistory(id: string, conversationHistory: JsonInput): Promise<InterviewWithMessages> {
     return prisma.interview.update({
       where: { id },
-      data: { conversationHistory },
+      data: { conversationHistory: conversationHistory as Prisma.InputJsonValue },
       include: { messages: true },
-    });
+    }) as Promise<InterviewWithMessages>;
   }
 
   /**
@@ -62,7 +75,7 @@ export class InterviewRepository {
   static async complete(id: string, data: {
     report?: string;
     reportPath?: string;
-    extractedInfo?: Prisma.JsonValue;
+    extractedInfo?: JsonInput;
   }): Promise<InterviewWithMessages> {
     return prisma.interview.update({
       where: { id },
@@ -70,10 +83,10 @@ export class InterviewRepository {
         status: InterviewStatus.COMPLETED,
         report: data.report,
         reportPath: data.reportPath,
-        extractedInfo: data.extractedInfo,
+        extractedInfo: data.extractedInfo as Prisma.InputJsonValue,
       },
       include: { messages: true },
-    });
+    }) as Promise<InterviewWithMessages>;
   }
 
   /**
@@ -132,11 +145,23 @@ export class InterviewRepository {
    * Update an interview
    */
   static async update(id: string, data: UpdateInterviewData): Promise<InterviewWithMessages> {
+    const updateData: Prisma.InterviewUpdateInput = {
+      ...(data.status && { status: data.status }),
+      ...(data.topic !== undefined && { topic: data.topic }),
+      ...(data.conversationHistory !== undefined && { 
+        conversationHistory: data.conversationHistory as Prisma.InputJsonValue 
+      }),
+      ...(data.extractedInfo !== undefined && { 
+        extractedInfo: data.extractedInfo as Prisma.InputJsonValue 
+      }),
+      ...(data.report !== undefined && { report: data.report }),
+      ...(data.reportPath !== undefined && { reportPath: data.reportPath }),
+    };
     return prisma.interview.update({
       where: { id },
-      data,
+      data: updateData,
       include: { messages: true },
-    });
+    }) as Promise<InterviewWithMessages>;
   }
 
   /**

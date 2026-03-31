@@ -172,17 +172,18 @@ export class ConversationEngine {
   ): Promise<void> {
     const existingInterview = await InterviewRepository.findBySessionId(sessionId);
 
-    const conversationHistory = {
+    // Serialize to plain JSON for Prisma 7.x compatibility
+    const conversationHistory = JSON.parse(JSON.stringify({
       template: state.template,
       messages: state.conversationHistory,
       currentTopicIndex: state.currentTopicIndex,
       currentQuestionIndex: state.currentQuestionIndex,
       completedTopics: state.completedTopics,
-    };
+    }));
 
-    const extractedInfo = {
+    const extractedInfo = JSON.parse(JSON.stringify({
       answers: state.answers,
-    };
+    }));
 
     if (existingInterview) {
       await InterviewRepository.update(existingInterview.id, {
