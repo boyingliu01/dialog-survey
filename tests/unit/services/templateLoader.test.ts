@@ -1,7 +1,54 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { TemplateLoader, InterviewTemplateSchema } from '../../../src/services/templateLoader';
+
+// Mock fs and path modules before importing the source
+// Source uses default imports, so we mock default exports
+vi.mock('fs', () => {
+  const mockReaddirSync = vi.fn();
+  const mockExistsSync = vi.fn();
+  const mockReadFileSync = vi.fn();
+  
+  return {
+    default: {
+      readdirSync: mockReaddirSync,
+      existsSync: mockExistsSync,
+      readFileSync: mockReadFileSync,
+    },
+    readdirSync: mockReaddirSync,
+    existsSync: mockExistsSync,
+    readFileSync: mockReadFileSync,
+  };
+});
+
+vi.mock('path', () => {
+  const mockJoin = vi.fn((...args: string[]) => args.join('/'));
+  const mockResolve = vi.fn((x: string) => x);
+  
+  return {
+    default: {
+      join: mockJoin,
+      resolve: mockResolve,
+    },
+    join: mockJoin,
+    resolve: mockResolve,
+  };
+});
+
+// Import after mocking
+import { TemplateLoader, InterviewTemplateSchema } from '../../../src/services/templateLoader.js';
+import fs from 'fs';
+import path from 'path';
+
+// Get typed mock functions from the mocked modules
+const mockReaddirSync = vi.mocked(fs.readdirSync);
+const mockExistsSync = vi.mocked(fs.existsSync);
+const mockReadFileSync = vi.mocked(fs.readFileSync);
+const mockJoin = vi.mocked(path.join);
 
 describe('TemplateLoader', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe('schema validation', () => {
     it('should validate valid templates', () => {
       const validTemplate = {
@@ -75,29 +122,14 @@ describe('TemplateLoader', () => {
     it('should return template by id', async () => {
       const mockTemplatesDir = '/mock/templates';
 
-      // Mock file system
-      const mockFs = vi.hoisted(() => ({
-        readdirSync: vi.fn(),
-        existsSync: vi.fn(),
-        readFileSync: vi.fn(),
-      }));
-
-      mockFs.readdirSync.mockReturnValue(['template1.json']);
-      mockFs.existsSync.mockReturnValue(true);
-      mockFs.readFileSync.mockReturnValue(JSON.stringify({
+      mockReaddirSync.mockReturnValue(['template1.json']);
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockReturnValue(JSON.stringify({
         id: 'template1',
         name: 'Template 1',
         description: 'Description 1',
         topics: [],
         questions: [],
-      }));
-
-      vi.doMock('fs', () => mockFs);
-      vi.doMock('path', () => ({
-        join: vi.fn().mockImplementation((a, b) => `${a}/${b}`),
-        resolve: vi.fn().mockImplementation(x => x),
-        dirname: vi.fn(),
-        basename: vi.fn(),
       }));
 
       const loader = new TemplateLoader(mockTemplatesDir);
@@ -110,22 +142,8 @@ describe('TemplateLoader', () => {
     it('should return null for non-existent template', async () => {
       const mockTemplatesDir = '/mock/templates';
 
-      const mockFs = vi.hoisted(() => ({
-        readdirSync: vi.fn(),
-        existsSync: vi.fn(),
-        readFileSync: vi.fn(),
-      }));
-
-      mockFs.readdirSync.mockReturnValue(['template1.json']);
-      mockFs.existsSync.mockReturnValue(false);
-
-      vi.doMock('fs', () => mockFs);
-      vi.doMock('path', () => ({
-        join: vi.fn().mockImplementation((a, b) => `${a}/${b}`),
-        resolve: vi.fn().mockImplementation(x => x),
-        dirname: vi.fn(),
-        basename: vi.fn(),
-      }));
+      mockReaddirSync.mockReturnValue(['template1.json']);
+      mockExistsSync.mockReturnValue(false);
 
       const loader = new TemplateLoader(mockTemplatesDir);
       const template = await loader.loadTemplate('nonexistent');
@@ -138,16 +156,11 @@ describe('TemplateLoader', () => {
     it('should return all templates', async () => {
       const mockTemplatesDir = '/mock/templates';
 
-      const mockFs = vi.hoisted(() => ({
-        readdirSync: vi.fn(),
-        existsSync: vi.fn(),
-        readFileSync: vi.fn(),
-      }));
-
-      mockFs.readdirSync.mockReturnValue(['template1.json', 'template2.json']);
-      mockFs.existsSync.mockReturnValue(true);
-      mockFs.readFileSync.mockImplementation(file => {
-        if (file.endsWith('template1.json')) {
+      mockReaddirSync.mockReturnValue(['template1.json', 'template2.json']);
+      mockExistsSync.mockReturnValue(true);
+      mockReadFileSync.mockImplementation((file: unknown) => {
+        const filePath = String(file);
+        if (filePath.endsWith('template1.json')) {
           return JSON.stringify({
             id: 'template1',
             name: 'Template 1',
@@ -165,14 +178,6 @@ describe('TemplateLoader', () => {
         });
       });
 
-      vi.doMock('fs', () => mockFs);
-      vi.doMock('path', () => ({
-        join: vi.fn().mockImplementation((a, b) => `${a}/${b}`),
-        resolve: vi.fn().mockImplementation(x => x),
-        dirname: vi.fn(),
-        basename: vi.fn(),
-      }));
-
       const loader = new TemplateLoader(mockTemplatesDir);
       const templates = await loader.listTemplates();
 
@@ -184,21 +189,7 @@ describe('TemplateLoader', () => {
     it('should return empty array when no templates exist', async () => {
       const mockTemplatesDir = '/mock/templates';
 
-      const mockFs = vi.hoisted(() => ({
-        readdirSync: vi.fn(),
-        existsSync: vi.fn(),
-        readFileSync: vi.fn(),
-      }));
-
-      mockFs.readdirSync.mockReturnValue([]);
-
-      vi.doMock('fs', () => mockFs);
-      vi.doMock('path', () => ({
-        join: vi.fn().mockImplementation((a, b) => `${a}/${b}`),
-        resolve: vi.fn().mockImplementation(x => x),
-        dirname: vi.fn(),
-        basename: vi.fn(),
-      }));
+      mockReaddirSync.mockReturnValue([]);
 
       const loader = new TemplateLoader(mockTemplatesDir);
       const templates = await loader.listTemplates();

@@ -1,6 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { FastifyInstance } from 'fastify';
 import { buildServer } from '../../../src/server.js';
+import { InterviewRepository } from '../../../src/repositories/interview.js';
+import { MessageRepository } from '../../../src/repositories/message.js';
+
+// Mock repositories
+vi.mock('../../../src/repositories/interview.js');
+vi.mock('../../../src/repositories/message.js');
 
 describe('Interviews API', () => {
   let server: FastifyInstance;
@@ -18,6 +24,9 @@ describe('Interviews API', () => {
 
   describe('GET /api/interviews', () => {
     it('should return list of interviews', async () => {
+      // Mock repository response
+      vi.mocked(InterviewRepository.findAll).mockResolvedValue([]);
+      
       const response = await server.inject({
         method: 'GET',
         url: '/api/interviews',
@@ -34,6 +43,8 @@ describe('Interviews API', () => {
     });
 
     it('should accept status filter', async () => {
+      vi.mocked(InterviewRepository.findAll).mockResolvedValue([]);
+      
       const response = await server.inject({
         method: 'GET',
         url: '/api/interviews?status=IN_PROGRESS',
@@ -48,6 +59,8 @@ describe('Interviews API', () => {
     });
 
     it('should accept pagination parameters', async () => {
+      vi.mocked(InterviewRepository.findAll).mockResolvedValue([]);
+      
       const response = await server.inject({
         method: 'GET',
         url: '/api/interviews?limit=10&offset=0',
@@ -64,6 +77,8 @@ describe('Interviews API', () => {
 
   describe('GET /api/interviews/:sessionId', () => {
     it('should return 404 for non-existent interview', async () => {
+      vi.mocked(InterviewRepository.findBySessionId).mockResolvedValue(null);
+      
       const response = await server.inject({
         method: 'GET',
         url: '/api/interviews/non-existent-id',
@@ -80,6 +95,8 @@ describe('Interviews API', () => {
 
   describe('POST /api/interviews/:sessionId/end', () => {
     it('should return 404 for non-existent interview', async () => {
+      vi.mocked(InterviewRepository.findBySessionId).mockResolvedValue(null);
+      
       const response = await server.inject({
         method: 'POST',
         url: '/api/interviews/non-existent-id/end',
@@ -96,6 +113,8 @@ describe('Interviews API', () => {
 
   describe('GET /api/interviews/:sessionId/report', () => {
     it('should return 404 for non-existent interview', async () => {
+      vi.mocked(InterviewRepository.findBySessionId).mockResolvedValue(null);
+      
       const response = await server.inject({
         method: 'GET',
         url: '/api/interviews/non-existent-id/report',
@@ -112,6 +131,8 @@ describe('Interviews API', () => {
 
   describe('GET /api/interviews/:sessionId/messages', () => {
     it('should return 404 for non-existent interview', async () => {
+      vi.mocked(InterviewRepository.findBySessionId).mockResolvedValue(null);
+      
       const response = await server.inject({
         method: 'GET',
         url: '/api/interviews/non-existent-id/messages',

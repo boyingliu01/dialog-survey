@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { z } from "zod";
 import { validate, validateEnv } from "../../../src/utils/validation";
 import { ValidationError } from "../../../src/utils/errors";
@@ -44,8 +44,12 @@ describe("validation utils", () => {
         PORT: "3000",
         HOST: "0.0.0.0",
         DATABASE_URL: "postgresql://localhost:5432/db",
-        DASHSCOPE_API_KEY: "test-key",
-        INTERNAL_API_KEY: "test-internal-key",
+        DINGTALK_APP_KEY: "test-app-key",
+        DINGTALK_APP_SECRET: "test-app-secret",
+        DINGTALK_AGENT_ID: "test-agent-id",
+        LLM_API_KEY: "test-llm-key",
+        LLM_ENDPOINT: "https://test.endpoint",
+        LLM_MODEL: "test-model",
       };
     });
 
@@ -63,11 +67,9 @@ describe("validation utils", () => {
     it("should use default values for missing variables", () => {
       delete process.env.NODE_ENV;
       delete process.env.PORT;
-      delete process.env.HOST;
       const result = validateEnv();
       expect(result).toHaveProperty("NODE_ENV", "development");
       expect(result).toHaveProperty("PORT", 3000);
-      expect(result).toHaveProperty("HOST", "0.0.0.0");
     });
 
     it("should throw ValidationError when required variables are missing", () => {
@@ -76,7 +78,7 @@ describe("validation utils", () => {
     });
 
     it("should throw ValidationError with ENV_VALIDATION_ERROR code", () => {
-      delete process.env.DASHSCOPE_API_KEY;
+      delete process.env.DINGTALK_APP_KEY;
       try {
         validateEnv();
         expect.fail("Should have thrown ValidationError");

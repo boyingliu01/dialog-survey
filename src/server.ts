@@ -1,6 +1,11 @@
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
+import {
+  serializerCompiler,
+  validatorCompiler,
+  ZodTypeProvider,
+} from 'fastify-type-provider-zod';
 import { config } from './config.js';
 import { ErrorHandler } from './errorHandler.js';
 // import authPlugin from './plugins/auth.js';
@@ -32,7 +37,11 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
   const fastify = Fastify({
     logger,
     trustProxy: true,
-  });
+  }).withTypeProvider<ZodTypeProvider>();
+
+  // Set up Zod validation and serialization
+  fastify.setValidatorCompiler(validatorCompiler);
+  fastify.setSerializerCompiler(serializerCompiler);
 
   const errorHandler = new ErrorHandler(config.isDevelopment);
 
