@@ -5,7 +5,7 @@ import { InterviewRepository } from '../repositories/interview.js';
 import { MessageRepository } from '../repositories/message.js';
 import { InterviewStatus, MessageRole } from '@prisma/client';
 import { getTemplateService } from '../services/template.js';
-import crypto from 'crypto';
+import * as crypto from 'crypto';
 
 const webhookRoutes: FastifyPluginAsync = async (fastify) => {
   const dingtalkService = getDingtalkService();

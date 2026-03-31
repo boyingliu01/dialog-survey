@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { InterviewRepository } from '../repositories/interview.js';
 import { InterviewStatus } from '@prisma/client';
-import fs from 'fs';
+import * as fs from 'fs';
 
 const interviewsRoutes: FastifyPluginAsync = async (fastify) => {
   // Query params schema for list interviews
