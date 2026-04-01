@@ -81,6 +81,12 @@ prisma/migrations/
 # Vitest
 .nyc_output/
 
+# Bun (project uses npm)
+bun.lock
+
+# V8 isolate logs
+isolate-*.log
+
 # Legacy archive
 legacy-python/
 
