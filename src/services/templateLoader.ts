@@ -54,7 +54,7 @@ class TemplateLoader {
   /**
    * Load all templates from the templates directory
    */
-  async loadTemplates(): Promise<InterviewTemplate[]> {
+  loadTemplates(): InterviewTemplate[] {
     try {
       const files = fs.readdirSync(this.templatesDirectory);
       const jsonFiles = files.filter((file) => file.endsWith(".json"));
@@ -62,7 +62,7 @@ class TemplateLoader {
       const loadedTemplates: InterviewTemplate[] = [];
 
       for (const file of jsonFiles) {
-        const template = await this.loadTemplate(file.replace(".json", ""));
+        const template = this.loadTemplate(file.replace(".json", ""));
         if (template) {
           loadedTemplates.push(template);
         }
@@ -78,7 +78,7 @@ class TemplateLoader {
   /**
    * Load a specific template by ID
    */
-  async loadTemplate(templateId: string): Promise<InterviewTemplate | null> {
+  loadTemplate(templateId: string): InterviewTemplate | null {
     try {
       // Check cache first
       if (this.templates.has(templateId)) {
@@ -96,7 +96,7 @@ class TemplateLoader {
       }
 
       const content = fs.readFileSync(templatePath, "utf8");
-      const rawData = JSON.parse(content);
+      const rawData: unknown = JSON.parse(content);
 
       const validatedTemplate = InterviewTemplateSchema.parse(rawData);
 
@@ -112,7 +112,7 @@ class TemplateLoader {
   /**
    * List all available templates
    */
-  async listTemplates(): Promise<InterviewTemplate[]> {
+  listTemplates(): InterviewTemplate[] {
     return this.loadTemplates();
   }
 
