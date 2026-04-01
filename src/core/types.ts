@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type MessageRole = "system" | "user" | "assistant";
 
 export interface Message {
@@ -42,6 +44,24 @@ export interface LLMResponse {
   content: string;
   isFollowupNeeded?: boolean;
   followupQuestion?: string;
+}
+
+export const LLMResponseSchema = z.object({
+  content: z.string().min(1, "LLM response content cannot be empty"),
+  isFollowupNeeded: z.boolean().optional().default(false),
+  followupQuestion: z.string().optional(),
+});
+
+export function validateLLMResponse(data: unknown): LLMResponse {
+  return LLMResponseSchema.parse(data);
+}
+
+export function safeValidateLLMResponse(data: unknown): LLMResponse | null {
+  const result = LLMResponseSchema.safeParse(data);
+  if (result.success) {
+    return result.data;
+  }
+  return null;
 }
 
 export interface LLMProvider {
