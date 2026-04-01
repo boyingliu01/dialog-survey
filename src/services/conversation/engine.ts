@@ -1,34 +1,29 @@
 import { runInterviewTurn, resumeInterview } from "../../core/graph";
 import { getDashScopeProvider, type DashScopeConfig } from "../llm";
-import { InterviewRepository } from "../../repositories/interview";
+import {
+  InterviewRepository,
+  OptimisticLockError,
+} from "../../repositories/interview";
 import type { InterviewTemplate } from "../../core/types";
 import type { InterviewState } from "../../core/state";
 
-/**
- * Conversation Engine configuration
- */
 export interface ConversationEngineConfig {
   llmConfig?: DashScopeConfig;
   useLlm?: boolean;
+  maxRetries?: number;
 }
 
-/**
- * Conversation Engine
- * Orchestrates the interview flow between webhook and LangGraph
- */
 export class ConversationEngine {
   private useLlm: boolean;
   private llmConfig?: DashScopeConfig;
+  private maxRetries: number;
 
   constructor(config: ConversationEngineConfig = {}) {
     this.useLlm = config.useLlm ?? false;
     this.llmConfig = config.llmConfig;
+    this.maxRetries = config.maxRetries ?? 3;
   }
 
-  /**
-   * Process an incoming user message
-   * @returns The assistant's response
-   */
   async processMessage(
     sessionId: string,
     userId: string,
@@ -36,7 +31,6 @@ export class ConversationEngine {
     template: InterviewTemplate,
     userMessage: string,
   ): Promise<string> {
-    // Initialize LLM provider if enabled
     if (this.useLlm && this.llmConfig) {
       try {
         getDashScopeProvider(this.llmConfig);
@@ -45,55 +39,85 @@ export class ConversationEngine {
       }
     }
 
-    // Check for existing interview
-    // TODO: Race condition risk - concurrent messages from same session could cause lost updates
-    // Consider adding Prisma transaction with optimistic locking or unique constraint retry
-    const existingInterview =
-      await InterviewRepository.findBySessionId(sessionId);
+    let lastError: Error | null = null;
 
-    let result: InterviewState;
-
-    if (existingInterview) {
-      // Resume existing conversation
-      const currentState = this.deserializeState(existingInterview);
-      result = await resumeInterview(
-        sessionId,
-        currentState,
-        userMessage,
-        this.useLlm ? getDashScopeProvider() : undefined,
-      );
-    } else {
-      // Start new conversation
-      result = await runInterviewTurn(
-        sessionId,
-        templateId,
-        template,
-        userMessage,
-        this.useLlm ? getDashScopeProvider() : undefined,
-      );
+    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+      try {
+        return await this.processMessageWithTransaction(
+          sessionId,
+          userId,
+          templateId,
+          template,
+          userMessage,
+        );
+      } catch (error) {
+        if (error instanceof OptimisticLockError) {
+          lastError = error;
+          await new Promise((resolve) =>
+            setTimeout(resolve, 50 * (attempt + 1)),
+          );
+          continue;
+        }
+        throw error;
+      }
     }
 
-    // Save updated state to database
-    await this.saveState(sessionId, userId, templateId, result);
-
-    // Return assistant's last message
-    const lastAssistantMessage = result.conversationHistory
-      .filter((m) => m.role === "assistant")
-      .pop();
-
-    return lastAssistantMessage?.content ?? "感谢您的回复。";
+    throw lastError ?? new Error("Failed to process message after retries");
   }
 
-  /**
-   * Start a new interview session
-   */
+  private async processMessageWithTransaction(
+    sessionId: string,
+    userId: string,
+    templateId: string,
+    template: InterviewTemplate,
+    userMessage: string,
+  ): Promise<string> {
+    return InterviewRepository.withTransaction(async () => {
+      const existingInterview =
+        await InterviewRepository.findBySessionId(sessionId);
+
+      let result: InterviewState;
+
+      if (existingInterview) {
+        const currentState = this.deserializeState(existingInterview);
+        result = await resumeInterview(
+          sessionId,
+          currentState,
+          userMessage,
+          this.useLlm ? getDashScopeProvider() : undefined,
+        );
+      } else {
+        result = await runInterviewTurn(
+          sessionId,
+          templateId,
+          template,
+          userMessage,
+          this.useLlm ? getDashScopeProvider() : undefined,
+        );
+      }
+
+      await this.saveState(
+        sessionId,
+        userId,
+        templateId,
+        result,
+        existingInterview,
+      );
+
+      const lastAssistantMessage = result.conversationHistory
+        .filter((m) => m.role === "assistant")
+        .pop();
+
+      return lastAssistantMessage?.content ?? "感谢您的回复。";
+    });
+  }
+
   async startInterview(
     sessionId: string,
     userId: string,
     templateId: string,
     template: InterviewTemplate,
   ): Promise<string> {
-    // Initialize LLM if enabled
     if (this.useLlm && this.llmConfig) {
       try {
         getDashScopeProvider(this.llmConfig);
@@ -102,19 +126,16 @@ export class ConversationEngine {
       }
     }
 
-    // Run planning turn
     const result = await runInterviewTurn(
       sessionId,
       templateId,
       template,
-      null, // No user message for first turn
+      null,
       this.useLlm ? getDashScopeProvider() : undefined,
     );
 
-    // Save state
-    await this.saveState(sessionId, userId, templateId, result);
+    await this.saveState(sessionId, userId, templateId, result, null);
 
-    // Return greeting
     const lastAssistantMessage = result.conversationHistory
       .filter((m) => m.role === "assistant")
       .pop();
@@ -122,9 +143,6 @@ export class ConversationEngine {
     return lastAssistantMessage?.content ?? "欢迎参加访谈！";
   }
 
-  /**
-   * Deserialize database record to InterviewState
-   */
   private deserializeState(interview: {
     sessionId: string;
     templateId: string;
@@ -174,18 +192,13 @@ export class ConversationEngine {
     };
   }
 
-  /**
-   * Save state to database
-   */
   private async saveState(
     sessionId: string,
     userId: string,
     templateId: string,
     state: InterviewState,
+    existingInterview: { id: string; version: number } | null,
   ): Promise<void> {
-    const existingInterview =
-      await InterviewRepository.findBySessionId(sessionId);
-
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const conversationHistory = JSON.parse(
       JSON.stringify({
@@ -205,7 +218,8 @@ export class ConversationEngine {
     );
 
     if (existingInterview) {
-      await InterviewRepository.update(existingInterview.id, {
+      await InterviewRepository.updateWithVersion(existingInterview.id, {
+        version: existingInterview.version,
         conversationHistory: conversationHistory as unknown as never,
         extractedInfo: extractedInfo as unknown as never,
         status:
