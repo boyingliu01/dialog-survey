@@ -118,7 +118,15 @@ export class DingTalkService {
     const signString = `${timestamp}\n${nonce}`;
     const hmac = crypto.createHmac("sha256", this.appSecret);
     const calculatedSignature = hmac.update(signString).digest("base64");
-    return calculatedSignature === signature;
+
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(calculatedSignature, "base64"),
+        Buffer.from(signature, "base64"),
+      );
+    } catch {
+      return false;
+    }
   }
 
   /**

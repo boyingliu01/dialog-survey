@@ -1,4 +1,5 @@
 import type { LLMProvider, Message } from "./types";
+import { safeValidateLLMResponse } from "./types";
 import type { InterviewState } from "./state";
 import {
   PLANNING_PROMPT,
@@ -18,7 +19,20 @@ export async function planningNode(
 ): Promise<InterviewState> {
   try {
     const prompt = PLANNING_PROMPT(state.template);
-    const response = await llm.generateResponse(prompt, buildHistory(state));
+    const rawResponse = await llm.generateResponse(prompt, buildHistory(state));
+    const response = safeValidateLLMResponse(rawResponse);
+
+    if (!response) {
+      return {
+        ...state,
+        conversationHistory: [
+          ...state.conversationHistory,
+          { role: "assistant", content: "欢迎参加访谈，我们开始吧！" },
+        ],
+        interviewStatus: "interviewing",
+        error: "Invalid LLM response format",
+      };
+    }
 
     const assistantMessage: Message = {
       role: "assistant",
@@ -61,7 +75,15 @@ export async function interviewNode(
   );
 
   try {
-    const response = await llm.generateResponse(prompt, buildHistory(state));
+    const rawResponse = await llm.generateResponse(prompt, buildHistory(state));
+    const response = safeValidateLLMResponse(rawResponse);
+
+    if (!response) {
+      return {
+        ...state,
+        error: "Invalid LLM response format",
+      };
+    }
 
     const assistantMessage: Message = {
       role: "assistant",
@@ -131,7 +153,19 @@ export async function followupNode(
   const prompt = FOLLOWUP_PROMPT(lastQuestion, userAnswer);
 
   try {
-    const response = await llm.generateResponse(prompt, buildHistory(state));
+    const rawResponse = await llm.generateResponse(prompt, buildHistory(state));
+    const response = safeValidateLLMResponse(rawResponse);
+
+    if (!response) {
+      return {
+        ...state,
+        followupNeeded: false,
+        followupQuestion: undefined,
+        interviewStatus: "interviewing",
+        error: "Invalid LLM response format",
+      };
+    }
+
     const assistantMessage: Message = {
       role: "assistant",
       content: response.content,
@@ -161,7 +195,19 @@ export async function analyzeNode(
 ): Promise<InterviewState> {
   try {
     const prompt = ANALYZE_PROMPT(state.template);
-    const response = await llm.generateResponse(prompt, buildHistory(state));
+    const rawResponse = await llm.generateResponse(prompt, buildHistory(state));
+    const response = safeValidateLLMResponse(rawResponse);
+
+    if (!response) {
+      return {
+        ...state,
+        report:
+          "# Interview Report\n\nError generating report. Invalid LLM response.",
+        interviewStatus: "completed",
+        endTime: new Date(),
+        error: "Invalid LLM response format",
+      };
+    }
 
     return {
       ...state,

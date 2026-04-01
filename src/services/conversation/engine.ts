@@ -46,6 +46,8 @@ export class ConversationEngine {
     }
 
     // Check for existing interview
+    // TODO: Race condition risk - concurrent messages from same session could cause lost updates
+    // Consider adding Prisma transaction with optimistic locking or unique constraint retry
     const existingInterview =
       await InterviewRepository.findBySessionId(sessionId);
 
