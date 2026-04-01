@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { z } from "zod";
+import logger from "../utils/logger.js";
 
 // Template question schema
 const TemplateQuestionSchema = z.object({
@@ -70,7 +71,7 @@ class TemplateLoader {
 
       return loadedTemplates;
     } catch (error) {
-      console.error("Failed to load templates:", error);
+      logger.error({ error }, "Failed to load templates");
       return [];
     }
   }
@@ -91,7 +92,7 @@ class TemplateLoader {
       );
 
       if (!fs.existsSync(templatePath)) {
-        console.error(`Template file not found: ${templatePath}`);
+        logger.error({ templatePath }, `Template file not found`);
         return null;
       }
 
@@ -104,7 +105,7 @@ class TemplateLoader {
 
       return validatedTemplate;
     } catch (error) {
-      console.error(`Failed to load template ${templateId}:`, error);
+      logger.error({ templateId, error }, `Failed to load template`);
       return null;
     }
   }

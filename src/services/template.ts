@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { z } from "zod";
+import logger from "../utils/logger.js";
 
 // Template schema
 const TopicSchema = z.object({
@@ -62,12 +63,12 @@ export class TemplateService {
             const template = TemplateSchema.parse(JSON.parse(content));
             this.templatesCache.set(template.id, template);
           } catch (error) {
-            console.error(`Error loading template ${file}:`, error);
+            logger.error({ file, error }, `Error loading template`);
           }
         }
       }
     } catch (error) {
-      console.error("Error loading templates:", error);
+      logger.error({ error }, "Error loading templates");
     }
   }
 
