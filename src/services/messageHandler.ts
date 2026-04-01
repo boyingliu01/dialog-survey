@@ -1,6 +1,14 @@
 import { DingTalkService, CallbackMessage } from "./dingtalk.js";
 import { TemplateLoader, InterviewTemplate } from "./templateLoader.js";
 
+interface Question {
+  id: string;
+  type: "rating" | "text" | "single_choice" | "yes_no";
+  text: string;
+  follow_ups?: Array<{ id: string; text: string; condition?: string }>;
+  condition?: string;
+}
+
 // Session state interface
 interface InterviewSession {
   id: string;
@@ -51,7 +59,7 @@ class MessageHandler {
    */
   async startNewInterview(message: CallbackMessage): Promise<InterviewSession> {
     // Load default interview template (you can implement template selection logic here)
-    const templates = await this.templateLoader.listTemplates();
+    const templates = this.templateLoader.listTemplates();
     const defaultTemplate = templates[0]; // Get first template as default
 
     if (!defaultTemplate) {
@@ -88,10 +96,10 @@ class MessageHandler {
     message: CallbackMessage,
   ): Promise<void> {
     // Record user's answer
-    await this.recordAnswer(session, message);
+    this.recordAnswer(session, message);
 
     // Send next question or complete interview
-    if (await this.hasMoreQuestions(session)) {
+    if (this.hasMoreQuestions(session)) {
       await this.sendNextQuestion(session);
     } else {
       await this.completeInterview(session);
@@ -132,10 +140,10 @@ class MessageHandler {
   /**
    * Record user's answer
    */
-  private async recordAnswer(
+  private recordAnswer(
     session: InterviewSession,
     message: CallbackMessage,
-  ): Promise<void> {
+  ): void {
     const currentQuestion = this.getCurrentQuestion(session);
 
     if (!currentQuestion) {
@@ -152,7 +160,7 @@ class MessageHandler {
   /**
    * Check if there are more questions to ask
    */
-  private async hasMoreQuestions(session: InterviewSession): Promise<boolean> {
+  private hasMoreQuestions(session: InterviewSession): boolean {
     return this.getCurrentQuestion(session) !== null;
   }
 
@@ -168,7 +176,7 @@ class MessageHandler {
     });
 
     // Generate interview report (you can implement report generation here)
-    await this.generateInterviewReport(session);
+    this.generateInterviewReport(session);
 
     // Remove session from active sessions
     this.sessions.delete(session.id);
@@ -177,9 +185,7 @@ class MessageHandler {
   /**
    * Generate interview report
    */
-  private async generateInterviewReport(
-    session: InterviewSession,
-  ): Promise<void> {
+  private generateInterviewReport(session: InterviewSession): void {
     console.log("Generating interview report for session:", session.id);
     console.log("Answers:", session.answers);
 
@@ -190,7 +196,7 @@ class MessageHandler {
   /**
    * Get current question from session
    */
-  private getCurrentQuestion(session: InterviewSession): any {
+  private getCurrentQuestion(session: InterviewSession): Question | null {
     const { currentTopicIndex, currentQuestionIndex, template } = session;
 
     if (currentTopicIndex >= template.topics.length) {
@@ -213,10 +219,10 @@ class MessageHandler {
   private getQuestionsForTopic(
     template: InterviewTemplate,
     _topicId: string,
-  ): any[] {
+  ): Question[] {
     // In a real implementation, you would map topics to questions
     // For this example, we'll return all questions
-    return template.questions;
+    return template.questions as Question[];
   }
 
   /**

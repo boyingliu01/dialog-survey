@@ -94,11 +94,12 @@ class DingTalkStreamHandler {
       this.ws.on("close", (code, reason) => {
         this._isConnected = false;
         console.log(
-          `Disconnected from DingTalk Stream API: ${code} - ${reason}`,
+          `Disconnected from DingTalk Stream API: ${code} - ${reason.toString()}`,
         );
         this.emit("disconnect", { code, reason });
 
-        if (this.reconnectAttempts < this.config.maxReconnectAttempts!) {
+        const maxAttempts = this.config.maxReconnectAttempts ?? Infinity;
+        if (this.reconnectAttempts < maxAttempts) {
           this.reconnect();
         }
       });
@@ -146,10 +147,12 @@ class DingTalkStreamHandler {
    */
   private isDuplicateMessage(msgId: string): boolean {
     const now = Date.now();
+    const cacheTTL = this.config.messageCacheTTL ?? 60000;
+    const cacheSize = this.config.messageCacheSize ?? 1000;
 
     // Clean up expired cache entries
     for (const [key, timestamp] of this.messageCache.entries()) {
-      if (now - timestamp > this.config.messageCacheTTL!) {
+      if (now - timestamp > cacheTTL) {
         this.messageCache.delete(key);
       }
     }
@@ -159,7 +162,7 @@ class DingTalkStreamHandler {
     }
 
     // Limit cache size
-    if (this.messageCache.size >= this.config.messageCacheSize!) {
+    if (this.messageCache.size >= cacheSize) {
       const oldestKey = Array.from(this.messageCache.entries()).sort(
         (a, b) => a[1] - b[1],
       )[0][0];
@@ -175,8 +178,16 @@ class DingTalkStreamHandler {
    */
   private handleMessage(data: WebSocket.Data): void {
     try {
-      const messageStr = data.toString();
-      const message: CallbackMessage = JSON.parse(messageStr);
+      const messageStr = Buffer.isBuffer(data)
+        ? data.toString("utf-8")
+        : data instanceof ArrayBuffer
+          ? Buffer.from(data).toString("utf-8")
+          : Array.isArray(data)
+            ? Buffer.concat(data).toString("utf-8")
+            : String(data);
+      const message: CallbackMessage = JSON.parse(
+        messageStr,
+      ) as CallbackMessage;
 
       // Check for duplicate messages
       if (this.isDuplicateMessage(message.msgId)) {
@@ -184,7 +195,10 @@ class DingTalkStreamHandler {
         return;
       }
 
-      console.log("Received message from DingTalk Stream:", message);
+      console.log(
+        "Received message from DingTalk Stream:",
+        JSON.stringify(message),
+      );
       this.emit("message", message);
     } catch (error) {
       console.error("Failed to parse Stream message:", error);

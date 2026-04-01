@@ -102,9 +102,7 @@ export class TemplateService {
   /**
    * Create a new template
    */
-  async createTemplate(
-    data: Omit<Template, "createdAt" | "updatedAt">,
-  ): Promise<Template> {
+  createTemplate(data: Omit<Template, "createdAt" | "updatedAt">): Template {
     const now = new Date().toISOString();
     const template: Template = {
       ...data,
@@ -128,7 +126,7 @@ export class TemplateService {
   /**
    * Delete a template
    */
-  async deleteTemplate(templateId: string): Promise<boolean> {
+  deleteTemplate(templateId: string): boolean {
     const template = this.templatesCache.get(templateId);
     if (!template) {
       return false;

@@ -137,11 +137,21 @@ export class DashScopeProvider implements LLMProvider {
       const decoder = new TextDecoder();
       let buffer = "";
 
+      interface StreamChoice {
+        delta?: { content?: string };
+      }
+
+      interface StreamChunk {
+        choices?: StreamChoice[];
+      }
+
       while (true) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         const { done, value } = await reader.read();
         if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+        buffer += decoder.decode(value ?? new Uint8Array(), { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
 
@@ -151,8 +161,9 @@ export class DashScopeProvider implements LLMProvider {
             if (data === "[DONE]") continue;
 
             try {
-              const parsed = JSON.parse(data);
-              const content = parsed.choices[0]?.delta?.content ?? "";
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+              const parsed: StreamChunk = JSON.parse(data);
+              const content = parsed.choices?.[0]?.delta?.content ?? "";
               if (content) {
                 yield {
                   content,

@@ -184,7 +184,7 @@ export class ConversationEngine {
     const existingInterview =
       await InterviewRepository.findBySessionId(sessionId);
 
-    // Serialize to plain JSON for Prisma 7.x compatibility
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const conversationHistory = JSON.parse(
       JSON.stringify({
         template: state.template,
@@ -195,6 +195,7 @@ export class ConversationEngine {
       }),
     );
 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const extractedInfo = JSON.parse(
       JSON.stringify({
         answers: state.answers,
@@ -203,8 +204,8 @@ export class ConversationEngine {
 
     if (existingInterview) {
       await InterviewRepository.update(existingInterview.id, {
-        conversationHistory,
-        extractedInfo,
+        conversationHistory: conversationHistory as unknown as never,
+        extractedInfo: extractedInfo as unknown as never,
         status:
           state.interviewStatus === "completed" ? "COMPLETED" : "IN_PROGRESS",
         report: state.report,
@@ -215,8 +216,8 @@ export class ConversationEngine {
         userId,
         templateId,
         topic: state.template.name ?? "Interview",
-        conversationHistory,
-        extractedInfo,
+        conversationHistory: conversationHistory as unknown as never,
+        extractedInfo: extractedInfo as unknown as never,
       });
     }
   }
