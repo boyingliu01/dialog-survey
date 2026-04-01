@@ -1,27 +1,27 @@
-import type { FastifyPluginAsync } from 'fastify';
-import { getTemplateService } from '../services/template.js';
-import { z } from 'zod';
+import type { FastifyPluginAsync } from "fastify";
+import { getTemplateService } from "../services/template.js";
+import { z } from "zod";
 
 const templatesRoutes: FastifyPluginAsync = async (fastify) => {
   const templateService = getTemplateService();
 
   // Get all templates
-  fastify.get('/templates', async () => {
+  fastify.get("/templates", async () => {
     const templates = templateService.listTemplates();
     return {
       code: 0,
-      msg: 'success',
+      msg: "success",
       data: templates,
     };
   });
 
   // Get single template
   const getTemplateParamsSchema = z.object({
-    id: z.string().min(1, 'Template ID is required'),
+    id: z.string().min(1, "Template ID is required"),
   });
 
   fastify.get<{ Params: { id: string } }>(
-    '/templates/:id',
+    "/templates/:id",
     {
       schema: {
         params: getTemplateParamsSchema,
@@ -34,13 +34,13 @@ const templatesRoutes: FastifyPluginAsync = async (fastify) => {
       if (!template) {
         return reply.status(404).send({
           code: 404,
-          msg: 'Template not found',
+          msg: "Template not found",
         });
       }
 
       return {
         code: 0,
-        msg: 'success',
+        msg: "success",
         data: template,
       };
     },

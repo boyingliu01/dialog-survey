@@ -1,5 +1,10 @@
-import { prisma } from '../db';
-import { Interview, InterviewStatus, Message, Prisma } from '../generated/prisma/client/client.js';
+import { prisma } from "../db";
+import {
+  Interview,
+  InterviewStatus,
+  Message,
+  Prisma,
+} from "../generated/prisma/client/client.js";
 
 // Use Prisma's input types for JSON fields
 type JsonInput = Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue;
@@ -34,11 +39,11 @@ export class InterviewRepository {
       userId: data.userId,
       templateId: data.templateId,
       ...(data.topic && { topic: data.topic }),
-      ...(data.conversationHistory !== undefined && { 
-        conversationHistory: data.conversationHistory as Prisma.InputJsonValue 
+      ...(data.conversationHistory !== undefined && {
+        conversationHistory: data.conversationHistory as Prisma.InputJsonValue,
       }),
-      ...(data.extractedInfo !== undefined && { 
-        extractedInfo: data.extractedInfo as Prisma.InputJsonValue 
+      ...(data.extractedInfo !== undefined && {
+        extractedInfo: data.extractedInfo as Prisma.InputJsonValue,
       }),
     };
     return prisma.interview.create({ data: createData });
@@ -47,24 +52,31 @@ export class InterviewRepository {
   /**
    * Find active interview by user ID
    */
-  static async findActiveByUserId(userId: string): Promise<InterviewWithMessages | null> {
+  static async findActiveByUserId(
+    userId: string,
+  ): Promise<InterviewWithMessages | null> {
     return prisma.interview.findFirst({
       where: {
         userId,
-        status: InterviewStatus.IN_PROGRESS
+        status: InterviewStatus.IN_PROGRESS,
       },
       include: { messages: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
   /**
    * Update conversation history
    */
-  static async updateHistory(id: string, conversationHistory: JsonInput): Promise<InterviewWithMessages> {
+  static async updateHistory(
+    id: string,
+    conversationHistory: JsonInput,
+  ): Promise<InterviewWithMessages> {
     return prisma.interview.update({
       where: { id },
-      data: { conversationHistory: conversationHistory as Prisma.InputJsonValue },
+      data: {
+        conversationHistory: conversationHistory as Prisma.InputJsonValue,
+      },
       include: { messages: true },
     }) as Promise<InterviewWithMessages>;
   }
@@ -72,11 +84,14 @@ export class InterviewRepository {
   /**
    * Complete an interview
    */
-  static async complete(id: string, data: {
-    report?: string;
-    reportPath?: string;
-    extractedInfo?: JsonInput;
-  }): Promise<InterviewWithMessages> {
+  static async complete(
+    id: string,
+    data: {
+      report?: string;
+      reportPath?: string;
+      extractedInfo?: JsonInput;
+    },
+  ): Promise<InterviewWithMessages> {
     return prisma.interview.update({
       where: { id },
       data: {
@@ -102,7 +117,9 @@ export class InterviewRepository {
   /**
    * Find an interview by session ID
    */
-  static async findBySessionId(sessionId: string): Promise<InterviewWithMessages | null> {
+  static async findBySessionId(
+    sessionId: string,
+  ): Promise<InterviewWithMessages | null> {
     return prisma.interview.findUnique({
       where: { sessionId },
       include: { messages: true },
@@ -112,7 +129,10 @@ export class InterviewRepository {
   /**
    * Find all interviews by user ID
    */
-  static async findByUserId(userId: string, status?: InterviewStatus): Promise<InterviewWithMessages[]> {
+  static async findByUserId(
+    userId: string,
+    status?: InterviewStatus,
+  ): Promise<InterviewWithMessages[]> {
     const where: Prisma.InterviewWhereInput = { userId };
     if (status) {
       where.status = status;
@@ -120,14 +140,18 @@ export class InterviewRepository {
     return prisma.interview.findMany({
       where,
       include: { messages: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 
   /**
    * Find all interviews with optional filters
    */
-  static async findAll(status?: InterviewStatus, limit = 100, offset = 0): Promise<InterviewWithMessages[]> {
+  static async findAll(
+    status?: InterviewStatus,
+    limit = 100,
+    offset = 0,
+  ): Promise<InterviewWithMessages[]> {
     const where: Prisma.InterviewWhereInput = {};
     if (status) {
       where.status = status;
@@ -135,7 +159,7 @@ export class InterviewRepository {
     return prisma.interview.findMany({
       where,
       include: { messages: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
       take: limit,
       skip: offset,
     });
@@ -144,15 +168,18 @@ export class InterviewRepository {
   /**
    * Update an interview
    */
-  static async update(id: string, data: UpdateInterviewData): Promise<InterviewWithMessages> {
+  static async update(
+    id: string,
+    data: UpdateInterviewData,
+  ): Promise<InterviewWithMessages> {
     const updateData: Prisma.InterviewUpdateInput = {
       ...(data.status && { status: data.status }),
       ...(data.topic !== undefined && { topic: data.topic }),
-      ...(data.conversationHistory !== undefined && { 
-        conversationHistory: data.conversationHistory as Prisma.InputJsonValue 
+      ...(data.conversationHistory !== undefined && {
+        conversationHistory: data.conversationHistory as Prisma.InputJsonValue,
       }),
-      ...(data.extractedInfo !== undefined && { 
-        extractedInfo: data.extractedInfo as Prisma.InputJsonValue 
+      ...(data.extractedInfo !== undefined && {
+        extractedInfo: data.extractedInfo as Prisma.InputJsonValue,
       }),
       ...(data.report !== undefined && { report: data.report }),
       ...(data.reportPath !== undefined && { reportPath: data.reportPath }),

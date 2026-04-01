@@ -1,18 +1,20 @@
-import type { InterviewState } from './state';
+import type { InterviewState } from "./state";
 
-export function shouldContinue(state: InterviewState): 'interviewing' | 'followup' | 'analyzing' {
+export function shouldContinue(
+  state: InterviewState,
+): "interviewing" | "followup" | "analyzing" {
   if (state.followupNeeded) {
-    return 'followup';
+    return "followup";
   }
 
   const totalTopics = state.template.topics.length;
   const allTopicsCompleted = state.completedTopics.length >= totalTopics;
 
   if (allTopicsCompleted) {
-    return 'analyzing';
+    return "analyzing";
   }
 
-  return 'interviewing';
+  return "interviewing";
 }
 
 export function shouldFollowup(state: InterviewState): boolean {

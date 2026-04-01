@@ -1,11 +1,11 @@
-export type MessageRole = 'system' | 'user' | 'assistant';
+export type MessageRole = "system" | "user" | "assistant";
 
 export interface Message {
   role: MessageRole;
   content: string;
 }
 
-export type QuestionType = 'rating' | 'text' | 'single_choice' | 'yes_no';
+export type QuestionType = "rating" | "text" | "single_choice" | "yes_no";
 
 export interface Question {
   id: string;

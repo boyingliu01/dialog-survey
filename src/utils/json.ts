@@ -11,26 +11,14 @@ export function cleanJsonMarkdown(text: string): string {
 }
 
 /**
- * Safely parses JSON without schema validation
- * @param text - JSON string to parse
- * @returns Parsed object, or null if parsing fails
- */
-export function safeJsonParse<T = unknown>(text: string): T | null;
-
-/**
- * Safely parses JSON with type assertion
+ * Safely parses JSON with optional reviver
  * @param text - JSON string to parse
  * @param reviver - Optional reviver function
  * @returns Parsed object, or null if parsing fails
  */
 export function safeJsonParse<T = unknown>(
   text: string,
-  reviver?: (this: unknown, key: string, value: unknown) => unknown
-): T | null;
-
-export function safeJsonParse<T = unknown>(
-  text: string,
-  reviver?: (this: unknown, key: string, value: unknown) => unknown
+  reviver?: (this: unknown, key: string, value: unknown) => unknown,
 ): T | null {
   try {
     const cleanedText = cleanJsonMarkdown(text);

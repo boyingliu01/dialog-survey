@@ -1,21 +1,24 @@
-import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
-import cors from '@fastify/cors';
-import websocket from '@fastify/websocket';
+import Fastify, {
+  type FastifyInstance,
+  type FastifyServerOptions,
+} from "fastify";
+import cors from "@fastify/cors";
+import websocket from "@fastify/websocket";
 import {
   serializerCompiler,
   validatorCompiler,
   ZodTypeProvider,
-} from 'fastify-type-provider-zod';
-import { config } from './config.js';
-import { ErrorHandler } from './errorHandler.js';
+} from "fastify-type-provider-zod";
+import { config } from "./config.js";
+import { ErrorHandler } from "./errorHandler.js";
 // import authPlugin from './plugins/auth.js';
-import webhookRoutes from './api/webhook.js';
-import interviewsRoutes from './api/interviews.js';
-import templatesRoutes from './api/templates.js';
-import streamRoutes from './api/stream.js';
+import webhookRoutes from "./api/webhook.js";
+import interviewsRoutes from "./api/interviews.js";
+import templatesRoutes from "./api/templates.js";
+import streamRoutes from "./api/stream.js";
 
 export interface ServerOptions {
-  logger?: FastifyServerOptions['logger'];
+  logger?: FastifyServerOptions["logger"];
   skipPlugins?: string[];
   skipRoutes?: string[];
 }
@@ -25,10 +28,10 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
     level: config.LOG_LEVEL,
     transport: config.isDevelopment
       ? {
-          target: 'pino-pretty',
+          target: "pino-pretty",
           options: {
-            translateTime: 'HH:MM:ss Z',
-            ignore: 'pid,hostname',
+            translateTime: "HH:MM:ss Z",
+            ignore: "pid,hostname",
           },
         }
       : undefined,
@@ -49,14 +52,14 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
   fastify.setErrorHandler(errorHandler.fastifyErrorHandler.bind(errorHandler));
 
   // Register plugins
-  if (!options.skipPlugins?.includes('cors')) {
+  if (!options.skipPlugins?.includes("cors")) {
     fastify.register(cors, {
       origin: config.corsOrigins,
       credentials: true,
     });
   }
 
-  if (!options.skipPlugins?.includes('websocket')) {
+  if (!options.skipPlugins?.includes("websocket")) {
     fastify.register(websocket, {
       options: {
         maxPayload: 1048576,
@@ -71,45 +74,48 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
   // }
 
   // Register routes with prefix /api
-  fastify.register(async (api) => {
-    if (!options.skipRoutes?.includes('webhook')) {
-      api.register(webhookRoutes);
-    }
+  fastify.register(
+    async (api) => {
+      if (!options.skipRoutes?.includes("webhook")) {
+        api.register(webhookRoutes);
+      }
 
-    if (!options.skipRoutes?.includes('interviews')) {
-      api.register(interviewsRoutes);
-    }
+      if (!options.skipRoutes?.includes("interviews")) {
+        api.register(interviewsRoutes);
+      }
 
-    if (!options.skipRoutes?.includes('templates')) {
-      api.register(templatesRoutes);
-    }
+      if (!options.skipRoutes?.includes("templates")) {
+        api.register(templatesRoutes);
+      }
 
-    if (!options.skipRoutes?.includes('stream')) {
-      api.register(streamRoutes);
-    }
+      if (!options.skipRoutes?.includes("stream")) {
+        api.register(streamRoutes);
+      }
 
-    // Health check endpoint
-    api.get('/health', async () => {
-      return {
-        code: 0,
-        msg: 'success',
-        data: {
-          status: 'healthy',
-          timestamp: new Date().toISOString(),
-        },
-      };
-    });
-  }, { prefix: '/api' });
+      // Health check endpoint
+      api.get("/health", async () => {
+        return {
+          code: 0,
+          msg: "success",
+          data: {
+            status: "healthy",
+            timestamp: new Date().toISOString(),
+          },
+        };
+      });
+    },
+    { prefix: "/api" },
+  );
 
   // Root endpoint
-  fastify.get('/', async () => {
+  fastify.get("/", async () => {
     return {
       code: 0,
-      msg: 'success',
+      msg: "success",
       data: {
-        name: 'Interview Bot API',
-        version: '1.0.0',
-        docs: '/api/docs',
+        name: "Interview Bot API",
+        version: "1.0.0",
+        docs: "/api/docs",
       },
     };
   });
@@ -119,16 +125,16 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
     fastify.log.info(`Received ${signal}, shutting down gracefully...`);
     try {
       await fastify.close();
-      fastify.log.info('Server closed successfully');
+      fastify.log.info("Server closed successfully");
       process.exit(0);
     } catch (error) {
-      fastify.log.error('Error closing server: %s', error);
+      fastify.log.error("Error closing server: %s", error);
       process.exit(1);
     }
   };
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 
   return fastify;
 }
@@ -144,7 +150,7 @@ export async function startServer(): Promise<void> {
 
     fastify.log.info(`Server running at http://${config.HOST}:${config.PORT}`);
   } catch (error) {
-    fastify.log.error('Error starting server: %s', error);
+    fastify.log.error("Error starting server: %s", error);
     process.exit(1);
   }
 }

@@ -1,5 +1,5 @@
-import { DingTalkService, CallbackMessage } from './dingtalk.js';
-import { TemplateLoader, InterviewTemplate } from './templateLoader.js';
+import { DingTalkService, CallbackMessage } from "./dingtalk.js";
+import { TemplateLoader, InterviewTemplate } from "./templateLoader.js";
 
 // Session state interface
 interface InterviewSession {
@@ -19,7 +19,10 @@ class MessageHandler {
   private templateLoader: TemplateLoader;
   private sessions: Map<string, InterviewSession> = new Map();
 
-  constructor(dingTalkService: DingTalkService, templateLoader: TemplateLoader) {
+  constructor(
+    dingTalkService: DingTalkService,
+    templateLoader: TemplateLoader,
+  ) {
     this.dingTalkService = dingTalkService;
     this.templateLoader = templateLoader;
   }
@@ -28,10 +31,10 @@ class MessageHandler {
    * Handle chat messages from DingTalk
    */
   async handleChatMessage(message: CallbackMessage): Promise<void> {
-    console.log('Handling chat message:', message);
+    console.log("Handling chat message:", message);
 
     // Try to find existing session
-    let session = this.getSessionByConversationId(message.conversationId);
+    const session = this.getSessionByConversationId(message.conversationId);
 
     if (!session) {
       // Start new interview
@@ -52,7 +55,7 @@ class MessageHandler {
     const defaultTemplate = templates[0]; // Get first template as default
 
     if (!defaultTemplate) {
-      throw new Error('No interview templates available');
+      throw new Error("No interview templates available");
     }
 
     // Create new session
@@ -80,7 +83,10 @@ class MessageHandler {
   /**
    * Continue existing interview
    */
-  async continueInterview(session: InterviewSession, message: CallbackMessage): Promise<void> {
+  async continueInterview(
+    session: InterviewSession,
+    message: CallbackMessage,
+  ): Promise<void> {
     // Record user's answer
     await this.recordAnswer(session, message);
 
@@ -99,7 +105,7 @@ class MessageHandler {
     const greeting = `您好！欢迎参加 ${session.template.name} 面试。\n\n${session.template.description}\n\n我们将开始进行面试，请认真回答每个问题。`;
 
     await this.dingTalkService.sendToConversation(session.conversationId, {
-      msgtype: 'text',
+      msgtype: "text",
       text: { content: greeting },
     });
   }
@@ -116,7 +122,7 @@ class MessageHandler {
     }
 
     await this.dingTalkService.sendToConversation(session.conversationId, {
-      msgtype: 'text',
+      msgtype: "text",
       text: { content: question.text },
     });
 
@@ -126,14 +132,17 @@ class MessageHandler {
   /**
    * Record user's answer
    */
-  private async recordAnswer(session: InterviewSession, message: CallbackMessage): Promise<void> {
+  private async recordAnswer(
+    session: InterviewSession,
+    message: CallbackMessage,
+  ): Promise<void> {
     const currentQuestion = this.getCurrentQuestion(session);
 
     if (!currentQuestion) {
       return;
     }
 
-    const answer = message.text?.content || '';
+    const answer = message.text?.content || "";
     session.answers[currentQuestion.id] = answer;
     session.updatedAt = Date.now();
 
@@ -154,7 +163,7 @@ class MessageHandler {
     const completionMessage = `感谢您完成面试！您的回答已记录。\n\n我们将对您的回答进行分析，稍后会发送面试报告。`;
 
     await this.dingTalkService.sendToConversation(session.conversationId, {
-      msgtype: 'text',
+      msgtype: "text",
       text: { content: completionMessage },
     });
 
@@ -168,9 +177,11 @@ class MessageHandler {
   /**
    * Generate interview report
    */
-  private async generateInterviewReport(session: InterviewSession): Promise<void> {
-    console.log('Generating interview report for session:', session.id);
-    console.log('Answers:', session.answers);
+  private async generateInterviewReport(
+    session: InterviewSession,
+  ): Promise<void> {
+    console.log("Generating interview report for session:", session.id);
+    console.log("Answers:", session.answers);
 
     // Implement report generation logic here
     // This could include calling LLM to analyze answers and generate summary
@@ -199,7 +210,10 @@ class MessageHandler {
   /**
    * Get questions for a specific topic
    */
-  private getQuestionsForTopic(template: InterviewTemplate, _topicId: string): any[] {
+  private getQuestionsForTopic(
+    template: InterviewTemplate,
+    _topicId: string,
+  ): any[] {
     // In a real implementation, you would map topics to questions
     // For this example, we'll return all questions
     return template.questions;
@@ -208,9 +222,11 @@ class MessageHandler {
   /**
    * Get session by conversation ID
    */
-  private getSessionByConversationId(conversationId: string): InterviewSession | undefined {
+  private getSessionByConversationId(
+    conversationId: string,
+  ): InterviewSession | undefined {
     return Array.from(this.sessions.values()).find(
-      (session) => session.conversationId === conversationId
+      (session) => session.conversationId === conversationId,
     );
   }
 

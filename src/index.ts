@@ -1,5 +1,4 @@
-export const hello = (name: string): string => {
-  return `Hello, ${name}!`;
-};
+import "dotenv/config";
+import { startServer } from "./server.js";
 
-console.log(hello('World'));
+startServer();
