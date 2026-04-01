@@ -38,18 +38,35 @@ export interface InterviewTemplate {
   domain_context?: string;
 }
 
-// Note: InterviewState is now defined in state.ts using LangGraph Annotation
-
 export interface LLMResponse {
   content: string;
   isFollowupNeeded?: boolean;
   followupQuestion?: string;
 }
 
+const DANGEROUS_PATTERNS = [
+  /ignore\s+(all\s+)?previous\s+instructions?/i,
+  /you\s+are\s+now\s+(in\s+)?developer\s+mode/i,
+  /system\s+override/i,
+  /reveal\s+(system\s+)?prompt/i,
+];
+
+function sanitizeContent(content: string): string {
+  let sanitized = content;
+  DANGEROUS_PATTERNS.forEach((pattern) => {
+    sanitized = sanitized.replace(pattern, "[FILTERED]");
+  });
+  return sanitized.replace(/\s+/g, " ").trim();
+}
+
 export const LLMResponseSchema = z.object({
-  content: z.string().min(1, "LLM response content cannot be empty"),
+  content: z.string().min(1).max(10000).transform(sanitizeContent),
   isFollowupNeeded: z.boolean().optional().default(false),
-  followupQuestion: z.string().optional(),
+  followupQuestion: z
+    .string()
+    .max(500)
+    .optional()
+    .transform((v) => (v ? sanitizeContent(v) : v)),
 });
 
 export function validateLLMResponse(data: unknown): LLMResponse {
@@ -58,10 +75,7 @@ export function validateLLMResponse(data: unknown): LLMResponse {
 
 export function safeValidateLLMResponse(data: unknown): LLMResponse | null {
   const result = LLMResponseSchema.safeParse(data);
-  if (result.success) {
-    return result.data;
-  }
-  return null;
+  return result.success ? result.data : null;
 }
 
 export interface LLMProvider {
