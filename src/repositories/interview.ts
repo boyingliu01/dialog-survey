@@ -7,7 +7,6 @@ import {
   Prisma,
 } from "../generated/prisma/client/client.js";
 
-// Use Prisma's input types for JSON fields
 type JsonInput = Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue;
 
 export interface CreateInterviewData {
@@ -28,7 +27,23 @@ export interface UpdateInterviewData {
   reportPath?: string;
 }
 
+export interface UpdateWithVersionData extends UpdateInterviewData {
+  version: number;
+}
+
 type InterviewWithMessages = Interview & { messages: Message[] };
+
+export class OptimisticLockError extends Error {
+  constructor(
+    public readonly expectedVersion: number,
+    public readonly actualVersion: number,
+  ) {
+    super(
+      `Optimistic lock failed: expected version ${expectedVersion}, but was ${actualVersion}`,
+    );
+    this.name = "OptimisticLockError";
+  }
+}
 
 export class InterviewRepository {
   private constructor() {}
@@ -49,9 +64,6 @@ export class InterviewRepository {
     return prisma.interview.create({ data: createData });
   }
 
-  /**
-   * Find active interview by user ID
-   */
   static async findActiveByUserId(
     userId: string,
   ): Promise<InterviewWithMessages | null> {
@@ -65,9 +77,6 @@ export class InterviewRepository {
     });
   }
 
-  /**
-   * Update conversation history
-   */
   static async updateHistory(
     id: string,
     conversationHistory: JsonInput,
@@ -81,9 +90,6 @@ export class InterviewRepository {
     }) as Promise<InterviewWithMessages>;
   }
 
-  /**
-   * Complete an interview
-   */
   static async complete(
     id: string,
     data: {
@@ -104,9 +110,6 @@ export class InterviewRepository {
     }) as Promise<InterviewWithMessages>;
   }
 
-  /**
-   * Find an interview by ID
-   */
   static async findById(id: string): Promise<InterviewWithMessages | null> {
     return prisma.interview.findUnique({
       where: { id },
@@ -114,9 +117,6 @@ export class InterviewRepository {
     });
   }
 
-  /**
-   * Find an interview by session ID
-   */
   static async findBySessionId(
     sessionId: string,
   ): Promise<InterviewWithMessages | null> {
@@ -126,9 +126,6 @@ export class InterviewRepository {
     });
   }
 
-  /**
-   * Find all interviews by user ID
-   */
   static async findByUserId(
     userId: string,
     status?: InterviewStatus,
@@ -144,9 +141,6 @@ export class InterviewRepository {
     });
   }
 
-  /**
-   * Find all interviews with optional filters
-   */
   static async findAll(
     status?: InterviewStatus,
     limit = 100,
@@ -165,9 +159,6 @@ export class InterviewRepository {
     });
   }
 
-  /**
-   * Update an interview
-   */
   static async update(
     id: string,
     data: UpdateInterviewData,
@@ -191,31 +182,64 @@ export class InterviewRepository {
     }) as Promise<InterviewWithMessages>;
   }
 
-  /**
-   * Delete an interview
-   */
+  static async updateWithVersion(
+    id: string,
+    data: UpdateWithVersionData,
+  ): Promise<InterviewWithMessages> {
+    const result = await prisma.interview.updateMany({
+      where: {
+        id,
+        version: data.version,
+      },
+      data: {
+        ...(data.status && { status: data.status }),
+        ...(data.topic !== undefined && { topic: data.topic }),
+        ...(data.conversationHistory !== undefined && {
+          conversationHistory:
+            data.conversationHistory as Prisma.InputJsonValue,
+        }),
+        ...(data.extractedInfo !== undefined && {
+          extractedInfo: data.extractedInfo as Prisma.InputJsonValue,
+        }),
+        ...(data.report !== undefined && { report: data.report }),
+        ...(data.reportPath !== undefined && { reportPath: data.reportPath }),
+        version: { increment: 1 },
+      },
+    });
+
+    if (result.count === 0) {
+      const current = await prisma.interview.findUnique({
+        where: { id },
+        select: { version: true },
+      });
+      throw new OptimisticLockError(data.version, current?.version ?? -1);
+    }
+
+    return this.findById(id) as Promise<InterviewWithMessages>;
+  }
+
   static async delete(id: string): Promise<Interview> {
     return prisma.interview.delete({
       where: { id },
     });
   }
 
-  /**
-   * Count interviews by status
-   */
   static async countByStatus(status: InterviewStatus): Promise<number> {
     return prisma.interview.count({
       where: { status },
     });
   }
 
-  /**
-   * Check if an interview exists
-   */
   static async exists(id: string): Promise<boolean> {
     const count = await prisma.interview.count({
       where: { id },
     });
     return count > 0;
+  }
+
+  static async withTransaction<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return prisma.$transaction(fn);
   }
 }
