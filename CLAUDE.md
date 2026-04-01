@@ -86,6 +86,7 @@ interview-bot/src/
 ### Prisma 7.x Configuration
 
 Prisma 7.x requires:
+
 - `prisma.config.ts` at project root for CLI operations
 - Adapter pattern in `src/db/index.ts` using `@prisma/adapter-pg`
 - Generated client in `src/generated/prisma/client/`
@@ -94,6 +95,7 @@ Prisma 7.x requires:
 ### Interview Templates
 
 Templates are JSON files in `templates/` with this structure:
+
 - `topics[]` — Interview topics, each with `id`, `name`, `description`, `initial_question`
 - `questions[]` — Questions with `id`, `type` (rating/text/single_choice/yes_no), `text`, optional `follow_ups[]`, optional `condition` for conditional display
 - `domain_context` — Context passed to LLM for domain-specific understanding
@@ -101,6 +103,7 @@ Templates are JSON files in `templates/` with this structure:
 ### Testing with Vitest
 
 Tests are in `tests/unit/` mirroring `src/` structure:
+
 - Use `vitest` `describe`, `it`, `expect` syntax
 - Mock external services with `vi.mock()` and `vi.fn()`
 - Use `beforeEach/afterEach` for setup/teardown
@@ -109,6 +112,7 @@ Tests are in `tests/unit/` mirroring `src/` structure:
 ### Environment Variables
 
 Required in `interview-bot/.env` (copy from `.env.example`):
+
 - `LLM_API_KEY` — DashScope API key
 - `LLM_ENDPOINT` — DashScope endpoint URL
 - `DATABASE_URL` — PostgreSQL connection string
@@ -117,6 +121,7 @@ Required in `interview-bot/.env` (copy from `.env.example`):
 - `INTERNAL_API_KEY` — API key for authenticating internal endpoints (required)
 
 Optional:
+
 - `PORT` — Server port (default: 3000)
 - `LOG_LEVEL` — Logging level (default: info)
 - `CORS_ORIGINS` — Comma-separated list of allowed CORS origins
@@ -148,3 +153,29 @@ Detailed requirements, architecture, and implementation plans are in `docs/plans
 - Keep changes minimal and focused
 - Never suppress type errors with `as any` or `@ts-ignore`
 - Use Prisma adapter pattern for database connections
+
+## ⚠️ Zero Tolerance Policy for Warnings
+
+**CRITICAL: All compiler and linter warnings must be fixed. No exceptions.**
+
+This project was rewritten from Python to TypeScript specifically to eliminate runtime errors through compile-time checking. The compiler is our friend—when it warns, it's identifying a potential risk.
+
+### Rules
+
+1. **Never ignore warnings** — Every warning represents a potential bug
+2. **Never use `as any`** — Defeats the purpose of TypeScript
+3. **Never use `@ts-ignore` or `@ts-expect-error`** — If TypeScript complains, fix the code
+4. **Never skip fixing a lint error** — Even "minor" issues can hide real bugs
+5. **Always run `npm run type-check && npm run lint` before committing**
+
+### Rationale
+
+Python's lack of compile-time checking led to hours wasted on runtime debugging. TypeScript's value is in catching issues before they reach production. Ignoring warnings undermines this benefit and is strictly forbidden.
+
+### Before Any Commit
+
+```bash
+npm run type-check  # Must pass with 0 errors
+npm run lint        # Must pass with 0 errors
+npm test            # Must pass all tests
+```

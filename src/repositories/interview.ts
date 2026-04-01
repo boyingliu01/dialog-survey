@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-extraneous-class */
 import { prisma } from "../db";
 import {
   Interview,
@@ -30,9 +31,8 @@ export interface UpdateInterviewData {
 type InterviewWithMessages = Interview & { messages: Message[] };
 
 export class InterviewRepository {
-  /**
-   * Create a new interview
-   */
+  private constructor() {}
+
   static async create(data: CreateInterviewData): Promise<Interview> {
     const createData: Prisma.InterviewCreateInput = {
       sessionId: data.sessionId,

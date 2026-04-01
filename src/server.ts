@@ -11,7 +11,6 @@ import {
 } from "fastify-type-provider-zod";
 import { config } from "./config.js";
 import { ErrorHandler } from "./errorHandler.js";
-// import authPlugin from './plugins/auth.js';
 import webhookRoutes from "./api/webhook.js";
 import interviewsRoutes from "./api/interviews.js";
 import templatesRoutes from "./api/templates.js";
@@ -42,25 +41,22 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
     trustProxy: true,
   }).withTypeProvider<ZodTypeProvider>();
 
-  // Set up Zod validation and serialization
   fastify.setValidatorCompiler(validatorCompiler);
   fastify.setSerializerCompiler(serializerCompiler);
 
   const errorHandler = new ErrorHandler(config.isDevelopment);
 
-  // Set up error handler
   fastify.setErrorHandler(errorHandler.fastifyErrorHandler.bind(errorHandler));
 
-  // Register plugins
   if (!options.skipPlugins?.includes("cors")) {
-    fastify.register(cors, {
+    void fastify.register(cors, {
       origin: config.corsOrigins,
       credentials: true,
     });
   }
 
   if (!options.skipPlugins?.includes("websocket")) {
-    fastify.register(websocket, {
+    void fastify.register(websocket, {
       options: {
         maxPayload: 1048576,
         clientTracking: true,
@@ -68,32 +64,25 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
     });
   }
 
-  // Temporarily disable auth plugin for testing
-  // if (!options.skipPlugins?.includes('auth')) {
-  //   fastify.register(authPlugin);
-  // }
-
-  // Register routes with prefix /api
-  fastify.register(
-    async (api) => {
+  void fastify.register(
+    (api) => {
       if (!options.skipRoutes?.includes("webhook")) {
-        api.register(webhookRoutes);
+        void api.register(webhookRoutes);
       }
 
       if (!options.skipRoutes?.includes("interviews")) {
-        api.register(interviewsRoutes);
+        void api.register(interviewsRoutes);
       }
 
       if (!options.skipRoutes?.includes("templates")) {
-        api.register(templatesRoutes);
+        void api.register(templatesRoutes);
       }
 
       if (!options.skipRoutes?.includes("stream")) {
-        api.register(streamRoutes);
+        void api.register(streamRoutes);
       }
 
-      // Health check endpoint
-      api.get("/health", async () => {
+      api.get("/health", () => {
         return {
           code: 0,
           msg: "success",
@@ -107,8 +96,7 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
     { prefix: "/api" },
   );
 
-  // Root endpoint
-  fastify.get("/", async () => {
+  fastify.get("/", () => {
     return {
       code: 0,
       msg: "success",
@@ -120,17 +108,18 @@ export function buildServer(options: ServerOptions = {}): FastifyInstance {
     };
   });
 
-  // Graceful shutdown
-  const shutdown = async (signal: string) => {
+  const shutdown = (signal: string): void => {
     fastify.log.info(`Received ${signal}, shutting down gracefully...`);
-    try {
-      await fastify.close();
-      fastify.log.info("Server closed successfully");
-      process.exit(0);
-    } catch (error) {
-      fastify.log.error("Error closing server: %s", error);
-      process.exit(1);
-    }
+    void fastify
+      .close()
+      .then(() => {
+        fastify.log.info("Server closed successfully");
+        process.exit(0);
+      })
+      .catch((error) => {
+        fastify.log.error("Error closing server: %s", error);
+        process.exit(1);
+      });
   };
 
   process.on("SIGTERM", () => shutdown("SIGTERM"));

@@ -31,31 +31,53 @@ const parsedEnv = envSchema.safeParse(process.env);
 const isTest = process.env.NODE_ENV === "test";
 
 if (!parsedEnv.success && !isTest) {
+  // eslint-disable-next-line no-console
   console.error("❌ Invalid environment variables:", parsedEnv.error.format());
   process.exit(1);
 }
 
 // Default values for test environment
-const getTestDefaults = () => ({
-  NODE_ENV: "test" as const,
-  PORT: 3000,
-  HOST: "0.0.0.0",
-  DATABASE_URL: "postgresql://test:test@localhost:5432/test",
-  DASHSCOPE_API_KEY: "test-dashscope-api-key",
-  LLM_API_KEY: "test-llm-api-key",
-  LLM_MODEL: "test-model",
-  LLM_ENDPOINT: "https://test.endpoint",
-  MAX_LLM_RETRIES: 2,
-  LLM_TIMEOUT: 30000,
-  DINGTALK_APP_KEY: "test-app-key",
-  DINGTALK_APP_SECRET: "test-app-secret",
-  DINGTALK_AGENT_ID: "test-agent-id",
-  PUBLIC_URL: "http://localhost:3000",
-  REPORTS_DIR: "./reports",
-  LOG_LEVEL: "info" as const,
-  CORS_ORIGINS: "*",
-  INTERNAL_API_KEY: "test-internal-api-key",
-});
+function getTestDefaults(): {
+  NODE_ENV: "test";
+  PORT: number;
+  HOST: string;
+  DATABASE_URL: string;
+  DASHSCOPE_API_KEY: string;
+  LLM_API_KEY: string;
+  LLM_MODEL: string;
+  LLM_ENDPOINT: string;
+  MAX_LLM_RETRIES: number;
+  LLM_TIMEOUT: number;
+  DINGTALK_APP_KEY: string;
+  DINGTALK_APP_SECRET: string;
+  DINGTALK_AGENT_ID: string;
+  PUBLIC_URL: string;
+  REPORTS_DIR: string;
+  LOG_LEVEL: "info";
+  CORS_ORIGINS: string;
+  INTERNAL_API_KEY: string;
+} {
+  return {
+    NODE_ENV: "test" as const,
+    PORT: 3000,
+    HOST: "0.0.0.0",
+    DATABASE_URL: "postgresql://test:test@localhost:5432/test",
+    DASHSCOPE_API_KEY: "test-dashscope-api-key",
+    LLM_API_KEY: "test-llm-api-key",
+    LLM_MODEL: "test-model",
+    LLM_ENDPOINT: "https://test.endpoint",
+    MAX_LLM_RETRIES: 2,
+    LLM_TIMEOUT: 30000,
+    DINGTALK_APP_KEY: "test-app-key",
+    DINGTALK_APP_SECRET: "test-app-secret",
+    DINGTALK_AGENT_ID: "test-agent-id",
+    PUBLIC_URL: "http://localhost:3000",
+    REPORTS_DIR: "./reports",
+    LOG_LEVEL: "info" as const,
+    CORS_ORIGINS: "*",
+    INTERNAL_API_KEY: "test-internal-api-key",
+  };
+}
 
 // Configuration object with type-safe access
 // In test mode, use defaults for missing values
