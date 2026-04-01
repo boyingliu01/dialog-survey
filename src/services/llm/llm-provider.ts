@@ -9,6 +9,7 @@ export class MockLLMProvider implements LLMProvider {
   ];
   private responseIndex = 0;
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async chat(_messages: LLMMessage[]): Promise<LLMResponse> {
     const content = this.responses[this.responseIndex % this.responses.length];
     this.responseIndex++;
@@ -26,6 +27,7 @@ export class MockLLMProvider implements LLMProvider {
 }
 
 export class DummyLLMProvider implements LLMProvider {
+  // eslint-disable-next-line @typescript-eslint/require-await
   async chat(_messages: LLMMessage[]): Promise<LLMResponse> {
     return {
       content: "This is a dummy response.",

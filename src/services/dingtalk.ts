@@ -74,6 +74,13 @@ interface LinkMessage {
 
 type OutboundMessage = TextMessage | MarkdownMessage | LinkMessage;
 
+interface LegacyMessage {
+  msgtype: string;
+  text?: { content: string };
+  content?: string;
+  markdown?: { title: string; text: string };
+}
+
 interface TokenResponse {
   errcode: number;
   errmsg: string;
@@ -313,17 +320,16 @@ export class DingTalkService {
   /**
    * Send message to user (legacy interface - supports text/markdown message objects)
    */
-  async sendToUser(
-    userId: string,
-    msg: { msgtype: string; text?: { content: string }; content?: string },
-  ): Promise<void> {
+  async sendToUser(userId: string, msg: LegacyMessage): Promise<void> {
     if (msg.msgtype === "text") {
       const content = msg.text?.content || msg.content || "";
       await this.sendTextToUser(userId, content);
-    } else if (msg.msgtype === "markdown") {
-      const content =
-        (msg as any).markdown?.text || msg.text?.content || msg.content || "";
-      await this.sendMarkdownToUser(userId, content, content);
+    } else if (msg.msgtype === "markdown" && msg.markdown) {
+      await this.sendMarkdownToUser(
+        userId,
+        msg.markdown.title,
+        msg.markdown.text,
+      );
     }
   }
 
@@ -332,15 +338,17 @@ export class DingTalkService {
    */
   async sendToConversation(
     conversationId: string,
-    msg: { msgtype: string; text?: { content: string }; content?: string },
+    msg: LegacyMessage,
   ): Promise<void> {
     if (msg.msgtype === "text") {
       const content = msg.text?.content || msg.content || "";
       await this.sendTextToConversation(conversationId, content);
-    } else if (msg.msgtype === "markdown") {
-      const content =
-        (msg as any).markdown?.text || msg.text?.content || msg.content || "";
-      await this.sendMarkdownToConversation(conversationId, content, content);
+    } else if (msg.msgtype === "markdown" && msg.markdown) {
+      await this.sendMarkdownToConversation(
+        conversationId,
+        msg.markdown.title,
+        msg.markdown.text,
+      );
     }
   }
 }

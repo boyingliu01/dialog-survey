@@ -39,7 +39,7 @@ export class MockASRProvider implements ASRProvider {
 export class FunASRProvider implements ASRProvider {
   public readonly name: string = "funasr";
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-useless-constructor
   constructor(_config: ASRConfig) {
     // config is stored for future use when FunASR API is implemented
   }
@@ -118,6 +118,7 @@ export class ASRService {
     return this.transcribe(filePath);
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   async transcribeFromBuffer(_audioData: Buffer): Promise<TranscriptionResult> {
     // For buffer, we can simulate or implement buffer processing
     return {
