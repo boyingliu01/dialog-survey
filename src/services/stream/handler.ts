@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import crypto from "crypto";
 import { CallbackMessage } from "../dingtalk.js";
 import { StreamConfig, StreamEvent, StreamEventListener } from "./types.js";
+import logger from "../../utils/logger.js";
 
 class DingTalkStreamHandler {
   private config: StreamConfig;
@@ -82,7 +83,7 @@ class DingTalkStreamHandler {
       this.ws.on("open", () => {
         this._isConnected = true;
         this.reconnectAttempts = 0;
-        console.log("Connected to DingTalk Stream API");
+        logger.info("Connected to DingTalk Stream API");
         this.emit("connect");
         resolve();
       });
@@ -93,7 +94,7 @@ class DingTalkStreamHandler {
 
       this.ws.on("close", (code, reason) => {
         this._isConnected = false;
-        console.log(
+        logger.info(
           `Disconnected from DingTalk Stream API: ${code} - ${reason.toString()}`,
         );
         this.emit("disconnect", { code, reason });
@@ -105,7 +106,7 @@ class DingTalkStreamHandler {
       });
 
       this.ws.on("error", (error) => {
-        console.error("Stream connection error:", error);
+        logger.error({ error }, "Stream connection error");
         this.emit("error", error);
         reject(error);
       });
@@ -117,7 +118,7 @@ class DingTalkStreamHandler {
    */
   private reconnect(): void {
     this.reconnectAttempts++;
-    console.log(`Reconnecting attempt ${this.reconnectAttempts}...`);
+    logger.info(`Reconnecting attempt ${this.reconnectAttempts}...`);
 
     this.emit("reconnect", {
       attempt: this.reconnectAttempts,
@@ -126,7 +127,7 @@ class DingTalkStreamHandler {
 
     setTimeout(() => {
       this.connect().catch((error) => {
-        console.error("Reconnect failed:", error);
+        logger.error({ error }, "Reconnect failed");
       });
     }, this.config.reconnectInterval);
   }
@@ -191,17 +192,14 @@ class DingTalkStreamHandler {
 
       // Check for duplicate messages
       if (this.isDuplicateMessage(message.msgId)) {
-        console.log(`Duplicate message received: ${message.msgId}`);
+        logger.debug(`Duplicate message received: ${message.msgId}`);
         return;
       }
 
-      console.log(
-        "Received message from DingTalk Stream:",
-        JSON.stringify(message),
-      );
+      logger.info({ message }, "Received message from DingTalk Stream");
       this.emit("message", message);
     } catch (error) {
-      console.error("Failed to parse Stream message:", error);
+      logger.error({ error }, "Failed to parse Stream message");
       this.emit("error", error);
     }
   }

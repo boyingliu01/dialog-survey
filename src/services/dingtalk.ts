@@ -1,6 +1,7 @@
 import * as crypto from "crypto";
 import { z } from "zod";
 import { config } from "../config.js";
+import logger from "../utils/logger.js";
 
 // DingTalk webhook message schema
 const DingTalkMessageSchema = z.object({
@@ -185,7 +186,7 @@ export class DingTalkService {
 
       return this.accessToken;
     } catch (error) {
-      console.error("Error getting access token:", error);
+      logger.error({ error }, "Error getting access token");
       throw error;
     }
   }
@@ -234,7 +235,7 @@ export class DingTalkService {
 
       return data;
     } catch (error) {
-      console.error("Error sending message:", error);
+      logger.error({ error }, "Error sending message");
       throw error;
     }
   }
@@ -256,14 +257,13 @@ export class DingTalkService {
       });
 
       if (!response.ok) {
-        console.error(
-          "Failed to send DingTalk message:",
-          response.status,
-          response.statusText,
+        logger.error(
+          { status: response.status, statusText: response.statusText },
+          "Failed to send DingTalk message",
         );
       }
     } catch (error) {
-      console.error("Error sending DingTalk message:", error);
+      logger.error({ error }, "Error sending DingTalk message");
     }
   }
 

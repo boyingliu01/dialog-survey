@@ -1,5 +1,6 @@
 import { DingTalkService, CallbackMessage } from "./dingtalk.js";
 import { TemplateLoader, InterviewTemplate } from "./templateLoader.js";
+import logger from "../utils/logger.js";
 
 interface Question {
   id: string;
@@ -39,7 +40,7 @@ class MessageHandler {
    * Handle chat messages from DingTalk
    */
   async handleChatMessage(message: CallbackMessage): Promise<void> {
-    console.log("Handling chat message:", message);
+    logger.info({ message }, "Handling chat message");
 
     // Try to find existing session
     const session = this.getSessionByConversationId(message.conversationId);
@@ -154,7 +155,10 @@ class MessageHandler {
     session.answers[currentQuestion.id] = answer;
     session.updatedAt = Date.now();
 
-    console.log(`Recorded answer for question ${currentQuestion.id}:`, answer);
+    logger.info(
+      { questionId: currentQuestion.id, answer },
+      `Recorded answer for question`,
+    );
   }
 
   /**
@@ -186,8 +190,10 @@ class MessageHandler {
    * Generate interview report
    */
   private generateInterviewReport(session: InterviewSession): void {
-    console.log("Generating interview report for session:", session.id);
-    console.log("Answers:", session.answers);
+    logger.info(
+      { sessionId: session.id, answers: session.answers },
+      "Generating interview report",
+    );
 
     // Implement report generation logic here
     // This could include calling LLM to analyze answers and generate summary
