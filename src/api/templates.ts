@@ -1,12 +1,12 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginCallback } from "fastify";
 import { getTemplateService } from "../services/template.js";
 import { z } from "zod";
 
-const templatesRoutes: FastifyPluginAsync = async (fastify) => {
+const templatesRoutes: FastifyPluginCallback = (fastify) => {
   const templateService = getTemplateService();
 
   // Get all templates
-  fastify.get("/templates", async () => {
+  fastify.get("/templates", () => {
     const templates = templateService.listTemplates();
     return {
       code: 0,

@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginCallback } from "fastify";
 import { z } from "zod";
 import { getDingtalkService } from "../services/dingtalk.js";
 import { getConversationEngine } from "../services/conversation/index.js";
@@ -12,9 +12,6 @@ import { getTemplateService, type Template } from "../services/template.js";
 import type { InterviewTemplate } from "../core/types.js";
 import * as crypto from "crypto";
 
-/**
- * Convert Template from template service to InterviewTemplate for graph
- */
 function toInterviewTemplate(
   template: Template | null | undefined,
 ): InterviewTemplate | null {
@@ -40,7 +37,7 @@ function toInterviewTemplate(
   };
 }
 
-const webhookRoutes: FastifyPluginAsync = async (fastify) => {
+const webhookRoutes: FastifyPluginCallback = (fastify) => {
   const dingtalkService = getDingtalkService();
   const templateService = getTemplateService();
 

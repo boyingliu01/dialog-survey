@@ -1,4 +1,4 @@
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyPluginCallback, FastifyRequest } from "fastify";
 import { WebSocket } from "ws";
 
 interface StreamConnection {
@@ -16,8 +16,7 @@ interface StreamMessage {
   payload?: unknown;
 }
 
-const streamRoutes: FastifyPluginAsync = async (fastify) => {
-  // Note: websocket plugin is registered in server.ts
+const streamRoutes: FastifyPluginCallback = (fastify) => {
   const connections = new Map<string, StreamConnection>();
 
   fastify.get(
@@ -40,10 +39,11 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
 
       connections.set(clientId, streamConnection);
 
-      // Handle incoming messages
-      socket.on("message", async (data: Buffer) => {
+      socket.on("message", (data: Buffer): void => {
         try {
-          const message: StreamMessage = JSON.parse(data.toString());
+          const message: StreamMessage = JSON.parse(
+            data.toString(),
+          ) as StreamMessage;
           streamConnection.lastActivityAt = new Date();
 
           fastify.log.debug(
@@ -52,7 +52,6 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
             message,
           );
 
-          // Process different message types
           switch (message.type) {
             case "connect":
               streamConnection.userId = message.userId || "";
@@ -72,7 +71,7 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
               break;
 
             case "message":
-              await handleStreamMessage(streamConnection, message.payload);
+              handleStreamMessage(streamConnection, message.payload);
               break;
 
             case "disconnect":
@@ -106,7 +105,6 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
         }
       });
 
-      // Handle connection close
       socket.on("close", (code: number, reason: Buffer) => {
         fastify.log.info(
           "Stream connection closed: %s, code=%s, reason=%s",
@@ -117,12 +115,10 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
         connections.delete(clientId);
       });
 
-      // Handle errors
       socket.on("error", (error: Error) => {
         fastify.log.error("Stream connection error: %s, %s", clientId, error);
       });
 
-      // Send heartbeat
       const heartbeatInterval = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) {
           socket.send(
@@ -138,12 +134,12 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
     },
   );
 
-  async function handleStreamMessage(
+  function handleStreamMessage(
     connection: StreamConnection,
     payload: unknown,
-  ): Promise<void> {
+  ): void {
     try {
-      const response = await processStreamMessage(connection, payload);
+      const response = processStreamMessage(connection, payload);
 
       if (connection.socket.readyState === WebSocket.OPEN) {
         connection.socket.send(
@@ -168,20 +164,17 @@ const streamRoutes: FastifyPluginAsync = async (fastify) => {
     }
   }
 
-  async function processStreamMessage(
+  function processStreamMessage(
     _connection: StreamConnection,
     payload: unknown,
-  ) {
-    // TODO: Implement actual stream message processing
-    // This should integrate with the interview engine
+  ): { message: string; payload: unknown } {
     return {
       message: "Message received",
       payload,
     };
   }
 
-  // Health check for stream endpoint
-  fastify.get("/stream/health", async () => {
+  fastify.get("/stream/health", () => {
     return {
       code: 0,
       msg: "success",

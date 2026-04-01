@@ -1,4 +1,27 @@
-import { FastifyError, FastifyReply } from "fastify";
+import { FastifyError, FastifyReply, FastifyRequest } from "fastify";
+
+interface ErrorResponse {
+  code: number;
+  msg: string;
+  details?: unknown;
+}
+
+interface ValidationError {
+  issues?: Array<{ message: string; path: (string | number)[] }>;
+}
+
+interface DatabaseError {
+  code?: string;
+  message?: string;
+}
+
+interface AppError {
+  code?: string | number;
+  msg?: string;
+  message?: string;
+  validation?: unknown;
+  statusCode?: number;
+}
 
 export class ErrorHandler {
   private readonly isDevelopment: boolean;
@@ -7,11 +30,12 @@ export class ErrorHandler {
     this.isDevelopment = isDevelopment;
   }
 
-  /**
-   * Create error response
-   */
-  createErrorResponse(statusCode: number, message: string, details?: any): any {
-    const response: any = {
+  createErrorResponse(
+    statusCode: number,
+    message: string,
+    details?: unknown,
+  ): ErrorResponse {
+    const response: ErrorResponse = {
       code: statusCode,
       msg: message,
     };
@@ -23,10 +47,7 @@ export class ErrorHandler {
     return response;
   }
 
-  /**
-   * Handle validation errors
-   */
-  handleValidationError(error: any) {
+  handleValidationError(error: ValidationError): ErrorResponse {
     if (error.issues) {
       return {
         code: 400,
@@ -41,10 +62,7 @@ export class ErrorHandler {
     };
   }
 
-  /**
-   * Handle database errors
-   */
-  handleDatabaseError(error: any) {
+  handleDatabaseError(error: DatabaseError): ErrorResponse {
     if (error.code === "P2002") {
       return {
         code: 409,
@@ -73,16 +91,13 @@ export class ErrorHandler {
     };
   }
 
-  /**
-   * Handle general errors
-   */
-  handleError(error: any) {
+  handleError(error: AppError): ErrorResponse {
     if (error.code && error.msg) {
-      return error;
+      return error as ErrorResponse;
     }
 
     if (error.validation) {
-      return this.handleValidationError(error);
+      return this.handleValidationError(error as ValidationError);
     }
 
     if (error.code === "E_UNKNOWN") {
@@ -95,7 +110,7 @@ export class ErrorHandler {
     if (error.statusCode) {
       return {
         code: error.statusCode,
-        msg: error.message,
+        msg: error.message ?? "Unknown error",
       };
     }
 
@@ -105,12 +120,12 @@ export class ErrorHandler {
     };
   }
 
-  /**
-   * Fastify error handler
-   */
-  fastifyErrorHandler(error: FastifyError, _request: any, reply: FastifyReply) {
+  fastifyErrorHandler(
+    error: FastifyError,
+    _request: FastifyRequest,
+    reply: FastifyReply,
+  ): void {
     const handledError = this.handleError(error);
-
-    reply.status(handledError.code).send(handledError);
+    void reply.status(handledError.code).send(handledError);
   }
 }
