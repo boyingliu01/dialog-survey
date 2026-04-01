@@ -20,13 +20,13 @@ services/
 
 ## Where to Look
 
-| Task | Location | Notes |
-|------|----------|-------|
-| Add LLM provider | `llm/dashscope-provider.ts` | Extend DashScopeProvider |
-| Modify conversation flow | `conversation/engine.ts` | ConversationEngine class |
-| DingTalk integration | `dingtalk.ts` | Message parsing + sending |
-| WebSocket handling | `stream/handler.ts` | DingTalkStreamHandler |
-| Voice transcription | `asr/index.ts` | AsrService |
+| Task                     | Location                    | Notes                     |
+| ------------------------ | --------------------------- | ------------------------- |
+| Add LLM provider         | `llm/dashscope-provider.ts` | Extend DashScopeProvider  |
+| Modify conversation flow | `conversation/engine.ts`    | ConversationEngine class  |
+| DingTalk integration     | `dingtalk.ts`               | Message parsing + sending |
+| WebSocket handling       | `stream/handler.ts`         | DingTalkStreamHandler     |
+| Voice transcription      | `asr/index.ts`              | AsrService                |
 
 ## Conventions
 
@@ -61,3 +61,17 @@ interface LLMProvider {
   generateResponse(prompt: string): Promise<string>;
 }
 ```
+
+### Prisma 7.x JSON Type Handling
+
+Prisma 7.x has strict JSON field types. When storing serialized state:
+
+```typescript
+// APPROVED PATTERN: Double cast for Prisma JSON compatibility
+const data = JSON.parse(JSON.stringify(state));
+await repository.update({
+  jsonField: data as unknown as never,
+});
+```
+
+This is necessary because Prisma's `JsonInput` type requires index signatures that plain TypeScript interfaces don't satisfy. The `JSON.parse(JSON.stringify(...))` ensures the data is valid JSON before the cast.
