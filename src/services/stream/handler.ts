@@ -1,7 +1,7 @@
-import WebSocket from 'ws';
-import crypto from 'crypto';
-import { CallbackMessage } from '../dingtalk.js';
-import { StreamConfig, StreamEvent, StreamEventListener } from './types.js';
+import WebSocket from "ws";
+import crypto from "crypto";
+import { CallbackMessage } from "../dingtalk.js";
+import { StreamConfig, StreamEvent, StreamEventListener } from "./types.js";
 
 class DingTalkStreamHandler {
   private config: StreamConfig;
@@ -49,15 +49,17 @@ class DingTalkStreamHandler {
    * Emit event to all listeners
    */
   private emit(event: StreamEvent, data?: unknown): void {
-    this.eventListeners.forEach(listener => listener(event, data));
+    this.eventListeners.forEach((listener) => listener(event, data));
   }
 
   /**
    * Generate signature for Stream API connection
    */
   private generateSignature(timestamp: number, nonce: string): string {
-    const data = [this.config.appSecret, timestamp.toString(), nonce].sort().join('');
-    return crypto.createHash('sha256').update(data).digest('hex');
+    const data = [this.config.appSecret, timestamp.toString(), nonce]
+      .sort()
+      .join("");
+    return crypto.createHash("sha256").update(data).digest("hex");
   }
 
   /**
@@ -68,40 +70,42 @@ class DingTalkStreamHandler {
     const nonce = Math.random().toString(36).substring(2, 15);
     const signature = this.generateSignature(timestamp, nonce);
 
-    const url = new URL('wss://aiserver.dingtalk.com/chatbot/stream');
-    url.searchParams.set('appKey', this.config.appKey);
-    url.searchParams.set('timestamp', timestamp.toString());
-    url.searchParams.set('nonce', nonce);
-    url.searchParams.set('signature', signature);
+    const url = new URL("wss://aiserver.dingtalk.com/chatbot/stream");
+    url.searchParams.set("appKey", this.config.appKey);
+    url.searchParams.set("timestamp", timestamp.toString());
+    url.searchParams.set("nonce", nonce);
+    url.searchParams.set("signature", signature);
 
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(url.toString());
 
-      this.ws.on('open', () => {
+      this.ws.on("open", () => {
         this._isConnected = true;
         this.reconnectAttempts = 0;
-        console.log('Connected to DingTalk Stream API');
-        this.emit('connect');
+        console.log("Connected to DingTalk Stream API");
+        this.emit("connect");
         resolve();
       });
 
-      this.ws.on('message', (data) => {
+      this.ws.on("message", (data) => {
         this.handleMessage(data);
       });
 
-      this.ws.on('close', (code, reason) => {
+      this.ws.on("close", (code, reason) => {
         this._isConnected = false;
-        console.log(`Disconnected from DingTalk Stream API: ${code} - ${reason}`);
-        this.emit('disconnect', { code, reason });
+        console.log(
+          `Disconnected from DingTalk Stream API: ${code} - ${reason}`,
+        );
+        this.emit("disconnect", { code, reason });
 
         if (this.reconnectAttempts < this.config.maxReconnectAttempts!) {
           this.reconnect();
         }
       });
 
-      this.ws.on('error', (error) => {
-        console.error('Stream connection error:', error);
-        this.emit('error', error);
+      this.ws.on("error", (error) => {
+        console.error("Stream connection error:", error);
+        this.emit("error", error);
         reject(error);
       });
     });
@@ -114,14 +118,14 @@ class DingTalkStreamHandler {
     this.reconnectAttempts++;
     console.log(`Reconnecting attempt ${this.reconnectAttempts}...`);
 
-    this.emit('reconnect', {
+    this.emit("reconnect", {
       attempt: this.reconnectAttempts,
       interval: this.config.reconnectInterval,
     });
 
     setTimeout(() => {
-      this.connect().catch(error => {
-        console.error('Reconnect failed:', error);
+      this.connect().catch((error) => {
+        console.error("Reconnect failed:", error);
       });
     }, this.config.reconnectInterval);
   }
@@ -156,8 +160,9 @@ class DingTalkStreamHandler {
 
     // Limit cache size
     if (this.messageCache.size >= this.config.messageCacheSize!) {
-      const oldestKey = Array.from(this.messageCache.entries())
-        .sort((a, b) => a[1] - b[1])[0][0];
+      const oldestKey = Array.from(this.messageCache.entries()).sort(
+        (a, b) => a[1] - b[1],
+      )[0][0];
       this.messageCache.delete(oldestKey);
     }
 
@@ -179,11 +184,11 @@ class DingTalkStreamHandler {
         return;
       }
 
-      console.log('Received message from DingTalk Stream:', message);
-      this.emit('message', message);
+      console.log("Received message from DingTalk Stream:", message);
+      this.emit("message", message);
     } catch (error) {
-      console.error('Failed to parse Stream message:', error);
-      this.emit('error', error);
+      console.error("Failed to parse Stream message:", error);
+      this.emit("error", error);
     }
   }
 }

@@ -93,10 +93,12 @@ export const QuestionSchema = z.object({
   followUps: z.array(z.string()).optional(),
   condition: z.string().optional(),
   options: z.array(z.string()).optional(),
-  ratingScale: z.object({
-    min: z.number().int().default(1),
-    max: z.number().int().default(5),
-  }).optional(),
+  ratingScale: z
+    .object({
+      min: z.number().int().default(1),
+      max: z.number().int().default(5),
+    })
+    .optional(),
 });
 
 export type Question = z.infer<typeof QuestionSchema>;
@@ -146,7 +148,7 @@ export interface LLMProvider {
   chat(messages: LLMMessage[], options?: LLMOptions): Promise<LLMResponse>;
   stream?(
     messages: LLMMessage[],
-    options?: LLMOptions
+    options?: LLMOptions,
   ): AsyncIterableIterator<LLMResponse>;
 }
 
@@ -171,15 +173,17 @@ export interface ApiResponse<T = unknown> {
 
 // Environment configuration
 export const EnvironmentVariablesSchema = z.object({
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
   PORT: z.coerce.number().default(3000),
-  DATABASE_URL: z.string().min(1, 'Database URL is required'),
-  DINGTALK_APP_KEY: z.string().min(1, 'DingTalk App Key is required'),
-  DINGTALK_APP_SECRET: z.string().min(1, 'DingTalk App Secret is required'),
-  DINGTALK_AGENT_ID: z.string().min(1, 'DingTalk Agent ID is required'),
-  LLM_API_KEY: z.string().min(1, 'LLM API Key is required'),
-  LLM_ENDPOINT: z.string().min(1, 'LLM Endpoint is required'),
-  LLM_MODEL: z.string().default('gpt-3.5-turbo'),
+  DATABASE_URL: z.string().min(1, "Database URL is required"),
+  DINGTALK_APP_KEY: z.string().min(1, "DingTalk App Key is required"),
+  DINGTALK_APP_SECRET: z.string().min(1, "DingTalk App Secret is required"),
+  DINGTALK_AGENT_ID: z.string().min(1, "DingTalk Agent ID is required"),
+  LLM_API_KEY: z.string().min(1, "LLM API Key is required"),
+  LLM_ENDPOINT: z.string().min(1, "LLM Endpoint is required"),
+  LLM_MODEL: z.string().default("gpt-3.5-turbo"),
 });
 
 export type EnvironmentVariables = z.infer<typeof EnvironmentVariablesSchema>;

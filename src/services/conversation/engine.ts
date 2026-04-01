@@ -1,8 +1,8 @@
-import { runInterviewTurn, resumeInterview } from '../../core/graph';
-import { getDashScopeProvider, type DashScopeConfig } from '../llm';
-import { InterviewRepository } from '../../repositories/interview';
-import type { InterviewTemplate } from '../../core/types';
-import type { InterviewState } from '../../core/state';
+import { runInterviewTurn, resumeInterview } from "../../core/graph";
+import { getDashScopeProvider, type DashScopeConfig } from "../llm";
+import { InterviewRepository } from "../../repositories/interview";
+import type { InterviewTemplate } from "../../core/types";
+import type { InterviewState } from "../../core/state";
 
 /**
  * Conversation Engine configuration
@@ -34,7 +34,7 @@ export class ConversationEngine {
     userId: string,
     templateId: string,
     template: InterviewTemplate,
-    userMessage: string
+    userMessage: string,
   ): Promise<string> {
     // Initialize LLM provider if enabled
     if (this.useLlm && this.llmConfig) {
@@ -46,18 +46,19 @@ export class ConversationEngine {
     }
 
     // Check for existing interview
-    const existingInterview = await InterviewRepository.findBySessionId(sessionId);
-    
+    const existingInterview =
+      await InterviewRepository.findBySessionId(sessionId);
+
     let result: InterviewState;
-    
+
     if (existingInterview) {
       // Resume existing conversation
       const currentState = this.deserializeState(existingInterview);
       result = await resumeInterview(
-        sessionId, 
-        currentState, 
+        sessionId,
+        currentState,
         userMessage,
-        this.useLlm ? getDashScopeProvider() : undefined
+        this.useLlm ? getDashScopeProvider() : undefined,
       );
     } else {
       // Start new conversation
@@ -66,7 +67,7 @@ export class ConversationEngine {
         templateId,
         template,
         userMessage,
-        this.useLlm ? getDashScopeProvider() : undefined
+        this.useLlm ? getDashScopeProvider() : undefined,
       );
     }
 
@@ -75,10 +76,10 @@ export class ConversationEngine {
 
     // Return assistant's last message
     const lastAssistantMessage = result.conversationHistory
-      .filter(m => m.role === 'assistant')
+      .filter((m) => m.role === "assistant")
       .pop();
-    
-    return lastAssistantMessage?.content ?? '感谢您的回复。';
+
+    return lastAssistantMessage?.content ?? "感谢您的回复。";
   }
 
   /**
@@ -88,7 +89,7 @@ export class ConversationEngine {
     sessionId: string,
     userId: string,
     templateId: string,
-    template: InterviewTemplate
+    template: InterviewTemplate,
   ): Promise<string> {
     // Initialize LLM if enabled
     if (this.useLlm && this.llmConfig) {
@@ -105,7 +106,7 @@ export class ConversationEngine {
       templateId,
       template,
       null, // No user message for first turn
-      this.useLlm ? getDashScopeProvider() : undefined
+      this.useLlm ? getDashScopeProvider() : undefined,
     );
 
     // Save state
@@ -113,10 +114,10 @@ export class ConversationEngine {
 
     // Return greeting
     const lastAssistantMessage = result.conversationHistory
-      .filter(m => m.role === 'assistant')
+      .filter((m) => m.role === "assistant")
       .pop();
-    
-    return lastAssistantMessage?.content ?? '欢迎参加访谈！';
+
+    return lastAssistantMessage?.content ?? "欢迎参加访谈！";
   }
 
   /**
@@ -130,28 +131,38 @@ export class ConversationEngine {
     createdAt: Date;
     template?: InterviewTemplate;
   }): InterviewState {
-    const history = interview.conversationHistory as {
-      template?: InterviewTemplate;
-      messages?: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
-      currentTopicIndex?: number;
-      currentQuestionIndex?: number;
-      completedTopics?: string[];
-    } ?? {};
+    const history =
+      (interview.conversationHistory as {
+        template?: InterviewTemplate;
+        messages?: Array<{
+          role: "user" | "assistant" | "system";
+          content: string;
+        }>;
+        currentTopicIndex?: number;
+        currentQuestionIndex?: number;
+        completedTopics?: string[];
+      }) ?? {};
 
-    const info = interview.extractedInfo as {
-      answers?: Record<string, string>;
-    } ?? {};
+    const info =
+      (interview.extractedInfo as {
+        answers?: Record<string, string>;
+      }) ?? {};
 
     return {
       sessionId: interview.sessionId,
       templateId: interview.templateId,
-      template: history.template ?? { id: '', name: '', topics: [], questions: [] },
+      template: history.template ?? {
+        id: "",
+        name: "",
+        topics: [],
+        questions: [],
+      },
       conversationHistory: history.messages ?? [],
       currentTopicIndex: history.currentTopicIndex ?? 0,
       currentQuestionIndex: history.currentQuestionIndex ?? 0,
       answers: info.answers ?? {},
       completedTopics: history.completedTopics ?? [],
-      interviewStatus: 'interviewing',
+      interviewStatus: "interviewing",
       followupNeeded: false,
       followupQuestion: undefined,
       startTime: interview.createdAt,
@@ -168,28 +179,34 @@ export class ConversationEngine {
     sessionId: string,
     userId: string,
     templateId: string,
-    state: InterviewState
+    state: InterviewState,
   ): Promise<void> {
-    const existingInterview = await InterviewRepository.findBySessionId(sessionId);
+    const existingInterview =
+      await InterviewRepository.findBySessionId(sessionId);
 
     // Serialize to plain JSON for Prisma 7.x compatibility
-    const conversationHistory = JSON.parse(JSON.stringify({
-      template: state.template,
-      messages: state.conversationHistory,
-      currentTopicIndex: state.currentTopicIndex,
-      currentQuestionIndex: state.currentQuestionIndex,
-      completedTopics: state.completedTopics,
-    }));
+    const conversationHistory = JSON.parse(
+      JSON.stringify({
+        template: state.template,
+        messages: state.conversationHistory,
+        currentTopicIndex: state.currentTopicIndex,
+        currentQuestionIndex: state.currentQuestionIndex,
+        completedTopics: state.completedTopics,
+      }),
+    );
 
-    const extractedInfo = JSON.parse(JSON.stringify({
-      answers: state.answers,
-    }));
+    const extractedInfo = JSON.parse(
+      JSON.stringify({
+        answers: state.answers,
+      }),
+    );
 
     if (existingInterview) {
       await InterviewRepository.update(existingInterview.id, {
         conversationHistory,
         extractedInfo,
-        status: state.interviewStatus === 'completed' ? 'COMPLETED' : 'IN_PROGRESS',
+        status:
+          state.interviewStatus === "completed" ? "COMPLETED" : "IN_PROGRESS",
         report: state.report,
       });
     } else {
@@ -197,7 +214,7 @@ export class ConversationEngine {
         sessionId,
         userId,
         templateId,
-        topic: state.template.name ?? 'Interview',
+        topic: state.template.name ?? "Interview",
         conversationHistory,
         extractedInfo,
       });
@@ -211,7 +228,9 @@ let engineInstance: ConversationEngine | null = null;
 /**
  * Get or create conversation engine instance
  */
-export function getConversationEngine(config?: ConversationEngineConfig): ConversationEngine {
+export function getConversationEngine(
+  config?: ConversationEngineConfig,
+): ConversationEngine {
   if (!engineInstance) {
     engineInstance = new ConversationEngine(config);
   }
@@ -221,7 +240,9 @@ export function getConversationEngine(config?: ConversationEngineConfig): Conver
 /**
  * Initialize conversation engine
  */
-export function initializeConversationEngine(config: ConversationEngineConfig): ConversationEngine {
+export function initializeConversationEngine(
+  config: ConversationEngineConfig,
+): ConversationEngine {
   engineInstance = new ConversationEngine(config);
   return engineInstance;
 }

@@ -1,5 +1,8 @@
-import { z } from "zod";
-import { EnvironmentVariablesSchema, type EnvironmentVariables } from "../types";
+import { z, type ZodIssue } from "zod";
+import {
+  EnvironmentVariablesSchema,
+  type EnvironmentVariables,
+} from "../types";
 import { ValidationError } from "./errors";
 
 /**
@@ -12,7 +15,7 @@ export function validateEnv(): EnvironmentVariables {
 
   if (!result.success) {
     const details: Record<string, string[]> = {};
-    result.error.issues.forEach((issue: any) => {
+    result.error.issues.forEach((issue: ZodIssue) => {
       const path = issue.path.join(".");
       if (!details[path]) {
         details[path] = [];
@@ -20,13 +23,10 @@ export function validateEnv(): EnvironmentVariables {
       details[path].push(issue.message);
     });
 
-    throw new ValidationError(
-      "Environment variables validation failed",
-      {
-        details,
-        code: "ENV_VALIDATION_ERROR",
-      }
-    );
+    throw new ValidationError("Environment variables validation failed", {
+      details,
+      code: "ENV_VALIDATION_ERROR",
+    });
   }
 
   return result.data;
@@ -44,7 +44,7 @@ export function validate<T>(data: unknown, schema: z.Schema<T>): T {
 
   if (!result.success) {
     const details: Record<string, string[]> = {};
-    result.error.issues.forEach((issue: any) => {
+    result.error.issues.forEach((issue: ZodIssue) => {
       const path = issue.path.join(".");
       if (!details[path]) {
         details[path] = [];
@@ -52,10 +52,7 @@ export function validate<T>(data: unknown, schema: z.Schema<T>): T {
       details[path].push(issue.message);
     });
 
-    throw new ValidationError(
-      "Data validation failed",
-      { details }
-    );
+    throw new ValidationError("Data validation failed", { details });
   }
 
   return result.data;

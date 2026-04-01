@@ -1,5 +1,5 @@
-import { Annotation } from '@langchain/langgraph';
-import type { InterviewTemplate, Message } from './types';
+import { Annotation } from "@langchain/langgraph";
+import type { InterviewTemplate, Message } from "./types";
 
 /**
  * LangGraph state annotation for type-safe state updates.
@@ -20,7 +20,9 @@ export const InterviewStateAnnotation = Annotation.Root({
   completedTopics: Annotation<string[]>,
 
   // Flow control
-  interviewStatus: Annotation<'planning' | 'interviewing' | 'followup' | 'analyzing' | 'completed'>,
+  interviewStatus: Annotation<
+    "planning" | "interviewing" | "followup" | "analyzing" | "completed"
+  >,
   followupNeeded: Annotation<boolean>,
   followupQuestion: Annotation<string | undefined>,
 
@@ -46,7 +48,7 @@ export type InterviewState = typeof InterviewStateAnnotation.State;
 export function createInitialState(
   sessionId: string,
   templateId: string,
-  template: InterviewTemplate
+  template: InterviewTemplate,
 ): InterviewState {
   return {
     sessionId,
@@ -57,7 +59,7 @@ export function createInitialState(
     currentQuestionIndex: 0,
     answers: {},
     completedTopics: [],
-    interviewStatus: 'planning',
+    interviewStatus: "planning",
     followupNeeded: false,
     followupQuestion: undefined,
     startTime: new Date(),
@@ -73,7 +75,7 @@ export function createInitialState(
  */
 export function updateConversationHistory(
   state: InterviewState,
-  message: Message
+  message: Message,
 ): Partial<InterviewState> {
   return {
     conversationHistory: [...state.conversationHistory, message],
@@ -86,7 +88,7 @@ export function updateConversationHistory(
  */
 export function extractUserAnswer(state: InterviewState): string | null {
   const userMessages = state.conversationHistory.filter(
-    (msg) => msg.role === 'user'
+    (msg) => msg.role === "user",
   );
   const lastUserMessage = userMessages[userMessages.length - 1];
   return lastUserMessage ? lastUserMessage.content : null;
