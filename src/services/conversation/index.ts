@@ -2,10 +2,10 @@
  * Conversation Service Module
  */
 
-export { 
-  ConversationEngine, 
-  getConversationEngine, 
+export {
+  ConversationEngine,
+  getConversationEngine,
   initializeConversationEngine,
   resetConversationEngine,
-  type ConversationEngineConfig 
-} from './engine';
+  type ConversationEngineConfig,
+} from "./engine";

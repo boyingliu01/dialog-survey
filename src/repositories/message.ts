@@ -1,5 +1,10 @@
-import { prisma } from '../db';
-import { Message, MessageRole, Interview, Prisma } from '../generated/prisma/client/client.js';
+import { prisma } from "../db";
+import {
+  Message,
+  MessageRole,
+  Interview,
+  Prisma,
+} from "../generated/prisma/client/client.js";
 
 export interface CreateMessageData {
   interviewId: string;
@@ -33,11 +38,15 @@ export class MessageRepository {
   /**
    * Find all messages by interview ID
    */
-  static async findByInterviewId(interviewId: string, limit = 100, offset = 0): Promise<MessageWithInterview[]> {
+  static async findByInterviewId(
+    interviewId: string,
+    limit = 100,
+    offset = 0,
+  ): Promise<MessageWithInterview[]> {
     return prisma.message.findMany({
       where: { interviewId },
       include: { interview: true },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
       take: limit,
       skip: offset,
     });
@@ -46,7 +55,10 @@ export class MessageRepository {
   /**
    * Find all messages by user ID and interview status
    */
-  static async findByUserId(userId: string, status?: any): Promise<MessageWithInterview[]> {
+  static async findByUserId(
+    userId: string,
+    status?: any,
+  ): Promise<MessageWithInterview[]> {
     const where: Prisma.MessageWhereInput = { interview: { userId } };
     if (status) {
       where.interview = where.interview || {};
@@ -55,14 +67,17 @@ export class MessageRepository {
     return prisma.message.findMany({
       where,
       include: { interview: true },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
     });
   }
 
   /**
    * Update a message
    */
-  static async update(id: string, data: Partial<CreateMessageData>): Promise<Message> {
+  static async update(
+    id: string,
+    data: Partial<CreateMessageData>,
+  ): Promise<Message> {
     return prisma.message.update({
       where: { id },
       data,
@@ -81,7 +96,9 @@ export class MessageRepository {
   /**
    * Delete all messages for an interview
    */
-  static async deleteByInterviewId(interviewId: string): Promise<Prisma.BatchPayload> {
+  static async deleteByInterviewId(
+    interviewId: string,
+  ): Promise<Prisma.BatchPayload> {
     return prisma.message.deleteMany({
       where: { interviewId },
     });
@@ -99,11 +116,13 @@ export class MessageRepository {
   /**
    * Find latest message by interview ID
    */
-  static async findLatest(interviewId: string): Promise<MessageWithInterview | null> {
+  static async findLatest(
+    interviewId: string,
+  ): Promise<MessageWithInterview | null> {
     return prisma.message.findFirst({
       where: { interviewId },
       include: { interview: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
   }
 

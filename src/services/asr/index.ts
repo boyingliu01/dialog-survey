@@ -1,4 +1,4 @@
-import { ASRConfig, ASRProvider, TranscriptionResult } from './types';
+import { ASRConfig, ASRProvider, TranscriptionResult } from "./types";
 
 export class ASRServiceError extends Error {
   constructor(
@@ -7,7 +7,7 @@ export class ASRServiceError extends Error {
     public readonly details?: unknown,
   ) {
     super(message);
-    this.name = 'ASRServiceError';
+    this.name = "ASRServiceError";
   }
 }
 
@@ -18,18 +18,18 @@ export class AudioFormatError extends Error {
     public readonly details?: unknown,
   ) {
     super(message);
-    this.name = 'AudioFormatError';
+    this.name = "AudioFormatError";
   }
 }
 
 export class MockASRProvider implements ASRProvider {
-  public readonly name: string = 'mock';
+  public readonly name: string = "mock";
 
   async transcribe(_audioUrl: string): Promise<TranscriptionResult> {
     // Simulate transcription delay
     await new Promise((resolve) => setTimeout(resolve, 500));
     return {
-      text: '[语音转文字结果]',
+      text: "[语音转文字结果]",
       confidence: 0.95,
       duration: 5,
     };
@@ -37,7 +37,7 @@ export class MockASRProvider implements ASRProvider {
 }
 
 export class FunASRProvider implements ASRProvider {
-  public readonly name: string = 'funasr';
+  public readonly name: string = "funasr";
 
   constructor(_config: ASRConfig) {
     // config is stored for future use
@@ -51,7 +51,7 @@ export class FunASRProvider implements ASRProvider {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       return {
-        text: '这是语音识别的结果',
+        text: "这是语音识别的结果",
         confidence: 0.98,
         duration: 8,
       };
@@ -61,7 +61,7 @@ export class FunASRProvider implements ASRProvider {
       }
       throw new ASRServiceError(
         `Transcription failed: ${(error as Error).message}`,
-        'TRANSCRIPTION_FAILED',
+        "TRANSCRIPTION_FAILED",
         error,
       );
     }
@@ -98,8 +98,14 @@ export class ASRService {
       return await this.provider.transcribe(audioUrl);
     } catch (error) {
       // Fallback to mock if real ASR fails
-      if (!(error instanceof AudioFormatError) && this.provider.name !== 'mock') {
-        console.warn(`ASR failed with ${this.provider.name}, falling back to mock:`, error);
+      if (
+        !(error instanceof AudioFormatError) &&
+        this.provider.name !== "mock"
+      ) {
+        console.warn(
+          `ASR failed with ${this.provider.name}, falling back to mock:`,
+          error,
+        );
         return new MockASRProvider().transcribe(audioUrl);
       }
       throw error;
@@ -114,7 +120,7 @@ export class ASRService {
   async transcribeFromBuffer(_audioData: Buffer): Promise<TranscriptionResult> {
     // For buffer, we can simulate or implement buffer processing
     return {
-      text: '[语音转文字结果]',
+      text: "[语音转文字结果]",
       confidence: 0.92,
       duration: 6,
     };

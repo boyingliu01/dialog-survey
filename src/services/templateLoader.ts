@@ -1,17 +1,21 @@
-import fs from 'fs';
-import path from 'path';
-import { z } from 'zod';
+import fs from "fs";
+import path from "path";
+import { z } from "zod";
 
 // Template question schema
 const TemplateQuestionSchema = z.object({
   id: z.string(),
-  type: z.enum(['rating', 'text', 'single_choice', 'yes_no']),
+  type: z.enum(["rating", "text", "single_choice", "yes_no"]),
   text: z.string(),
-  follow_ups: z.array(z.object({
-    id: z.string(),
-    text: z.string(),
-    condition: z.string().optional(),
-  })).optional(),
+  follow_ups: z
+    .array(
+      z.object({
+        id: z.string(),
+        text: z.string(),
+        condition: z.string().optional(),
+      }),
+    )
+    .optional(),
   condition: z.string().optional(),
 });
 
@@ -41,7 +45,9 @@ class TemplateLoader {
   private templates: Map<string, InterviewTemplate> = new Map();
   private templatesDirectory: string;
 
-  constructor(templatesDirectory: string = path.join(process.cwd(), 'templates')) {
+  constructor(
+    templatesDirectory: string = path.join(process.cwd(), "templates"),
+  ) {
     this.templatesDirectory = templatesDirectory;
   }
 
@@ -51,12 +57,12 @@ class TemplateLoader {
   async loadTemplates(): Promise<InterviewTemplate[]> {
     try {
       const files = fs.readdirSync(this.templatesDirectory);
-      const jsonFiles = files.filter(file => file.endsWith('.json'));
+      const jsonFiles = files.filter((file) => file.endsWith(".json"));
 
       const loadedTemplates: InterviewTemplate[] = [];
 
       for (const file of jsonFiles) {
-        const template = await this.loadTemplate(file.replace('.json', ''));
+        const template = await this.loadTemplate(file.replace(".json", ""));
         if (template) {
           loadedTemplates.push(template);
         }
@@ -64,7 +70,7 @@ class TemplateLoader {
 
       return loadedTemplates;
     } catch (error) {
-      console.error('Failed to load templates:', error);
+      console.error("Failed to load templates:", error);
       return [];
     }
   }
@@ -79,14 +85,17 @@ class TemplateLoader {
         return this.templates.get(templateId) || null;
       }
 
-      const templatePath = path.join(this.templatesDirectory, `${templateId}.json`);
+      const templatePath = path.join(
+        this.templatesDirectory,
+        `${templateId}.json`,
+      );
 
       if (!fs.existsSync(templatePath)) {
         console.error(`Template file not found: ${templatePath}`);
         return null;
       }
 
-      const content = fs.readFileSync(templatePath, 'utf8');
+      const content = fs.readFileSync(templatePath, "utf8");
       const rawData = JSON.parse(content);
 
       const validatedTemplate = InterviewTemplateSchema.parse(rawData);

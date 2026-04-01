@@ -13,9 +13,14 @@ export class InterviewBotError extends Error {
       statusCode?: number;
       code?: string;
       cause?: unknown;
-    } = {}
+    } = {},
   ) {
-    const { name = "InterviewBotError", statusCode = 500, code = "INTERNAL_ERROR", cause } = options;
+    const {
+      name = "InterviewBotError",
+      statusCode = 500,
+      code = "INTERNAL_ERROR",
+      cause,
+    } = options;
     super(message, { cause });
 
     this.name = name;
@@ -50,7 +55,7 @@ export class ValidationError extends InterviewBotError {
       details?: Record<string, string[]>;
       code?: string;
       cause?: unknown;
-    } = {}
+    } = {},
   ) {
     const { details = {}, code = "VALIDATION_ERROR", cause } = options;
     super(message, {
@@ -79,7 +84,7 @@ export class LLMError extends InterviewBotError {
     options: {
       code?: string;
       cause?: unknown;
-    } = {}
+    } = {},
   ) {
     const { code = "LLM_ERROR", cause } = options;
     super(message, {
@@ -100,7 +105,7 @@ export class DatabaseError extends InterviewBotError {
     options: {
       code?: string;
       cause?: unknown;
-    } = {}
+    } = {},
   ) {
     const { code = "DATABASE_ERROR", cause } = options;
     super(message, {
@@ -121,7 +126,7 @@ export class DingTalkError extends InterviewBotError {
     options: {
       code?: string;
       cause?: unknown;
-    } = {}
+    } = {},
   ) {
     const { code = "DINGTALK_ERROR", cause } = options;
     super(message, {

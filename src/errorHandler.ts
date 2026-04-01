@@ -1,4 +1,4 @@
-import { FastifyError, FastifyReply } from 'fastify';
+import { FastifyError, FastifyReply } from "fastify";
 
 export class ErrorHandler {
   private readonly isDevelopment: boolean;
@@ -30,14 +30,14 @@ export class ErrorHandler {
     if (error.issues) {
       return {
         code: 400,
-        msg: 'Validation failed',
+        msg: "Validation failed",
         details: error.issues,
       };
     }
 
     return {
       code: 400,
-      msg: 'Invalid request',
+      msg: "Invalid request",
     };
   }
 
@@ -45,31 +45,31 @@ export class ErrorHandler {
    * Handle database errors
    */
   handleDatabaseError(error: any) {
-    if (error.code === 'P2002') {
+    if (error.code === "P2002") {
       return {
         code: 409,
-        msg: 'Resource already exists',
+        msg: "Resource already exists",
       };
     }
 
-    if (error.code === 'P2025') {
+    if (error.code === "P2025") {
       return {
         code: 404,
-        msg: 'Resource not found',
+        msg: "Resource not found",
       };
     }
 
     if (error.code) {
       return {
         code: 500,
-        msg: 'Database error',
+        msg: "Database error",
         details: this.isDevelopment ? error : undefined,
       };
     }
 
     return {
       code: 500,
-      msg: 'Database error',
+      msg: "Database error",
     };
   }
 
@@ -85,10 +85,10 @@ export class ErrorHandler {
       return this.handleValidationError(error);
     }
 
-    if (error.code === 'E_UNKNOWN') {
+    if (error.code === "E_UNKNOWN") {
       return {
         code: 500,
-        msg: 'Unknown error',
+        msg: "Unknown error",
       };
     }
 
@@ -101,7 +101,7 @@ export class ErrorHandler {
 
     return {
       code: 500,
-      msg: 'Internal server error',
+      msg: "Internal server error",
     };
   }
 

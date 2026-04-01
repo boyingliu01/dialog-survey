@@ -1,6 +1,6 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { z } from 'zod';
+import * as fs from "fs";
+import * as path from "path";
+import { z } from "zod";
 
 // Template schema
 const TopicSchema = z.object({
@@ -12,7 +12,7 @@ const TopicSchema = z.object({
 
 const QuestionSchema = z.object({
   id: z.string(),
-  type: z.enum(['rating', 'text', 'single_choice', 'yes_no']),
+  type: z.enum(["rating", "text", "single_choice", "yes_no"]),
   text: z.string(),
   follow_ups: z.array(z.any()).optional(),
   condition: z.string().optional(),
@@ -22,10 +22,10 @@ const TemplateSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  version: z.string().default('1.0.0'),
+  version: z.string().default("1.0.0"),
   topics: z.array(TopicSchema),
   questions: z.array(QuestionSchema).optional(),
-  domain_context: z.string().default(''),
+  domain_context: z.string().default(""),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });
@@ -38,7 +38,7 @@ export class TemplateService {
   private readonly templatesDir: string;
   private readonly templatesCache = new Map<string, Template>();
 
-  constructor(templatesDir = './templates') {
+  constructor(templatesDir = "./templates") {
     this.templatesDir = path.resolve(templatesDir);
     this.ensureTemplatesDir();
     this.loadTemplates();
@@ -55,10 +55,10 @@ export class TemplateService {
       const files = fs.readdirSync(this.templatesDir);
 
       for (const file of files) {
-        if (file.endsWith('.json')) {
+        if (file.endsWith(".json")) {
           try {
             const filePath = path.join(this.templatesDir, file);
-            const content = fs.readFileSync(filePath, 'utf-8');
+            const content = fs.readFileSync(filePath, "utf-8");
             const template = TemplateSchema.parse(JSON.parse(content));
             this.templatesCache.set(template.id, template);
           } catch (error) {
@@ -67,15 +67,15 @@ export class TemplateService {
         }
       }
     } catch (error) {
-      console.error('Error loading templates:', error);
+      console.error("Error loading templates:", error);
     }
   }
 
   /**
    * List all available templates
    */
-  listTemplates(): Omit<Template, 'topics' | 'questions' | 'domain_context'>[] {
-    return Array.from(this.templatesCache.values()).map(template => ({
+  listTemplates(): Omit<Template, "topics" | "questions" | "domain_context">[] {
+    return Array.from(this.templatesCache.values()).map((template) => ({
       id: template.id,
       name: template.name,
       description: template.description,
@@ -102,7 +102,9 @@ export class TemplateService {
   /**
    * Create a new template
    */
-  async createTemplate(data: Omit<Template, 'createdAt' | 'updatedAt'>): Promise<Template> {
+  async createTemplate(
+    data: Omit<Template, "createdAt" | "updatedAt">,
+  ): Promise<Template> {
     const now = new Date().toISOString();
     const template: Template = {
       ...data,
@@ -115,7 +117,7 @@ export class TemplateService {
 
     // Save to file
     const filePath = path.join(this.templatesDir, `${template.id}.json`);
-    fs.writeFileSync(filePath, JSON.stringify(validated, null, 2), 'utf-8');
+    fs.writeFileSync(filePath, JSON.stringify(validated, null, 2), "utf-8");
 
     // Update cache
     this.templatesCache.set(template.id, validated);
