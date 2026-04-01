@@ -45,5 +45,5 @@ export interface LLMResponse {
 }
 
 export interface LLMProvider {
-  generateResponse(prompt: string, history: any[]): Promise<LLMResponse>;
+  generateResponse(prompt: string, history: Message[]): Promise<LLMResponse>;
 }

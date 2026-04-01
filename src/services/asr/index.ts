@@ -39,8 +39,9 @@ export class MockASRProvider implements ASRProvider {
 export class FunASRProvider implements ASRProvider {
   public readonly name: string = "funasr";
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   constructor(_config: ASRConfig) {
-    // config is stored for future use
+    // config is stored for future use when FunASR API is implemented
   }
 
   async transcribe(_audioUrl: string): Promise<TranscriptionResult> {

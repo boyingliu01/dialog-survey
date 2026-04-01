@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-extraneous-class */
 import { prisma } from "../db";
 import {
   Message,
   MessageRole,
   Interview,
+  InterviewStatus,
   Prisma,
 } from "../generated/prisma/client/client.js";
 
@@ -16,9 +18,8 @@ export interface CreateMessageData {
 type MessageWithInterview = Message & { interview: Interview };
 
 export class MessageRepository {
-  /**
-   * Create a new message
-   */
+  private constructor() {}
+
   static async create(data: CreateMessageData): Promise<Message> {
     return prisma.message.create({
       data,
@@ -57,13 +58,11 @@ export class MessageRepository {
    */
   static async findByUserId(
     userId: string,
-    status?: any,
+    status?: InterviewStatus,
   ): Promise<MessageWithInterview[]> {
-    const where: Prisma.MessageWhereInput = { interview: { userId } };
-    if (status) {
-      where.interview = where.interview || {};
-      where.interview.status = status;
-    }
+    const where: Prisma.MessageWhereInput = {
+      interview: { userId, ...(status && { status }) },
+    };
     return prisma.message.findMany({
       where,
       include: { interview: true },

@@ -144,13 +144,13 @@ export async function followupNode(
       followupQuestion: undefined,
       interviewStatus: "interviewing",
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       ...state,
       followupNeeded: false,
       followupQuestion: undefined,
       interviewStatus: "interviewing",
-      error: error?.message,
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 }
@@ -169,14 +169,14 @@ export async function analyzeNode(
       interviewStatus: "completed",
       endTime: new Date(),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     return {
       ...state,
       report:
         "# Interview Report\n\nError generating report. Please review the conversation manually.",
       interviewStatus: "completed",
       endTime: new Date(),
-      error: error?.message,
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 }
