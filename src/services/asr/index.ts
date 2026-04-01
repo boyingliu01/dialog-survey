@@ -1,4 +1,5 @@
 import { ASRConfig, ASRProvider, TranscriptionResult } from "./types";
+import logger from "../../utils/logger.js";
 
 export class ASRServiceError extends Error {
   constructor(
@@ -103,9 +104,9 @@ export class ASRService {
         !(error instanceof AudioFormatError) &&
         this.provider.name !== "mock"
       ) {
-        console.warn(
-          `ASR failed with ${this.provider.name}, falling back to mock:`,
-          error,
+        logger.warn(
+          { provider: this.provider.name, error },
+          `ASR failed, falling back to mock provider`,
         );
         return new MockASRProvider().transcribe(audioUrl);
       }
