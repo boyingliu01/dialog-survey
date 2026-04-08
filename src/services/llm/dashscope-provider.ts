@@ -246,3 +246,11 @@ export function initializeDashScope(
 export function resetDashScopeProvider(): void {
   dashScopeInstance = null;
 }
+
+/**
+ * Set an arbitrary LLM provider instance (for testing)
+ * This allows injecting mock providers that implement the LLMProvider interface
+ */
+export function setLLMProvider(provider: LLMProvider): void {
+  dashScopeInstance = provider as DashScopeProvider;
+}
