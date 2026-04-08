@@ -9,6 +9,7 @@ export {
   getDashScopeProvider,
   initializeDashScope,
   resetDashScopeProvider,
+  setLLMProvider,
   type DashScopeConfig,
 } from "./dashscope-provider";
 export type {

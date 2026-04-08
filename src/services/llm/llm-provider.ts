@@ -1,4 +1,6 @@
 import { LLMProvider, LLMResponse, LLMMessage } from "../../types";
+import type { LLMResponse as CoreLLMResponse } from "../../core/types";
+import type { Message } from "../../core/types";
 
 export class MockLLMProvider implements LLMProvider {
   private responses: string[] = [
@@ -23,6 +25,20 @@ export class MockLLMProvider implements LLMProvider {
   setResponses(responses: string[]): void {
     this.responses = responses;
     this.responseIndex = 0;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/require-await
+  async generateResponse(
+    _prompt: string,
+    _history: Message[],
+  ): Promise<CoreLLMResponse> {
+    const content = this.responses[this.responseIndex % this.responses.length];
+    this.responseIndex++;
+
+    return {
+      content,
+      isFollowupNeeded: false,
+    };
   }
 }
 
