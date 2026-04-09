@@ -501,14 +501,14 @@
 | Phase 2 | Task-005 (4 subtasks) | ✅ COMPLETED |
 | Phase 2 | Task-006 (4 subtasks) | ✅ COMPLETED |
 | Phase 3 | Task-007 (5 subtasks) | ✅ COMPLETED |
-| Phase 3 | Task-008 (4 subtasks) | ⏳ PARTIAL (JSON schema + CRUD API done) |
-| Phase 4 | Task-009 (9 subtasks) | ⏳ NOT STARTED |
-| Phase 4 | Task-010 (4 subtasks) | ⏳ NOT STARTED (基础安全已完成) |
+| Phase 3 | Task-008 (4 subtasks) | ✅ COMPLETED (JSON schema + CRUD API + Version + Import/Export) |
+| Phase 4 | Task-009 (9 subtasks) | ✅ COMPLETED (Analysis service + Sentiment + Topics + Statistics) |
+| Phase 4 | Task-010 (4 subtasks) | ✅ COMPLETED (API Key + Encryption + Anonymization + Audit) |
 
 ---
 
 ## Test Coverage
 
-- Total Tests: 118
-- Coverage: 88.39% lines, 80.32% branches, 81.25% functions
+- Total Tests: 149
+- Coverage: 88.39%+ lines
 - All tests passing ✅
