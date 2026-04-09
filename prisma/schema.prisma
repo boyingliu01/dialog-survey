@@ -24,6 +24,7 @@ model Interview {
   currentQuestion Int              @default(0)
   followupCount   Int              @default(0)
   maxFollowups    Int              @default(2)
+  version         Int              @default(1) // Optimistic locking
   startedAt       DateTime?
   completedAt     DateTime?
   reportPath      String?
