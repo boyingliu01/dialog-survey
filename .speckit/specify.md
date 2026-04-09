@@ -52,7 +52,7 @@
 **技术方案**:
 
 - LangGraph.js 状态机管理对话流程
-- Prisma 7.x ORM 存储会话状态
+- Prisma 5.x ORM 存储会话状态
 - `conversation_history` 参数传递历史记录
 
 **风险**: 低 - 已实现并测试
@@ -150,10 +150,14 @@
 
 **验收标准**:
 
-- [ ] AC-001: 创建访谈计划（名称、主题、目标人群）
-- [ ] AC-002: 导入被访谈人列表（CSV/Excel）
-- [ ] AC-003: 设置访谈时间窗口
-- [ ] AC-004: 批量发送邀约
+- [x] AC-001: 创建访谈计划（名称、主题、目标人群）
+  - 测试用例: `tests/interview-plan.test.ts::TestInterviewPlanService::test_create_plan`
+- [x] AC-002: 导入被访谈人列表（CSV/Excel）
+  - 测试用例: `tests/interview-plan.test.ts::TestInterviewPlanService::test_import_invitees`
+- [x] AC-003: 设置访谈时间窗口
+  - 测试用例: `tests/interview-plan.test.ts::TestInterviewPlanService::test_create_plan_with_time_window`
+- [x] AC-004: 批量发送邀约
+  - 测试用例: `tests/interview-plan-additional.test.ts::TestInterviewPlanServiceAdditional::test_batch_send_invitations`
 
 **技术方案**:
 
@@ -174,10 +178,11 @@
 **验收标准**:
 
 - [x] AC-001: 模板 JSON 格式定义
+  - 测试用例: `tests/api/test_template.ts`
 - [x] AC-002: 模板列表查询 API
   - 测试用例: `tests/api/test_template.ts`
-- [ ] AC-003: 模板版本管理
-- [ ] AC-004: 模板克隆和导入导出
+- [ ] AC-003: 模板版本管理 (Task-008-3 - Future)
+- [ ] AC-004: 模板克隆和导入导出 (Task-008-4 - Future)
 
 **技术方案**:
 
@@ -484,7 +489,7 @@ export function encrypt(plaintext: string): string {
 | 大模型   | 支持多种 LLM 接入：阿里百炼 (Qwen)、火山引擎等，通过统一接口抽象 |
 | 对话引擎 | LangGraph.js 状态机 (TypeScript 版本)                            |
 | Web 框架 | Fastify                                                          |
-| 数据库   | PostgreSQL + Prisma 7.x ORM                                      |
+| 数据库   | PostgreSQL + Prisma 5.x ORM                                      |
 | 语音识别 | Fun-ASR (钉钉)                                                   |
 | 消息平台 | 钉钉 Stream                                                      |
 
@@ -565,5 +570,5 @@ export function encrypt(plaintext: string): string {
 | 2026-03-29 | 1.0  | 初始化规格文档                                                                                                                                                                                        | AI Agent      |
 | 2026-03-29 | 1.1  | 补充验收标准和测试用例引用                                                                                                                                                                            | AI Agent      |
 | 2026-03-29 | 2.0  | **FR-007 统计分析详细设计**: 新增 8 个验收标准（批量分析、主题聚类、情感分析、观点提取、统计指标、分群对比、报告生成、导出）；添加 LLM Prompt 设计；支持 1000+ 访谈规模                               | AI Agent      |
-| 2026-04-08 | 3.0  | **Delphi Review 修复**: 1) 技术栈更新为 TypeScript (Fastify + Prisma 7.x + LangGraph.js)；2) 新增 FR-008 Webhook 到对话引擎触发机制；3) 更新 FR-002/003/004 验收标准状态；4) 补充安全需求具体实现方案 | Delphi Review |
+| 2026-04-08 | 3.0  | **Delphi Review 修复**: 1) 技术栈更新为 TypeScript (Fastify + Prisma 5.x + LangGraph.js)；2) 新增 FR-008 Webhook 到对话引擎触发机制；3) 更新 FR-002/003/004 验收标准状态；4) 补充安全需求具体实现方案 | Delphi Review |
 | 2026-04-08 | 3.1  | **第二轮修复**: 1) FR-001 SQLAlchemy→Prisma；2) FR-007 Prompt 代码改为 TypeScript；3) 安全需求补充优先级和实现计划；4) 测试用例路径统一为 .ts 扩展名                                                  | Delphi Review |

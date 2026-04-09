@@ -1,4 +1,4 @@
-import { PlanStatus, PrismaClient } from '@prisma/client';
+import { PlanStatus, Prisma, PrismaClient } from '@prisma/client';
 import { error, info } from '../utils/logger.js';
 
 export interface CreatePlanInput {
@@ -125,7 +125,7 @@ export class InterviewPlanService {
     await this.prisma.interviewPlan.update({
       where: { id: planId },
       data: {
-        inviteeData: invitees as unknown as Record<string, unknown>,
+        inviteeData: invitees as unknown as Prisma.InputJsonValue,
         status: PlanStatus.READY,
       },
     });

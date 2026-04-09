@@ -1,99 +1,514 @@
 ---
-# Interview Bot Specification
+# Interview Bot Specification - COMPLETE
 
-requirements:
-  - id: "REQ-001-1-01"
-    description: "npm run type-check should pass without errors"
-    task: "Task-001-1"
+> 本文档基于 `.speckit/specify.md`, `.speckit/plan.md`, `.speckit/tasks.md` 整合生成
+> 用于 TDD 验证和需求对齐
 
-  - id: "REQ-001-2-01"
-    description: "biome check should pass without warnings"
-    task: "Task-001-2"
+---
 
-  - id: "REQ-001-2-02"
-    description: "Biome lint and format rules configured"
-    task: "Task-001-2"
+## Requirements (51 Total)
 
-  - id: "REQ-001-3-01"
-    description: "npm test should run successfully"
-    task: "Task-001-3"
+### Phase 1: 基础设施搭建 (Task-001)
 
-  - id: "REQ-001-3-02"
-    description: "Basic test structure created"
-    task: "Task-001-3"
+#### Task-001-1: 初始化 TypeScript 项目
+- id: "REQ-001-1-01"
+  description: "npm run type-check should pass without errors"
+  task: "Task-001-1"
+- id: "REQ-001-1-02"
+  description: "TypeScript strict mode enabled"
+  task: "Task-001-1"
 
-  - id: "REQ-001-4-01"
-    description: "npx prisma generate should succeed"
-    task: "Task-001-4"
+#### Task-001-2: 配置 Biome 代码质量工具
+- id: "REQ-001-2-01"
+  description: "biome check should pass without warnings"
+  task: "Task-001-2"
+- id: "REQ-001-2-02"
+  description: "Biome lint and format rules configured"
+  task: "Task-001-2"
 
-  - id: "REQ-001-4-02"
-    description: "Database tables created"
-    task: "Task-001-4"
+#### Task-001-3: 配置测试框架
+- id: "REQ-001-3-01"
+  description: "npm test should run successfully"
+  task: "Task-001-3"
+- id: "REQ-001-3-02"
+  description: "Basic test structure created"
+  task: "Task-001-3"
 
-  - id: "REQ-001-4-03"
-    description: "All required models exist"
-    task: "Task-001-4"
+#### Task-001-4: 创建 Prisma Schema 完整模型
+- id: "REQ-001-4-01"
+  description: "npx prisma generate should succeed"
+  task: "Task-001-4"
+- id: "REQ-001-4-02"
+  description: "Database tables created (Interview, Message, Response, Template, InterviewPlan, AnalysisReport, AuditLog)"
+  task: "Task-001-4"
+- id: "REQ-001-4-03"
+  description: "All required models exist"
+  task: "Task-001-4"
 
-  - id: "REQ-001-5-01"
-    description: ".env.example contains DATABASE_URL"
-    task: "Task-001-5"
+#### Task-001-5: 配置环境变量
+- id: "REQ-001-5-01"
+  description: ".env.example contains DATABASE_URL"
+  task: "Task-001-5"
+- id: "REQ-001-5-02"
+  description: ".env.example contains DINGTALK_WEBHOOK_URL"
+  task: "Task-001-5"
+- id: "REQ-001-5-03"
+  description: ".env.example contains DINGTALK_SECRET"
+  task: "Task-001-5"
+- id: "REQ-001-5-04"
+  description: ".env.example contains DASHSCOPE_API_KEY"
+  task: "Task-001-5"
+- id: "REQ-001-5-05"
+  description: ".env.example contains FUN_ASR_API_KEY"
+  task: "Task-001-5"
+- id: "REQ-001-5-06"
+  description: ".env.example contains LOG_LEVEL"
+  task: "Task-001-5"
+- id: "REQ-001-5-07"
+  description: ".env.example contains ENCRYPTION_KEY"
+  task: "Task-001-5"
 
-  - id: "REQ-001-5-02"
-    description: ".env.example contains DINGTALK_WEBHOOK_URL"
-    task: "Task-001-5"
+#### Task-001-6: 实现健康检查端点和日志工具
+- id: "REQ-001-6-01"
+  description: "Logger utility exists (info, warn, error, debug)"
+  task: "Task-001-6"
+- id: "REQ-001-6-02"
+  description: "GET /health endpoint returns 200"
+  task: "Task-001-6"
+- id: "REQ-001-6-03"
+  description: "DB connection check implemented (SELECT 1)"
+  task: "Task-001-6"
+- id: "REQ-001-6-04"
+  description: "LLM connectivity check implemented (embeddings API)"
+  task: "Task-001-6"
+- id: "REQ-001-6-05"
+  description: "DingTalk status check implemented (AccessToken validation)"
+  task: "Task-001-6"
+- id: "REQ-001-6-06"
+  description: "Support degraded mode when LLM unavailable"
+  task: "Task-001-6"
 
-  - id: "REQ-001-5-03"
-    description: ".env.example contains DINGTALK_SECRET"
-    task: "Task-001-5"
+#### Task-001-7: 实现基础工具类
+- id: "REQ-001-7-01"
+  description: "Encryption utility exists (AES-256-GCM)"
+  task: "Task-001-7"
+- id: "REQ-001-7-02"
+  description: "Date utility functions exist"
+  task: "Task-001-7"
+- id: "REQ-001-7-03"
+  description: "Validation utility functions exist"
+  task: "Task-001-7"
 
-  - id: "REQ-001-5-04"
-    description: ".env.example contains DASHSCOPE_API_KEY"
-    task: "Task-001-5"
+---
 
-  - id: "REQ-001-5-05"
-    description: ".env.example contains FUN_ASR_API_KEY"
-    task: "Task-001-5"
+### Phase 2: 钉钉消息通道 (Task-002)
 
-  - id: "REQ-001-5-06"
-    description: ".env.example contains LOG_LEVEL"
-    task: "Task-001-5"
+#### Task-002-1: 钉钉签名验证中间件
+- id: "REQ-002-1-01"
+  description: "HMAC-SHA256 signature verification implemented"
+  task: "Task-002-1"
+- id: "REQ-002-1-02"
+  description: "Timestamp validation (5-minute window, anti-replay)"
+  task: "Task-002-1"
+- id: "REQ-002-1-03"
+  description: "Fastify middleware integration"
+  task: "Task-002-1"
 
-  - id: "REQ-001-5-07"
-    description: ".env.example contains ENCRYPTION_KEY"
-    task: "Task-001-5"
+#### Task-002-2: Webhook 消息接收接口
+- id: "REQ-002-2-01"
+  description: "POST /webhook returns 200"
+  task: "Task-002-2"
+- id: "REQ-002-2-02"
+  description: "Message types correctly parsed (text, voice, image)"
+  task: "Task-002-2"
 
-  - id: "REQ-001-6-01"
-    description: "Logger utility exists"
-    task: "Task-001-6"
+#### Task-002-3: 文本消息处理
+- id: "REQ-002-3-01"
+  description: "Text message parsed and converted to Message entity"
+  task: "Task-002-3"
+- id: "REQ-002-3-02"
+  description: "Message persisted to database"
+  task: "Task-002-3"
 
-  - id: "REQ-001-6-02"
-    description: "GET /health endpoint returns 200"
-    task: "Task-001-6"
+#### Task-002-4: Fun-ASR 语音识别
+- id: "REQ-002-4-01"
+  description: "Fun-ASR API integration for voice-to-text"
+  task: "Task-002-4"
+- id: "REQ-002-4-02"
+  description: "Voice conversion success rate > 95%"
+  task: "Task-002-4"
+- id: "REQ-002-4-03"
+  description: "Fallback to text prompt when ASR fails"
+  task: "Task-002-4"
 
-  - id: "REQ-001-6-03"
-    description: "DB connection check implemented"
-    task: "Task-001-6"
+#### Task-002-5: 消息响应发送
+- id: "REQ-002-5-01"
+  description: "Send text message API implemented"
+  task: "Task-002-5"
+- id: "REQ-002-5-02"
+  description: "Send rich text message API implemented"
+  task: "Task-002-5"
 
-  - id: "REQ-001-6-04"
-    description: "LLM connectivity check implemented"
-    task: "Task-001-6"
+#### Task-002-6: 消息队列和限流
+- id: "REQ-002-6-01"
+  description: "In-memory message queue with 1000 buffer"
+  task: "Task-002-6"
+- id: "REQ-002-6-02"
+  description: "Rate limiting (default 20 msg/s)"
+  task: "Task-002-6"
+- id: "REQ-002-6-03"
+  description: "Returns 429 when threshold exceeded"
+  task: "Task-002-6"
 
-  - id: "REQ-001-6-05"
-    description: "DingTalk status check implemented"
-    task: "Task-001-6"
+#### Task-002-7: 钉钉 API 客户端
+- id: "REQ-002-7-01"
+  description: "DingTalkClient wrapper with HTTP methods"
+  task: "Task-002-7"
+- id: "REQ-002-7-02"
+  description: "Signature generation for outbound messages"
+  task: "Task-002-7"
 
-  - id: "REQ-001-6-06"
-    description: "Support degraded mode"
-    task: "Task-001-6"
+---
 
-  - id: "REQ-001-7-01"
-    description: "Encryption utility exists"
-    task: "Task-001-7"
+### Phase 2: LangGraph 状态机 (Task-003)
 
-  - id: "REQ-001-7-02"
-    description: "Date utility functions exist"
-    task: "Task-001-7"
+#### Task-003-1: ConversationEngine 统一入口
+- id: "REQ-003-1-01"
+  description: "Webhook messages route through ConversationEngine"
+  task: "Task-003-1"
 
-  - id: "REQ-001-7-03"
-    description: "Validation utility functions exist"
-    task: "Task-001-7"
+#### Task-003-2: 领域层实体和服务
+- id: "REQ-003-2-01"
+  description: "Interview entity defined"
+  task: "Task-003-2"
+- id: "REQ-003-2-02"
+  description: "Message entity defined"
+  task: "Task-003-2"
+- id: "REQ-003-2-03"
+  description: "Response entity defined"
+  task: "Task-003-2"
+- id: "REQ-003-2-04"
+  description: "InterviewDomain service implemented"
+  task: "Task-003-2"
+
+#### Task-003-3: 对话状态类型
+- id: "REQ-003-3-01"
+  description: "InterviewState interface defined with TypeScript"
+  task: "Task-003-3"
+
+#### Task-003-4: Planning 节点
+- id: "REQ-003-4-01"
+  description: "Planning node generates opening question from template"
+  task: "Task-003-4"
+
+#### Task-003-5: Interviewing 节点
+- id: "REQ-003-5-01"
+  description: "Interviewing node handles user responses"
+  task: "Task-003-5"
+- id: "REQ-003-5-02"
+  description: "State persisted after each interaction"
+  task: "Task-003-5"
+
+#### Task-003-6: Analyzing 节点
+- id: "REQ-003-6-01"
+  description: "Analyzing node triggers report generation"
+  task: "Task-003-6"
+
+#### Task-003-7: Completed 节点
+- id: "REQ-003-7-01"
+  description: "Completed node updates status to COMPLETED"
+  task: "Task-003-7"
+
+#### Task-003-8: 追问循环逻辑
+- id: "REQ-003-8-01"
+  description: "Follow-up loop with max 2 per topic"
+  task: "Task-003-8"
+- id: "REQ-003-8-02"
+  description: "Edge definition for conditional flow"
+  task: "Task-003-8"
+
+#### Task-003-9: 状态持久化
+- id: "REQ-003-9-01"
+  description: "PostgreSQLSaver for production state persistence"
+  task: "Task-003-9"
+- id: "REQ-003-9-02"
+  description: "Prisma transaction for atomic updates"
+  task: "Task-003-9"
+- id: "REQ-003-9-03"
+  description: "Optimistic locking with version field"
+  task: "Task-003-9"
+- id: "REQ-003-9-04"
+  description: "Conflict retry mechanism (3 attempts)"
+  task: "Task-003-9"
+- id: "REQ-003-9-05"
+  description: "100 concurrent interviews without state interference"
+  task: "Task-003-9"
+
+---
+
+### Phase 2: LLM 服务 (Task-004)
+
+#### Task-004-1: LLM 服务接口
+- id: "REQ-004-1-01"
+  description: "BaseLLM interface defined"
+  task: "Task-004-1"
+- id: "REQ-004-1-02"
+  description: "Request/Response types defined"
+  task: "Task-004-1"
+
+#### Task-004-2: 阿里百炼适配器
+- id: "REQ-004-2-01"
+  description: "AlibabaLLM adapter implements BaseLLM"
+  task: "Task-004-2"
+- id: "REQ-004-2-02"
+  description: "Chat API call succeeds and returns response"
+  task: "Task-004-2"
+
+#### Task-004-3: 火山引擎适配器 (Future)
+- id: "REQ-004-3-01"
+  description: "VolcengineLLM adapter can be configured"
+  task: "Task-004-3"
+
+#### Task-004-4: Prompt 模板管理
+- id: "REQ-004-4-01"
+  description: "PromptService with template loading"
+  task: "Task-004-4"
+- id: "REQ-004-4-02"
+  description: "Variable substitution works correctly"
+  task: "Task-004-4"
+
+#### Task-004-5: 重试机制和降级策略
+- id: "REQ-004-5-01"
+  description: "Exponential backoff retry (3 attempts: 1s, 2s, 4s)"
+  task: "Task-004-5"
+- id: "REQ-004-5-02"
+  description: "Graceful degradation response on final failure"
+  task: "Task-004-5"
+
+#### Task-004-6: LLM 速率限制
+- id: "REQ-004-6-01"
+  description: "Token bucket rate limiter (default 10 req/s)"
+  task: "Task-004-6"
+
+---
+
+### Phase 2: 智能追问 (Task-005)
+
+#### Task-005-1: 追问判断逻辑
+- id: "REQ-005-1-01"
+  description: "is_followup_needed returns true for vague answers"
+  task: "Task-005-1"
+- id: "REQ-005-1-02"
+  description: "is_followup_needed returns false for clear answers"
+  task: "Task-005-1"
+
+#### Task-005-2: 追问问题生成
+- id: "REQ-005-2-01"
+  description: "generate_followup creates contextually relevant questions"
+  task: "Task-005-2"
+
+#### Task-005-3: 追问次数限制
+- id: "REQ-005-3-01"
+  description: "Max 2 follow-ups per topic enforced"
+  task: "Task-005-3"
+
+#### Task-005-4: 追问集成到状态机
+- id: "REQ-005-4-01"
+  description: "Follow-up correctly triggers in LangGraph flow"
+  task: "Task-005-4"
+
+---
+
+### Phase 2: 报告生成 (Task-006)
+
+#### Task-006-1: 报告数据结构
+- id: "REQ-006-1-01"
+  description: "Report type defined with keyFindings, sentiment, recommendations"
+  task: "Task-006-1"
+
+#### Task-006-2: 报告生成 LLM 调用
+- id: "REQ-006-2-01"
+  description: "LLM generates report with key findings"
+  task: "Task-006-2"
+- id: "REQ-006-2-02"
+  description: "Report includes sentiment analysis"
+  task: "Task-006-2"
+- id: "REQ-006-2-03"
+  description: "Report includes action recommendations"
+  task: "Task-006-2"
+
+#### Task-006-3: Markdown 渲染
+- id: "REQ-006-3-01"
+  description: "Report rendered as well-formatted Markdown"
+  task: "Task-006-3"
+- id: "REQ-006-3-02"
+  description: "Report saved to file system"
+  task: "Task-006-3"
+
+#### Task-006-4: 报告持久化
+- id: "REQ-006-4-01"
+  description: "Report path stored in database"
+  task: "Task-006-4"
+
+---
+
+### Phase 3: 访谈计划管理 (Task-007)
+
+#### Task-007-1: InterviewPlan 数据模型
+- id: "REQ-007-1-01"
+  description: "InterviewPlan model with name, description, templateId, status"
+  task: "Task-007-1"
+- id: "REQ-007-1-02"
+  description: "PlanStatus enum: PENDING, READY, RUNNING, PAUSED, COMPLETED, CANCELLED"
+  task: "Task-007-1"
+
+#### Task-007-2: 计划创建 API
+- id: "REQ-007-2-01"
+  description: "POST /api/plans creates new plan"
+  task: "Task-007-2"
+- id: "REQ-007-2-02"
+  description: "GET /api/plans lists plans with pagination"
+  task: "Task-007-2"
+- id: "REQ-007-2-03"
+  description: "GET /api/plans/:id returns plan details"
+  task: "Task-007-2"
+
+#### Task-007-3: 被访谈人导入
+- id: "REQ-007-3-01"
+  description: "POST /api/plans/:id/invitees accepts array of invitees"
+  task: "Task-007-3"
+- id: "REQ-007-3-02"
+  description: "Duplicate userId detection prevents re-import"
+  task: "Task-007-3"
+
+#### Task-007-4: 批量邀请发送
+- id: "REQ-007-4-01"
+  description: "POST /api/plans/:id/send sends invitations to pending interviews"
+  task: "Task-007-4"
+
+#### Task-007-5: 定时任务 (Future)
+- id: "REQ-007-5-01"
+  description: "Schedule cron expression configurable"
+  task: "Task-007-5"
+
+---
+
+### Phase 3: 模板管理 (Task-008) - Future
+
+#### Task-008-1: 模板 JSON Schema
+- id: "REQ-008-1-01"
+  description: "Template JSON Schema defined for topics and questions"
+  task: "Task-008-1"
+
+#### Task-008-2: 模板 CRUD API - Future
+- id: "REQ-008-2-01"
+  description: "GET/POST/PUT/DELETE /api/templates CRUD operations"
+  task: "Task-008-2"
+
+#### Task-008-3: 模板版本管理 - Future
+- id: "REQ-008-3-01"
+  description: "Template versioning with incrementing version numbers"
+  task: "Task-008-3"
+
+#### Task-008-4: 模板导入导出 - Future
+- id: "REQ-008-4-01"
+  description: "JSON import/export for templates"
+  task: "Task-008-4"
+
+---
+
+### Phase 4: 统计分析 (Task-009) - Future
+
+#### Task-009-1: 分析服务架构
+- id: "REQ-009-1-01"
+  description: "Analysis service module structure defined"
+  task: "Task-009-1"
+
+#### Task-009-2: 批量分析触发 - Future
+- id: "REQ-009-2-01"
+  description: "Batch analysis trigger processes all completed interviews"
+  task: "Task-009-2"
+
+#### Task-009-3: 主题聚类 - Future
+- id: "REQ-009-3-01"
+  description: "Topic clustering with > 80% accuracy"
+  task: "Task-009-3"
+
+#### Task-009-4: 情感分析 - Future
+- id: "REQ-009-4-01"
+  description: "Sentiment analysis with > 85% accuracy"
+  task: "Task-009-4"
+
+#### Task-009-5: 代表性观点提取
+- id: "REQ-009-5-01"
+  description: "每个主题提取3-5条代表性回答"
+  task: "Task-009-5"
+
+#### Task-009-6: 统计指标计算
+- id: "REQ-009-6-01"
+  description: "正确计算提及率、满意度、NPS"
+  task: "Task-009-6"
+
+#### Task-009-7: 分群对比分析
+- id: "REQ-009-7-01"
+  description: "按用户属性分组正确"
+  task: "Task-009-7"
+
+#### Task-009-8: 分析报告生成
+- id: "REQ-009-8-01"
+  description: "Markdown格式完整"
+  task: "Task-009-8"
+
+#### Task-009-9: PDF/Excel导出
+- id: "REQ-009-9-01"
+  description: "PDF和Excel导出成功"
+  task: "Task-009-9"
+
+---
+
+### Phase 4: 安全加固 (Task-010)
+
+#### Task-010-1: API Key 认证 (部分已完成)
+- id: "REQ-010-1-01"
+  description: "API Key authentication middleware returns 401 without key"
+  task: "Task-010-1"
+
+#### Task-010-2: 数据加密存储
+- id: "REQ-010-2-01"
+  description: "AES-256-GCM encryption for sensitive fields"
+  task: "Task-010-2"
+
+#### Task-010-3: 数据匿名化
+- id: "REQ-010-3-01"
+  description: "Anonymization support in export"
+  task: "Task-010-3"
+
+#### Task-010-4: 安全审计日志
+- id: "REQ-010-4-01"
+  description: "Operations logged to AuditLog table"
+  task: "Task-010-4"
+
+# 以下为 Markdown 格式的文档说明，不参与 YAML 解析
+---
+
+## Implementation Status
+
+| Phase | Tasks | Status |
+|-------|-------|--------|
+| Phase 1 | Task-001 (7 subtasks) + Task-002 (7 subtasks) | ✅ COMPLETED |
+| Phase 2 | Task-003 (9 subtasks) | ✅ COMPLETED |
+| Phase 2 | Task-004 (6 subtasks) | ✅ COMPLETED |
+| Phase 2 | Task-005 (4 subtasks) | ✅ COMPLETED |
+| Phase 2 | Task-006 (4 subtasks) | ✅ COMPLETED |
+| Phase 3 | Task-007 (5 subtasks) | ✅ COMPLETED |
+| Phase 3 | Task-008 (4 subtasks) | ⏳ PARTIAL (JSON schema + CRUD API done) |
+| Phase 4 | Task-009 (9 subtasks) | ⏳ NOT STARTED |
+| Phase 4 | Task-010 (4 subtasks) | ⏳ NOT STARTED (基础安全已完成) |
+
+---
+
+## Test Coverage
+
+- Total Tests: 118
+- Coverage: 88.39% lines, 80.32% branches, 81.25% functions
+- All tests passing ✅
