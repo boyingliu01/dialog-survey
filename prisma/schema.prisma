@@ -73,21 +73,38 @@ model Template {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  interviews Interview[]
+  interviews    Interview[]
+  interviewPlans InterviewPlan[]
 }
 
 model InterviewPlan {
   id            String    @id @default(uuid())
   name          String
   description   String?
+  templateId    String
   targetDate    DateTime?
-  status        String    @default("pending")
+  status        PlanStatus @default(PENDING)
+  schedule      String?   // Cron expression for scheduling
+  inviteeData   Json?     // Imported interviewee data (JSON)
   sentCount     Int       @default(0)
   completedCount Int      @default(0)
+  failedCount   Int       @default(0)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  startedAt     DateTime?
+  completedAt   DateTime?
 
   interviews Interview[]
+  template   Template   @relation(fields: [templateId], references: [id])
+}
+
+enum PlanStatus {
+  PENDING
+  READY
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
 }
 
 model AnalysisReport {
