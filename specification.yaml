@@ -1,0 +1,99 @@
+---
+# Interview Bot Specification
+
+requirements:
+  - id: "REQ-001-1-01"
+    description: "npm run type-check should pass without errors"
+    task: "Task-001-1"
+
+  - id: "REQ-001-2-01"
+    description: "biome check should pass without warnings"
+    task: "Task-001-2"
+
+  - id: "REQ-001-2-02"
+    description: "Biome lint and format rules configured"
+    task: "Task-001-2"
+
+  - id: "REQ-001-3-01"
+    description: "npm test should run successfully"
+    task: "Task-001-3"
+
+  - id: "REQ-001-3-02"
+    description: "Basic test structure created"
+    task: "Task-001-3"
+
+  - id: "REQ-001-4-01"
+    description: "npx prisma generate should succeed"
+    task: "Task-001-4"
+
+  - id: "REQ-001-4-02"
+    description: "Database tables created"
+    task: "Task-001-4"
+
+  - id: "REQ-001-4-03"
+    description: "All required models exist"
+    task: "Task-001-4"
+
+  - id: "REQ-001-5-01"
+    description: ".env.example contains DATABASE_URL"
+    task: "Task-001-5"
+
+  - id: "REQ-001-5-02"
+    description: ".env.example contains DINGTALK_WEBHOOK_URL"
+    task: "Task-001-5"
+
+  - id: "REQ-001-5-03"
+    description: ".env.example contains DINGTALK_SECRET"
+    task: "Task-001-5"
+
+  - id: "REQ-001-5-04"
+    description: ".env.example contains DASHSCOPE_API_KEY"
+    task: "Task-001-5"
+
+  - id: "REQ-001-5-05"
+    description: ".env.example contains FUN_ASR_API_KEY"
+    task: "Task-001-5"
+
+  - id: "REQ-001-5-06"
+    description: ".env.example contains LOG_LEVEL"
+    task: "Task-001-5"
+
+  - id: "REQ-001-5-07"
+    description: ".env.example contains ENCRYPTION_KEY"
+    task: "Task-001-5"
+
+  - id: "REQ-001-6-01"
+    description: "Logger utility exists"
+    task: "Task-001-6"
+
+  - id: "REQ-001-6-02"
+    description: "GET /health endpoint returns 200"
+    task: "Task-001-6"
+
+  - id: "REQ-001-6-03"
+    description: "DB connection check implemented"
+    task: "Task-001-6"
+
+  - id: "REQ-001-6-04"
+    description: "LLM connectivity check implemented"
+    task: "Task-001-6"
+
+  - id: "REQ-001-6-05"
+    description: "DingTalk status check implemented"
+    task: "Task-001-6"
+
+  - id: "REQ-001-6-06"
+    description: "Support degraded mode"
+    task: "Task-001-6"
+
+  - id: "REQ-001-7-01"
+    description: "Encryption utility exists"
+    task: "Task-001-7"
+
+  - id: "REQ-001-7-02"
+    description: "Date utility functions exist"
+    task: "Task-001-7"
+
+  - id: "REQ-001-7-03"
+    description: "Validation utility functions exist"
+    task: "Task-001-7"
