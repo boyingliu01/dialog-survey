@@ -48,4 +48,20 @@ describe('DingTalk Signature Verification', () => {
     const recentTimestamp = Date.now() - 60000;
     expect(verifyTimestamp(recentTimestamp)).toBe(true);
   });
+
+  it('should reject when timestamp is missing', () => {
+    expect(verifyTimestamp(0)).toBe(false);
+  });
+
+  it('should reject when secret is missing', () => {
+    expect(verifySignature(Date.now(), '', 'sig')).toBe(false);
+  });
+
+  it('should reject when signature is missing', () => {
+    expect(verifySignature(Date.now(), 'secret', '')).toBe(false);
+  });
+
+  it('should reject when all parameters missing', () => {
+    expect(verifySignature(0, '', '')).toBe(false);
+  });
 });
