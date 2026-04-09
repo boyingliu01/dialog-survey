@@ -18,7 +18,7 @@ const importInviteesSchema = z.object({
       name: z.string(),
       email: z.string().optional(),
       phone: z.string().optional(),
-      customFields: z.record(z.unknown()).optional(),
+      customFields: z.record(z.string(), z.unknown()).optional(),
     })
   ),
 });
