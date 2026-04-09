@@ -15,6 +15,12 @@ enum InterviewStatus {
   CANCELLED
 }
 
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 model Interview {
   id              String          @id @default(uuid())
   userId          String
@@ -64,14 +70,14 @@ model Response {
 }
 
 model Template {
-  id          String   @id @default(uuid())
+  id          String         @id @default(uuid())
   name        String
   description String?
-  content     String
-  version     Int      @default(1)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  content     String         // JSON string
+  version     Int            @default(1)
+  status      TemplateStatus @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
 
   interviews    Interview[]
   interviewPlans InterviewPlan[]
