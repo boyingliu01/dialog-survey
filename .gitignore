@@ -96,3 +96,7 @@ legacy-python/
 dist-clean/
 src-clean/
 tests-clean/
+
+# Git worktrees
+.worktrees/
+worktrees/
