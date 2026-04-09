@@ -1,0 +1,64 @@
+import { AlibabaLLM } from '../integrations/llm/alibaba.js';
+import { withRetry } from '../utils/retry.js';
+import { promptService } from './prompt.service.js';
+
+const VAGUE_PATTERNS = [
+  /maybe|perhaps|not sure|could be|might|possibly/i,
+  /一般|可能|也许|不太确定|还好|还行/i,
+];
+
+export async function isFollowupNeeded(userAnswer: string): Promise<boolean> {
+  if (!userAnswer || userAnswer.trim().length < 5) {
+    return true;
+  }
+
+  if (VAGUE_PATTERNS.some((pattern) => pattern.test(userAnswer))) {
+    return true;
+  }
+
+  const llm = AlibabaLLM.fromEnv();
+  const prompt = promptService.render('isFollowupNeeded', { userAnswer });
+
+  try {
+    const response = await withRetry(() =>
+      llm.chat({
+        model: 'qwen-turbo',
+        messages: [{ role: 'user', content: prompt }],
+      })
+    );
+
+    return response.content.trim().toUpperCase() === 'YES';
+  } catch {
+    return false;
+  }
+}
+
+export async function generateFollowup(
+  question: string,
+  userAnswer: string
+): Promise<string | null> {
+  const needed = await isFollowupNeeded(userAnswer);
+  if (!needed) {
+    return null;
+  }
+
+  const llm = AlibabaLLM.fromEnv();
+  const prompt = promptService.render('generateFollowup', {
+    question,
+    userAnswer,
+  });
+
+  try {
+    const response = await withRetry(() =>
+      llm.chat({
+        model: 'qwen-turbo',
+        messages: [{ role: 'user', content: prompt }],
+      })
+    );
+
+    const content = response.content.trim();
+    return content === 'SKIP' ? null : content;
+  } catch {
+    return null;
+  }
+}
