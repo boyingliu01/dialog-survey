@@ -1,6 +1,15 @@
 // Interview Bot - Main Entry Point
-// TODO: Implement main application
+// Exports core modules and initializes application
+
+import { info } from './utils/logger.js';
+
+export * from './server.js';
+export * from './api/health.js';
+export * from './api/webhook.js';
+export * from './api/plans.js';
+export * from './api/templates.js';
+export * from './api/analysis.js';
 
 export function main(): void {
-  console.log('Interview Bot starting...');
+  info('Interview Bot starting...');
 }

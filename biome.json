@@ -9,7 +9,8 @@
     "rules": {
       "recommended": true,
       "suspicious": {
-        "noExplicitAny": "off"
+        "noExplicitAny": "warn",
+        "noConsole": "error"
       },
       "style": {
         "useNamingConvention": {
