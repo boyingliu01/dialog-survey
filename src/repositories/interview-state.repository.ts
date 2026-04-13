@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, InterviewStatus } from '@prisma/client';
 import type { InterviewState } from '../core/types/index.js';
 import { error, info } from '../utils/logger.js';
 
@@ -67,7 +67,7 @@ export class InterviewStateRepository {
         await tx.interview.update({
           where: { id: interviewId, version },
           data: {
-            status: state.status as any,
+            status: state.status as InterviewStatus,
             currentQuestion: state.currentQuestion,
             followupCount: state.followupCount,
             version: { increment: 1 },
