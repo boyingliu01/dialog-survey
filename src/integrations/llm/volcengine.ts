@@ -2,7 +2,10 @@ import { LLMOptions, LLMRequest, LLMResponse, LLMService } from './base.js';
 import { error, info } from '../../utils/logger.js';
 
 const CHAT_API_PATH = '/v1/chat/completions';
-const DEFAULT_MODEL = 'deepseek-v3.2';
+
+// 支持的模型列表：doubao-seed-2.0-code, doubao-seed-2.0-pro, doubao-seed-2.0-lite,
+// doubao-seed-code, minimax-m2.5, glm-4.7, deepseek-v3.2, kimi-k2.5
+export const DEFAULT_MODEL = 'deepseek-v3.2';
 
 export class VolcengineLLM implements LLMService {
   private apiKey: string;

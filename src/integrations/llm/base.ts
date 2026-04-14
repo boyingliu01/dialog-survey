@@ -4,7 +4,7 @@ export interface LLMMessage {
 }
 
 export interface LLMRequest {
-  model: string;
+  model?: string;
   messages: LLMMessage[];
   temperature?: number;
   max_tokens?: number;
