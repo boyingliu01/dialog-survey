@@ -1,4 +1,4 @@
-import { AlibabaLLM } from '../integrations/llm/alibaba.js';
+import { VolcengineLLM } from '../integrations/llm/volcengine.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
 
@@ -16,13 +16,13 @@ export async function isFollowupNeeded(userAnswer: string): Promise<boolean> {
     return true;
   }
 
-  const llm = AlibabaLLM.fromEnv();
+  const llm = VolcengineLLM.fromEnv();
   const prompt = promptService.render('isFollowupNeeded', { userAnswer });
 
   try {
     const response = await withRetry(() =>
       llm.chat({
-        model: 'qwen-turbo',
+        model: process.env.VOLCENGINE_MODEL || 'doubao-pro-32k',
         messages: [{ role: 'user', content: prompt }],
       })
     );
@@ -42,7 +42,7 @@ export async function generateFollowup(
     return null;
   }
 
-  const llm = AlibabaLLM.fromEnv();
+  const llm = VolcengineLLM.fromEnv();
   const prompt = promptService.render('generateFollowup', {
     question,
     userAnswer,
@@ -51,7 +51,7 @@ export async function generateFollowup(
   try {
     const response = await withRetry(() =>
       llm.chat({
-        model: 'qwen-turbo',
+        model: process.env.VOLCENGINE_MODEL || 'doubao-pro-32k',
         messages: [{ role: 'user', content: prompt }],
       })
     );
