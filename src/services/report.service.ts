@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { AlibabaLLM } from '../integrations/llm/alibaba.js';
+import { VolcengineLLM } from '../integrations/llm/volcengine.js';
 import { info } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
@@ -27,12 +27,12 @@ export async function generateReport(
     qaPairs: qaText,
   });
 
-  const llm = AlibabaLLM.fromEnv();
+  const llm = VolcengineLLM.fromEnv();
 
   try {
     const response = await withRetry(() =>
       llm.chat({
-        model: 'qwen-max',
+        model: process.env.VOLCENGINE_MODEL || 'doubao-pro-32k',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 3000,
       })
