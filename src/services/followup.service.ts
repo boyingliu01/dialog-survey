@@ -1,4 +1,4 @@
-import { VolcengineLLM } from '../integrations/llm/volcengine.js';
+import { VolcengineLLM, DEFAULT_MODEL } from '../integrations/llm/volcengine.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
 
@@ -22,7 +22,7 @@ export async function isFollowupNeeded(userAnswer: string): Promise<boolean> {
   try {
     const response = await withRetry(() =>
       llm.chat({
-        model: process.env.VOLCENGINE_MODEL || 'doubao-pro-32k',
+        model: DEFAULT_MODEL,
         messages: [{ role: 'user', content: prompt }],
       })
     );
@@ -51,7 +51,7 @@ export async function generateFollowup(
   try {
     const response = await withRetry(() =>
       llm.chat({
-        model: process.env.VOLCENGINE_MODEL || 'doubao-pro-32k',
+        model: DEFAULT_MODEL,
         messages: [{ role: 'user', content: prompt }],
       })
     );

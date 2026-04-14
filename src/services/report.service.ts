@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { VolcengineLLM } from '../integrations/llm/volcengine.js';
+import { VolcengineLLM, DEFAULT_MODEL } from '../integrations/llm/volcengine.js';
 import { info } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
@@ -32,7 +32,7 @@ export async function generateReport(
   try {
     const response = await withRetry(() =>
       llm.chat({
-        model: process.env.VOLCENGINE_MODEL || 'doubao-pro-32k',
+        model: DEFAULT_MODEL,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 3000,
       })
