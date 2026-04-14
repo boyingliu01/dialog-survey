@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InterviewState } from '../src/core/types/index.js';
 import type { StreamMessage } from '../src/services/stream-message.service.js';
+import { parseStreamMessage } from '../src/services/stream-message.service.js';
 
 interface GraphResult {
   response: string;
@@ -83,14 +84,20 @@ async function processStreamMessageFull(
   });
 
   try {
-    await repo.saveFullState(state.interviewId!, nextState);
+    if (!state.interviewId) {
+      return { success: false, error: 'Missing interviewId' };
+    }
+    await repo.saveFullState(state.interviewId, nextState);
   } catch (err) {
     if (
       err instanceof Error &&
       err.message.includes('Version conflict') &&
       retryCount < MAX_RETRIES
     ) {
-      const freshState = await repo.loadFullState(state.interviewId!, parsed.userId);
+      if (!state.interviewId) {
+        return { success: false, error: 'Missing interviewId' };
+      }
+      const freshState = await repo.loadFullState(state.interviewId, parsed.userId);
       if (freshState) {
         return processStreamMessageFull(message, repo, graph, sender, retryCount + 1);
       }
@@ -106,26 +113,6 @@ async function processStreamMessageFull(
   }
 
   return { success: true, response: graphResult.response };
-}
-
-function parseStreamMessage(message: StreamMessage): {
-  userId: string;
-  content: string;
-  sessionWebhook: string;
-  messageId: string;
-} | null {
-  try {
-    const data = JSON.parse(message.data);
-    const contentData = JSON.parse(data.content || '{}');
-    return {
-      userId: data.senderStaffId || '',
-      content: contentData.content || '',
-      sessionWebhook: data.sessionWebhook || '',
-      messageId: message.headers.messageId,
-    };
-  } catch {
-    return null;
-  }
 }
 
 describe('processStreamMessageFull - 完整多轮对话', () => {
@@ -185,7 +172,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: '你好' }),
+          text: { content: '你好' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -252,7 +239,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: '我有5年工作经验' }),
+          text: { content: '我有5年工作经验' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -304,7 +291,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: '挑战是团队合作' }),
+          text: { content: '挑战是团队合作' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -365,7 +352,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: 'Test retry' }),
+          text: { content: 'Test retry' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -412,7 +399,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: 'Test' }),
+          text: { content: 'Test' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -454,7 +441,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
         },
         data: JSON.stringify({
           senderStaffId: '',
-          content: JSON.stringify({ content: 'Hello' }),
+          text: { content: 'Hello' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };

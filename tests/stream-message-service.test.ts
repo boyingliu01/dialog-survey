@@ -43,18 +43,19 @@ describe('StreamMessageService', () => {
   });
 
   describe('parseStreamMessage', () => {
-    it('should parse valid message correctly', () => {
+    it('should parse valid message with text.content format (real DingTalk format)', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
         type: 'CALLBACK',
         headers: {
-          topic: 'chat',
+          topic: '/v1.0/im/bot/messages/get',
           messageId: 'msg-001',
           time: '2024-01-01T00:00:00Z',
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: 'Hello world' }),
+          text: { content: 'Hello world' },
+          msgtype: 'text',
           sessionWebhook: 'https://webhook.example.com/session',
         }),
       };
@@ -66,6 +67,57 @@ describe('StreamMessageService', () => {
         content: 'Hello world',
         sessionWebhook: 'https://webhook.example.com/session',
         messageId: 'msg-001',
+      });
+    });
+
+    it('should parse valid message with direct content field', () => {
+      const message: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: {
+          topic: '/v1.0/im/bot/messages/get',
+          messageId: 'msg-002',
+          time: '2024-01-01T00:00:00Z',
+        },
+        data: JSON.stringify({
+          senderStaffId: 'user-456',
+          content: 'Direct message',
+          sessionWebhook: 'https://webhook.example.com/session',
+        }),
+      };
+
+      const result = service.parseStreamMessage(message);
+
+      expect(result).toEqual({
+        userId: 'user-456',
+        content: 'Direct message',
+        sessionWebhook: 'https://webhook.example.com/session',
+        messageId: 'msg-002',
+      });
+    });
+
+    it('should parse message with empty content gracefully', () => {
+      const message: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: {
+          topic: '/v1.0/im/bot/messages/get',
+          messageId: 'msg-003',
+          time: '2024-01-01T00:00:00Z',
+        },
+        data: JSON.stringify({
+          senderStaffId: 'user-789',
+          sessionWebhook: 'https://webhook.example.com/session',
+        }),
+      };
+
+      const result = service.parseStreamMessage(message);
+
+      expect(result).toEqual({
+        userId: 'user-789',
+        content: '',
+        sessionWebhook: 'https://webhook.example.com/session',
+        messageId: 'msg-003',
       });
     });
 
@@ -86,7 +138,7 @@ describe('StreamMessageService', () => {
       expect(result).toBeNull();
     });
 
-    it('should return null for invalid content JSON', () => {
+    it('should parse content as plain string (no JSON parsing needed)', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
         type: 'CALLBACK',
@@ -103,7 +155,7 @@ describe('StreamMessageService', () => {
 
       const result = service.parseStreamMessage(message);
 
-      expect(result).toBeNull();
+      expect(result?.content).toBe('not json');
     });
 
     it('should handle empty senderStaffId', () => {
@@ -116,7 +168,7 @@ describe('StreamMessageService', () => {
           time: '2024-01-01T00:00:00Z',
         },
         data: JSON.stringify({
-          content: JSON.stringify({ content: 'Hello' }),
+          text: { content: 'Hello' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -138,7 +190,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({}),
+          text: { content: '' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -159,7 +211,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: 'Hello' }),
+          text: { content: 'Hello' },
         }),
       };
 
@@ -257,7 +309,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: '',
-          content: JSON.stringify({ content: 'Hello' }),
+          text: { content: 'Hello' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -279,7 +331,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: '' }),
+          text: { content: '' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -319,7 +371,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: '你好' }),
+          text: { content: '你好' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -357,7 +409,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: '我的回答' }),
+          text: { content: '我的回答' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -404,7 +456,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: 'Retry test' }),
+          text: { content: 'Retry test' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -435,7 +487,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: 'Max retry test' }),
+          text: { content: 'Max retry test' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -466,7 +518,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: 'DB error test' }),
+          text: { content: 'DB error test' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -501,7 +553,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: 'Test' }),
+          text: { content: 'Test' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -533,7 +585,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: 'Test' }),
+          text: { content: 'Test' },
         }),
       };
 
@@ -569,7 +621,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-123',
-          content: JSON.stringify({ content: 'User message' }),
+          text: { content: 'User message' },
           sessionWebhook: 'https://webhook.example.com',
         }),
       };
@@ -602,7 +654,7 @@ describe('Exported functions', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-export',
-          content: JSON.stringify({ content: 'Exported test' }),
+          text: { content: 'Exported test' },
           sessionWebhook: 'https://webhook.export.com',
         }),
       };
