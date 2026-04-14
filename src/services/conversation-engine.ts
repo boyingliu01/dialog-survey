@@ -55,6 +55,10 @@ export class ConversationEngine {
       maxFollowups: 2,
       responses: [],
       reportGenerated: false,
+      version: 1,
+      originalVersion: 1,
+      pendingMessages: [],
+      pendingResponses: [],
     };
   }
 

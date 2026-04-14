@@ -117,9 +117,11 @@
 
 **优先级**: P0 (核心功能)
 
-**描述**: 通过钉钉与被访谈者交互，支持文本和语音消息。
+**描述**: 通过钉钉与被访谈者交互，支持文本和语音消息。支持两种消息接收模式：HTTP Webhook 和 Stream 模式（WebSocket 长连接）。
 
 **用户故事**: 作为被访谈者，我希望在熟悉的钉钉环境中完成访谈，支持语音回答加快速度。
+
+#### FR-004-Webhook: HTTP Webhook 模式
 
 **验收标准**:
 
@@ -132,13 +134,111 @@
 - [x] AC-004: 机器人主动发送消息
   - 测试用例: `tests/services/test_dingtalk_sender.ts::test_send_text_message`
 
+#### FR-004-Stream: Stream 模式（WebSocket 长连接）
+
+**描述**: 通过钉钉 Stream 模式接收消息，无需配置公网 IP 和 Webhook URL，适合内网部署场景。
+
+**验收标准**:
+
+- [x] AC-005: WebSocket 连接建立
+  - 实现: `DingTalkStreamClient.connect()`
+  - 功能: 获取 endpoint 和 ticket，建立 WebSocket 连接
+  - 测试用例: `tests/dingtalk-stream.test.ts::getConnectionToken returns endpoint and ticket`
+
+- [x] AC-006: WebSocket URL 构造
+  - 实现: `buildWebSocketUrl(endpoint, ticket)`
+  - 功能: 正确拼接 WebSocket URL
+  - 测试用例: `tests/dingtalk-stream.test.ts::buildWebSocketUrl constructs correct URL`
+
+- [x] AC-007: 消息解析
+  - 实现: `parseMessage(rawMessage)`
+  - 功能: 解析 specVersion、headers（messageId、topic）、data
+  - 测试用例: `tests/dingtalk-stream.test.ts::parseMessage extracts headers and data`
+
+- [x] AC-008: ACK 响应
+  - 实现: `buildAck(messageId)`
+  - 功能: 返回正确的 ACK 响应格式 `{ code: 200, headers: { messageId }, message: "OK", data: "{}" }`
+  - 测试用例: `tests/dingtalk-stream.test.ts::buildAck returns correct format`
+
+- [x] AC-009: 发送文本消息
+  - 实现: `sendText(sessionWebhook, content)`
+  - 功能: 通过 sessionWebhook 发送消息
+  - 测试用例: `tests/dingtalk-stream.test.ts::sendText sends message via sessionWebhook`
+
+- [x] AC-010: 断线重连
+  - 实现: `reconnect()`
+  - 功能: 最大重连次数限制，指数退避
+  - 测试用例: `tests/dingtalk-stream.test.ts::reconnect respects max attempts`
+
+- [x] AC-011: 事件监听
+  - 实现: `on(event, handler)`
+  - 功能: 支持 message、error、connected、disconnected 事件
+  - 测试用例: `tests/dingtalk-stream.test.ts::event handlers registered`
+
+- [ ] AC-012: WebSocket 消息事件（需要集成测试）
+  - 功能: 收到消息时触发 message 事件
+  - 测试用例: `tests/dingtalk-stream.test.ts::WebSocket receives message and emits event` (skipped - 需要 mock 或真实连接)
+
 **技术方案**:
 
-- 钉钉 Stream 模式接收消息
-- Fun-ASR 语音识别
-- DingTalk API 发送消息
+```typescript
+// src/integrations/dingtalk/stream-client.ts
+export class DingTalkStreamClient {
+  private ws: WebSocket | null = null;
+  private maxReconnectAttempts = 5;
 
-**风险**: 中 - 钉钉 API 限制
+  async connect(): Promise<void> {
+    const { endpoint, ticket } = await this.getConnectionToken();
+    const wsUrl = this.buildWebSocketUrl(endpoint, ticket);
+    this.ws = new WebSocket(wsUrl);
+
+    this.ws.on("message", (data) => {
+      const parsed = this.parseMessage(data.toString());
+      this.emit("message", parsed);
+      // 必须回复 ACK
+      const ack = this.buildAck(parsed.headers.messageId);
+      this.ws.send(JSON.stringify(ack));
+    });
+  }
+
+  async getConnectionToken(): Promise<{ endpoint: string; ticket: string }> {
+    const response = await fetch(
+      "https://api.dingtalk.com/v1.0/gateway/connections/open",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          clientId: process.env.DINGTALK_CLIENT_ID,
+          clientSecret: process.env.DINGTALK_CLIENT_SECRET,
+          subscriptions: [
+            { topic: "/v1.0/im/bot/messages/get", type: "CALLBACK" },
+          ],
+          ua: "interview-bot/1.0",
+        }),
+      },
+    );
+    return response.json();
+  }
+}
+```
+
+**API 参考**:
+
+| API            | URL                                                           | 说明                   |
+| -------------- | ------------------------------------------------------------- | ---------------------- |
+| 获取连接凭证   | `POST https://api.dingtalk.com/v1.0/gateway/connections/open` | 返回 endpoint + ticket |
+| WebSocket 连接 | `${endpoint}?ticket=${ticket}`                                | 长连接接收消息         |
+| 消息订阅 topic | `/v1.0/im/bot/messages/get`                                   | 接收机器人消息         |
+
+**配置**:
+
+```bash
+# .env
+DINGTALK_CLIENT_ID=dingemmnhyusk82zvx7t
+DINGTALK_CLIENT_SECRET=q4rcLQrsL1XXtMkoRJvDMjMzlWcshjyuYpFILLxaBHxAgrB0MD1pRGHAbSwaxzcC
+DINGTALK_AGENT_ID=4340017075
+```
+
+**风险**: 中 - 钉钉 API 限制，WebSocket 连接稳定性
 
 ---
 
@@ -572,3 +672,4 @@ export function encrypt(plaintext: string): string {
 | 2026-03-29 | 2.0  | **FR-007 统计分析详细设计**: 新增 8 个验收标准（批量分析、主题聚类、情感分析、观点提取、统计指标、分群对比、报告生成、导出）；添加 LLM Prompt 设计；支持 1000+ 访谈规模                               | AI Agent      |
 | 2026-04-08 | 3.0  | **Delphi Review 修复**: 1) 技术栈更新为 TypeScript (Fastify + Prisma 5.x + LangGraph.js)；2) 新增 FR-008 Webhook 到对话引擎触发机制；3) 更新 FR-002/003/004 验收标准状态；4) 补充安全需求具体实现方案 | Delphi Review |
 | 2026-04-08 | 3.1  | **第二轮修复**: 1) FR-001 SQLAlchemy→Prisma；2) FR-007 Prompt 代码改为 TypeScript；3) 安全需求补充优先级和实现计划；4) 测试用例路径统一为 .ts 扩展名                                                  | Delphi Review |
+| 2026-04-13 | 3.2  | **FR-004 Stream 模式**: 1) 新增 FR-004-Stream 子需求，详细描述 WebSocket 长连接模式；2) 新增 8 个验收标准 (AC-005 ~ AC-012)；3) 补充技术方案代码示例和 API 参考；4) 配置 Stream 模式环境变量          | AI Agent      |
