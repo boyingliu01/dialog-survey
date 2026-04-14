@@ -8,15 +8,15 @@
 
 ### Tech Stack
 
-| Component          | Technology                |
-| ------------------ | ------------------------- |
-| Dialog Engine      | LangGraph.js (StateGraph) |
-| LLM Service        | Alibaba DashScope (Qwen)  |
-| Speech Recognition | Alibaba Fun-ASR           |
-| Message Platform   | DingTalk Webhook          |
-| Database           | PostgreSQL (Prisma ORM)   |
-| Web Framework      | Fastify 5.x               |
-| Language           | TypeScript (strict mode)  |
+| Component          | Technology                     |
+| ------------------ | ------------------------------ |
+| Dialog Engine      | LangGraph.js (StateGraph)      |
+| LLM Service        | Volcengine Ark (deepseek-v3.2) |
+| Speech Recognition | Alibaba Fun-ASR                |
+| Message Platform   | DingTalk Stream Mode           |
+| Database           | PostgreSQL (Prisma ORM)        |
+| Web Framework      | Fastify 5.x                    |
+| Language           | TypeScript (strict mode)       |
 
 ### Project Stats
 
@@ -57,7 +57,7 @@
                               │
 ┌─────────────────────────────▼───────────────────────────────┐
 │               Integrations Layer                             │
-│  DingTalk Client, LLM Base + Alibaba Implementation          │
+│  DingTalk Client, LLM Base + Volcengine Implementation       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -99,10 +99,11 @@ src/
 ├── integrations/           # External services
 │   ├── dingtalk/
 │   │   ├── client.ts       # DingTalk API client
+│   │   ├── stream-client.ts # WebSocket stream client
 │   │   └── middleware.ts   # Signature verification
 │   └── llm/
 │       ├── base.ts         # LLM interface
-│       └── alibaba.ts      # DashScope implementation
+│       └── volcengine.ts   # Volcengine Ark implementation
 │
 ├── domains/                # Domain entities (DDD)
 │   └── interview/
@@ -164,8 +165,9 @@ src/
 Required env vars (see `.env.example`):
 
 - `DATABASE_URL` - PostgreSQL connection
-- `DASHSCOPE_API_KEY` - LLM API key
-- `DINGTALK_WEBHOOK_URL`, `DINGTALK_SECRET` - DingTalk integration
+- `VOLCENGINE_API_KEY` - LLM API key
+- `VOLCENGINE_MODEL` - Model name (default: deepseek-v3.2)
+- `DINGTALK_CLIENT_ID`, `DINGTALK_CLIENT_SECRET` - DingTalk Stream integration
 - `FUN_ASR_API_KEY` - Speech recognition
 - `ENCRYPTION_KEY` - Security encryption
 
@@ -375,13 +377,22 @@ coverage: {
 | `src/api/health.ts` | `5000` | `HEALTH_CHECK_TIMEOUT_MS` |
 | `src/services/asr.service.ts` | `30000` | `ASR_TIMEOUT_MS` |
 | `src/utils/rate-limiter.ts` | `100`/`1000` | `QUEUE_POLL_INTERVAL_MS`/`RATE_LIMIT_WINDOW_MS` |
-| `src/integrations/llm/alibaba.ts` | `0.7`/`2000` | `DEFAULT_TEMPERATURE`/`DEFAULT_MAX_TOKENS` |
+| `src/integrations/llm/volcengine.ts` | `0.7`/`2000` | `DEFAULT_TEMPERATURE`/`DEFAULT_MAX_TOKENS` |
 
-**Large Functions (>50 lines):**
-| File | Function | Lines | Suggestion |
-|------|----------|-------|------------|
-| `src/repositories/interview-state.repository.ts` | `saveState` | ~75 | Extract retry logic |
-| `src/services/interview-plan.service.ts` | `importInvitees` | ~55 | Extract CSV parsing |
+**Unused Utilities:**
+| File | Purpose | Status |
+|------|---------|--------|
+| `src/utils/validation.ts` | Input validators (email, phone, URL, UUID) | Never imported |
+| `src/utils/encryption.ts` | AES-256-GCM encrypt/decrypt | Never imported |
+| `src/utils/date.ts` | Date formatting helpers | Never imported |
+| `src/utils/rate-limiter.ts` | Token bucket limiter | Never imported externally |
+
+**Large Files (>300 lines):**
+| File | Lines | Primary Class | Note |
+|------|-------|---------------|------|
+| `src/repositories/interview-state.repository.ts` | 390 | InterviewStateRepository | Extract state mapping helpers |
+| `src/integrations/dingtalk/stream-client.ts` | 358 | DingTalkStreamClient | WebSocket client with reconnection |
+| `src/services/stream-message.service.ts` | 337 | StreamMessageService | Deduplicate class/standalone functions |
 
 **TODO Comments:**
 | File | Line | Content |
@@ -399,19 +410,34 @@ coverage: {
 
 ---
 
+## Anti-Patterns (THIS PROJECT)
+
+| Pattern                       | Severity  | Enforcement                      |
+| ----------------------------- | --------- | -------------------------------- |
+| `console.log/warn/error/info` | **ERROR** | Biome rule `noConsole: error`    |
+| Explicit `any` type           | **WARN**  | Biome rule `noExplicitAny: warn` |
+| Sync file I/O in hot paths    | Avoid     | Use async fs operations          |
+| Hardcoded model names         | Avoid     | Use `DEFAULT_MODEL` constant     |
+
+**Enforcement**: Biome linter catches `console.log` and `any` at commit time.
+
+---
+
 ## Integration Points
 
 ### DingTalk Integration
 
 - **Webhook**: `/api/webhook.ts` receives DingTalk messages
 - **Client**: `src/integrations/dingtalk/client.ts` sends replies
+- **Stream Client**: `src/integrations/dingtalk/stream-client.ts` WebSocket real-time messaging
 - **Middleware**: Signature verification in `middleware.ts`
 
 ### LLM Integration
 
-- **Provider**: Alibaba DashScope (Qwen models)
+- **Provider**: Volcengine Ark (deepseek-v3.2)
 - **Interface**: `src/integrations/llm/base.ts`
-- **Implementation**: `src/integrations/llm/alibaba.ts`
+- **Implementation**: `src/integrations/llm/volcengine.ts`
+- **Supported Models**: doubao-seed-2.0-code, doubao-seed-2.0-pro, doubao-seed-2.0-lite, doubao-seed-code, minimax-m2.5, glm-4.7, deepseek-v3.2, kimi-k2.5
 
 ### ASR Integration
 
@@ -466,6 +492,31 @@ export class ConversationEngine {
 ---
 
 ## Quick Reference
+
+### Non-Standard Naming
+
+| Directory   | Standard Alternative | Purpose                     |
+| ----------- | -------------------- | --------------------------- |
+| `src/api/`  | `src/routes/`        | Fastify HTTP endpoints      |
+| `src/core/` | `src/workflow/`      | LangGraph StateGraph engine |
+
+### Service Dependencies
+
+```
+followup.service → volcengine.ts + retry.ts + prompt.service
+report.service → volcengine.ts + retry.ts + prompt.service
+stream-message.service → core/graph.ts + interview-state.repository
+conversation-engine → core/graph.ts + core/types
+analysis.service → report.service
+```
+
+### Utility Usage
+
+| Utility       | Imports | Purpose                           |
+| ------------- | ------- | --------------------------------- |
+| `logger.ts`   | 17      | Structured logging (pino)         |
+| `retry.ts`    | 2       | Exponential backoff for LLM calls |
+| `security.ts` | 1       | API key middleware                |
 
 ### When Adding New Features
 
