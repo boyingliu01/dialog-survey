@@ -24,7 +24,7 @@ describe('DingTalkStreamClient', () => {
     },
     data: JSON.stringify({
       senderStaffId: 'user-123',
-      content: JSON.stringify({ content: 'Hello' }),
+      text: { content: 'Hello' },
       sessionWebhook: 'https://oapi.dingtalk.com/robot/send?access_token=xxx',
     }),
   };

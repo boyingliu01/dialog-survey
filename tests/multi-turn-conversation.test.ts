@@ -22,7 +22,7 @@ describe('Multi-turn Conversation E2E', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-001',
-          content: JSON.stringify({ content: '测试消息' }),
+          text: { content: '测试消息' },
           sessionWebhook: 'https://example.com/webhook',
         }),
       };
@@ -68,7 +68,7 @@ describe('Multi-turn Conversation E2E', () => {
         },
         data: JSON.stringify({
           senderStaffId: '',
-          content: JSON.stringify({ content: '' }),
+          text: { content: '' },
           sessionWebhook: '',
         }),
       };
