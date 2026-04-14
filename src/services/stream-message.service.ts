@@ -1,0 +1,283 @@
+import type { InterviewState } from '../core/types/index.js';
+import type { GraphResult } from '../core/graph.js';
+import { runInterviewGraph } from '../core/graph.js';
+import { InterviewStateRepository } from '../repositories/interview-state.repository.js';
+import { error, info } from '../utils/logger.js';
+
+export interface StreamMessage {
+  specVersion: string;
+  type: string;
+  headers: {
+    topic: string;
+    messageId: string;
+    time: string;
+  };
+  data: string;
+}
+
+export interface ParsedStreamMessage {
+  userId: string;
+  content: string;
+  sessionWebhook: string;
+  messageId: string;
+}
+
+export interface ProcessResult {
+  success: boolean;
+  response?: string;
+  error?: string;
+}
+
+const MAX_RETRIES = 3;
+
+export class StreamMessageService {
+  private repo: InterviewStateRepository;
+
+  constructor(repo?: InterviewStateRepository) {
+    this.repo = repo || new InterviewStateRepository();
+  }
+
+  parseStreamMessage(message: StreamMessage): ParsedStreamMessage | null {
+    try {
+      const data = JSON.parse(message.data);
+      const contentData = JSON.parse(data.content || '{}');
+
+      return {
+        userId: data.senderStaffId || '',
+        content: contentData.content || '',
+        sessionWebhook: data.sessionWebhook || '',
+        messageId: message.headers.messageId,
+      };
+    } catch (e) {
+      error('Failed to parse stream message', {
+        error: e instanceof Error ? e.message : String(e),
+      });
+      return null;
+    }
+  }
+
+  async sendReply(sessionWebhook: string, content: string): Promise<boolean> {
+    if (!sessionWebhook) {
+      error('No sessionWebhook provided');
+      return false;
+    }
+
+    try {
+      const response = await fetch(sessionWebhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          msgtype: 'text',
+          text: { content },
+        }),
+      });
+
+      if (!response.ok) {
+        error('Failed to send reply', {
+          status: response.status,
+          webhook: sessionWebhook,
+        });
+        return false;
+      }
+
+      info('Reply sent', {
+        webhook: sessionWebhook,
+        contentLength: content.length,
+      });
+      return true;
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e);
+      error('Failed to send reply', { error: errMsg });
+      return false;
+    }
+  }
+
+  async processStreamMessage(message: StreamMessage, retryCount = 0): Promise<ProcessResult> {
+    const parsed = this.parseStreamMessage(message);
+
+    if (!parsed) {
+      return { success: false, error: 'Invalid message format' };
+    }
+
+    if (!parsed.userId || !parsed.content) {
+      return { success: false, error: 'Missing userId or content' };
+    }
+
+    info('Processing stream message', {
+      userId: parsed.userId,
+      content: parsed.content,
+      messageId: parsed.messageId,
+    });
+
+    let state = await this.repo.findActiveInterview(parsed.userId);
+
+    if (!state) {
+      const interviewId = await this.repo.createInterview(parsed.userId, 'default-template');
+      state = {
+        userId: parsed.userId,
+        interviewId,
+        templateId: 'default-template',
+        status: 'PENDING',
+        messages: [],
+        currentQuestion: 0,
+        followupCount: 0,
+        maxFollowups: 2,
+        responses: [],
+        reportGenerated: false,
+        version: 1,
+        originalVersion: 1,
+        pendingMessages: [],
+        pendingResponses: [],
+      };
+    }
+
+    state.pendingMessages.push({
+      role: 'user',
+      content: parsed.content,
+      isVoice: false,
+    });
+
+    const graphResult: GraphResult = await runInterviewGraph(state, {
+      userId: parsed.userId,
+      content: parsed.content,
+      isVoice: false,
+    });
+
+    const nextState = graphResult.nextState;
+    nextState.pendingMessages.push({
+      role: 'assistant',
+      content: graphResult.response,
+      isVoice: false,
+    });
+
+    try {
+      await this.repo.saveFullState(state.interviewId as string, nextState);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      if (errorMsg.includes('Version conflict') && retryCount < MAX_RETRIES) {
+        info('Retrying due to version conflict', {
+          userId: parsed.userId,
+          retryCount: retryCount + 1,
+        });
+        const freshState = await this.repo.loadFullState(
+          state.interviewId as string,
+          parsed.userId
+        );
+        if (freshState) {
+          freshState.pendingMessages = [{ role: 'user', content: parsed.content, isVoice: false }];
+          const retryGraphResult = await runInterviewGraph(freshState, {
+            userId: parsed.userId,
+            content: parsed.content,
+            isVoice: false,
+          });
+          retryGraphResult.nextState.pendingMessages.push({
+            role: 'assistant',
+            content: retryGraphResult.response,
+            isVoice: false,
+          });
+          return this.processStreamMessageWithState(
+            message,
+            retryGraphResult,
+            freshState,
+            retryCount + 1
+          );
+        }
+      }
+      return { success: false, error: errorMsg };
+    }
+
+    if (parsed.sessionWebhook) {
+      await this.sendReply(parsed.sessionWebhook, graphResult.response);
+    }
+
+    return { success: true, response: graphResult.response };
+  }
+
+  private async processStreamMessageWithState(
+    message: StreamMessage,
+    graphResult: GraphResult,
+    state: InterviewState,
+    retryCount: number
+  ): Promise<ProcessResult> {
+    const parsed = this.parseStreamMessage(message);
+    if (!parsed) {
+      return { success: false, error: 'Invalid message format' };
+    }
+
+    try {
+      await this.repo.saveFullState(state.interviewId as string, graphResult.nextState);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+      if (errorMsg.includes('Version conflict') && retryCount < MAX_RETRIES) {
+        return this.processStreamMessage(message, retryCount + 1);
+      }
+      return { success: false, error: errorMsg };
+    }
+
+    if (parsed.sessionWebhook) {
+      await this.sendReply(parsed.sessionWebhook, graphResult.response);
+    }
+
+    return { success: true, response: graphResult.response };
+  }
+}
+
+export function parseStreamMessage(message: StreamMessage): ParsedStreamMessage | null {
+  try {
+    const data = JSON.parse(message.data);
+    const contentData = JSON.parse(data.content || '{}');
+
+    return {
+      userId: data.senderStaffId || '',
+      content: contentData.content || '',
+      sessionWebhook: data.sessionWebhook || '',
+      messageId: message.headers.messageId,
+    };
+  } catch (e) {
+    error('Failed to parse stream message', {
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
+}
+
+export async function sendReply(sessionWebhook: string, content: string): Promise<boolean> {
+  if (!sessionWebhook) {
+    error('No sessionWebhook provided');
+    return false;
+  }
+
+  try {
+    const response = await fetch(sessionWebhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        msgtype: 'text',
+        text: { content },
+      }),
+    });
+
+    if (!response.ok) {
+      error('Failed to send reply', {
+        status: response.status,
+        webhook: sessionWebhook,
+      });
+      return false;
+    }
+
+    info('Reply sent', {
+      webhook: sessionWebhook,
+      contentLength: content.length,
+    });
+    return true;
+  } catch (e) {
+    const errMsg = e instanceof Error ? e.message : String(e);
+    error('Failed to send reply', { error: errMsg });
+    return false;
+  }
+}
+
+export async function processStreamMessage(message: StreamMessage): Promise<ProcessResult> {
+  const service = new StreamMessageService();
+  return service.processStreamMessage(message);
+}
