@@ -1,8 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { InterviewState } from '../src/core/types/index.js';
 import { interviewingNode } from '../src/core/nodes/interviewing.js';
 
+vi.mock('../src/services/followup.service.js', () => ({
+  isFollowupNeeded: vi.fn().mockResolvedValue(false),
+  generateFollowup: vi.fn().mockResolvedValue(null),
+}));
+
 describe('interviewingNode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   const baseState: InterviewState = {
     userId: 'user-123',
     interviewId: 'interview-123',

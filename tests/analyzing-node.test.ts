@@ -27,22 +27,17 @@ describe('analyzingNode', () => {
     const result = await analyzingNode(baseState);
 
     expect(result.status).toBe('COMPLETED');
-  });
-
-  it('should set reportGenerated to true', async () => {
-    const result = await analyzingNode(baseState);
-
-    expect(result.reportGenerated).toBe(true);
-  });
-
-  it('should return analysis message', async () => {
-    const result = await analyzingNode(baseState);
-
-    expect(result.response).toBe('正在生成分析报告...');
     expect(result.shouldContinue).toBe(false);
   });
 
-  it('should work with minimal state', async () => {
+  it('should return completion message', async () => {
+    const result = await analyzingNode(baseState);
+
+    expect(result.response).toContain('访谈已完成');
+    expect(result.shouldContinue).toBe(false);
+  });
+
+  it('should work with minimal state (no interviewId)', async () => {
     const minimalState: InterviewState = {
       userId: 'user-min',
       status: 'ACTIVE',
@@ -61,6 +56,8 @@ describe('analyzingNode', () => {
     const result = await analyzingNode(minimalState);
 
     expect(result.status).toBe('COMPLETED');
-    expect(result.reportGenerated).toBe(true);
+    expect(result.reportGenerated).toBe(false);
+    expect(result.response).toBe('访谈已完成，感谢您的参与！');
+    expect(result.shouldContinue).toBe(false);
   });
 });

@@ -1,4 +1,6 @@
 import { InterviewState, NodeOutput } from '../types/index.js';
+import { isFollowupNeeded, generateFollowup } from '../../services/followup.service.js';
+import { info } from '../../utils/logger.js';
 
 export async function interviewingNode(
   state: InterviewState,
@@ -6,6 +8,7 @@ export async function interviewingNode(
 ): Promise<Partial<InterviewState> & NodeOutput> {
   const template = getTemplate(state.templateId);
   const currentQ = state.currentQuestion;
+  const currentQuestion = template.questions[currentQ];
 
   const newResponses = [
     ...state.responses,
@@ -16,13 +19,39 @@ export async function interviewingNode(
     },
   ];
 
+  try {
+    const needsFollowup = await isFollowupNeeded(input.content);
+
+    if (needsFollowup && state.followupCount < state.maxFollowups) {
+      const followupQuestion = await generateFollowup(currentQuestion, input.content);
+
+      if (followupQuestion) {
+        info('Generated followup', {
+          currentQ,
+          followupCount: state.followupCount + 1,
+          followupQuestion,
+        });
+
+        return {
+          responses: newResponses,
+          followupCount: state.followupCount + 1,
+          shouldContinue: true,
+          response: followupQuestion,
+        };
+      }
+    }
+  } catch (e) {
+    info('Followup generation failed, falling back to next question', {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+
   const nextQuestion = template.questions[currentQ + 1];
 
   return {
     responses: newResponses,
     currentQuestion: currentQ + 1,
     shouldContinue: !!nextQuestion,
-    nextQuestion,
     response: nextQuestion || '访谈已完成，感谢您的参与！',
   };
 }
