@@ -248,6 +248,29 @@
 
 ---
 
+#### Task-002-8: 实现钉钉 Stream 模式客户端
+
+| 属性       | 值                                   |
+| ---------- | ------------------------------------ |
+| 预计工作量 | 1天                                  |
+| 优先级     | P0                                   |
+| 验收规则   | WebSocket 连接测试通过，消息处理正确 |
+
+**子任务**:
+
+- [x] 创建 src/integrations/dingtalk/stream-client.ts
+- [x] 实现 getConnectionToken 方法（获取 endpoint + ticket）
+- [x] 实现 buildWebSocketUrl 方法
+- [x] 实现 WebSocket 连接和事件处理
+- [x] 实现消息解析 (parseMessage)
+- [x] 实现 ACK 响应 (buildAck)
+- [x] 实现发送消息 (sendText)
+- [x] 实现重连逻辑
+- [x] 实现事件监听 (on/off/emit)
+- [x] 编写测试 tests/dingtalk-stream.test.ts
+
+---
+
 ### Task-003: LangGraph 状态机
 
 **目标**: 实现多轮对话流程控制

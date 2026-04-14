@@ -2,12 +2,17 @@ import { analyzingNode } from './nodes/analyzing.js';
 import { completedNode } from './nodes/completed.js';
 import { interviewingNode } from './nodes/interviewing.js';
 import { planningNode } from './nodes/planning.js';
-import { InterviewState, NodeInput, NodeOutput } from './types/index.js';
+import type { InterviewState, NodeInput, NodeOutput } from './types/index.js';
+
+export interface GraphResult {
+  response: string;
+  nextState: InterviewState;
+}
 
 export async function runInterviewGraph(
   initialState: InterviewState,
   input: NodeInput
-): Promise<NodeOutput> {
+): Promise<GraphResult> {
   let state: InterviewState = { ...initialState };
   let output: NodeOutput = {};
 
@@ -34,8 +39,7 @@ export async function runInterviewGraph(
   }
 
   return {
-    response: output.response,
-    shouldContinue: output.shouldContinue,
-    nextQuestion: output.nextQuestion,
+    response: output.response || '访谈已完成，感谢您的参与！',
+    nextState: state,
   };
 }
