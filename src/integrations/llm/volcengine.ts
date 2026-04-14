@@ -2,6 +2,7 @@ import { LLMOptions, LLMRequest, LLMResponse, LLMService } from './base.js';
 import { error, info } from '../../utils/logger.js';
 
 const CHAT_API_PATH = '/v1/chat/completions';
+const DEFAULT_MODEL = 'deepseek-v3.2';
 
 export class VolcengineLLM implements LLMService {
   private apiKey: string;
@@ -11,7 +12,7 @@ export class VolcengineLLM implements LLMService {
   constructor(options: LLMOptions) {
     this.apiKey = options.apiKey;
     this.baseUrl = options.baseUrl || 'https://ark.cn-beijing.volces.com/api/coding';
-    this.model = options.model || 'doubao-pro-32k';
+    this.model = options.model || DEFAULT_MODEL;
   }
 
   async chat(request: LLMRequest): Promise<LLMResponse> {
@@ -82,7 +83,7 @@ export class VolcengineLLM implements LLMService {
     const apiKey = process.env.VOLCENGINE_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || '';
     const baseUrl =
       process.env.VOLCENGINE_BASE_URL || 'https://ark.cn-beijing.volces.com/api/coding';
-    const model = process.env.VOLCENGINE_MODEL || 'doubao-pro-32k';
+    const model = process.env.VOLCENGINE_MODEL || DEFAULT_MODEL;
 
     if (!apiKey) {
       throw new Error('VOLCENGINE_API_KEY or ANTHROPIC_AUTH_TOKEN not configured');
