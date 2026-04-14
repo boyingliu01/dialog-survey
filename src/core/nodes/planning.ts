@@ -7,6 +7,7 @@ export async function planningNode(
   const firstQuestion = template.questions[0];
 
   return {
+    status: 'ACTIVE', // Transition from PENDING to ACTIVE
     currentQuestion: 0,
     messages: [
       ...state.messages,
