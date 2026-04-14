@@ -39,18 +39,38 @@ export class StreamMessageService {
 
   parseStreamMessage(message: StreamMessage): ParsedStreamMessage | null {
     try {
+      info('Parsing stream message', {
+        dataLength: message.data?.length,
+        hasData: !!message.data,
+      });
+
       const data = JSON.parse(message.data);
-      const contentData = JSON.parse(data.content || '{}');
+
+      info('Parsed outer data', {
+        hasSenderStaffId: !!data.senderStaffId,
+        hasText: !!data.text,
+        hasContent: !!data.content,
+        hasSessionWebhook: !!data.sessionWebhook,
+        msgtype: data.msgtype,
+      });
+
+      const content = data.text?.content || data.content || '';
+
+      info('Extracted content', {
+        contentLength: content?.length,
+        contentPreview: content?.substring(0, 50),
+      });
 
       return {
         userId: data.senderStaffId || '',
-        content: contentData.content || '',
+        content: content,
         sessionWebhook: data.sessionWebhook || '',
         messageId: message.headers.messageId,
       };
     } catch (e) {
       error('Failed to parse stream message', {
         error: e instanceof Error ? e.message : String(e),
+        rawData: message.data?.substring(0, 500),
       });
       return null;
     }
@@ -62,25 +82,42 @@ export class StreamMessageService {
       return false;
     }
 
+    info('Sending reply', {
+      webhook: sessionWebhook,
+      contentLength: content.length,
+      contentPreview: content.substring(0, 50),
+    });
+
     try {
+      const body = {
+        msgtype: 'text',
+        text: { content },
+      };
+
       const response = await fetch(sessionWebhook, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          msgtype: 'text',
-          text: { content },
-        }),
+        body: JSON.stringify(body),
+      });
+
+      info('Reply response', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
       });
 
       if (!response.ok) {
+        const responseText = await response.text();
         error('Failed to send reply', {
           status: response.status,
+          statusText: response.statusText,
           webhook: sessionWebhook,
+          responseText: responseText.substring(0, 200),
         });
         return false;
       }
 
-      info('Reply sent', {
+      info('Reply sent successfully', {
         webhook: sessionWebhook,
         contentLength: content.length,
       });
@@ -96,10 +133,17 @@ export class StreamMessageService {
     const parsed = this.parseStreamMessage(message);
 
     if (!parsed) {
+      error('Message parse failed - invalid format', {
+        data: message.data?.substring(0, 200),
+      });
       return { success: false, error: 'Invalid message format' };
     }
 
     if (!parsed.userId || !parsed.content) {
+      error('Message missing required fields', {
+        userId: parsed.userId,
+        content: parsed.content?.substring(0, 100),
+      });
       return { success: false, error: 'Missing userId or content' };
     }
 
@@ -225,11 +269,11 @@ export class StreamMessageService {
 export function parseStreamMessage(message: StreamMessage): ParsedStreamMessage | null {
   try {
     const data = JSON.parse(message.data);
-    const contentData = JSON.parse(data.content || '{}');
+    const content = data.text?.content || data.content || '';
 
     return {
       userId: data.senderStaffId || '',
-      content: contentData.content || '',
+      content: content,
       sessionWebhook: data.sessionWebhook || '',
       messageId: message.headers.messageId,
     };
@@ -247,20 +291,30 @@ export async function sendReply(sessionWebhook: string, content: string): Promis
     return false;
   }
 
+  info('Sending reply (exported)', {
+    webhook: sessionWebhook,
+    contentLength: content.length,
+  });
+
   try {
+    const body = {
+      msgtype: 'text',
+      text: { content },
+    };
+
     const response = await fetch(sessionWebhook, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        msgtype: 'text',
-        text: { content },
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
+      const responseText = await response.text();
       error('Failed to send reply', {
         status: response.status,
+        statusText: response.statusText,
         webhook: sessionWebhook,
+        responseText: responseText.substring(0, 200),
       });
       return false;
     }
