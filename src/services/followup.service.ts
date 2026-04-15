@@ -64,3 +64,33 @@ export async function generateFollowup(
     return null;
   }
 }
+
+const MIN_ANSWER_LENGTH_FOR_ACK = 30;
+
+export async function generateAcknowledgment(
+  topic: string,
+  userAnswer: string
+): Promise<string | null> {
+  if (!userAnswer || userAnswer.trim().length < MIN_ANSWER_LENGTH_FOR_ACK) {
+    return null;
+  }
+
+  const llm = VolcengineLLM.fromEnv();
+  const prompt = promptService.render('generateAcknowledgment', {
+    topic,
+    userAnswer,
+  });
+
+  try {
+    const response = await withRetry(() =>
+      llm.chat({
+        model: DEFAULT_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+      })
+    );
+
+    return response.content.trim();
+  } catch {
+    return null;
+  }
+}

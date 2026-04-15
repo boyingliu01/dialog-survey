@@ -1,5 +1,9 @@
 import { InterviewState, NodeOutput } from '../types/index.js';
-import { isFollowupNeeded, generateFollowup } from '../../services/followup.service.js';
+import {
+  isFollowupNeeded,
+  generateFollowup,
+  generateAcknowledgment,
+} from '../../services/followup.service.js';
 import { info } from '../../utils/logger.js';
 
 export async function interviewingNode(
@@ -49,6 +53,20 @@ export async function interviewingNode(
           response: followupQuestion,
         };
       }
+    }
+
+    const topic = currentQuestion;
+    const acknowledgment = await generateAcknowledgment(topic, input.content);
+
+    if (acknowledgment) {
+      info('Generated acknowledgment', { currentQ, acknowledgment });
+
+      return {
+        responses: newResponses,
+        currentQuestion: currentQ + 1,
+        shouldContinue: true,
+        response: acknowledgment,
+      };
     }
   } catch (e) {
     info('Followup generation failed, falling back to next question', {

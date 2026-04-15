@@ -65,6 +65,21 @@ const TEMPLATES: Record<string, PromptTemplate> = {
 如果需要追问，输出YES。如果回答清晰完整，输出NO。`,
     variables: ['userAnswer'],
   },
+
+  generateAcknowledgment: {
+    name: 'generateAcknowledgment',
+    template: `用户刚刚回答了一个关于"{{topic}}"的问题。
+
+用户回答: {{userAnswer}}
+
+请生成一个简短的确认/回应（50字以内），要求：
+1. 简要肯定用户的回答
+2. 可以提及回答中的关键点
+3. 语言亲切自然
+
+直接输出回应内容。`,
+    variables: ['topic', 'userAnswer'],
+  },
 };
 
 export class PromptService {
