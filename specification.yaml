@@ -6,7 +6,7 @@
 
 ---
 
-## Requirements (51 Total)
+## Requirements (138 Total)
 
 ### Phase 1: 基础设施搭建 (Task-001)
 
@@ -363,6 +363,38 @@
   description: "Follow-up correctly triggers in LangGraph flow"
   task: "Task-005-4"
 
+#### Task-005-5: 智能回应系统 (Smart Response)
+- id: "REQ-005-5-01"
+  description: "generateSmartResponse uses single LLM call with structured response"
+  task: "Task-005-5"
+- id: "REQ-005-5-02"
+  description: "Structured response contains thinking, strategy, action, response fields"
+  task: "Task-005-5"
+- id: "REQ-005-5-03"
+  description: "Action types: NEXT, FOLLOWUP, END, STAY correctly parsed"
+  task: "Task-005-5"
+- id: "REQ-005-5-04"
+  description: "NEXT action proceeds to next question"
+  task: "Task-005-5"
+- id: "REQ-005-5-05"
+  description: "FOLLOWUP action generates contextual follow-up question"
+  task: "Task-005-5"
+- id: "REQ-005-5-06"
+  description: "STAY action keeps user on current question for clarification"
+  task: "Task-005-5"
+- id: "REQ-005-5-07"
+  description: "END action terminates interview gracefully"
+  task: "Task-005-5"
+- id: "REQ-005-5-08"
+  description: "parseLLMResponse handles markdown code block wrapping"
+  task: "Task-005-5"
+- id: "REQ-005-5-09"
+  description: "smartTruncate truncates at sentence boundary preserving readability"
+  task: "Task-005-5"
+- id: "REQ-005-5-10"
+  description: "FALLBACK_RESPONSE used when smart response generation fails"
+  task: "Task-005-5"
+
 ---
 
 ### Phase 2: 报告生成 (Task-006)
@@ -510,6 +542,28 @@
   description: "PDF和Excel导出成功"
   task: "Task-009-9"
 
+#### Task-009-10: 统计指标计算接口
+- id: "REQ-009-10-01"
+  description: "StatisticalMetrics interface with totalResponses, avgResponseLength, followupDepth"
+  task: "Task-009-10"
+- id: "REQ-009-10-02"
+  description: "calculateMetrics computes completionRate from responses"
+  task: "Task-009-10"
+- id: "REQ-009-10-03"
+  description: "AnalysisService.analyzeInterview returns AnalysisResult with metrics"
+  task: "Task-009-10"
+- id: "REQ-009-10-04"
+  description: "batchAnalyze processes all COMPLETED interviews for a plan"
+  task: "Task-009-10"
+
+#### Task-009-11: 集群分析接口
+- id: "REQ-009-11-01"
+  description: "ClusterAnalysis interface with clusterId, name, memberCount, avgSentiment"
+  task: "Task-009-11"
+- id: "REQ-009-11-02"
+  description: "representativeViewpoints extraction (3-5 per cluster)"
+  task: "Task-009-11"
+
 ---
 
 ### Phase 4: 安全加固 (Task-010)
@@ -555,6 +609,8 @@
 
 ## Test Coverage
 
-- Total Tests: 149
-- Coverage: 88.39%+ lines
+- Total Tests: 339 passed | 2 skipped
+- Test Files: 36
+- Coverage: 89.6% statements, 89.32% lines, 88.97% functions, 77.8% branches
+- Thresholds: 80% (all metrics pass)
 - All tests passing ✅
