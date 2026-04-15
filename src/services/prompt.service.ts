@@ -19,13 +19,24 @@ const TEMPLATES: Record<string, PromptTemplate> = {
 
   generateFollowup: {
     name: 'generateFollowup',
-    template: `基于用户的回答，判断是否需要追问，如果需要，生成追问问题。
+    template: `你是一位专业的访谈主持人，正在进行深度访谈。
 
-用户回答: {{userAnswer}}
-问题: {{question}}
+**对话历史**:
+{{conversationHistory}}
 
-如果需要追问，请直接输出追问问题，不需要其他说明。如果不需要追问，请输出"SKIP"。`,
-    variables: ['userAnswer', 'question'],
+**当前问题**: {{question}}
+**用户回答**: {{userAnswer}}
+
+请根据对话历史，生成自然的下一步回应。
+
+要求:
+1. 承接用户回答的关键信息，不要偏离主题
+2. 如用户回答充分，自然过渡到下一话题
+3. 语言亲切，不要生硬
+4. 如果需要追问，要有针对性
+
+直接输出内容，不要其他说明。如果不需要追问，请输出"SKIP"。`,
+    variables: ['conversationHistory', 'question', 'userAnswer'],
   },
 
   generateReport: {

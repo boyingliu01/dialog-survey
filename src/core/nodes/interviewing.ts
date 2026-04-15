@@ -23,7 +23,17 @@ export async function interviewingNode(
     const needsFollowup = await isFollowupNeeded(input.content);
 
     if (needsFollowup && state.followupCount < state.maxFollowups) {
-      const followupQuestion = await generateFollowup(currentQuestion, input.content);
+      // 构建对话历史摘要
+      const conversationHistory = state.messages
+        .slice(-6)
+        .map((m) => `${m.role === 'user' ? '用户' : '主持人'}: ${m.content.substring(0, 50)}`)
+        .join('\n');
+
+      const followupQuestion = await generateFollowup(
+        currentQuestion,
+        input.content,
+        conversationHistory
+      );
 
       if (followupQuestion) {
         info('Generated followup', {
