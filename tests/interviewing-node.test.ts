@@ -29,6 +29,10 @@ describe('interviewingNode', () => {
     pendingResponses: [],
   };
 
+  /**
+   * @test REQ-003-5-01
+   * @intent 验证Interviewing节点添加响应并移动到下一问题的功能
+   */
   it('should add response and move to next question', async () => {
     const result = await interviewingNode(baseState, { content: '我的回答' });
 
@@ -41,6 +45,10 @@ describe('interviewingNode', () => {
     expect(result.shouldContinue).toBe(true);
   });
 
+  /**
+   * @test REQ-003-5-01
+   * @intent 验证Interviewing节点在没有更多问题时返回完成消息
+   */
   it('should return completion message when no more questions', async () => {
     const lastQuestionState = { ...baseState, currentQuestion: 3 };
     const result = await interviewingNode(lastQuestionState, {
@@ -54,6 +62,10 @@ describe('interviewingNode', () => {
     expect(result.nextQuestion).toBeUndefined();
   });
 
+  /**
+   * @test REQ-003-5-01
+   * @intent 验证Interviewing节点在多轮对话中累积响应
+   */
   it('should accumulate responses across multiple turns', async () => {
     const stateWithResponses = {
       ...baseState,
@@ -71,6 +83,10 @@ describe('interviewingNode', () => {
     expect(result.currentQuestion).toBe(2);
   });
 
+  /**
+   * @test REQ-003-5-01
+   * @intent 验证Interviewing节点在没有指定模板时使用默认模板
+   */
   it('should use default template when templateId is undefined', async () => {
     const stateWithoutTemplate = { ...baseState, templateId: undefined };
     const result = await interviewingNode(stateWithoutTemplate, {
@@ -81,6 +97,10 @@ describe('interviewingNode', () => {
     expect(result.shouldContinue).toBe(true);
   });
 
+  /**
+   * @test REQ-003-5-01
+   * @intent 验证Interviewing节点正确处理第二问题
+   */
   it('should handle second question correctly', async () => {
     const state = { ...baseState, currentQuestion: 1 };
     const result = await interviewingNode(state, { content: '挑战回答' });
@@ -90,6 +110,10 @@ describe('interviewingNode', () => {
     expect(result.shouldContinue).toBe(true);
   });
 
+  /**
+   * @test REQ-003-5-01
+   * @intent 验证Interviewing节点正确处理第三问题
+   */
   it('should handle third question correctly', async () => {
     const state = { ...baseState, currentQuestion: 2 };
     const result = await interviewingNode(state, { content: '解决方案' });

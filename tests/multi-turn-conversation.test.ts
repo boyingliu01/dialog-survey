@@ -9,6 +9,10 @@ describe('Multi-turn Conversation E2E', () => {
   });
 
   describe('REQ-MULTI-001: Stream 消息解析', () => {
+    /**
+     * @test REQ-003-5-02
+     * @intent 验证在多回合对话中Stream消息解析功能正常
+     */
     it('AC-MULTI-001-01: 正确解析 Stream 消息格式', async () => {
       const { parseStreamMessage } = await import('../src/services/stream-message.service.js');
 
@@ -36,6 +40,10 @@ describe('Multi-turn Conversation E2E', () => {
       expect(parsed?.messageId).toBe('msg-001');
     });
 
+    /**
+     * @test REQ-003-5-02
+     * @intent 验证在多回合对话中Stream消息解析处理无效消息的情况
+     */
     it('AC-MULTI-001-02: 处理无效消息返回 null', async () => {
       const { parseStreamMessage } = await import('../src/services/stream-message.service.js');
 
@@ -55,6 +63,10 @@ describe('Multi-turn Conversation E2E', () => {
       expect(parsed).toBeNull();
     });
 
+    /**
+     * @test REQ-003-5-02
+     * @intent 验证在多回合对话中Stream消息解析处理空内容消息的情况
+     */
     it('AC-MULTI-001-03: 处理空内容消息返回 null', async () => {
       const { parseStreamMessage } = await import('../src/services/stream-message.service.js');
 

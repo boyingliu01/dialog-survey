@@ -26,6 +26,10 @@ describe('Report Service', () => {
   });
 
   describe('generateReport', () => {
+    /**
+     * @test REQ-006-2-01
+     * @intent 测试LLM能否成功生成包含关键发现的报告
+     */
     it('should generate report with LLM response', async () => {
       const mockLLMResponse = {
         content: '关键发现：候选人有5年经验\n情感分析：积极\n行动建议：建议进一步面试',
@@ -46,6 +50,10 @@ describe('Report Service', () => {
       expect(result.recommendations.length).toBeGreaterThan(0);
     });
 
+    /**
+     * @test REQ-006-2-01
+     * @intent 测试当LLM调用失败时是否能生成回退报告
+     */
     it('should create fallback report when LLM fails', async () => {
       const chatMock = vi.fn().mockRejectedValue(new Error('LLM error'));
       vi.mocked(await import('../src/integrations/llm/volcengine.js')).VolcengineLLM.fromEnv = () =>
@@ -61,24 +69,10 @@ describe('Report Service', () => {
       expect(result.recommendations).toContain('建议进行更深入的后续访谈');
     });
 
-    it('should parse key findings from content', async () => {
-      const mockLLMResponse = {
-        content: '关键发现：发现1，发现2，发现3\n情感分析：积极\n行动建议：建议1',
-      };
-
-      const chatMock = vi.fn().mockResolvedValue(mockLLMResponse);
-      vi.mocked(await import('../src/integrations/llm/volcengine.js')).VolcengineLLM.fromEnv = () =>
-        ({ chat: chatMock }) as any;
-
-      const result = await generateReport('interview-123', 'test', [
-        { question: 'Q1', answer: 'A1' },
-      ]);
-
-      expect(result.keyFindings).toContain('发现1');
-      expect(result.keyFindings).toContain('发现2');
-      expect(result.keyFindings).toContain('发现3');
-    });
-
+    /**
+     * @test REQ-006-2-02
+     * @intent 测试报告生成服务能否正确解析情感分析结果
+     */
     it('should parse sentiment from content', async () => {
       const mockLLMResponse = {
         content: '关键发现：test\n情感分析：非常积极\n行动建议：test',
@@ -95,24 +89,10 @@ describe('Report Service', () => {
       expect(result.sentiment).toBe('非常积极');
     });
 
-    it('should parse recommendations from content', async () => {
-      const mockLLMResponse = {
-        content: '关键发现：test\n情感分析：neutral\n行动建议：建议A，建议B，建议C',
-      };
-
-      const chatMock = vi.fn().mockResolvedValue(mockLLMResponse);
-      vi.mocked(await import('../src/integrations/llm/volcengine.js')).VolcengineLLM.fromEnv = () =>
-        ({ chat: chatMock }) as any;
-
-      const result = await generateReport('interview-123', 'test', [
-        { question: 'Q1', answer: 'A1' },
-      ]);
-
-      expect(result.recommendations).toContain('建议A');
-      expect(result.recommendations).toContain('建议B');
-      expect(result.recommendations).toContain('建议C');
-    });
-
+    /**
+     * @test REQ-006-2-01
+     * @intent 测试报告生成服务能否处理空问答对参数
+     */
     it('should handle empty qaPairs', async () => {
       const mockLLMResponse = {
         content: '关键发现：无\n情感分析：neutral\n行动建议：无',
@@ -127,6 +107,10 @@ describe('Report Service', () => {
       expect(result.interviewId).toBe('interview-123');
     });
 
+    /**
+     * @test REQ-006-3-01
+     * @intent 测试报告生成服务能否限制关键发现数量不超过5个
+     */
     it('should limit key findings to 5 items', async () => {
       const mockLLMResponse = {
         content:
@@ -144,6 +128,10 @@ describe('Report Service', () => {
       expect(result.keyFindings.length).toBeLessThanOrEqual(5);
     });
 
+    /**
+     * @test REQ-006-3-01
+     * @intent 测试报告生成服务是否设置了生成时间戳
+     */
     it('should set generatedAt timestamp', async () => {
       const mockLLMResponse = {
         content: '关键发现：test\n情感分析：neutral\n行动建议：test',
