@@ -35,7 +35,8 @@ export async function isFollowupNeeded(userAnswer: string): Promise<boolean> {
 
 export async function generateFollowup(
   question: string,
-  userAnswer: string
+  userAnswer: string,
+  conversationHistory: string
 ): Promise<string | null> {
   const needed = await isFollowupNeeded(userAnswer);
   if (!needed) {
@@ -46,6 +47,7 @@ export async function generateFollowup(
   const prompt = promptService.render('generateFollowup', {
     question,
     userAnswer,
+    conversationHistory,
   });
 
   try {
