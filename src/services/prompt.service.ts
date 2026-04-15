@@ -17,28 +17,6 @@ const TEMPLATES: Record<string, PromptTemplate> = {
     variables: ['topic', 'currentQuestion', 'userAnswer'],
   },
 
-  generateFollowup: {
-    name: 'generateFollowup',
-    template: `你是一位专业的访谈主持人，正在进行深度访谈。
-
-**对话历史**:
-{{conversationHistory}}
-
-**当前问题**: {{question}}
-**用户回答**: {{userAnswer}}
-
-请根据对话历史，生成自然的下一步回应。
-
-要求:
-1. 承接用户回答的关键信息，不要偏离主题
-2. 如用户回答充分，自然过渡到下一话题
-3. 语言亲切，不要生硬
-4. 如果需要追问，要有针对性
-
-直接输出内容，不要其他说明。如果不需要追问，请输出"SKIP"。`,
-    variables: ['conversationHistory', 'question', 'userAnswer'],
-  },
-
   generateReport: {
     name: 'generateReport',
     template: `根据以下访谈内容，生成访谈报告。
@@ -54,31 +32,6 @@ const TEMPLATES: Record<string, PromptTemplate> = {
 
 使用中文输出。`,
     variables: ['topic', 'qaPairs'],
-  },
-
-  isFollowupNeeded: {
-    name: 'isFollowupNeeded',
-    template: `判断以下回答是否模糊或不完整，需要追问。
-
-用户回答: {{userAnswer}}
-
-如果需要追问，输出YES。如果回答清晰完整，输出NO。`,
-    variables: ['userAnswer'],
-  },
-
-  generateAcknowledgment: {
-    name: 'generateAcknowledgment',
-    template: `用户刚刚回答了一个关于"{{topic}}"的问题。
-
-用户回答: {{userAnswer}}
-
-请生成一个简短的确认/回应（50字以内），要求：
-1. 简要肯定用户的回答
-2. 可以提及回答中的关键点
-3. 语言亲切自然
-
-直接输出回应内容。`,
-    variables: ['topic', 'userAnswer'],
   },
 
   generateSmartResponse: {
