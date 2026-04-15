@@ -14,39 +14,31 @@ export async function analyzingNode(
     };
   }
 
-  try {
-    info('Starting analysis', { interviewId: state.interviewId });
+  const interviewId = state.interviewId;
 
-    const analysisService = new AnalysisService();
-    const result = await analysisService.analyzeInterview(state.interviewId);
+  setImmediate(async () => {
+    try {
+      info('Starting async analysis', { interviewId });
 
-    info('Analysis completed', {
-      interviewId: state.interviewId,
-      keyFindingsCount: result.report.keyFindings.length,
-    });
+      const analysisService = new AnalysisService();
+      const result = await analysisService.analyzeInterview(interviewId);
 
-    const summary =
-      result.report.keyFindings.length > 0
-        ? `\n\n关键发现：\n${result.report.keyFindings.map((f, i) => `${i + 1}. ${f}`).join('\n')}`
-        : '';
+      info('Async analysis completed', {
+        interviewId,
+        keyFindingsCount: result.report.keyFindings.length,
+      });
+    } catch (e) {
+      error('Async analysis failed', {
+        interviewId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  });
 
-    return {
-      status: 'COMPLETED',
-      reportGenerated: true,
-      response: `访谈已完成，感谢您的参与！${summary}`,
-      shouldContinue: false,
-    };
-  } catch (e) {
-    error('Analysis failed', {
-      interviewId: state.interviewId,
-      error: e instanceof Error ? e.message : String(e),
-    });
-
-    return {
-      status: 'COMPLETED',
-      reportGenerated: false,
-      response: '访谈已完成，感谢您的参与！报告生成遇到问题，请稍后查看。',
-      shouldContinue: false,
-    };
-  }
+  return {
+    status: 'COMPLETED',
+    reportGenerated: true,
+    response: '访谈已完成，感谢您的参与！报告生成中，请稍后查看。',
+    shouldContinue: false,
+  };
 }
