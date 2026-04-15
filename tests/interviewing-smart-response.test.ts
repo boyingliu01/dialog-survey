@@ -32,6 +32,10 @@ describe('interviewingNode - Smart Response Branches', () => {
   });
 
   describe('NEXT action', () => {
+    /**
+     * @test REQ-005-5-04
+     * @intent 验证当智能响应系统返回NEXT动作时，应推进到下一个问题，确保访谈按预期继续
+     */
     it('should proceed to next question when action is NEXT', async () => {
       const { generateSmartResponse } = await import('../src/services/followup.service.js');
       vi.mocked(generateSmartResponse).mockResolvedValue({
@@ -51,6 +55,10 @@ describe('interviewingNode - Smart Response Branches', () => {
       expect(result.response).toContain('工作中遇到');
     });
 
+    /**
+     * @test REQ-005-5-04
+     * @intent 验证在最后一个问题时NEXT动作将完成整个访谈，确保访谈流程按照预期结束
+     */
     it('should complete interview on last question with NEXT', async () => {
       const { generateSmartResponse } = await import('../src/services/followup.service.js');
       vi.mocked(generateSmartResponse).mockResolvedValue({

@@ -20,12 +20,20 @@ describe('completedNode', () => {
     pendingResponses: [],
   };
 
+  /**
+   * @test REQ-003-7-01
+   * @intent 验证Completed节点返回完成状态
+   */
   it('should return completion status', async () => {
     const result = await completedNode(baseState);
 
     expect(result.status).toBe('COMPLETED');
   });
 
+  /**
+   * @test REQ-003-7-01
+   * @intent 验证Completed节点返回感谢信息
+   */
   it('should return thank you message', async () => {
     const result = await completedNode(baseState);
 
@@ -33,6 +41,10 @@ describe('completedNode', () => {
     expect(result.shouldContinue).toBe(false);
   });
 
+  /**
+   * @test REQ-003-7-01
+   * @intent 验证Completed节点在最小状态下工作正常
+   */
   it('should work with minimal state', async () => {
     const minimalState: InterviewState = {
       userId: 'user-min',

@@ -1,6 +1,13 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
+/**
+ * @test REQ-001-4-01
+ * @test REQ-001-4-02
+ * @test REQ-001-4-03
+ * @intent 验证 Prisma Schema 文件存在且包含所有必需的数据模型
+ * @covers 数据库表创建 (Interview, Message, Response, Template, InterviewPlan, AnalysisReport, AuditLog)，npx prisma generate 成功，必需模型存在
+ */
 describe('Prisma Schema', () => {
   it('should have prisma/schema.prisma', () => {
     expect(fs.existsSync('prisma/schema.prisma')).toBe(true);

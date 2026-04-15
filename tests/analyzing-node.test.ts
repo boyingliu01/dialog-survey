@@ -23,6 +23,10 @@ describe('analyzingNode', () => {
     pendingResponses: [],
   };
 
+  /**
+   * @test REQ-003-6-01
+   * @intent 验证Analyzing节点将状态设置为COMPLETED
+   */
   it('should set status to COMPLETED', async () => {
     const result = await analyzingNode(baseState);
 
@@ -30,6 +34,10 @@ describe('analyzingNode', () => {
     expect(result.shouldContinue).toBe(false);
   });
 
+  /**
+   * @test REQ-003-6-01
+   * @intent 验证Analyzing节点返回完成消息
+   */
   it('should return completion message', async () => {
     const result = await analyzingNode(baseState);
 
@@ -37,6 +45,10 @@ describe('analyzingNode', () => {
     expect(result.shouldContinue).toBe(false);
   });
 
+  /**
+   * @test REQ-003-6-01
+   * @intent 验证Analyzing节点在最小状态情况下正常工作
+   */
   it('should work with minimal state (no interviewId)', async () => {
     const minimalState: InterviewState = {
       userId: 'user-min',

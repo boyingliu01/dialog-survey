@@ -43,6 +43,10 @@ describe('Task-008-4: Template Import/Export', () => {
     idCounter = 0;
   });
 
+  /**
+   * @test REQ-008-4-01
+   * @intent 测试模板导出为JSON格式功能是否正常工作
+   */
   it('should export template to JSON', async () => {
     const template = await repository.create({
       name: 'Export Test',
@@ -77,6 +81,10 @@ describe('Task-008-4: Template Import/Export', () => {
     expect(exported[0].name).toBe('Template 1');
   });
 
+  /**
+   * @test REQ-008-4-01
+   * @intent 测试从有效的JSON数据导入模板功能是否正常工作
+   */
   it('should import template from valid JSON', async () => {
     const importData = {
       name: 'Imported Template',
@@ -108,6 +116,10 @@ describe('Task-008-4: Template Import/Export', () => {
     expect(result).toBeTruthy();
   });
 
+  /**
+   * @test REQ-008-4-01
+   * @intent 测试导入JSON数据时处理缺失可选字段的功能是否正常工作
+   */
   it('should handle import with missing optional fields', async () => {
     const minimalData = {
       name: 'Minimal Template',
@@ -119,6 +131,10 @@ describe('Task-008-4: Template Import/Export', () => {
     expect(template.description).toBeUndefined();
   });
 
+  /**
+   * @test REQ-008-4-01
+   * @intent 测试导出导入的往返验证功能，确保数据一致性
+   */
   it('should roundtrip: export then import produces same data', async () => {
     const original = {
       name: 'Roundtrip Test',

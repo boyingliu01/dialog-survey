@@ -6,6 +6,10 @@ const followupServiceContent = readFileSync('src/services/followup.service.ts', 
 
 describe('Smart Response System', () => {
   describe('parseLLMResponse', () => {
+    /**
+     * @test REQ-005-5-08
+     * @intent 验证parseLLMResponse函数能正确解析有效的JSON响应，确保智能响应系统可以正确处理JSON格式的LLM输出
+     */
     it('should parse valid JSON response', async () => {
       const module = await import('../src/services/followup.service.js');
       expect(module.parseLLMResponse).toBeDefined();
@@ -19,6 +23,10 @@ describe('Smart Response System', () => {
       expect(result?.strategy).toBe(3);
     });
 
+    /**
+     * @test REQ-005-5-08
+     * @intent 验证parseLLMResponse函数能够解析嵌套在markdown代码块中的JSON字符串，确保智能响应系统可以处理不同格式的LLM响应
+     */
     it('should parse JSON wrapped in markdown code block', async () => {
       const module = await import('../src/services/followup.service.js');
 
@@ -33,6 +41,10 @@ describe('Smart Response System', () => {
       expect(result?.action).toBe('NEXT');
     });
 
+    /**
+     * @test REQ-005-5-10
+     * @intent 验证parseLLMResponse在遇到无效JSON时会返回null，确保智能响应系统可以优雅地处理无效格式
+     */
     it('should return null for invalid JSON', async () => {
       const module = await import('../src/services/followup.service.js');
 
@@ -42,6 +54,10 @@ describe('Smart Response System', () => {
       expect(result).toBeNull();
     });
 
+    /**
+     * @test REQ-005-5-10
+     * @intent 验证parseLLMResponse在JSON缺少必要字段时会返回null，确保智能响应系统只处理格式完整的响应
+     */
     it('should return null for JSON missing required fields', async () => {
       const module = await import('../src/services/followup.service.js');
 
@@ -51,6 +67,10 @@ describe('Smart Response System', () => {
       expect(result).toBeNull();
     });
 
+    /**
+     * @test REQ-005-5-10
+     * @intent 验证parseLLMResponse在遇到非法动作时会回退到STAY动作，确保智能响应系统的健壮性
+     */
     it('should fallback invalid action to STAY', async () => {
       const module = await import('../src/services/followup.service.js');
 
@@ -61,6 +81,10 @@ describe('Smart Response System', () => {
       expect(result?.action).toBe('STAY');
     });
 
+    /**
+     * @test REQ-005-5-03
+     * @intent 验证parseLLMResponse能正确处理所有有效的动作类型，确保智能响应系统支持NEXT/FOLLOWUP/END/STAY四种操作
+     */
     it('should handle all valid actions', async () => {
       const module = await import('../src/services/followup.service.js');
 
@@ -74,6 +98,10 @@ describe('Smart Response System', () => {
   });
 
   describe('smartTruncate', () => {
+    /**
+     * @test REQ-005-5-09
+     * @intent 验证smartTruncate函数能正确返回长度小于最大限制的原始文本，确保智能回复系统能保持简短文本不变
+     */
     it('should return original text if under max length', async () => {
       const module = await import('../src/services/followup.service.js');
       expect(module.smartTruncate).toBeDefined();
@@ -84,6 +112,10 @@ describe('Smart Response System', () => {
       expect(result).toBe(shortText);
     });
 
+    /**
+     * @test REQ-005-5-09
+     * @intent 验证smartTruncate函数能在句子边界处截断长文本并添加省略号，确保智能回复保持良好的可读性
+     */
     it('should truncate at sentence boundary', async () => {
       const module = await import('../src/services/followup.service.js');
 
@@ -96,6 +128,10 @@ describe('Smart Response System', () => {
       expect(result).toContain('...');
     });
 
+    /**
+     * @test REQ-005-5-09
+     * @intent 验证smartTruncate函数在没有句子边界时回退到简单截断，确保智能回复处理无标点文本的能力
+     */
     it('should fallback to simple truncate if no sentence boundary', async () => {
       const module = await import('../src/services/followup.service.js');
 
@@ -106,6 +142,10 @@ describe('Smart Response System', () => {
       expect(result).toContain('...');
     });
 
+    /**
+     * @test REQ-005-5-09
+     * @intent 验证smartTruncate在接近阈值处保留句子边界完整性，确保智能回复在阈值附近表现一致
+     */
     it('should preserve sentence boundary at 70% threshold', async () => {
       const module = await import('../src/services/followup.service.js');
 
@@ -175,11 +215,19 @@ describe('Smart Response System', () => {
   });
 
   describe('generateSmartResponse function', () => {
+    /**
+     * @test REQ-005-5-01
+     * @intent 验证导出generateSmartResponse函数，确保智能响应系统的主要功能可用
+     */
     it('should export generateSmartResponse function', async () => {
       const module = await import('../src/services/followup.service.js');
       expect(module.generateSmartResponse).toBeDefined();
     });
 
+    /**
+     * @test REQ-005-5-02
+     * @intent 验证generateSmartResponse返回正确的结构，确保智能响应系统输出包含所有必需字段
+     */
     it('should return SmartResponseResult with correct structure', async () => {
       const module = await import('../src/services/followup.service.js');
 

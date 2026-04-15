@@ -29,6 +29,10 @@ interface InterviewTemplate {
 }
 
 describe('Task-008-1: Template JSON Schema', () => {
+  /**
+   * @test REQ-008-1-01
+   * @intent 测试模板结构是否符合JSON schema规范，包含topics和questions结构验证
+   */
   it('should validate template structure with topics and questions', () => {
     const template: InterviewTemplate = {
       id: 'tmpl-001',
@@ -88,6 +92,10 @@ describe('Task-008-1: Template JSON Schema', () => {
     expect(questions[2].type).toBe('scale');
   });
 
+  /**
+   * @test REQ-008-1-01
+   * @intent 测试模板支持可选元数据字段的验证
+   */
   it('should support optional metadata', () => {
     const template: InterviewTemplate = {
       id: 'tmpl-002',
