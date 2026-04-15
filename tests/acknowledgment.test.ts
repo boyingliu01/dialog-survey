@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { promptService } from '../src/services/prompt.service.js';
+
+const followupServiceContent = readFileSync('src/services/followup.service.ts', 'utf-8');
 
 describe('generateAcknowledgment', () => {
   describe('prompt template', () => {
@@ -30,11 +33,39 @@ describe('generateAcknowledgment', () => {
       expect(module.generateAcknowledgment).toBeDefined();
     });
 
-    it('should have MIN_ANSWER_LENGTH_FOR_ACK constant', async () => {
-      const content = await import('fs').then((fs) =>
-        fs.default.readFileSync('src/services/followup.service.ts', 'utf-8')
-      );
-      expect(content).toContain('MIN_ANSWER_LENGTH_FOR_ACK');
+    it('should have MIN_ANSWER_LENGTH_FOR_ACK constant', () => {
+      expect(followupServiceContent).toContain('MIN_ANSWER_LENGTH_FOR_ACK');
+    });
+  });
+
+  describe('negative emotion patterns', () => {
+    it('should have NEGATIVE_EMOTION_PATTERNS defined', () => {
+      expect(followupServiceContent).toContain('NEGATIVE_EMOTION_PATTERNS');
+    });
+
+    it('should detect "不想谈" as negative emotion', () => {
+      expect(followupServiceContent).toContain('不想谈');
+    });
+
+    it('should detect "真无聊" as negative emotion', () => {
+      expect(followupServiceContent).toContain('真无聊');
+    });
+
+    it('should have EMPATHY_RESPONSES defined', () => {
+      expect(followupServiceContent).toContain('EMPATHY_RESPONSES');
+      expect(followupServiceContent).toContain('我理解您可能有些疲惫');
+    });
+
+    it('should have hasNegativeEmotion helper function', () => {
+      expect(followupServiceContent).toContain('hasNegativeEmotion');
+    });
+
+    it('should have getEmpathyResponse helper function', () => {
+      expect(followupServiceContent).toContain('getEmpathyResponse');
+    });
+
+    it('should have MIN_ANSWER_LENGTH_FOR_ACK set to 10', () => {
+      expect(followupServiceContent).toContain('MIN_ANSWER_LENGTH_FOR_ACK = 10');
     });
   });
 });

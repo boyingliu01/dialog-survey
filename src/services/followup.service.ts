@@ -7,6 +7,19 @@ const VAGUE_PATTERNS = [
   /一般|可能|也许|不太确定|还好|还行/i,
 ];
 
+const NEGATIVE_EMOTION_PATTERNS = [
+  /不想|不要|拒绝|为什么|干嘛|无聊|烦|讨厌|听不懂|没用|没意义/i,
+  /不想谈|为什么要|你是.*吗|不想回答|不想聊/i,
+  /真无聊|太无聊|没意思|浪费时间/i,
+];
+
+const EMPATHY_RESPONSES = [
+  '我理解您可能有些疲惫或不太想聊这个话题，没关系，我们可以换个方向。',
+  '听起来您对这个话题不太感兴趣，我们可以聊聊您更关心的事情。',
+  '我明白，有些问题可能确实让人不想回答。您有什么其他想分享的吗？',
+  '感谢您的坦诚，如果不想继续某个话题，我们完全可以跳过。',
+];
+
 export async function isFollowupNeeded(userAnswer: string): Promise<boolean> {
   if (!userAnswer || userAnswer.trim().length < 5) {
     return true;
@@ -65,13 +78,29 @@ export async function generateFollowup(
   }
 }
 
-const MIN_ANSWER_LENGTH_FOR_ACK = 30;
+const MIN_ANSWER_LENGTH_FOR_ACK = 10;
+
+function hasNegativeEmotion(text: string): boolean {
+  return NEGATIVE_EMOTION_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function getEmpathyResponse(): string {
+  return EMPATHY_RESPONSES[Math.floor(Math.random() * EMPATHY_RESPONSES.length)];
+}
 
 export async function generateAcknowledgment(
   topic: string,
   userAnswer: string
 ): Promise<string | null> {
-  if (!userAnswer || userAnswer.trim().length < MIN_ANSWER_LENGTH_FOR_ACK) {
+  if (!userAnswer || userAnswer.trim().length < 3) {
+    return null;
+  }
+
+  if (hasNegativeEmotion(userAnswer)) {
+    return getEmpathyResponse();
+  }
+
+  if (userAnswer.trim().length < MIN_ANSWER_LENGTH_FOR_ACK) {
     return null;
   }
 
