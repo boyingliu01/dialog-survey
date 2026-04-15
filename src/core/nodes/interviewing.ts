@@ -1,9 +1,5 @@
 import { InterviewState, NodeOutput } from '../types/index.js';
-import {
-  isFollowupNeeded,
-  generateFollowup,
-  generateAcknowledgment,
-} from '../../services/followup.service.js';
+import { generateSmartResponse } from '../../services/followup.service.js';
 import { info } from '../../utils/logger.js';
 
 export async function interviewingNode(
@@ -24,52 +20,54 @@ export async function interviewingNode(
   ];
 
   try {
-    const needsFollowup = await isFollowupNeeded(input.content);
+    const smartResult = await generateSmartResponse(state, input.content, currentQuestion);
 
-    if (needsFollowup && state.followupCount < state.maxFollowups) {
-      // 构建对话历史摘要
-      const conversationHistory = state.messages
-        .slice(-6)
-        .map((m) => `${m.role === 'user' ? '用户' : '主持人'}: ${m.content.substring(0, 50)}`)
-        .join('\n');
+    info('Smart response generated', {
+      currentQ,
+      action: smartResult.action,
+      response: smartResult.response,
+    });
 
-      const followupQuestion = await generateFollowup(
-        currentQuestion,
-        input.content,
-        conversationHistory
-      );
-
-      if (followupQuestion) {
-        info('Generated followup', {
-          currentQ,
-          followupCount: state.followupCount + 1,
-          followupQuestion,
-        });
-
-        return {
-          responses: newResponses,
-          followupCount: state.followupCount + 1,
-          shouldContinue: true,
-          response: followupQuestion,
-        };
-      }
-    }
-
-    const topic = currentQuestion;
-    const acknowledgment = await generateAcknowledgment(topic, input.content);
-
-    if (acknowledgment) {
-      info('Generated acknowledgment', { currentQ, acknowledgment });
-
+    if (smartResult.shouldEndInterview) {
       return {
         responses: newResponses,
-        currentQuestion: currentQ + 1,
-        shouldContinue: true,
-        response: acknowledgment,
+        status: 'COMPLETED',
+        shouldContinue: false,
+        response: smartResult.response,
       };
     }
+
+    if (smartResult.action === 'FOLLOWUP') {
+      return {
+        responses: newResponses,
+        followupCount: state.followupCount + 1,
+        shouldContinue: true,
+        response: smartResult.response,
+      };
+    }
+
+    if (smartResult.action === 'STAY') {
+      return {
+        responses: newResponses,
+        shouldContinue: true,
+        response: smartResult.response,
+      };
+    }
+
+    const nextQuestion = template.questions[currentQ + 1];
+
+    return {
+      responses: newResponses,
+      currentQuestion: currentQ + 1,
+      shouldContinue: !!nextQuestion,
+      response: smartResult.shouldProceedToNext
+        ? nextQuestion
+          ? `${smartResult.response}\n\n${nextQuestion}`
+          : smartResult.response
+        : smartResult.response,
+    };
   } catch (e) {
-    info('Followup generation failed, falling back to next question', {
+    info('Smart response generation failed, falling back to next question', {
       error: e instanceof Error ? e.message : String(e),
     });
   }
