@@ -136,6 +136,10 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
   });
 
   describe('正常多轮对话流程', () => {
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证初次消息处理和新面试创建的功能
+     */
     it('should process first message and create new interview', async () => {
       mockRepo.findActiveInterview.mockResolvedValue(null);
       mockRepo.createInterview.mockResolvedValue('interview-123');
@@ -188,6 +192,10 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
       );
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证使用现有状态处理第二条消息的功能
+     */
     it('should process second message with existing state', async () => {
       const existingState: InterviewState = {
         userId: 'user-123',
@@ -252,6 +260,10 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
       expect(mockRepo.saveFullState).toHaveBeenCalled();
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证多次交谈中pendingMessages积累的功能
+     */
     it('should accumulate pendingMessages across multiple turns', async () => {
       const existingState: InterviewState = {
         userId: 'user-123',
@@ -307,6 +319,10 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
   });
 
   describe('乐观锁冲突重试', () => {
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证版本冲突时最多重试三次的机制
+     */
     it('should retry on version conflict (max 3 retries)', async () => {
       const existingState: InterviewState = {
         userId: 'user-123',
@@ -364,6 +380,10 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
       expect(mockRepo.saveFullState).toHaveBeenCalledTimes(2);
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证重试次数超过限制时返回错误的功能
+     */
     it('should fail after max retries exceeded', async () => {
       const existingState: InterviewState = {
         userId: 'user-123',
@@ -412,6 +432,10 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
   });
 
   describe('错误处理', () => {
+    /**
+     * @test REQ-002-9-02
+     * @intent 验证无效消息格式时返回错误的功能
+     */
     it('should return error for invalid message format', async () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -430,6 +454,10 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
       expect(result.error).toBe('Invalid message format');
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证没有用户ID时返回错误的功能
+     */
     it('should return error for missing userId', async () => {
       const message: StreamMessage = {
         specVersion: '1.0',

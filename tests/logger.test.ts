@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+/**
+ * @test REQ-001-6-01
+ * @intent 验证 Logger 工具存在并输出正确函数 (info, warn, error, debug)
+ * @covers Logger 工具存在 (info, warn, error, debug)
+ */
 describe('Logger Utility', () => {
   it('should export logger', async () => {
     const { logger } = await import('../src/utils/logger.js');

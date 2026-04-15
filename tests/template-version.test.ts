@@ -62,6 +62,10 @@ describe('Task-008-3: Template Version Management', () => {
     idCounter = 0;
   });
 
+  /**
+   * @test REQ-008-3-01
+   * @intent 测试查询当前模板版本号功能是否正常工作
+   */
   it('should return current version when querying version', async () => {
     const template = await repository.create({
       name: 'Version Test',
@@ -86,6 +90,10 @@ describe('Task-008-3: Template Version Management', () => {
     expect(versionInfo?.version).toBe(2);
   });
 
+  /**
+   * @test REQ-008-3-01
+   * @intent 测试多次连续增量升级模板版本功能是否正常工作
+   */
   it('should support multiple version increments', async () => {
     const template = await repository.create({
       name: 'Multi Increment',
@@ -104,6 +112,10 @@ describe('Task-008-3: Template Version Management', () => {
     await expect(repository.incrementVersion('non-existent')).rejects.toThrow('Template not found');
   });
 
+  /**
+   * @test REQ-008-3-01
+   * @intent 测试获取模板版本历史记录功能是否正常工作
+   */
   it('should get version history', async () => {
     const template = await repository.create({
       name: 'History Test',

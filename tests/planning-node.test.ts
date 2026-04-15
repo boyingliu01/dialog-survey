@@ -28,6 +28,10 @@ describe('planningNode', () => {
     expect(result.currentQuestion).toBe(0);
   });
 
+  /**
+   * @test REQ-003-4-01
+   * @intent 验证Planning节点将开场问题添加到消息数组中
+   */
   it('should add first question message to messages array', async () => {
     const result = await planningNode(baseState);
 
@@ -37,6 +41,10 @@ describe('planningNode', () => {
     expect(result.messages[0].timestamp).toBeDefined();
   });
 
+  /**
+   * @test REQ-003-4-01
+   * @intent 验证Planning节点保留现有消息
+   */
   it('should preserve existing messages', async () => {
     const stateWithMessages = {
       ...baseState,
@@ -50,6 +58,10 @@ describe('planningNode', () => {
     expect(result.messages[1].role).toBe('assistant');
   });
 
+  /**
+   * @test REQ-003-4-01
+   * @intent 验证Planning节点在没有指定模板时使用默认模板
+   */
   it('should use default template when templateId is undefined', async () => {
     const stateWithoutTemplate = { ...baseState, templateId: undefined };
     const result = await planningNode(stateWithoutTemplate);
@@ -58,6 +70,10 @@ describe('planningNode', () => {
     expect(result.shouldContinue).toBe(true);
   });
 
+  /**
+   * @test REQ-003-4-01
+   * @intent 验证Planning节点将当前问题索引设置为0
+   */
   it('should set currentQuestion to 0', async () => {
     const state = { ...baseState, currentQuestion: 5 };
     const result = await planningNode(state);

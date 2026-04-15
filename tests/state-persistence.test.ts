@@ -23,6 +23,10 @@ describe('InterviewStateRepository', () => {
   });
 
   describe('loadState', () => {
+    /**
+     * @test REQ-003-9-04
+     * @intent 验证加载状态时如果找不到访谈则返回null的情况
+     */
     it('should return null when interview not found', async () => {
       mockPrisma.interview.findUnique.mockResolvedValue(null);
 
@@ -34,6 +38,10 @@ describe('InterviewStateRepository', () => {
       expect(result).toBeNull();
     });
 
+    /**
+     * @test REQ-003-9-02
+     * @intent 验证加载状态时如果用户ID不匹配则返回null的情况
+     */
     it('should return null when userId does not match', async () => {
       mockPrisma.interview.findUnique.mockResolvedValue({
         id: 'interview-1',
@@ -57,6 +65,10 @@ describe('InterviewStateRepository', () => {
       expect(result).toBeNull();
     });
 
+    /**
+     * @test REQ-003-9-05
+     * @intent 验证加载状态功能正常返回找到的状态
+     */
     it('should return state when found', async () => {
       mockPrisma.interview.findUnique.mockResolvedValue({
         id: 'interview-1',
@@ -86,6 +98,10 @@ describe('InterviewStateRepository', () => {
   });
 
   describe('getVersion', () => {
+    /**
+     * @test REQ-003-9-01
+     * @intent 验证获取版本号的功能
+     */
     it('should return version number', async () => {
       mockPrisma.interview.findUnique.mockResolvedValue({ version: 5 });
 
@@ -94,6 +110,10 @@ describe('InterviewStateRepository', () => {
       expect(version).toBe(5);
     });
 
+    /**
+     * @test REQ-003-9-01
+     * @intent 验证在未找到记录时获取版本号返回0
+     */
     it('should return 0 when not found', async () => {
       mockPrisma.interview.findUnique.mockResolvedValue(null);
 
@@ -104,6 +124,10 @@ describe('InterviewStateRepository', () => {
   });
 
   describe('createInterview', () => {
+    /**
+     * @test REQ-003-9-01
+     * @intent 验证创建访谈的方法并返回ID的功能
+     */
     it('should create interview and return id', async () => {
       mockPrisma.interview.create.mockResolvedValue({ id: 'new-interview-id' });
 
@@ -122,6 +146,10 @@ describe('InterviewStateRepository', () => {
   });
 
   describe('saveState', () => {
+    /**
+     * @test REQ-003-9-03
+     * @intent 验证保存状态时如果访谈不存在则抛出NOT_FOUND异常
+     */
     it('should throw NOT_FOUND when interview does not exist', async () => {
       mockPrisma.interview.findUnique.mockResolvedValue(null);
 
@@ -137,10 +165,48 @@ describe('InterviewStateRepository', () => {
             maxFollowups: 2,
             responses: [],
             reportGenerated: false,
+            version: 1,
+            originalVersion: 1,
+            pendingMessages: [],
+            pendingResponses: [],
+            interviewId: 'invalid-id',
           },
           version: 1,
         })
       ).rejects.toThrow(StatePersistenceError);
+    });
+
+    /**
+     * @test REQ-003-9-03
+     * @intent 验证保存状态时如果版本冲突则抛出VERSION_CONFLICT异常
+     */
+    it('should throw VERSION_CONFLICT when version mismatches', async () => {
+      mockPrisma.interview.findUnique.mockResolvedValue({
+        id: 'interview-1',
+        version: 5,
+      });
+
+      await expect(
+        repository.saveState({
+          interviewId: 'interview-1',
+          state: {
+            userId: 'user-1',
+            status: 'ACTIVE',
+            messages: [],
+            currentQuestion: 0,
+            followupCount: 0,
+            maxFollowups: 2,
+            responses: [],
+            reportGenerated: false,
+            version: 1,
+            originalVersion: 1,
+            pendingMessages: [],
+            pendingResponses: [],
+            interviewId: 'interview-1',
+          },
+          version: 3,
+        })
+      ).rejects.toThrow();
     });
 
     it('should throw VERSION_CONFLICT when version mismatches', async () => {

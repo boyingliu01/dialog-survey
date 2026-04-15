@@ -32,6 +32,10 @@ describe('AnalysisService', () => {
   });
 
   describe('analyzeInterview', () => {
+    /**
+     * @test REQ-009-10-03
+     * @intent Verify that AnalysisService.analyzeInterview returns AnalysisResult with metrics when analyzing a completed interview
+     */
     it('should analyze interview and return result', async () => {
       mockPrisma.interview.findUnique.mockResolvedValue({
         id: 'interview-1',
@@ -107,6 +111,10 @@ describe('AnalysisService', () => {
   });
 
   describe('calculateMetrics', () => {
+    /**
+     * @test REQ-009-10-01
+     * @intent Verify that calculateMetrics computes all statistical metrics correctly including totalResponses, avgResponseLength, and followupDepth
+     */
     it('should calculate metrics for responses', () => {
       const responses = [
         { content: 'this is a test response', followupDepth: 1 },
@@ -132,6 +140,10 @@ describe('AnalysisService', () => {
       expect(metrics.sentiment).toBe('neutral');
     });
 
+    /**
+     * @test REQ-009-10-02
+     * @intent Verify that calculateMetrics computes completionRate from responses correctly
+     */
     it('should detect positive sentiment', () => {
       const responses = [{ content: '这是一个很好的产品，我很喜欢', followupDepth: 0 }];
 

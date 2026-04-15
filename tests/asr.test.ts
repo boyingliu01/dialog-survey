@@ -12,16 +12,28 @@ describe('ASR Service', () => {
   });
 
   describe('isASRConfigured', () => {
+    /**
+     * @test REQ-002-4-01
+     * @intent 验证当配置了API密钥时函数正确返回true，确保ASR服务配置检查功能有效
+     */
     it('should return true when API key is configured', () => {
       vi.stubEnv('FUN_ASR_API_KEY', 'valid-api-key');
       expect(isASRConfigured()).toBe(true);
     });
 
+    /**
+     * @test REQ-002-4-01
+     * @intent 验证当未设置API密钥时函数正确返回false，确保ASR服务在未配置时不工作
+     */
     it('should return false when API key is not set', () => {
       vi.stubEnv('FUN_ASR_API_KEY', '');
       expect(isASRConfigured()).toBe(false);
     });
 
+    /**
+     * @test REQ-002-4-01
+     * @intent 验证当API密钥是占位符时函数正确返回false，防止默认占位符被视为有效配置
+     */
     it('should return false when API key is placeholder', () => {
       vi.stubEnv('FUN_ASR_API_KEY', 'your-fun-asr-api-key');
       expect(isASRConfigured()).toBe(false);

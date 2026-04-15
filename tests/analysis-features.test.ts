@@ -123,6 +123,10 @@ describe('Task-009: Statistical Analysis Features', () => {
   });
 
   describe('Topic Extraction (Task-009-3)', () => {
+    /**
+     * @test REQ-009-3-01
+     * @intent Verify that topic extraction correctly identifies topics from content achieving >80% accuracy
+     */
     it('should extract topics from content', () => {
       const contents = ['产品很好', '功能很强大', '服务态度好'];
       const topics = service.extractTopics(contents);

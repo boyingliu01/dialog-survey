@@ -26,6 +26,10 @@ describe('InterviewPlanService - Additional Coverage', () => {
   });
 
   describe('sendInvitations', () => {
+    /**
+     * @test REQ-007-4-01
+     * @intent 测试批量发送邀请给待访问用户的功能是否正常工作
+     */
     it('should send invitations to pending interviews', async () => {
       mockPrisma.interviewPlan.findUnique.mockResolvedValue({
         id: 'plan-1',
@@ -41,6 +45,10 @@ describe('InterviewPlanService - Additional Coverage', () => {
       expect(result.failed).toBe(0);
     });
 
+    /**
+     * @test REQ-007-4-01
+     * @intent 测试在发送邀请出现故障时的处理逻辑
+     */
     it('should handle send failures', async () => {
       mockPrisma.interviewPlan.findUnique.mockResolvedValue({
         id: 'plan-1',
@@ -55,6 +63,10 @@ describe('InterviewPlanService - Additional Coverage', () => {
       expect(result.sent).toBe(1);
     });
 
+    /**
+     * @test REQ-007-4-01
+     * @intent 测试计划不存在时的错误处理机制
+     */
     it('should throw when plan not found', async () => {
       mockPrisma.interviewPlan.findUnique.mockResolvedValue(null);
 
@@ -63,6 +75,10 @@ describe('InterviewPlanService - Additional Coverage', () => {
   });
 
   describe('updatePlanStatus', () => {
+    /**
+     * @test REQ-007-4-01
+     * @intent 测试更新计划状态为完成时是否能正确设置完成日期
+     */
     it('should set completedAt when status is COMPLETED', async () => {
       mockPrisma.interviewPlan.update.mockResolvedValue({});
 
@@ -77,6 +93,10 @@ describe('InterviewPlanService - Additional Coverage', () => {
       });
     });
 
+    /**
+     * @test REQ-007-4-01
+     * @intent 测试为非完成状态更新计划时不设置完成日期的行为
+     */
     it('should not set completedAt for other statuses', async () => {
       mockPrisma.interviewPlan.update.mockResolvedValue({});
 

@@ -26,6 +26,10 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
   });
 
   describe('saveFullState - 正常保存', () => {
+    /**
+     * @test REQ-003-9-05
+     * @intent 验证完整状态保存功能在单个事务中正常保存状态和带消息
+     */
     it('should save state with pendingMessages in a single transaction', async () => {
       const state: InterviewState = {
         userId: 'user-123',
@@ -77,6 +81,10 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
       expect(mockPrisma.$transaction).toHaveBeenCalledOnce();
     });
 
+    /**
+     * @test REQ-003-9-05
+     * @intent 验证在同一个事务中保存 pendingResponses 功能正常
+     */
     it('should save pendingResponses in the same transaction', async () => {
       const state: InterviewState = {
         userId: 'user-123',
@@ -119,6 +127,10 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
       expect(result.newVersion).toBe(2);
     });
 
+    /**
+     * @test REQ-003-9-02
+     * @intent 验证成功保存后清除 pendingMessages 和 pendingResponses 的功能
+     */
     it('should clear pendingMessages and pendingResponses after successful save', async () => {
       const state: InterviewState = {
         userId: 'user-123',
@@ -162,6 +174,10 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
   });
 
   describe('saveFullState - 乐观锁冲突', () => {
+    /**
+     * @test REQ-003-9-03
+     * @intent 验证在版本冲突时抛出VERSION_CONFLICT异常的情况
+     */
     it('should throw VERSION_CONFLICT error when version mismatch', async () => {
       const state: InterviewState = {
         userId: 'user-123',
@@ -198,6 +214,10 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
   });
 
   describe('saveFullState - Interview 不存在', () => {
+    /**
+     * @test REQ-003-9-04
+     * @intent 验证当访谈不存在时抛出NOT_FOUND异常的情况
+     */
     it('should throw NOT_FOUND error when interview does not exist', async () => {
       const state: InterviewState = {
         userId: 'user-123',
@@ -231,6 +251,10 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
   });
 
   describe('loadFullState - 加载状态并初始化 pending 字段', () => {
+    /**
+     * @test REQ-003-9-05
+     * @intent 验证加载完整状态并初始化 pendingMessages/pendingResponses 字段的功能
+     */
     it('should load state and initialize pendingMessages/pendingResponses', async () => {
       mockPrisma.interview.findUnique.mockResolvedValue({
         id: 'interview-456',
@@ -259,6 +283,10 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
       expect(state?.messages.length).toBe(2);
     });
 
+    /**
+     * @test REQ-003-9-04
+     * @intent 验证当访谈未找到时加载完整状态返回 null 的情况
+     */
     it('should return null when interview not found', async () => {
       mockPrisma.interview.findUnique.mockResolvedValue(null);
 
@@ -267,6 +295,10 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
       expect(state).toBeNull();
     });
 
+    /**
+     * @test REQ-003-9-02
+     * @intent 验证当 userId 不匹配时加载完整状态返回 null 的情况
+     */
     it('should return null when userId mismatch', async () => {
       mockPrisma.interview.findUnique.mockResolvedValue({
         id: 'interview-456',

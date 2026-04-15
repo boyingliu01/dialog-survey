@@ -54,6 +54,10 @@ describe('runInterviewGraph', () => {
     };
   });
 
+  /**
+   * @test REQ-003-8-02
+   * @intent 验证规划节点的状态机边条件：当访谈状态为PENDING时执行规划节点来生成开场问题
+   */
   it('should run planning node for PENDING status', async () => {
     const result = await runInterviewGraph(initialState, {
       userId: 'user-123',
@@ -66,6 +70,10 @@ describe('runInterviewGraph', () => {
     expect(result.nextState.status).toBe('PENDING');
   });
 
+  /**
+   * @test REQ-003-8-02
+   * @intent 验证访谈节点的状态机边条件：当提供内容时执行访谈节点
+   */
   it('should run interviewing node when content is provided', async () => {
     initialState.status = 'ACTIVE';
 
@@ -79,6 +87,10 @@ describe('runInterviewGraph', () => {
     expect(result.nextState.currentQuestion).toBe(1);
   });
 
+  /**
+   * @test REQ-003-8-02
+   * @intent 验证状态转换结果包含正确的字段更新
+   */
   it('should return nextState with updated fields', async () => {
     initialState.status = 'ACTIVE';
 
@@ -95,6 +107,10 @@ describe('runInterviewGraph', () => {
     expect(result.nextState.originalVersion).toBe(1);
   });
 
+  /**
+   * @test REQ-003-8-02
+   * @intent 验证状态转换结果保持了待处理的消息和回复
+   */
   it('should preserve pendingMessages and pendingResponses in nextState', async () => {
     initialState.status = 'ACTIVE';
     initialState.pendingMessages = [{ role: 'user', content: 'Test', isVoice: false }];
@@ -109,6 +125,10 @@ describe('runInterviewGraph', () => {
     expect(result.nextState.pendingResponses).toBeDefined();
   });
 
+  /**
+   * @test REQ-003-8-02
+   * @intent 验证当访谈结束时执行分析节点和完成节点的状态机边条件
+   */
   it('should run analyzing and completed nodes when interview ends', async () => {
     const { interviewingNode } = await import('../src/core/nodes/interviewing.js');
     const { analyzingNode } = await import('../src/core/nodes/analyzing.js');
@@ -135,6 +155,10 @@ describe('runInterviewGraph', () => {
     expect(result.nextState.reportGenerated).toBe(true);
   });
 
+  /**
+   * @test REQ-003-8-02
+   * @intent 验证在分析完成后，如果不是COMPLETED状态则不会运行完成节点的状态机边条件
+   */
   it('should not run completed node if status is not COMPLETED after analyzing', async () => {
     const { interviewingNode } = await import('../src/core/nodes/interviewing.js');
     const { analyzingNode } = await import('../src/core/nodes/analyzing.js');

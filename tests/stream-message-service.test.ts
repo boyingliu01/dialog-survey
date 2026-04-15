@@ -43,6 +43,10 @@ describe('StreamMessageService', () => {
   });
 
   describe('parseStreamMessage', () => {
+    /**
+     * @test REQ-002-9-01
+     * @intent 验证parseStreamMessage可以正确的从标准钉钉消息中提取必需字段(userId, content等)
+     */
     it('should parse valid message with text.content format (real DingTalk format)', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -70,6 +74,10 @@ describe('StreamMessageService', () => {
       });
     });
 
+    /**
+     * @test REQ-002-9-01
+     * @intent 验证parseStreamMessage可以从不同格式的消息中解析内容
+     */
     it('should parse valid message with direct content field', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -96,6 +104,10 @@ describe('StreamMessageService', () => {
       });
     });
 
+    /**
+     * @test REQ-002-9-01
+     * @intent 验证当某些字段为空时解析功能的容错性
+     */
     it('should parse message with empty content gracefully', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -121,6 +133,10 @@ describe('StreamMessageService', () => {
       });
     });
 
+    /**
+     * @test REQ-002-9-02
+     * @intent 验证parseStreamMessage返回null对于无效JSON数据
+     */
     it('should return null for invalid JSON data', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -138,6 +154,10 @@ describe('StreamMessageService', () => {
       expect(result).toBeNull();
     });
 
+    /**
+     * @test REQ-002-9-01
+     * @intent 验证解析非JSON字符串内容的能力
+     */
     it('should parse content as plain string (no JSON parsing needed)', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -158,6 +178,10 @@ describe('StreamMessageService', () => {
       expect(result?.content).toBe('not json');
     });
 
+    /**
+     * @test REQ-002-9-01
+     * @intent 验证当发送者ID不存在时的处理方式
+     */
     it('should handle empty senderStaffId', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -179,6 +203,10 @@ describe('StreamMessageService', () => {
       expect(result?.content).toBe('Hello');
     });
 
+    /**
+     * @test REQ-002-9-01
+     * @intent 验证当内容字段为空时的处理方式
+     */
     it('should handle empty content field', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -200,6 +228,10 @@ describe('StreamMessageService', () => {
       expect(result?.content).toBe('');
     });
 
+    /**
+     * @test REQ-002-9-01
+     * @intent 验证当sessionWebhook字段缺失时的处理
+     */
     it('should handle missing sessionWebhook', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -222,6 +254,10 @@ describe('StreamMessageService', () => {
   });
 
   describe('sendReply', () => {
+    /**
+     * @test REQ-002-9-03
+     * @intent 验证sendReply可以通过会话Webhook发送消息并返回成功结果
+     */
     it('should send reply successfully', async () => {
       mockFetch.mockResolvedValueOnce({ ok: true });
 
@@ -238,6 +274,10 @@ describe('StreamMessageService', () => {
       });
     });
 
+    /**
+     * @test REQ-002-9-04
+     * @intent 验证当Webhook为空时sendReply应返回false
+     */
     it('should return false for empty webhook URL', async () => {
       const result = await service.sendReply('', 'Test reply');
 
@@ -245,6 +285,10 @@ describe('StreamMessageService', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
+    /**
+     * @test REQ-002-9-05
+     * @intent 验证当API返回非OK状态时sendReply应返回失败
+     */
     it('should return false when response not ok', async () => {
       mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
 
@@ -253,6 +297,10 @@ describe('StreamMessageService', () => {
       expect(result).toBe(false);
     });
 
+    /**
+     * @test REQ-002-9-05
+     * @intent 验证在fetch异常情况下sendReply应返回失败
+     */
     it('should return false when fetch throws error', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
@@ -280,6 +328,10 @@ describe('StreamMessageService', () => {
       pendingResponses: [],
     };
 
+    /**
+     * @test REQ-002-9-02
+     * @intent 验证无效消息格式的情况应返回错误
+     */
     it('should return error for invalid message format', async () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -298,6 +350,10 @@ describe('StreamMessageService', () => {
       expect(result.error).toBe('Invalid message format');
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证缺少用户ID情况下的处理
+     */
     it('should return error for missing userId', async () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -320,6 +376,10 @@ describe('StreamMessageService', () => {
       expect(result.error).toBe('Missing userId or content');
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证缺少内容字段情况下的处理
+     */
     it('should return error for missing content', async () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -342,6 +402,10 @@ describe('StreamMessageService', () => {
       expect(result.error).toBe('Missing userId or content');
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证创建新的面试记录流程
+     */
     it('should create new interview when no active interview found', async () => {
       mockRepo.findActiveInterview.mockResolvedValueOnce(null);
       mockRepo.createInterview.mockResolvedValueOnce('interview-new');
@@ -385,6 +449,10 @@ describe('StreamMessageService', () => {
       expect(mockFetch).toHaveBeenCalled();
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证使用现有面试记录继续处理的流程
+     */
     it('should process message with existing interview', async () => {
       mockRepo.findActiveInterview.mockResolvedValueOnce(baseState);
       mockRepo.saveFullState.mockResolvedValueOnce({
@@ -422,6 +490,10 @@ describe('StreamMessageService', () => {
       expect(mockRepo.createInterview).not.toHaveBeenCalled();
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证乐观锁版本冲突的重试机制
+     */
     it('should handle version conflict with retry', async () => {
       mockRepo.findActiveInterview.mockResolvedValue(baseState);
       mockRepo.loadFullState.mockResolvedValue({
@@ -467,6 +539,10 @@ describe('StreamMessageService', () => {
       expect(mockRepo.loadFullState).toHaveBeenCalled();
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证版本冲突重试次数超限时的失败处理
+     */
     it('should return error when max retries exceeded', async () => {
       mockRepo.findActiveInterview.mockResolvedValue(baseState);
 
@@ -498,6 +574,10 @@ describe('StreamMessageService', () => {
       expect(result.error).toContain('Version conflict');
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证不是版本冲突类型的保存错误直接返回
+     */
     it('should return error for non-version-conflict save errors', async () => {
       mockRepo.findActiveInterview.mockResolvedValue(baseState);
 
@@ -529,6 +609,10 @@ describe('StreamMessageService', () => {
       expect(result.error).toBe('Database connection failed');
     });
 
+    /**
+     * @test REQ-002-9-03
+     * @intent 验证sessionWebhook提供时自动发送回复的功能
+     */
     it('should send reply when sessionWebhook is provided', async () => {
       mockRepo.findActiveInterview.mockResolvedValue(baseState);
       mockRepo.saveFullState.mockResolvedValue({
@@ -563,6 +647,10 @@ describe('StreamMessageService', () => {
       expect(mockFetch).toHaveBeenCalledWith('https://webhook.example.com', expect.any(Object));
     });
 
+    /**
+     * @test REQ-002-9-03
+     * @intent 验证sessionWebhook为空时不发送回复的功能
+     */
     it('should not send reply when sessionWebhook is empty', async () => {
       mockRepo.findActiveInterview.mockResolvedValue(baseState);
       mockRepo.saveFullState.mockResolvedValue({
@@ -595,6 +683,10 @@ describe('StreamMessageService', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
+    /**
+     * @test REQ-002-9-06
+     * @intent 验证pendingMessages的正确积累方式
+     */
     it('should accumulate pendingMessages correctly', async () => {
       mockRepo.findActiveInterview.mockResolvedValue(baseState);
       mockRepo.saveFullState.mockResolvedValue({
@@ -643,6 +735,10 @@ describe('Exported functions', () => {
   });
 
   describe('parseStreamMessage exported', () => {
+    /**
+     * @test REQ-002-9-01
+     * @intent 验证导出的parseStreamMessage函数可以解析有效的消息
+     */
     it('should parse valid message', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -665,6 +761,10 @@ describe('Exported functions', () => {
       expect(result?.content).toBe('Exported test');
     });
 
+    /**
+     * @test REQ-002-9-02
+     * @intent 验证导出的parseStreamMessage函数对于无效消息返回null
+     */
     it('should return null for invalid message', () => {
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -684,20 +784,35 @@ describe('Exported functions', () => {
   });
 
   describe('sendReply exported', () => {
+    /**
+     * @test REQ-002-9-03
+     * @intent 验证导出的sendReply函数可以成功发送回复
+     */
     it('should send reply successfully', async () => {
-      vi.mocked(global.fetch).mockResolvedValueOnce({ ok: true });
+      vi.mocked(global.fetch).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({}),
+      } as Response);
 
       const result = await sendReply('https://webhook.export.com', 'Exported reply');
 
       expect(result).toBe(true);
     });
 
+    /**
+     * @test REQ-002-9-04
+     * @intent 验证导出的sendReply函数对空webhook返回false
+     */
     it('should return false for empty webhook', async () => {
       const result = await sendReply('', 'Exported reply');
 
       expect(result).toBe(false);
     });
 
+    /**
+     * @test REQ-002-9-05
+     * @intent 验证导出的sendReply函数在fetch错误时返回false
+     */
     it('should handle fetch error', async () => {
       vi.mocked(global.fetch).mockRejectedValueOnce(new Error('Export network error'));
 
