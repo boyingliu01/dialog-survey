@@ -725,6 +725,63 @@ describe('StreamMessageService', () => {
       expect(savedState.pendingMessages).toBeDefined();
       expect(savedState.pendingMessages.length).toBeGreaterThanOrEqual(1);
     });
+
+    /**
+     * @test REQ-002-9-07
+     * @intent 验证用户回复会被正确持久化到pendingResponses
+     */
+    it('should persist user response to pendingResponses', async () => {
+      const existingState = {
+        ...baseState,
+        responses: [{ questionId: 'q0', content: 'First answer', isFollowup: false }],
+      };
+      mockRepo.findActiveInterview.mockResolvedValueOnce(existingState);
+      mockRepo.saveFullState.mockResolvedValueOnce({
+        success: true,
+        newVersion: 2,
+      });
+
+      vi.mocked(runInterviewGraph).mockResolvedValueOnce({
+        response: '下一个问题',
+        nextState: {
+          ...existingState,
+          currentQuestion: 1,
+          responses: [
+            ...existingState.responses,
+            { questionId: 'q1', content: 'My answer', isFollowup: false },
+          ],
+        },
+      });
+
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      const message: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: {
+          topic: 'chat',
+          messageId: 'msg-resp',
+          time: '2024-01-01T00:00:00Z',
+        },
+        data: JSON.stringify({
+          senderStaffId: 'user-123',
+          text: { content: 'My answer' },
+          sessionWebhook: 'https://webhook.example.com',
+        }),
+      };
+
+      await service.processStreamMessage(message);
+
+      expect(mockRepo.saveFullState).toHaveBeenCalled();
+      const savedState = mockRepo.saveFullState.mock.calls[0][1];
+      expect(savedState.pendingResponses).toBeDefined();
+      expect(savedState.pendingResponses.length).toBeGreaterThanOrEqual(1);
+      expect(savedState.pendingResponses).toContainEqual({
+        questionId: 'q1',
+        content: 'My answer',
+        isFollowup: false,
+      });
+    });
   });
 });
 
