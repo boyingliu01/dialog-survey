@@ -188,6 +188,12 @@ export class StreamMessageService {
     });
 
     const nextState = graphResult.nextState;
+    // Persist only newly added responses to the Response table (diff against what was loaded from DB)
+    const existingCount = state.responses.length;
+    const newResponses = nextState.responses.slice(existingCount);
+    if (newResponses.length > 0) {
+      nextState.pendingResponses = newResponses;
+    }
     nextState.pendingMessages.push({
       role: 'assistant',
       content: graphResult.response,
@@ -214,6 +220,11 @@ export class StreamMessageService {
             content: parsed.content,
             isVoice: false,
           });
+          const retryExistingCount = freshState.responses.length;
+          const retryNewResponses = retryGraphResult.nextState.responses.slice(retryExistingCount);
+          if (retryNewResponses.length > 0) {
+            retryGraphResult.nextState.pendingResponses = retryNewResponses;
+          }
           retryGraphResult.nextState.pendingMessages.push({
             role: 'assistant',
             content: retryGraphResult.response,
@@ -249,6 +260,11 @@ export class StreamMessageService {
     }
 
     try {
+      const existingCount = state.responses.length;
+      const newResponses = graphResult.nextState.responses.slice(existingCount);
+      if (newResponses.length > 0) {
+        graphResult.nextState.pendingResponses = newResponses;
+      }
       await this.repo.saveFullState(state.interviewId as string, graphResult.nextState);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';
