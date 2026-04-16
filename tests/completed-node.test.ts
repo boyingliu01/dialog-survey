@@ -37,7 +37,9 @@ describe('completedNode', () => {
   it('should return thank you message', async () => {
     const result = await completedNode(baseState);
 
-    expect(result.response).toBe('访谈已完成。感谢您的参与！');
+    expect(result.response).toBe(
+      '访谈已结束，非常感谢您拨冗参与！您的分享对我们很有价值，祝您一切顺利！'
+    );
     expect(result.shouldContinue).toBe(false);
   });
 
@@ -64,6 +66,8 @@ describe('completedNode', () => {
     const result = await completedNode(minimalState);
 
     expect(result.status).toBe('COMPLETED');
-    expect(result.response).toBe('访谈已完成。感谢您的参与！');
+    expect(result.response).toBe(
+      '访谈已结束，非常感谢您拨冗参与！您的分享对我们很有价值，祝您一切顺利！'
+    );
   });
 });
