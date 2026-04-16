@@ -5,7 +5,7 @@ export async function completedNode(
 ): Promise<Partial<InterviewState> & NodeOutput> {
   return {
     status: 'COMPLETED',
-    response: '访谈已完成。感谢您的参与！',
+    response: '访谈已结束，非常感谢您拨冗参与！您的分享对我们很有价值，祝您一切顺利！',
     shouldContinue: false,
   };
 }

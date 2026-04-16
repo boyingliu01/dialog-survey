@@ -39,7 +39,7 @@ export async function runInterviewGraph(
   }
 
   return {
-    response: output.response || '访谈已完成，感谢您的参与！',
+    response: output.response || '访谈已结束，非常感谢您拨冗参与！',
     nextState: state,
   };
 }

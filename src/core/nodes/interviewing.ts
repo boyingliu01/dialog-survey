@@ -78,7 +78,8 @@ export async function interviewingNode(
     responses: newResponses,
     currentQuestion: currentQ + 1,
     shouldContinue: !!nextQuestion,
-    response: nextQuestion || '访谈已完成，感谢您的参与！',
+    response:
+      nextQuestion || '访谈已完成，非常感谢您拨冗参与！您的分享对我们很有价值，祝您一切顺利！',
   };
 }
 
