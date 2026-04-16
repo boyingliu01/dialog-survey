@@ -69,7 +69,7 @@ describe('analyzingNode', () => {
 
     expect(result.status).toBe('COMPLETED');
     expect(result.reportGenerated).toBe(false);
-    expect(result.response).toBe('访谈已完成，感谢您的参与！');
+    expect(result.response).toBe('访谈已结束，非常感谢您拨冗参与！');
     expect(result.shouldContinue).toBe(false);
   });
 });

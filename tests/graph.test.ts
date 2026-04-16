@@ -137,7 +137,7 @@ describe('runInterviewGraph', () => {
     vi.mocked(interviewingNode).mockResolvedValueOnce({
       currentQuestion: 4,
       responses: [{ questionId: 'q3', content: 'Final answer', isFollowup: false }],
-      response: '访谈已完成，感谢您的参与！',
+      response: '访谈已完成，非常感谢您拨冗参与！您的分享对我们很有价值，祝您一切顺利！',
       shouldContinue: false,
     });
 

@@ -9,7 +9,7 @@ export async function analyzingNode(
     return {
       status: 'COMPLETED',
       reportGenerated: false,
-      response: '访谈已完成，感谢您的参与！',
+      response: '访谈已结束，非常感谢您拨冗参与！',
       shouldContinue: false,
     };
   }
@@ -38,7 +38,7 @@ export async function analyzingNode(
   return {
     status: 'COMPLETED',
     reportGenerated: true,
-    response: '访谈已完成，感谢您的参与！报告生成中，请稍后查看。',
+    response: '访谈已完成，非常感谢您拨冗参与！您的分享对我们很有价值，祝您一切顺利！',
     shouldContinue: false,
   };
 }
