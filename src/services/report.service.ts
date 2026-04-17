@@ -14,6 +14,17 @@ export interface Report {
   generatedAt: Date;
 }
 
+export interface ReportWithDimensions extends Report {
+  dimensionTags?: Array<{
+    dimensionId: string;
+    label: string;
+    sentiment: 'positive' | 'negative' | 'neutral';
+    quotes: string[];
+  }>;
+  emergentTags?: string[];
+  interviewerRating?: number;
+}
+
 export async function generateReport(
   interviewId: string,
   topic: string,
@@ -113,4 +124,76 @@ async function saveReport(report: Report): Promise<string> {
 
   info('Report saved', { filepath });
   return filepath;
+}
+
+export async function generateReportWithDimensions(
+  interviewId: string,
+  _topic: string,
+  qaPairs: Array<{ question: string; answer: string }>,
+  dimensionsJson: string | null,
+  llm: VolcengineLLM
+): Promise<ReportWithDimensions> {
+  const qaText = qaPairs.map((qa) => `Q: ${qa.question}\nA: ${qa.answer}`).join('\n\n');
+
+  const prompt = promptService.render('analyzeWithDimensions', {
+    dimensions: dimensionsJson || '[No preset dimensions]',
+    qaPairs: qaText,
+  });
+
+  try {
+    const response = await withRetry(() =>
+      llm.chat({
+        model: DEFAULT_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 2000,
+        temperature: 0.1,
+      })
+    );
+
+    const parsed = parseDimensionAnalysis(response.content);
+
+    return {
+      interviewId,
+      content: response.content,
+      keyFindings: [],
+      sentiment: '',
+      recommendations: [],
+      generatedAt: new Date(),
+      ...parsed,
+    };
+  } catch (e) {
+    info('Dimension analysis failed', {
+      interviewId,
+      error: (e as Error).message,
+    });
+    return {
+      interviewId,
+      content: '',
+      keyFindings: [],
+      sentiment: '',
+      recommendations: [],
+      generatedAt: new Date(),
+      dimensionTags: [],
+      emergentTags: [],
+    };
+  }
+}
+
+function parseDimensionAnalysis(
+  content: string
+): Pick<ReportWithDimensions, 'dimensionTags' | 'emergentTags' | 'interviewerRating'> {
+  try {
+    const cleaned = content
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim();
+    const jsonStr = JSON.parse(cleaned) as Record<string, any>;
+    return {
+      dimensionTags: jsonStr.dimensionTags || [],
+      emergentTags: jsonStr.emergentTags || [],
+      interviewerRating: jsonStr.interviewerRating || undefined,
+    };
+  } catch {
+    return { dimensionTags: [], emergentTags: [] };
+  }
 }
