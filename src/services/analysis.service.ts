@@ -1,6 +1,13 @@
 import { PrismaClient } from '@prisma/client';
-import { info } from '../utils/logger.js';
-import { type Report, generateReport } from './report.service.js';
+import { info, error } from '../utils/logger.js';
+import {
+  type Report,
+  generateReport,
+  generateReportWithDimensions,
+  type ReportWithDimensions,
+} from './report.service.js';
+import { anonymizePII } from '../utils/pii-anonymizer.js';
+import { recordAnalysisFailure } from './dead-letter.service.js';
 
 export interface AnalysisResult {
   interviewId: string;
@@ -53,6 +60,44 @@ export class AnalysisService {
 
     const metrics = this.calculateMetrics(interview.responses);
 
+    let dimResult: ReportWithDimensions = {
+      interviewId,
+      content: '',
+      keyFindings: [],
+      sentiment: '',
+      recommendations: [],
+      generatedAt: new Date(),
+      dimensionTags: [],
+      emergentTags: [],
+    };
+
+    try {
+      const template = await this.prisma.template.findUnique({
+        where: { id: interview.templateId },
+      });
+      const dimsJson = template?.dimensions ? JSON.stringify(template.dimensions) : null;
+
+      if (dimsJson) {
+        const { VolcengineLLM } = await import('../integrations/llm/volcengine.js');
+        const llm = VolcengineLLM.fromEnv();
+        dimResult = await generateReportWithDimensions(interviewId, topic, qaPairs, dimsJson, llm);
+        dimResult.dimensionTags = dimResult.dimensionTags?.map((tag) => ({
+          ...tag,
+          quotes: tag.quotes.map((q: string) => anonymizePII(q)),
+        }));
+      }
+    } catch (e) {
+      error('Dimension analysis failed', {
+        interviewId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      await recordAnalysisFailure(
+        interviewId,
+        'DIMENSION_ANALYSIS_FAILED',
+        e instanceof Error ? e.message : String(e)
+      );
+    }
+
     await this.prisma.analysisReport.create({
       data: {
         interviewId,
@@ -60,6 +105,9 @@ export class AnalysisService {
         keyFindings: report.keyFindings,
         sentiment: report.sentiment,
         recommendations: report.recommendations,
+        dimensionTags: dimResult.dimensionTags?.length ? dimResult.dimensionTags : undefined,
+        emergentTags: dimResult.emergentTags?.length ? dimResult.emergentTags : undefined,
+        interviewerRating: dimResult.interviewerRating ?? undefined,
       },
     });
 

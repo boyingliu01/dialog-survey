@@ -99,6 +99,30 @@ const TEMPLATES: Record<string, PromptTemplate> = {
       'userAnswer',
     ],
   },
+
+  analyzeWithDimensions: {
+    name: 'analyzeWithDimensions',
+    template: `你是一个定性研究分析师。根据以下访谈对话内容，按预设维度进行分类标注。
+
+**预设维度**：
+{{dimensions}}
+
+每个维度包含：id、label、description、keywords
+
+**访谈内容**：
+{{qaPairs}}
+
+**任务**：
+1. 对每个维度，判断受访者是否提及
+2. 如果提及，判断情感倾向（positive/negative/neutral）
+3. 提取1-2条最具代表性的原文引用
+4. 如果发现预设维度之外的重要问题，提取为emergentTag
+5. 给出整体满意度评分（1-5，5为最满意）
+
+**返回JSON**：
+{"dimensionTags":[{"dimensionId":"...","label":"...","sentiment":"positive|negative|neutral","quotes":["..."]}],"emergentTags":["..."],"interviewerRating":3}`,
+    variables: ['dimensions', 'qaPairs'],
+  },
 };
 
 export class PromptService {

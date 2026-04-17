@@ -70,17 +70,20 @@ model Response {
 }
 
 model Template {
-  id          String         @id @default(uuid())
-  name        String
-  description String?
-  content     String         // JSON string
-  version     Int            @default(1)
-  status      TemplateStatus @default(DRAFT)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id              String         @id @default(uuid())
+  name            String
+  description     String?
+  content         String         // JSON string
+  dimensions      Json?          // NEW: Analysis dimensions for dimension-tag analysis
+  analysisConfig  Json?          // NEW: Analysis configuration
+  version         Int            @default(1)
+  status          TemplateStatus @default(DRAFT)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   interviews    Interview[]
   interviewPlans InterviewPlan[]
+  batchReports  BatchAnalysisReport[]
 }
 
 model InterviewPlan {
@@ -102,6 +105,7 @@ model InterviewPlan {
 
   interviews Interview[]
   template   Template   @relation(fields: [templateId], references: [id])
+  batchReports BatchAnalysisReport[]
 }
 
 enum PlanStatus {
@@ -114,15 +118,66 @@ enum PlanStatus {
 }
 
 model AnalysisReport {
-  id          String   @id @default(uuid())
-  interviewId String
-  content     String
-  keyFindings String[]
-  sentiment   String?
+  id              String   @id @default(uuid())
+  interviewId     String
+  content         String
+  keyFindings     String[]
+  sentiment       String?
   recommendations String[]
-  createdAt   DateTime @default(now())
+  dimensionTags   Json?          // NEW: Structured dimension annotations
+  emergentTags    String[]       // NEW: Emergent issues not in preset dimensions
+  interviewerRating Int?         // NEW: Overall satisfaction rating (1-5)
+  createdAt       DateTime @default(now())
 
   interview Interview? @relation(fields: [interviewId], references: [id])
+}
+
+model AnalysisFailure {
+  id           String    @id @default(uuid())
+  interviewId  String
+  errorType    String
+  errorMessage String
+  createdAt    DateTime  @default(now())
+  retried      Boolean   @default(false)
+  retryCount   Int       @default(0)
+
+  @@unique([interviewId, errorType])
+  @@index([retried])
+}
+
+enum BatchReportStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum BatchReportType {
+  SUMMARY
+  COMPARISON
+  TREND
+}
+
+model BatchAnalysisReport {
+  id          String            @id @default(uuid())
+  planId      String
+  templateId  String
+  type        BatchReportType   @default(SUMMARY)
+  status      BatchReportStatus @default(PENDING)
+  content     String            // Markdown aggregate report
+  metrics     Json              // Dimension mention rates and sentiment breakdowns
+  topics      Json              // Clustered sub-themes per dimension
+  emergents   Json              // Emergent issues
+  checkpoint  Json?             // Intermediate step results for failure recovery
+  error       String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  completedAt DateTime?
+
+  plan     InterviewPlan @relation(fields: [planId], references: [id])
+  template Template      @relation(fields: [templateId], references: [id])
+
+  @@index([planId, status, createdAt])
 }
 
 model AuditLog {
