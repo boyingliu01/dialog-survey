@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { PrismaClient } from '@prisma/client';
 import { AnalysisService } from '../services/analysis.service.js';
 
 const analyzeSingleSchema = z.object({
@@ -65,6 +66,64 @@ export async function analysisRoutes(fastify: FastifyInstance) {
     }
 
     return report;
+  });
+
+  fastify.post('/api/analysis/aggregate/:planId', async (request, reply) => {
+    const { planId } = request.params as { planId: string };
+    const prisma = (analysisService as any).prisma as PrismaClient;
+
+    try {
+      const existing = (await prisma.batchAnalysisReport.findFirst({
+        where: { planId, status: 'RUNNING' },
+      })) as { id: string } | null;
+
+      if (existing) {
+        return reply.status(409).send({
+          error: 'Aggregate analysis already running',
+          existingReportId: existing.id,
+        });
+      }
+
+      const completed = (await prisma.interview.findFirst({
+        where: { planId, status: 'COMPLETED' },
+      })) as { id: string } | null;
+
+      if (!completed) {
+        return reply.status(400).send({
+          error: 'No COMPLETED interviews found in this plan',
+        });
+      }
+
+      const plan = (await prisma.interviewPlan.findUnique({
+        where: { id: planId },
+        select: { templateId: true },
+      })) as { templateId: string } | null;
+
+      if (!plan) {
+        return reply.status(404).send({ error: 'Plan not found' });
+      }
+
+      const report = (await prisma.batchAnalysisReport.create({
+        data: {
+          planId,
+          templateId: plan.templateId,
+          type: 'SUMMARY',
+          status: 'PENDING',
+          content: '',
+          metrics: {},
+          topics: {},
+          emergents: [],
+        },
+      })) as { id: string; status: string };
+
+      return reply.status(201).send({
+        batchReportId: report.id,
+        status: report.status,
+      });
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : 'Unknown error';
+      return reply.status(500).send({ error: errorMsg });
+    }
   });
 
   fastify.get('/api/analysis/aggregate/:batchReportId', async (request, reply) => {
