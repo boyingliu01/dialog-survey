@@ -28,6 +28,7 @@
     "dotenv": "^17.3.1",
     "fastify": "^5.8.4",
     "fastify-type-provider-zod": "^6.1.0",
+    "p-limit": "^5.0.0",
     "pg": "^8.20.0",
     "pino": "^10.3.1",
     "pino-pretty": "^13.1.3",
