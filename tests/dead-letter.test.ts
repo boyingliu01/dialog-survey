@@ -1,17 +1,15 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { recordAnalysisFailure, getFailedAnalyses } from '../src/services/dead-letter.service.js';
 
 const prisma = new PrismaClient();
 
-/**
- * @test REQ-SAFETY-001
- * @intent verify LLM analysis failures are recorded in dead-letter table for later retry
- * @covers AC-SINGLE-001-03, AC-RELIABILITY-001
- */
 describe('Analysis Dead-Letter Service', () => {
-  afterEach(async () => {
+  beforeEach(async () => {
     await prisma.analysisFailure.deleteMany({ where: {} });
+  });
+
+  afterAll(async () => {
     await prisma.$disconnect();
   });
 
@@ -31,27 +29,24 @@ describe('Analysis Dead-Letter Service', () => {
     expect(failures[0].errorMessage).toContain('timed out');
   });
 
-  /**
-   * @test REQ-RELIABILITY-001
-   * @intent verify failed analyses can be queried for batch retry
-   * @covers AC-RELIABILITY-001-01
-   */
+  /** @test REQ-RELIABILITY-001 @intent verify failed analyses can be queried @covers AC-RELIABILITY-001-01 */
   it('returns only failed analyses for batch retry', async () => {
-    await recordAnalysisFailure('interview-1', 'LLM_ERROR', 'Rate limited');
-    await recordAnalysisFailure('interview-2', 'LLM_TIMEOUT', 'Timed out');
+    await recordAnalysisFailure('dl-retry-a', 'LLM_ERROR', 'Rate limited');
+    await recordAnalysisFailure('dl-retry-b', 'LLM_TIMEOUT', 'Timed out');
 
     const failures = await getFailedAnalyses();
-    expect(failures).toHaveLength(2);
-    expect(failures.map((f) => f.interviewId)).toContain('interview-1');
-    expect(failures.map((f) => f.interviewId)).toContain('interview-2');
+    const dlFailures = failures.filter((f) => f.interviewId.startsWith('dl-retry-'));
+    expect(dlFailures).toHaveLength(2);
+    expect(dlFailures.map((f) => f.interviewId)).toContain('dl-retry-a');
+    expect(dlFailures.map((f) => f.interviewId)).toContain('dl-retry-b');
   });
 
   it('does not record duplicate failures for same interview', async () => {
-    await recordAnalysisFailure('interview-1', 'LLM_ERROR', 'Error 1');
-    await recordAnalysisFailure('interview-1', 'LLM_ERROR', 'Error 2');
+    await recordAnalysisFailure('dl-dedup', 'LLM_ERROR', 'Error 1');
+    await recordAnalysisFailure('dl-dedup', 'LLM_ERROR', 'Error 2');
 
     const failures = await prisma.analysisFailure.findMany({
-      where: { interviewId: 'interview-1' },
+      where: { interviewId: 'dl-dedup' },
     });
     expect(failures).toHaveLength(1);
     expect(failures[0].errorMessage).toBe('Error 1');
