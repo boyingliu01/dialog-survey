@@ -1,7 +1,8 @@
-import { TemplateStatus } from '@prisma/client';
+import { PrismaClient, TemplateStatus } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { TemplateRepository } from '../repositories/template.repository.js';
+import { updateTemplateDimensions } from '../services/template-dimension.service.js';
 
 const createTemplateSchema = z.object({
   name: z.string().min(1),
@@ -18,6 +19,7 @@ const updateTemplateSchema = z.object({
 
 export async function templateRoutes(fastify: FastifyInstance) {
   const templateRepo = new TemplateRepository();
+  const prisma = new PrismaClient();
 
   fastify.post('/api/templates', async (request, _reply) => {
     const input = createTemplateSchema.parse(request.body);
@@ -96,6 +98,30 @@ export async function templateRoutes(fastify: FastifyInstance) {
       createdAt: template.createdAt,
       updatedAt: template.updatedAt,
     };
+  });
+
+  fastify.put('/api/templates/:id/dimensions', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = request.body as { dimensions?: any[] };
+
+    if (!body.dimensions) {
+      return reply.status(400).send({ error: 'dimensions field is required' });
+    }
+
+    try {
+      const template = await updateTemplateDimensions(prisma, id, body.dimensions);
+      return {
+        id: template.id,
+        name: template.name,
+        dimensions: template.dimensions,
+        updatedAt: template.updatedAt,
+      };
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Invalid dimensions', message: e.message });
+      }
+      throw e;
+    }
   });
 
   fastify.delete('/api/templates/:id', async (request, reply) => {
