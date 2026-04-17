@@ -66,4 +66,23 @@ export async function analysisRoutes(fastify: FastifyInstance) {
 
     return report;
   });
+
+  fastify.get('/api/analysis/aggregate/:batchReportId', async (request, reply) => {
+    const { batchReportId } = request.params as { batchReportId: string };
+
+    try {
+      const report = await (analysisService as any).prisma.batchAnalysisReport.findUnique({
+        where: { id: batchReportId },
+      });
+
+      if (!report) {
+        return reply.status(404).send({ error: 'Aggregate report not found' });
+      }
+
+      return report;
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : 'Unknown error';
+      return reply.status(500).send({ error: errorMsg });
+    }
+  });
 }
