@@ -3,6 +3,16 @@ import { PrismaClient } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
 
+vi.mock('../src/integrations/dingtalk/message-sender.js', () => ({
+  messageSender: {
+    sendTextMessage: vi.fn().mockResolvedValue({
+      taskId: 'mock-task',
+      successCount: 1,
+      failedUserIds: [],
+    }),
+  },
+}));
+
 describe('InterviewPlanService - Additional Coverage', () => {
   let service: InterviewPlanService;
   let mockPrisma: any;

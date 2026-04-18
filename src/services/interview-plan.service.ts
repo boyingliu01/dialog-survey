@@ -1,5 +1,6 @@
 import { PlanStatus, Prisma, PrismaClient } from '@prisma/client';
 import { error, info } from '../utils/logger.js';
+import { messageSender } from '../integrations/dingtalk/message-sender.js';
 
 export interface CreatePlanInput {
   name: string;
@@ -184,7 +185,10 @@ export class InterviewPlanService {
   }
 
   private async sendInvitation(userId: string, planName: string): Promise<void> {
-    info('Sending invitation', { userId, planName });
+    await messageSender.sendTextMessage(
+      [userId],
+      `您被邀请参与「${planName}」访谈，请点击链接开始。`
+    );
   }
 
   async updatePlanStatus(planId: string, status: PlanStatus): Promise<void> {
