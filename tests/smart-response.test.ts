@@ -1,8 +1,8 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { describe, expect, it, vi } from 'vitest';
 import { promptService } from '../src/services/prompt.service.js';
 
-const followupServiceContent = readFileSync('src/services/followup.service.ts', 'utf-8');
+const _followupServiceContent = readFileSync('src/services/followup.service.ts', 'utf-8');
 
 describe('Smart Response System', () => {
   describe('parseLLMResponse', () => {

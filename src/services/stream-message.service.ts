@@ -1,6 +1,6 @@
-import type { InterviewState } from '../core/types/index.js';
 import type { GraphResult } from '../core/graph.js';
 import { runInterviewGraph } from '../core/graph.js';
+import type { InterviewState } from '../core/types/index.js';
 import { InterviewStateRepository } from '../repositories/interview-state.repository.js';
 import { error, info } from '../utils/logger.js';
 

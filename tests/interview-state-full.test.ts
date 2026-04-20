@@ -1,5 +1,5 @@
+import { PrismaClient } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { PrismaClient, InterviewStatus } from '@prisma/client';
 import type { InterviewState } from '../src/core/types/index.js';
 import { InterviewStateRepository } from '../src/repositories/interview-state.repository.js';
 

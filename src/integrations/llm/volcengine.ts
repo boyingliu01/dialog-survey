@@ -1,5 +1,5 @@
-import { LLMOptions, LLMRequest, LLMResponse, LLMService } from './base.js';
 import { error, info } from '../../utils/logger.js';
+import { LLMOptions, LLMRequest, LLMResponse, LLMService } from './base.js';
 
 const CHAT_API_PATH = '/v1/chat/completions';
 

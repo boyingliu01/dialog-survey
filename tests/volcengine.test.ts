@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { VolcengineLLM, DEFAULT_MODEL } from '../src/integrations/llm/volcengine.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_MODEL, VolcengineLLM } from '../src/integrations/llm/volcengine.js';
 
 describe('VolcengineLLM', () => {
   const mockApiKey = 'test-api-key';

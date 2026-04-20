@@ -1,6 +1,6 @@
-import { InterviewState, NodeOutput } from '../types/index.js';
 import { generateSmartResponse } from '../../services/followup.service.js';
 import { info } from '../../utils/logger.js';
+import { InterviewState, NodeOutput } from '../types/index.js';
 
 export async function interviewingNode(
   state: InterviewState,
