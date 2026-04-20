@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { computeDimensionStats } from '../src/services/batch-aggregation.service.js';
 
 /** @test REQ-BATCH-002 @intent verify dimension statistics are computed correctly @covers AC-BATCH-002-01 */
@@ -46,13 +46,13 @@ describe('Batch Aggregation: Dimension Statistics', () => {
     expect(stats.dimensions).toHaveLength(2);
     const stability = stats.dimensions.find((d) => d.dimensionId === 'stability');
     expect(stability).toBeDefined();
-    expect(stability!.mentionRate).toBeCloseTo(0.5);
-    expect(stability!.sentimentBreakdown.negative).toBeCloseTo(2 / 3);
-    expect(stability!.sentimentBreakdown.positive).toBeCloseTo(1 / 3);
+    expect(stability?.mentionRate).toBeCloseTo(0.5);
+    expect(stability?.sentimentBreakdown.negative).toBeCloseTo(2 / 3);
+    expect(stability?.sentimentBreakdown.positive).toBeCloseTo(1 / 3);
 
     const usability = stats.dimensions.find((d) => d.dimensionId === 'usability');
     expect(usability).toBeDefined();
-    expect(usability!.mentionRate).toBeCloseTo(1 / 6);
+    expect(usability?.mentionRate).toBeCloseTo(1 / 6);
   });
 
   it('returns empty stats when no dimensions', () => {
@@ -81,8 +81,8 @@ describe('Batch Aggregation: Dimension Statistics', () => {
 
     const stats = computeDimensionStats(dimensionTags, 1);
     expect(stats.dimensions).toHaveLength(2);
-    expect(stats.dimensions.find((d) => d.dimensionId === 'stability')!.mentionRate).toBe(1);
-    expect(stats.dimensions.find((d) => d.dimensionId === 'performance')!.mentionRate).toBe(1);
+    expect(stats.dimensions.find((d) => d.dimensionId === 'stability')?.mentionRate).toBe(1);
+    expect(stats.dimensions.find((d) => d.dimensionId === 'performance')?.mentionRate).toBe(1);
   });
 });
 

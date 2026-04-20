@@ -1,5 +1,5 @@
-import { afterAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@prisma/client';
+import { afterAll, describe, expect, it } from 'vitest';
 import { updateTemplateDimensions } from '../src/services/template-dimension.service.js';
 
 const prisma = new PrismaClient();

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { InterviewState } from '../src/core/types/index.js';
 import { runInterviewGraph } from '../src/core/graph.js';
+import type { InterviewState } from '../src/core/types/index.js';
 
 vi.mock('../src/core/nodes/planning.js', () => ({
   planningNode: vi.fn().mockResolvedValue({

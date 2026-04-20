@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { VolcengineLLM, DEFAULT_MODEL } from '../integrations/llm/volcengine.js';
+import { DEFAULT_MODEL, VolcengineLLM } from '../integrations/llm/volcengine.js';
 import { info } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';

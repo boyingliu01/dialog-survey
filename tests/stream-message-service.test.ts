@@ -1,13 +1,13 @@
-import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { runInterviewGraph } from '../src/core/graph.js';
+import type { InterviewState } from '../src/core/types/index.js';
+import { InterviewStateRepository } from '../src/repositories/interview-state.repository.js';
 import {
   StreamMessageService,
   parseStreamMessage,
   sendReply,
 } from '../src/services/stream-message.service.js';
 import type { StreamMessage } from '../src/services/stream-message.service.js';
-import type { InterviewState } from '../src/core/types/index.js';
-import { InterviewStateRepository } from '../src/repositories/interview-state.repository.js';
-import { runInterviewGraph } from '../src/core/graph.js';
 
 vi.mock('../src/core/graph.js', () => ({
   runInterviewGraph: vi.fn(),

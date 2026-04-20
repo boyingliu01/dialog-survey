@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateReportWithDimensions } from '../src/services/report.service.js';
 
 describe('Report Generation with Dimensions', () => {
@@ -19,7 +19,7 @@ describe('Report Generation with Dimensions', () => {
     );
 
     expect(result.dimensionTags).toHaveLength(1);
-    expect(result.dimensionTags![0].sentiment).toBe('negative');
+    expect(result.dimensionTags?.[0].sentiment).toBe('negative');
     expect(result.emergentTags).toContain('数据安全担忧');
   });
 
