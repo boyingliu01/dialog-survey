@@ -1,6 +1,5 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
 import { AnalysisService } from '../services/analysis.service.js';
 
 const analyzeSingleSchema = z.object({
@@ -70,7 +69,7 @@ export async function analysisRoutes(fastify: FastifyInstance) {
 
   fastify.post('/api/analysis/aggregate/:planId', async (request, reply) => {
     const { planId } = request.params as { planId: string };
-    const prisma = (analysisService as any).prisma as PrismaClient;
+    const prisma = analysisService.prisma;
 
     try {
       const existing = (await prisma.batchAnalysisReport.findFirst({
@@ -130,7 +129,7 @@ export async function analysisRoutes(fastify: FastifyInstance) {
     const { batchReportId } = request.params as { batchReportId: string };
 
     try {
-      const report = await (analysisService as any).prisma.batchAnalysisReport.findUnique({
+      const report = await analysisService.prisma.batchAnalysisReport.findUnique({
         where: { id: batchReportId },
       });
 
@@ -138,9 +137,10 @@ export async function analysisRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'Aggregate report not found' });
       }
 
-      return report;
+      return reply.status(200).send(report);
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : 'Unknown error';
+      fastify.log.error({ error: errorMsg }, 'GET aggregate endpoint error');
       return reply.status(500).send({ error: errorMsg });
     }
   });
