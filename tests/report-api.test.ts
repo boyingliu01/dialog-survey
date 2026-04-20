@@ -1,7 +1,7 @@
+import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { analysisRoutes } from '../src/api/analysis.js';
-import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 

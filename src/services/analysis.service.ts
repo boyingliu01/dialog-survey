@@ -1,13 +1,13 @@
 import { PrismaClient } from '@prisma/client';
-import { info, error } from '../utils/logger.js';
-import {
-  type Report,
-  generateReport,
-  generateReportWithDimensions,
-  type ReportWithDimensions,
-} from './report.service.js';
+import { error, info } from '../utils/logger.js';
 import { anonymizePII } from '../utils/pii-anonymizer.js';
 import { recordAnalysisFailure } from './dead-letter.service.js';
+import {
+  type Report,
+  type ReportWithDimensions,
+  generateReport,
+  generateReportWithDimensions,
+} from './report.service.js';
 
 export interface AnalysisResult {
   interviewId: string;
@@ -34,10 +34,14 @@ export interface ClusterAnalysis {
 }
 
 export class AnalysisService {
-  private prisma: PrismaClient;
+  private _prisma: PrismaClient;
 
   constructor(prisma?: PrismaClient) {
-    this.prisma = prisma || new PrismaClient();
+    this._prisma = prisma ?? new PrismaClient();
+  }
+
+  get prisma(): PrismaClient {
+    return this._prisma;
   }
 
   async analyzeInterview(interviewId: string): Promise<AnalysisResult> {
