@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import Fastify, { FastifyInstance } from 'fastify';
-import { analysisRoutes } from '../src/api/analysis.js';
-import { AnalysisService } from '../src/services/analysis.service.js';
 import { PrismaClient } from '@prisma/client';
+import Fastify, { FastifyInstance } from 'fastify';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { analysisRoutes } from '../src/api/analysis.js';
 
 const prisma = new PrismaClient();
 

@@ -1,6 +1,6 @@
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@prisma/client';
-import { recordAnalysisFailure, getFailedAnalyses } from '../src/services/dead-letter.service.js';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { getFailedAnalyses, recordAnalysisFailure } from '../src/services/dead-letter.service.js';
 
 const prisma = new PrismaClient();
 

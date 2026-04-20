@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { clusterDimensionQuotes, discoverEmergentIssues } from '../src/services/llm-clustering.js';
 
 /** @test REQ-BATCH-003 @intent verify LLM clusters quotes into sub-themes @covers AC-BATCH-003-01 */

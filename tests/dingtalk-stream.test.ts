@@ -79,9 +79,9 @@ describe('DingTalkStreamClient', () => {
       const client = DingTalkStreamClient.fromEnv();
       expect(client).toBeInstanceOf(DingTalkStreamClient);
 
-      delete process.env.DINGTALK_CLIENT_ID;
-      delete process.env.DINGTALK_CLIENT_SECRET;
-      delete process.env.DINGTALK_AGENT_ID;
+      process.env.DINGTALK_CLIENT_ID = undefined;
+      process.env.DINGTALK_CLIENT_SECRET = undefined;
+      process.env.DINGTALK_AGENT_ID = undefined;
     });
   });
 

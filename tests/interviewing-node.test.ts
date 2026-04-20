@@ -1,6 +1,6 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { InterviewState } from '../src/core/types/index.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { interviewingNode } from '../src/core/nodes/interviewing.js';
+import type { InterviewState } from '../src/core/types/index.js';
 
 vi.mock('../src/services/followup.service.js', () => ({
   isFollowupNeeded: vi.fn().mockResolvedValue(false),

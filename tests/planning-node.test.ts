@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { InterviewState } from '../src/core/types/index.js';
 import { planningNode } from '../src/core/nodes/planning.js';
+import type { InterviewState } from '../src/core/types/index.js';
 
 describe('planningNode', () => {
   const baseState: InterviewState = {

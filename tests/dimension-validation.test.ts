@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
-  dimensionSchema,
   analysisConfigSchema,
-  dimensionsArraySchema,
+  dimensionSchema,
   dimensionTagSchema,
-  dimensionTagsArraySchema,
-  validateDimensions,
+  dimensionsArraySchema,
   validateDimensionTags,
+  validateDimensions,
 } from '../src/schemas/dimensions.js';
 
 describe('Zod Schemas: Dimension Validation', () => {

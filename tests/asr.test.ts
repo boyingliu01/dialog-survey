@@ -1,5 +1,5 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { transcribeAudio, isASRConfigured } from '../src/services/asr.service.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isASRConfigured, transcribeAudio } from '../src/services/asr.service.js';
 
 describe('ASR Service', () => {
   beforeEach(() => {
@@ -159,7 +159,7 @@ describe('ASR Service', () => {
 
       const callArgs = mockFetch.mock.calls[0];
       expect(callArgs[1].method).toBe('POST');
-      expect(callArgs[1].headers['Authorization']).toBe('Bearer test-api-key');
+      expect(callArgs[1].headers.Authorization).toBe('Bearer test-api-key');
       expect(callArgs[1].headers['Content-Type']).toBe('application/json');
 
       const body = JSON.parse(callArgs[1].body);

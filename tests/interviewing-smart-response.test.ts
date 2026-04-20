@@ -1,6 +1,6 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import type { InterviewState } from '../src/core/types/index.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { interviewingNode } from '../src/core/nodes/interviewing.js';
+import type { InterviewState } from '../src/core/types/index.js';
 
 vi.mock('../src/services/followup.service.js', () => ({
   generateSmartResponse: vi.fn(),
@@ -11,7 +11,7 @@ describe('interviewingNode - Smart Response Branches', () => {
     vi.clearAllMocks();
   });
 
-  const createMockState = (currentQuestion: number, followupCount: number = 0): InterviewState => ({
+  const createMockState = (currentQuestion: number, followupCount = 0): InterviewState => ({
     userId: 'user-123',
     interviewId: 'interview-123',
     templateId: 'default',

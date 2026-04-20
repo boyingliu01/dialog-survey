@@ -1,8 +1,8 @@
-import { VolcengineLLM, DEFAULT_MODEL } from '../integrations/llm/volcengine.js';
+import type { InterviewState } from '../core/types/index.js';
+import { DEFAULT_MODEL, VolcengineLLM } from '../integrations/llm/volcengine.js';
+import { info } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
-import { info } from '../utils/logger.js';
-import type { InterviewState } from '../core/types/index.js';
 
 export interface StructuredResponse {
   thinking: string;
