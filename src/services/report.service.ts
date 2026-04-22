@@ -79,20 +79,55 @@ function parseReportContent(content: string): {
   let sentiment = 'neutral';
   const recommendations: string[] = [];
 
-  const findingMatch = content.match(/关键发现[:：]\s*([\s\S]*?)(?=情感分析|行动建议|$)/i);
+  // Support both "### 1. 关键发现" (Markdown header) and "关键发现:" formats
+  const findingMatch =
+    content.match(/[##\s]*关键发现[:：]?\s*\n?([\s\S]*?)(?=情感分析|行动建议|### .*建议|$)/i) ||
+    content.match(/关键发现[\s:：]*([\s\S]*?)(?=情感分析|行动建议|$)/i);
   if (findingMatch) {
-    const findings = findingMatch[1].split(/[\n，,]/).filter((f) => f.trim());
+    // Split by newlines or markdown list markers, filter out empty/heading lines
+    const findings = findingMatch[1]
+      .split(/[\n]+/)
+      .map((f) =>
+        f
+          .replace(/^[-*•]\s*/, '')
+          .replace(/^\d+\.\s*/, '')
+          .trim()
+      )
+      .filter((f) => f.length > 0);
     keyFindings.push(...findings.slice(0, 5));
   }
 
-  const sentimentMatch = content.match(/情感分析[:：]\s*([\n，,]?\s*[\u4e00-\u9fa5a-zA-Z]+)/i);
+  // Support both "### 2. 情感分析" and "情感分析:" formats
+  const sentimentMatch =
+    content.match(/情感分析[:：]\s*([\u4e00-\u9fa5]+)/i) ||
+    content.match(
+      /情感分析[\s\S]*?(积极|正面|negative|positive|消极|负面|negative|neutral|中立|neutral)/i
+    );
   if (sentimentMatch) {
-    sentiment = sentimentMatch[1].trim().toLowerCase();
+    const raw = sentimentMatch[1].trim().toLowerCase();
+    if (raw.includes('积极') || raw.includes('正面') || raw === 'positive') {
+      sentiment = 'positive';
+    } else if (raw.includes('消极') || raw.includes('负面') || raw === 'negative') {
+      sentiment = 'negative';
+    } else {
+      sentiment = 'neutral';
+    }
   }
 
-  const recMatch = content.match(/行动建议[:：]\s*([\s\S]*)/i);
+  // Support both "### 3. 行动建议" and "行动建议:" formats
+  const recMatch =
+    content.match(/行动建议[:：]?\s*\n?([\s\S]*?)(?=总结|$)/i) ||
+    content.match(/行动建议[\s\S]*?([\s\S]*)/i);
   if (recMatch) {
-    const recs = recMatch[1].split(/[\n，,]/).filter((r) => r.trim());
+    const recs = recMatch[1]
+      .split(/[\n]+/)
+      .map((r) =>
+        r
+          .replace(/^[-*•]\s*/, '')
+          .replace(/^\d+\.\s*/, '')
+          .trim()
+      )
+      .filter((r) => r.length > 0);
     recommendations.push(...recs.slice(0, 5));
   }
 

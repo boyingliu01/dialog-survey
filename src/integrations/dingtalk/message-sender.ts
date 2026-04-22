@@ -76,21 +76,18 @@ export class DingTalkMessageSender {
 
     for (let attempt = 1; attempt <= 3; attempt++) {
       const token = await tokenManager.getAccessToken();
-      const response = await fetch(
-        'https://oapi.dingtalk.com/topapi/message/corpconversation/asyncsend_v2',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-acs-dingtalk-access-token': token,
-          },
-          body: JSON.stringify({
-            agent_id: agentId,
-            userid_list: userIds.join(','),
-            msg,
-          }),
-        }
-      );
+      const url = `https://oapi.dingtalk.com/topapi/message/corpconversation/asyncsend_v2?access_token=${encodeURIComponent(token)}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          agent_id: agentId,
+          userid_list: userIds.join(','),
+          msg,
+        }),
+      });
 
       const data = (await response.json()) as {
         errcode: number;
