@@ -187,7 +187,7 @@ export class InterviewPlanService {
   private async sendInvitation(userId: string, planName: string): Promise<void> {
     await messageSender.sendTextMessage(
       [userId],
-      `您被邀请参与「${planName}」访谈，请点击链接开始。`
+      `您被邀请参与「${planName}」访谈。请直接在钉钉中回复 OpenClaw小钉 任意消息（如"你好"或"开始"）即可开始访谈。`
     );
   }
 
