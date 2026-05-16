@@ -1,30 +1,54 @@
+import { TemplateRepository } from '../../repositories/template.repository.js';
 import { InterviewState, NodeOutput } from '../types/index.js';
+
+export interface TemplateContent {
+  name: string;
+  description?: string;
+  invitationPrompt: string;
+  questions: string[];
+  dimensions?: Array<{
+    id: string;
+    label: string;
+    keywords?: string[];
+  }>;
+  analysisConfig?: Record<string, unknown>;
+}
 
 export async function planningNode(
   state: InterviewState
 ): Promise<Partial<InterviewState> & NodeOutput> {
-  const template = getTemplate(state.templateId);
-  const firstQuestion = template.questions[0];
+  const content = await loadTemplateContent(state.templateId);
+  const greeting = content.invitationPrompt;
 
   return {
-    status: 'ACTIVE', // Transition from PENDING to ACTIVE
+    status: 'ACTIVE',
     currentQuestion: 0,
     messages: [
       ...state.messages,
       {
         role: 'assistant',
-        content: firstQuestion,
+        content: greeting,
         timestamp: new Date(),
       },
     ],
-    response: firstQuestion,
+    response: greeting,
     shouldContinue: true,
   };
 }
 
-function getTemplate(templateId?: string) {
+async function loadTemplateContent(templateId?: string): Promise<TemplateContent> {
+  const repo = new TemplateRepository();
+
+  if (templateId) {
+    const template = await repo.findById(templateId);
+    if (template) {
+      return JSON.parse(template.content) as TemplateContent;
+    }
+  }
+
   return {
-    id: templateId || 'default',
+    name: 'Default Interview',
+    invitationPrompt: '您好！欢迎参与本次访谈。您的回答对我们非常重要，请根据提示回答问题即可。',
     questions: [
       '请简单介绍一下您的工作经历？',
       '您在工作中遇到过最大的挑战是什么？',

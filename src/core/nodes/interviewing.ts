@@ -1,14 +1,23 @@
 import { generateSmartResponse } from '../../services/followup.service.js';
+import { TemplateRepository } from '../../repositories/template.repository.js';
 import { info } from '../../utils/logger.js';
 import { InterviewState, NodeOutput } from '../types/index.js';
+
+export interface TemplateContent {
+  name: string;
+  description?: string;
+  invitationPrompt: string;
+  questions: string[];
+  closingMessage?: string;
+}
 
 export async function interviewingNode(
   state: InterviewState,
   input: { content: string }
 ): Promise<Partial<InterviewState> & NodeOutput> {
-  const template = getTemplate(state.templateId);
+  const content = await loadTemplateContent(state.templateId);
   const currentQ = state.currentQuestion;
-  const currentQuestion = template.questions[currentQ];
+  const currentQuestion = content.questions[currentQ];
 
   const newResponses = [
     ...state.responses,
@@ -54,17 +63,27 @@ export async function interviewingNode(
       };
     }
 
-    const nextQuestion = template.questions[currentQ + 1];
+    const nextQuestion = content.questions[currentQ + 1];
+    const isLastQuestion = !nextQuestion;
+
+    if (isLastQuestion && smartResult.response) {
+      const closing =
+        content.closingMessage ||
+        '非常感谢您的分享！这些信息对我们非常有价值。访谈到此结束，祝您工作顺利！';
+
+      return {
+        responses: newResponses,
+        currentQuestion: currentQ + 1,
+        shouldContinue: false,
+        response: `${smartResult.response}\n\n${closing}`,
+      };
+    }
 
     return {
       responses: newResponses,
       currentQuestion: currentQ + 1,
-      shouldContinue: !!nextQuestion,
-      response: smartResult.shouldProceedToNext
-        ? nextQuestion
-          ? `${smartResult.response}\n\n${nextQuestion}`
-          : smartResult.response
-        : smartResult.response,
+      shouldContinue: true,
+      response: smartResult.response ? `${smartResult.response}\n\n${nextQuestion}` : nextQuestion,
     };
   } catch (e) {
     info('Smart response generation failed, falling back to next question', {
@@ -72,7 +91,18 @@ export async function interviewingNode(
     });
   }
 
-  const nextQuestion = template.questions[currentQ + 1];
+  const nextQuestion = content.questions[currentQ + 1];
+  const isLastQuestion = !nextQuestion;
+
+  if (isLastQuestion) {
+    const closing = content.closingMessage || '访谈已完成，感谢您的参与！';
+    return {
+      responses: newResponses,
+      currentQuestion: currentQ + 1,
+      shouldContinue: false,
+      response: closing,
+    };
+  }
 
   return {
     responses: newResponses,
@@ -83,9 +113,19 @@ export async function interviewingNode(
   };
 }
 
-function getTemplate(templateId?: string) {
+async function loadTemplateContent(templateId?: string): Promise<TemplateContent> {
+  const repo = new TemplateRepository();
+
+  if (templateId) {
+    const template = await repo.findById(templateId);
+    if (template) {
+      return JSON.parse(template.content) as TemplateContent;
+    }
+  }
+
   return {
-    id: templateId || 'default',
+    name: 'Default Interview',
+    invitationPrompt: '您好！欢迎参与本次访谈。',
     questions: [
       '请简单介绍一下您的工作经历？',
       '您在工作中遇到过最大的挑战是什么？',
