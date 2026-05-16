@@ -334,6 +334,141 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // GET /admin/templates/:id - Template detail page
+  fastify.get(
+    `${BASE_PATH}/templates/:id`,
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      try {
+        const template = await prisma.template.findUnique({
+          where: { id },
+          include: {
+            _count: { select: { interviewPlans: true, interviews: true } },
+            interviewPlans: {
+              orderBy: { createdAt: 'desc' },
+              take: 20,
+              select: {
+                id: true,
+                name: true,
+                status: true,
+                completedCount: true,
+                sentCount: true,
+                createdAt: true,
+              },
+            },
+          },
+        });
+        if (!template) return reply.status(404).type('text/html').send('模板不存在');
+
+        const content = JSON.parse(template.content || '{}') as Record<string, unknown>;
+        const plans = template.interviewPlans;
+
+        return reply.view('templates/detail.njk', {
+          adminApiKey: ADMIN_API_KEY,
+          template,
+          content,
+          plans,
+          planCount: template._count.interviewPlans,
+          interviewCount: template._count.interviews,
+        });
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Failed to load template detail';
+        error('Failed to load template detail', { error: errMsg, templateId: id });
+        return reply.status(500).view('error.njk', { message: errMsg });
+      }
+    }
+  );
+
+  // GET /admin/api/templates/:id/stats - Usage statistics JSON
+  fastify.get(
+    `${API_PATH}/templates/:id/stats`,
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      try {
+        const interviews = await prisma.interview.groupBy({
+          by: ['status'],
+          where: { templateId: id },
+          _count: true,
+        });
+        const plans = await prisma.interviewPlan.groupBy({
+          by: ['status'],
+          where: { templateId: id },
+          _count: true,
+        });
+        return reply.send({
+          interviews: Object.fromEntries(interviews.map((i) => [i.status, i._count])),
+          plans: Object.fromEntries(plans.map((p) => [p.status, p._count])),
+          totalInterviews: interviews.reduce((sum: number, i) => sum + (i._count as number), 0),
+          totalPlans: plans.reduce((sum: number, p) => sum + (p._count as number), 0),
+        });
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Failed';
+        return reply.status(500).send({ error: errMsg });
+      }
+    }
+  );
+
+  // GET /admin/plans/:id - Plan detail page
+  fastify.get(
+    `${BASE_PATH}/plans/:id`,
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      try {
+        const plan = await prisma.interviewPlan.findUnique({
+          where: { id },
+          include: {
+            template: { select: { id: true, name: true } },
+            interviews: {
+              orderBy: { createdAt: 'desc' },
+              select: { id: true, userId: true, status: true, createdAt: true, updatedAt: true },
+            },
+            _count: { select: { interviews: true } },
+          },
+        });
+        if (!plan) return reply.status(404).type('text/html').send('计划不存在');
+
+        const completedCount = plan.interviews.filter((i) => i.status === 'COMPLETED').length;
+
+        return reply.view('plans/detail.njk', {
+          adminApiKey: ADMIN_API_KEY,
+          plan,
+          template: plan.template,
+          interviews: plan.interviews,
+          totalInterviews: plan._count.interviews,
+          completedCount,
+          completionRate:
+            plan.sentCount > 0 ? Math.round((completedCount / plan.sentCount) * 100) : 0,
+        });
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Failed to load plan detail';
+        error('Failed to load plan detail', { error: errMsg, planId: id });
+        return reply.status(500).view('error.njk', { message: errMsg });
+      }
+    }
+  );
+
+  // GET /admin/analytics - Analytics dashboard placeholder
+  fastify.get(
+    `${BASE_PATH}/analytics`,
+    { preHandler: adminAuth },
+    async (_r: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const [templates, plans] = await Promise.all([
+          prisma.template.findMany({ select: { id: true, name: true } }),
+          prisma.interviewPlan.findMany({ select: { id: true, name: true } }),
+        ]);
+        return reply.view('analytics/index.njk', { adminApiKey: ADMIN_API_KEY, templates, plans });
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Failed to load analytics';
+        error('Failed to load analytics', { error: errMsg });
+        return reply.status(500).view('error.njk', { message: errMsg });
+      }
+    }
+  );
+
   fastify.get(
     `${BASE_PATH}/plans`,
     { preHandler: adminAuth },
