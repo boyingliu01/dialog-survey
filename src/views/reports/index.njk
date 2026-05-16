@@ -1,0 +1,56 @@
+{% extends "layouts/admin.njk" %}
+
+{% block content %}
+<h1 class="text-2xl font-bold text-gray-900 mb-6">访谈报告</h1>
+
+<div class="bg-white rounded-lg border p-4 mb-4">
+  <div class="flex gap-3 items-end">
+    <div><label class="block text-xs text-gray-500 mb-1">计划</label><select id="filter-plan" class="border rounded px-3 py-1.5 text-sm"><option value="">全部</option>{% for p in plans or [] %}<option value="{{ p.id }}" {% if filters and filters.planId == p.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}</select></div>
+    <div><label class="block text-xs text-gray-500 mb-1">模板</label><select id="filter-template" class="border rounded px-3 py-1.5 text-sm"><option value="">全部</option>{% for t in templates or [] %}<option value="{{ t.id }}" {% if filters and filters.templateId == t.id %}selected{% endif %}>{{ t.name }}</option>{% endfor %}</select></div>
+    <div><label class="block text-xs text-gray-500 mb-1">状态</label><select id="filter-status" class="border rounded px-3 py-1.5 text-sm"><option value="">全部</option><option value="COMPLETED" {% if filters and filters.status == 'COMPLETED' %}selected{% endif %}>已完成</option><option value="ACTIVE" {% if filters and filters.status == 'ACTIVE' %}selected{% endif %}>进行中</option><option value="PENDING" {% if filters and filters.status == 'PENDING' %}selected{% endif %}>待访谈</option></select></div>
+    <button onclick="applyFilters()" class="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">筛选</button>
+  </div>
+</div>
+
+<div class="overflow-x-auto">
+  <table class="min-w-full divide-y divide-gray-200">
+    <thead class="bg-gray-50"><tr><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">受访者</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">所属计划</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">模板</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">状态</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">情感</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">完成时间</th><th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">操作</th></tr></thead>
+    <tbody class="bg-white divide-y divide-gray-200">
+      {% for report in reports %}
+      <tr>
+        <td class="px-4 py-2 text-sm">{{ report.interview.userId }}</td>
+        <td class="px-4 py-2 text-sm">{% if report.interview.plan %}<a href="/admin/plans/{{ report.interview.plan.id }}" class="text-blue-600 hover:text-blue-800">{{ report.interview.plan.name }}</a>{% else %}-{% endif %}</td>
+        <td class="px-4 py-2 text-sm">{% if report.interview.template %}<a href="/admin/templates/{{ report.interview.template.id }}" class="text-blue-600 hover:text-blue-800">{{ report.interview.template.name }}</a>{% else %}-{% endif %}</td>
+        <td class="px-4 py-2"><span class="px-2 py-1 text-xs font-semibold rounded-full {% if report.interview.status == 'COMPLETED' %}bg-green-100 text-green-800{% elif report.interview.status == 'ACTIVE' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-600{% endif %}">{{ report.interview.status }}</span></td>
+        <td class="px-4 py-2 text-sm">{{ report.sentiment or '-' }}</td>
+        <td class="px-4 py-2 text-sm text-gray-500">{{ report.createdAtFormatted }}</td>
+        <td class="px-4 py-2"><a href="/admin/reports/{{ report.interviewId }}" class="text-blue-600 hover:text-blue-800 text-sm">查看</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">暂无报告。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if totalPages > 1 %}
+<div class="flex justify-center gap-2 mt-4">
+  {% if currentPage > 1 %}<a href="?page={{ currentPage - 1 }}" class="px-3 py-1 border rounded hover:bg-gray-100">上一页</a>{% endif %}
+  <span class="px-3 py-1">第 {{ currentPage }} / {{ totalPages }} 页</span>
+  {% if currentPage < totalPages %}<a href="?page={{ currentPage + 1 }}" class="px-3 py-1 border rounded hover:bg-gray-100">下一页</a>{% endif %}
+</div>
+{% endif %}
+
+<script>
+function applyFilters() {
+  const plan = document.getElementById('filter-plan').value;
+  const template = document.getElementById('filter-template').value;
+  const status = document.getElementById('filter-status').value;
+  let url = '/admin/reports?';
+  if (plan) url += 'planId=' + plan + '&';
+  if (template) url += 'templateId=' + template + '&';
+  if (status) url += 'status=' + status;
+  window.location.href = url;
+}
+</script>
+{% endblock %}
