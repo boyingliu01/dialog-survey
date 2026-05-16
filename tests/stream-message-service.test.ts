@@ -17,6 +17,30 @@ vi.mock('../src/repositories/interview-state.repository.js', () => ({
   InterviewStateRepository: vi.fn(),
 }));
 
+vi.mock('../src/repositories/template.repository.js', () => {
+  return {
+    TemplateRepository: class {
+      async findAll() {
+        return [
+          {
+            id: 'test-template',
+            name: 'Test Template',
+            status: 'PUBLISHED',
+            content: JSON.stringify({
+              name: 'Test',
+              invitationPrompt: 'Hello',
+              questions: ['Q1', 'Q2', 'Q3', 'Q4'],
+            }),
+          },
+        ];
+      }
+      async findById() {
+        return null;
+      }
+    },
+  };
+});
+
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
