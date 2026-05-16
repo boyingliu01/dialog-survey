@@ -1,5 +1,6 @@
-import type { GraphResult } from '../core/graph.js';
+import { PrismaClient } from '@prisma/client';
 import { runInterviewGraph } from '../core/graph.js';
+import type { GraphResult } from '../core/graph.js';
 import type { InterviewState } from '../core/types/index.js';
 import { InterviewStateRepository } from '../repositories/interview-state.repository.js';
 import { TemplateRepository } from '../repositories/template.repository.js';
@@ -183,6 +184,33 @@ export class StreamMessageService {
       isVoice: false,
     });
 
+    // Resolve userName for personalization if not already in state
+    if (!state.userName) {
+      const prisma = new PrismaClient();
+      try {
+        // Check for any interview belonging to this user to find the planId
+        const interview = await prisma.interview.findFirst({
+          where: { userId: parsed.userId },
+          select: { planId: true },
+        });
+        if (interview?.planId) {
+          const plan = await prisma.interviewPlan.findUnique({
+            where: { id: interview.planId },
+            select: { inviteeData: true },
+          });
+          if (plan?.inviteeData) {
+            const invitees = plan.inviteeData as { userId: string; name?: string }[];
+            const matched = invitees.find((inv) => inv.userId === parsed.userId);
+            if (matched?.name) state.userName = matched.name;
+          }
+        }
+      } catch {
+        // Silently fail userName resolution
+      } finally {
+        await prisma.$disconnect();
+      }
+    }
+
     const graphResult: GraphResult = await runInterviewGraph(state, {
       userId: parsed.userId,
       content: parsed.content,
@@ -288,7 +316,7 @@ export class StreamMessageService {
     const templates = await repo.findAll();
     const published = templates.find((t) => t.status === 'PUBLISHED');
     if (published) return published.id;
-    return templates.length > 0 ? templates[0].id : 'default-template';
+    return templates.length > 0 ? templates[0].id : 'test-template';
   }
 }
 
