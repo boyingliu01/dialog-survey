@@ -1,7 +1,7 @@
 import { PrismaClient, Template, TemplateStatus } from '@prisma/client';
 
 export class TemplateRepository {
-  private prisma: PrismaClient;
+  private readonly prisma: PrismaClient;
 
   constructor(prisma?: PrismaClient) {
     this.prisma = prisma || new PrismaClient();

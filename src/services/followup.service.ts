@@ -1,6 +1,6 @@
 import type { InterviewState } from '../core/types/index.js';
 import { DEFAULT_MODEL, VolcengineLLM } from '../integrations/llm/volcengine.js';
-import { info } from '../utils/logger.js';
+import { info, warn } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
 
@@ -20,30 +20,19 @@ export interface SmartResponseResult {
 
 export const FALLBACK_RESPONSE = '感谢您的回答，我们继续下一个话题。';
 
-/**
- * Parse LLM JSON response, handling markdown code block wrapping
- */
 export function parseLLMResponse(rawContent: string): StructuredResponse | null {
   let content = rawContent.trim();
-
-  // Strip markdown code block if present
   const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (jsonMatch) {
     content = jsonMatch[1].trim();
   }
-
   try {
     const parsed = JSON.parse(content);
-
-    // Validate required fields
-    if (!parsed.action || !parsed.response) {
-      return null;
-    }
-
-    // Validate and normalize action
+    if (!parsed.action || !parsed.response) return null;
     const validActions = ['NEXT', 'FOLLOWUP', 'END', 'STAY'];
-    const action = validActions.includes(parsed.action) ? parsed.action : 'STAY';
-
+    const action: 'NEXT' | 'FOLLOWUP' | 'END' | 'STAY' = validActions.includes(parsed.action)
+      ? parsed.action
+      : 'STAY';
     return {
       thinking: parsed.thinking || '',
       strategy: parsed.strategy || 1,
@@ -55,70 +44,98 @@ export function parseLLMResponse(rawContent: string): StructuredResponse | null 
   }
 }
 
-/**
- * Truncate text at sentence boundary, preserving readability
- */
 export function smartTruncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) {
-    return text;
-  }
-
-  // Try to find sentence boundary at 70% threshold
+  if (text.length <= maxLength) return text;
   const threshold = Math.floor(maxLength * 0.7);
   const searchStart = Math.min(threshold, maxLength - 10);
-
-  // Look for sentence-ending punctuation
   const punctuations = ['。', '！', '？', '.', '!', '?'];
   let lastPunctuation = -1;
-
   for (const punct of punctuations) {
     const idx = text.lastIndexOf(punct, maxLength);
-    if (idx > searchStart && idx > lastPunctuation) {
-      lastPunctuation = idx;
-    }
+    if (idx > searchStart && idx > lastPunctuation) lastPunctuation = idx;
   }
-
-  if (lastPunctuation > threshold) {
-    return `${text.slice(0, lastPunctuation + 1)}...`;
-  }
-
+  if (lastPunctuation > threshold) return `${text.slice(0, lastPunctuation + 1)}...`;
   return `${text.slice(0, maxLength - 3)}...`;
 }
 
-/**
- * Generate smart response with intent understanding + strategy selection
- * Single LLM call replacing the old 3-step process
- */
 export async function generateSmartResponse(
   state: InterviewState,
   userAnswer: string,
-  currentQuestion: string
+  currentQuestion: string,
+  customPrompt?: string,
+  isLastQuestion?: boolean
 ): Promise<SmartResponseResult> {
   const llm = VolcengineLLM.fromEnv();
 
-  // Build conversation history from messages
   const conversationHistory = state.messages
+    .slice(-6)
     .map((m) => `${m.role === 'user' ? '用户' : '主持人'}: ${m.content}`)
     .join('\n');
 
+  const userName = state.userName || '受访者';
+  const lastQuestionFlag = isLastQuestion
+    ? '\n【注意】：这是最后一个问题。请回顾用户的分享，写一段温暖的告别语，总结他提到的核心观点和感受。不要提出新的问题。\n'
+    : '';
+
+  if (customPrompt) {
+    const prompt = customPrompt
+      .replace(/\{\{conversationHistory\}\}/g, conversationHistory)
+      .replace(/\{\{currentQuestion\}\}/g, currentQuestion)
+      .replace(/\{\{followupCount\}\}/g, String(state.followupCount))
+      .replace(/\{\{maxFollowups\}\}/g, String(state.maxFollowups))
+      .replace(/\{\{userAnswer\}\}/g, userAnswer)
+      .replace(/\{\{userName\}\}/g, userName)
+      .replace(/\{\{lastQuestionFlag\}\}/g, lastQuestionFlag);
+
+    try {
+      const response = await withRetry(() =>
+        llm.chat({ model: DEFAULT_MODEL, messages: [{ role: 'user', content: prompt }] })
+      );
+      const parsed = parseLLMResponse(response.content);
+      if (!parsed) {
+        warn('Failed to parse custom prompt result, falling back');
+        return {
+          response: FALLBACK_RESPONSE,
+          action: 'NEXT',
+          shouldProceedToNext: true,
+          shouldEndInterview: false,
+        };
+      }
+      if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups)
+        parsed.action = 'NEXT';
+      return {
+        response: smartTruncate(parsed.response, 150),
+        action: parsed.action,
+        shouldProceedToNext: parsed.action === 'NEXT',
+        shouldEndInterview: parsed.action === 'END',
+      };
+    } catch {
+      warn('Custom prompt LLM call failed');
+      return {
+        response: FALLBACK_RESPONSE,
+        action: 'NEXT',
+        shouldProceedToNext: true,
+        shouldEndInterview: false,
+      };
+    }
+  }
+
+  // Default system prompt
   const prompt = promptService.render('generateSmartResponse', {
     conversationHistory,
     currentQuestion,
     followupCount: String(state.followupCount),
     maxFollowups: String(state.maxFollowups),
     userAnswer,
+    userName,
+    lastQuestionFlag,
   });
 
   try {
     const response = await withRetry(() =>
-      llm.chat({
-        model: DEFAULT_MODEL,
-        messages: [{ role: 'user', content: prompt }],
-      })
+      llm.chat({ model: DEFAULT_MODEL, messages: [{ role: 'user', content: prompt }] })
     );
-
     const parsed = parseLLMResponse(response.content);
-
     if (!parsed) {
       info('Failed to parse LLM response, using fallback');
       return {
@@ -128,8 +145,6 @@ export async function generateSmartResponse(
         shouldEndInterview: false,
       };
     }
-
-    // Force NEXT if followup limit exceeded and LLM suggested FOLLOWUP
     if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups) {
       info('Followup limit exceeded, forcing NEXT');
       return {
@@ -139,7 +154,6 @@ export async function generateSmartResponse(
         shouldEndInterview: false,
       };
     }
-
     return {
       response: smartTruncate(parsed.response, 150),
       action: parsed.action,

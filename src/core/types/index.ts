@@ -14,6 +14,7 @@ export const InterviewStateSchema = z.object({
   templateId: z.string().optional(),
   interviewId: z.string().optional(),
   status: z.enum(['PENDING', 'ACTIVE', 'WAITING', 'COMPLETED', 'CANCELLED']).default('PENDING'),
+  userName: z.string().optional(),
   messages: z.array(
     z.object({
       role: z.enum(['user', 'assistant', 'system']),
