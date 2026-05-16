@@ -1,6 +1,12 @@
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
+import fastifyView from '@fastify/view';
 import { PrismaClient } from '@prisma/client';
 import Fastify from 'fastify';
+import nunjucks from 'nunjucks';
+import { adminTemplatesRoutes } from './api/admin-templates.js';
 import { analysisRoutes } from './api/analysis.js';
 import { healthRoutes } from './api/health.js';
 import { interviewPlanRoutes } from './api/plans.js';
@@ -10,6 +16,9 @@ import { DingTalkStreamClient } from './integrations/dingtalk/stream-client.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
 import { error, info } from './utils/logger.js';
 import { securityMiddleware } from './utils/security.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const DB_CHECK_TIMEOUT_MS = 5000;
 
@@ -36,42 +45,6 @@ async function checkDatabaseConnection(): Promise<boolean> {
   }
 }
 
-async function initializeDefaultTemplate(): Promise<void> {
-  const prisma = new PrismaClient();
-
-  try {
-    const existing = await prisma.template.findUnique({
-      where: { id: 'default-template' },
-    });
-
-    if (!existing) {
-      await prisma.template.create({
-        data: {
-          id: 'default-template',
-          name: 'Default Interview Template',
-          description: 'Default template for DingTalk Stream interviews',
-          content: JSON.stringify({
-            questions: [
-              '请简单介绍一下您的工作经历？',
-              '您在之前的项目中遇到过什么挑战？',
-              '您如何处理团队合作中的分歧？',
-            ],
-          }),
-          status: 'PUBLISHED',
-        },
-      });
-      info('Created default-template');
-    } else {
-      info('default-template already exists');
-    }
-  } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
-    error('Failed to initialize default-template', { error: errMsg });
-  } finally {
-    await prisma.$disconnect();
-  }
-}
-
 export async function buildApp() {
   const fastify = Fastify({
     logger: {
@@ -89,12 +62,27 @@ export async function buildApp() {
     origin: true,
   });
 
+  await fastify.register(fastifyStatic, {
+    root: resolve(__dirname, '..', 'public'),
+  });
+
+  const viewsDir = resolve(__dirname, '..', 'src', 'views');
+  await fastify.register(fastifyView, {
+    engine: { nunjucks },
+    templates: viewsDir,
+    options: {
+      autoescape: true,
+      noCache: true,
+    },
+  });
+
   await securityMiddleware(fastify);
   await fastify.register(healthRoutes);
   await fastify.register(webhookRoutes);
   await fastify.register(interviewPlanRoutes);
   await fastify.register(templateRoutes);
   await fastify.register(analysisRoutes);
+  await fastify.register(adminTemplatesRoutes);
 
   return fastify;
 }
@@ -104,8 +92,6 @@ export async function startServer() {
   if (!dbOk) {
     process.exit(1);
   }
-
-  await initializeDefaultTemplate();
 
   const app = await buildApp();
 

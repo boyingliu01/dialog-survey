@@ -2,6 +2,7 @@ import type { GraphResult } from '../core/graph.js';
 import { runInterviewGraph } from '../core/graph.js';
 import type { InterviewState } from '../core/types/index.js';
 import { InterviewStateRepository } from '../repositories/interview-state.repository.js';
+import { TemplateRepository } from '../repositories/template.repository.js';
 import { error, info } from '../utils/logger.js';
 
 export interface StreamMessage {
@@ -156,11 +157,12 @@ export class StreamMessageService {
     let state = await this.repo.findActiveInterview(parsed.userId);
 
     if (!state) {
-      const interviewId = await this.repo.createInterview(parsed.userId, 'default-template');
+      const templateId = await this.resolveDefaultTemplateId();
+      const interviewId = await this.repo.createInterview(parsed.userId, templateId);
       state = {
         userId: parsed.userId,
         interviewId,
-        templateId: 'default-template',
+        templateId,
         status: 'PENDING',
         messages: [],
         currentQuestion: 0,
@@ -279,6 +281,14 @@ export class StreamMessageService {
     }
 
     return { success: true, response: graphResult.response };
+  }
+
+  private async resolveDefaultTemplateId(): Promise<string> {
+    const repo = new TemplateRepository();
+    const templates = await repo.findAll();
+    const published = templates.find((t) => t.status === 'PUBLISHED');
+    if (published) return published.id;
+    return templates.length > 0 ? templates[0].id : 'default-template';
   }
 }
 
