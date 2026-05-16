@@ -1,6 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { planningNode } from '../src/core/nodes/planning.js';
 import type { InterviewState } from '../src/core/types/index.js';
+
+vi.mock('../src/repositories/template.repository.js', () => {
+  return {
+    TemplateRepository: class {
+      async findById() {
+        return null;
+      }
+      async findAll() {
+        return [];
+      }
+    },
+  };
+});
 
 describe('planningNode', () => {
   const baseState: InterviewState = {
@@ -20,10 +33,12 @@ describe('planningNode', () => {
     pendingResponses: [],
   };
 
-  it('should return first question as response', async () => {
+  it('should return invitation prompt as response', async () => {
     const result = await planningNode(baseState);
 
-    expect(result.response).toBe('请简单介绍一下您的工作经历？');
+    expect(result.response).toBe(
+      '您好！欢迎参与本次访谈。您的回答对我们非常重要，请根据提示回答问题即可。'
+    );
     expect(result.shouldContinue).toBe(true);
     expect(result.currentQuestion).toBe(0);
   });
@@ -37,7 +52,9 @@ describe('planningNode', () => {
 
     expect(result.messages).toHaveLength(1);
     expect(result.messages[0].role).toBe('assistant');
-    expect(result.messages[0].content).toBe('请简单介绍一下您的工作经历？');
+    expect(result.messages[0].content).toBe(
+      '您好！欢迎参与本次访谈。您的回答对我们非常重要，请根据提示回答问题即可。'
+    );
     expect(result.messages[0].timestamp).toBeDefined();
   });
 
@@ -66,7 +83,9 @@ describe('planningNode', () => {
     const stateWithoutTemplate = { ...baseState, templateId: undefined };
     const result = await planningNode(stateWithoutTemplate);
 
-    expect(result.response).toBe('请简单介绍一下您的工作经历？');
+    expect(result.response).toBe(
+      '您好！欢迎参与本次访谈。您的回答对我们非常重要，请根据提示回答问题即可。'
+    );
     expect(result.shouldContinue).toBe(true);
   });
 
