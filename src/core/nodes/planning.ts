@@ -18,6 +18,7 @@ export async function planningNode(
   state: InterviewState
 ): Promise<Partial<InterviewState> & NodeOutput> {
   const content = await loadTemplateContent(state.templateId);
+  const firstQuestion = content.questions[0];
   const greeting = content.invitationPrompt;
 
   return {
@@ -31,7 +32,7 @@ export async function planningNode(
         timestamp: new Date(),
       },
     ],
-    response: greeting,
+    response: firstQuestion,
     shouldContinue: true,
   };
 }

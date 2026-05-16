@@ -18,27 +18,11 @@ vi.mock('../src/repositories/interview-state.repository.js', () => ({
 }));
 
 vi.mock('../src/repositories/template.repository.js', () => {
-  return {
-    TemplateRepository: class {
-      async findAll() {
-        return [
-          {
-            id: 'test-template',
-            name: 'Test Template',
-            status: 'PUBLISHED',
-            content: JSON.stringify({
-              name: 'Test',
-              invitationPrompt: 'Hello',
-              questions: ['Q1', 'Q2', 'Q3', 'Q4'],
-            }),
-          },
-        ];
-      }
-      async findById() {
-        return null;
-      }
-    },
+  const MockClass = class {
+    findAll = vi.fn().mockResolvedValue([]);
+    findById = vi.fn().mockResolvedValue(null);
   };
+  return { TemplateRepository: MockClass };
 });
 
 const mockFetch = vi.fn();
@@ -485,7 +469,7 @@ describe('StreamMessageService', () => {
       });
 
       vi.mocked(runInterviewGraph).mockResolvedValueOnce({
-        response: '下一个问题',
+        response: '请简单介绍一下您的工作经历？',
         nextState: { ...baseState, currentQuestion: 1 },
       });
 
@@ -509,7 +493,7 @@ describe('StreamMessageService', () => {
       const result = await service.processStreamMessage(message);
 
       expect(result.success).toBe(true);
-      expect(result.response).toBe('下一个问题');
+      expect(result.response).toBe('请简单介绍一下您的工作经历？');
       expect(mockRepo.findActiveInterview).toHaveBeenCalledWith('user-123');
       expect(mockRepo.createInterview).not.toHaveBeenCalled();
     });
