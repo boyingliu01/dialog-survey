@@ -86,7 +86,7 @@ describe('Report Service', () => {
         { question: 'Q1', answer: 'A1' },
       ]);
 
-      expect(result.sentiment).toBe('非常积极');
+      expect(result.sentiment).toBe('positive');
     });
 
     /**

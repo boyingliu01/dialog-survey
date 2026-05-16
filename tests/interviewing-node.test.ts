@@ -3,9 +3,23 @@ import { interviewingNode } from '../src/core/nodes/interviewing.js';
 import type { InterviewState } from '../src/core/types/index.js';
 
 vi.mock('../src/services/followup.service.js', () => ({
+  generateSmartResponse: vi.fn(),
   isFollowupNeeded: vi.fn().mockResolvedValue(false),
   generateFollowup: vi.fn().mockResolvedValue(null),
 }));
+
+vi.mock('../src/repositories/template.repository.js', () => {
+  return {
+    TemplateRepository: class {
+      async findById() {
+        return null;
+      }
+      async findAll() {
+        return [];
+      }
+    },
+  };
+});
 
 describe('interviewingNode', () => {
   beforeEach(() => {
@@ -57,9 +71,7 @@ describe('interviewingNode', () => {
 
     expect(result.responses).toHaveLength(1);
     expect(result.currentQuestion).toBe(4);
-    expect(result.response).toBe(
-      '访谈已完成，非常感谢您拨冗参与！您的分享对我们很有价值，祝您一切顺利！'
-    );
+    expect(result.response).toBe('访谈已完成，感谢您的参与！');
     expect(result.shouldContinue).toBe(false);
     expect(result.nextQuestion).toBeUndefined();
   });
