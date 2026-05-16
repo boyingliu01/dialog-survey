@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title | default('访谈模板管理') }} - 管理后台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" onerror="this.src='/js/htmx.min.js'"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" onerror="this.src='/js/alpine.min.js'"></script>
+  <link href="/css/admin.css" rel="stylesheet" />
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen" hx-headers='{"X-Admin-Key": "{{ adminApiKey | default('') }}"}'>
+  <nav class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between h-16">
+        <div class="flex items-center">
+          <h1 class="text-xl font-semibold text-gray-900">访谈模板管理</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+          <a href="/admin/templates" class="text-sm text-gray-600 hover:text-gray-900">模板列表</a>
+          <a href="/admin/plans" class="text-sm text-gray-600 hover:text-gray-900">访谈计划</a>
+          <a href="/admin/reports" class="text-sm text-gray-600 hover:text-gray-900">访谈报告</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  {% if error %}
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+    <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+      {{ error }}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if success %}
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+    <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+      {{ success }}
+    </div>
+  </div>
+  {% endif %}
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script>
+    // Global HTMX error handler: show error responses (4xx/5xx) as toast
+    document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+      const xhr = evt.detail.xhr;
+      const status = xhr.status;
+      if (status >= 400) {
+        const response = xhr.responseText;
+        let errorMsg = '操作失败 (HTTP ' + status + ')';
+        if (response && response.includes('text-red-600')) {
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = response;
+          errorMsg = tempDiv.textContent || tempDiv.innerText || errorMsg;
+        }
+        const toast = document.createElement('div');
+        toast.className = 'fixed top-4 right-4 z-50 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded shadow-lg max-w-md';
+        toast.textContent = errorMsg;
+        document.body.appendChild(toast);
+        setTimeout(function() { toast.remove(); }, 5000);
+      }
+    });
+  </script>
+
+  <footer class="bg-white border-t border-gray-200 mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <p class="text-center text-sm text-gray-500">访谈模板管理系统 &copy; 2026</p>
+    </div>
+  </footer>
+</body>
+</html>

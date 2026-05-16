@@ -45,11 +45,11 @@ async function processStreamMessageFull(
   let state = await repo.findActiveInterview(parsed.userId);
 
   if (!state) {
-    const interviewId = await repo.createInterview(parsed.userId, 'default-template');
+    const interviewId = await repo.createInterview(parsed.userId, 'test-template');
     state = {
       userId: parsed.userId,
       interviewId,
-      templateId: 'default-template',
+      templateId: 'test-template',
       status: 'PENDING',
       messages: [],
       currentQuestion: 0,
@@ -185,7 +185,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
 
       expect(result.success).toBe(true);
       expect(result.response).toBe('请简单介绍一下您的工作经历？');
-      expect(mockRepo.createInterview).toHaveBeenCalledWith('user-123', 'default-template');
+      expect(mockRepo.createInterview).toHaveBeenCalledWith('user-123', 'test-template');
       expect(mockSender.sendReply).toHaveBeenCalledWith(
         'https://webhook.example.com',
         '请简单介绍一下您的工作经历？'

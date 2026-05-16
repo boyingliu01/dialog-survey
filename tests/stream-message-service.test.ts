@@ -314,7 +314,7 @@ describe('StreamMessageService', () => {
     const baseState: InterviewState = {
       userId: 'user-123',
       interviewId: 'interview-123',
-      templateId: 'default-template',
+      templateId: 'test-template',
       status: 'ACTIVE',
       messages: [],
       currentQuestion: 0,
@@ -444,7 +444,7 @@ describe('StreamMessageService', () => {
 
       expect(result.success).toBe(true);
       expect(result.response).toBe('请简单介绍一下您的工作经历？');
-      expect(mockRepo.createInterview).toHaveBeenCalledWith('user-123', 'default-template');
+      expect(mockRepo.createInterview).toHaveBeenCalledWith('user-123', 'test-template');
       expect(mockRepo.saveFullState).toHaveBeenCalled();
       expect(mockFetch).toHaveBeenCalled();
     });
