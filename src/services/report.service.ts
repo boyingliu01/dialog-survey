@@ -222,11 +222,16 @@ function parseDimensionAnalysis(
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
       .trim();
-    const jsonStr = JSON.parse(cleaned) as Record<string, any>;
+    const jsonRaw = JSON.parse(cleaned);
+    if (typeof jsonRaw !== 'object' || jsonRaw === null) {
+      return { dimensionTags: [], emergentTags: [] };
+    }
+    const jsonStr = jsonRaw as Record<string, unknown>;
     return {
-      dimensionTags: jsonStr.dimensionTags || [],
-      emergentTags: jsonStr.emergentTags || [],
-      interviewerRating: jsonStr.interviewerRating || undefined,
+      dimensionTags: Array.isArray(jsonStr.dimensionTags) ? jsonStr.dimensionTags : [],
+      emergentTags: Array.isArray(jsonStr.emergentTags) ? jsonStr.emergentTags : [],
+      interviewerRating:
+        typeof jsonStr.interviewerRating === 'number' ? jsonStr.interviewerRating : undefined,
     };
   } catch {
     return { dimensionTags: [], emergentTags: [] };

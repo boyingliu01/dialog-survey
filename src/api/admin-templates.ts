@@ -72,6 +72,183 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
 
+  // GET /admin — Tree view main entry (new hierarchical UI)
+  fastify.get(
+    '/admin',
+    { preHandler: adminAuth },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const templates = await prisma.template.findMany({
+          orderBy: { name: 'asc' },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            status: true,
+            version: true,
+            createdAt: true,
+            _count: { select: { interviewPlans: true, interviews: true } },
+            interviewPlans: {
+              orderBy: { createdAt: 'desc' },
+              take: 20,
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                status: true,
+                completedCount: true,
+                sentCount: true,
+                createdAt: true,
+                _count: { select: { interviews: true } },
+                interviews: {
+                  orderBy: { createdAt: 'desc' },
+                  take: 15,
+                  select: { id: true, userId: true, status: true, completedAt: true },
+                },
+              },
+            },
+          },
+        });
+        const templatesWithPlans = templates.map((t) => ({
+          ...t,
+          _plans: t.interviewPlans.map((p) => ({
+            ...p,
+            _interviews: p.interviews,
+            _interviewCount: p._count.interviews,
+            _completedCount: p.interviews.filter((i) => i.status === 'COMPLETED').length,
+          })),
+          _planCount: t._count.interviewPlans,
+          _interviewCount: t._count.interviews,
+          interviewPlans: undefined,
+        }));
+        return reply.view('layouts/admin-tree.njk', {
+          adminApiKey: ADMIN_API_KEY,
+          templates: templatesWithPlans,
+        });
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Failed to load admin tree';
+        error('Failed to load admin tree', { error: errMsg });
+        return reply.status(500).view('error.njk', { message: errMsg });
+      }
+    }
+  );
+
+  // GET /admin/content/templates/:id
+  fastify.get(
+    '/admin/content/templates/:id',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const template = await prisma.template.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          status: true,
+          version: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: { select: { interviewPlans: true, interviews: true } },
+        },
+      });
+      if (!template) return reply.status(404).type('text/html').send('模板不存在');
+      const tpl = {
+        ...template,
+        _planCount: template._count.interviewPlans,
+        _interviewCount: template._count.interviews,
+      };
+      return reply.view('admin/content/template-info.njk', {
+        adminApiKey: ADMIN_API_KEY,
+        template: tpl,
+      });
+    }
+  );
+
+  // GET /admin/content/plans/:id
+  fastify.get(
+    '/admin/content/plans/:id',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const plan = await prisma.interviewPlan.findUnique({
+        where: { id },
+        include: {
+          template: { select: { id: true, name: true } },
+          interviews: {
+            orderBy: { status: 'asc' },
+            select: { id: true, userId: true, status: true, createdAt: true, completedAt: true },
+          },
+          _count: { select: { interviews: true } },
+        },
+      });
+      if (!plan) return reply.status(404).type('text/html').send('计划不存在');
+      const completed = plan.interviews.filter((i) => i.status === 'COMPLETED');
+      return reply.view('admin/content/plan-detail.njk', {
+        adminApiKey: ADMIN_API_KEY,
+        plan,
+        template: plan.template,
+        interviews: plan.interviews,
+        totalInterviews: plan._count.interviews,
+        completedCount: completed.length,
+        completionRate:
+          plan.sentCount > 0 ? Math.round((completed.length / plan.sentCount) * 100) : 0,
+      });
+    }
+  );
+
+  // GET /admin/content/plans/:id/all-interviews
+  fastify.get(
+    '/admin/content/plans/:id/all-interviews',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const interviews = await prisma.interview.findMany({
+        where: { planId: id },
+        orderBy: { status: 'asc' },
+        select: { id: true, userId: true, status: true, completedAt: true },
+      });
+      const plan = await prisma.interviewPlan.findUnique({
+        where: { id },
+        include: { template: { select: { id: true, name: true } } },
+      });
+      if (!plan) return reply.status(404).type('text/html').send('计划不存在');
+      const completed = interviews.filter((i) => i.status === 'COMPLETED');
+      return reply.view('admin/content/plan-detail.njk', {
+        adminApiKey: ADMIN_API_KEY,
+        plan: { ...plan, sentCount: 0 },
+        template: plan.template,
+        interviews,
+        totalInterviews: interviews.length,
+        completedCount: completed.length,
+        completionRate: 0,
+      });
+    }
+  );
+
+  // GET /admin/content/reports/:interviewId
+  fastify.get(
+    '/admin/content/reports/:interviewId',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { interviewId } = request.params as { interviewId: string };
+      const interview = await prisma.interview.findUnique({
+        where: { id: interviewId },
+        select: { id: true, userId: true, status: true, createdAt: true, completedAt: true },
+      });
+      if (!interview) return reply.status(404).type('text/html').send('访谈不存在');
+      const report = await prisma.analysisReport.findFirst({
+        where: { interviewId },
+        orderBy: { createdAt: 'desc' },
+      });
+      return reply.view('admin/content/report-detail.njk', {
+        adminApiKey: ADMIN_API_KEY,
+        interview,
+        report,
+      });
+    }
+  );
+
   fastify.get(
     `${BASE_PATH}/templates`,
     { preHandler: adminAuth },
