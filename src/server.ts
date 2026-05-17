@@ -1,7 +1,6 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cors from '@fastify/cors';
-import fastifyStatic from '@fastify/static';
 import fastifyView from '@fastify/view';
 import { PrismaClient } from '@prisma/client';
 import Fastify from 'fastify';
@@ -66,11 +65,8 @@ export async function buildApp() {
     origin: true,
   });
 
-  await fastify.register(fastifyStatic, {
-    root: resolve(__dirname, '..', 'public'),
-  });
-
   const viewsDir = resolve(__dirname, '..', 'src', 'views');
+
   await fastify.register(fastifyView, {
     engine: { nunjucks },
     templates: viewsDir,
@@ -79,25 +75,6 @@ export async function buildApp() {
       noCache: true,
     },
   });
-
-  // Register Nunjucks custom filter for date formatting
-  // The `| date` filter doesn't exist in Nunjucks, so we register it here
-  interface NunjucksEnvLocal {
-    addFilter: (name: string, fn: (date: Date, fmt: string) => string) => void;
-  }
-  const fastifyWithNunjucks = fastify as { nunjucks?: { env: NunjucksEnvLocal } } & typeof fastify;
-  if (fastifyWithNunjucks.nunjucks?.env) {
-    fastifyWithNunjucks.nunjucks.env.addFilter('date', (date: Date, fmt: string) => {
-      if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      return fmt
-        .replace('YYYY', date.getFullYear().toString())
-        .replace('MM', pad(date.getMonth() + 1))
-        .replace('DD', pad(date.getDate()))
-        .replace('HH', pad(date.getHours()))
-        .replace('mm', pad(date.getMinutes()));
-    });
-  }
 
   await securityMiddleware(fastify);
   await fastify.register(healthRoutes);

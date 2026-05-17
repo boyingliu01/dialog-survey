@@ -102,7 +102,9 @@ export async function templateRoutes(fastify: FastifyInstance) {
 
   fastify.put('/api/templates/:id/dimensions', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { dimensions?: any[] };
+    const body = request.body as {
+      dimensions?: Array<{ id: string; label: string; keywords?: string[] }>;
+    };
 
     if (!body.dimensions) {
       return reply.status(400).send({ error: 'dimensions field is required' });

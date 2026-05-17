@@ -32,7 +32,7 @@ export async function planningNode(
         timestamp: new Date(),
       },
     ],
-    response: firstQuestion,
+    response: `${greeting}\n\n${firstQuestion}`,
     shouldContinue: true,
   };
 }

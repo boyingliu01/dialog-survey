@@ -18,11 +18,12 @@ export interface DimensionStats {
 export interface Checkpoint {
   completedStep: number;
   dimensionStats?: Record<string, DimensionStat>;
-  topics?: Record<string, any>;
-  emergents?: any[];
+  topics?: Record<string, unknown>;
+  emergents?: unknown[];
 }
 
-export type PipelineStep = (...args: any[]) => Promise<any>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type PipelineStep<T extends unknown[] = unknown[], R = unknown> = (...args: T) => Promise<R>;
 
 export function shouldSkipStep(
   checkpoint: Checkpoint | null | undefined,
