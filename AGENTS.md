@@ -137,7 +137,6 @@ src/
 │   ├── rate-limiter.ts     # API rate limiting
 │   ├── retry.ts            # Retry wrapper
 │   ├── security.ts         # Fastify middleware + PII masking
-│   ├── date.ts             # Date formatting
 │   ├── validation.ts       # Input validation
 │   └── pii-anonymizer.ts   # PII anonymization (new)
 │
@@ -302,7 +301,6 @@ npx prisma studio    # Open Prisma Studio GUI
 |------|---------|--------|
 | `src/utils/validation.ts` | Input validators (email, phone, URL, UUID) | Never imported |
 | `src/utils/encryption.ts` | AES-256-GCM encrypt/decrypt | Never imported |
-| `src/utils/date.ts` | Date formatting helpers | Never imported |
 | `src/utils/rate-limiter.ts` | Token bucket limiter | Never imported externally |
 
 **Large Files (>300 lines):**

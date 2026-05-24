@@ -1,5 +1,19 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { anonymizeData, generateApiKey } from '../src/utils/security.js';
+
+vi.mock('@prisma/client', () => {
+  const mockFindFirst = vi.fn();
+  (globalThis as any).__mockFindFirst = mockFindFirst;
+  return {
+    PrismaClient: class MockPrismaClient {
+      auditLog = { findFirst: mockFindFirst };
+    },
+  };
+});
+
+const getMocks = () => ({
+  findFirst: (globalThis as any).__mockFindFirst,
+});
 
 /**
  * @test Tests for the anonymization function that masks PII data
@@ -77,6 +91,93 @@ describe('generateApiKey', () => {
 
 // These tests only validate the pure functions that do not require database connections
 
-// TODO: Skip testing verifyApiKey function due to complexity of setting up pre-existing API key in auditLog
 // TODO: Skip testing securityMiddleware function due to requiring full Fastify app setup which is too complex for unit tests
 // TODO: Consider integration tests for logSecurityEvent that use real database with cleanup
+
+/**
+ * @test Tests for verifyApiKey middleware
+ */
+describe('verifyApiKey', () => {
+  let ReplyClass: any;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    getMocks().findFirst.mockReset();
+
+    ReplyClass = class MockReply {
+      status(code: number) {
+        this._statusCode = code;
+        return this;
+      }
+      send(body: any) {
+        this._body = body;
+        return this;
+      }
+      _statusCode: number | undefined;
+      _body: any;
+    };
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it('should return 401 when no API key header is present', async () => {
+    const { verifyApiKey } = await import('../src/utils/security.js');
+    const request = { headers: {} } as any;
+    const reply = new ReplyClass();
+
+    const result = await verifyApiKey(request, reply);
+
+    expect(result).toBe(reply);
+    expect(reply._statusCode).toBe(401);
+    expect(reply._body).toEqual({ error: 'API key required' });
+    expect(getMocks().findFirst).not.toHaveBeenCalled();
+  });
+
+  it('should set request.user when valid API key is found', async () => {
+    const { verifyApiKey } = await import('../src/utils/security.js');
+    getMocks().findFirst.mockResolvedValue({ userId: 'user-123', id: 'key-456' });
+
+    const request = { headers: { 'x-api-key': 'ib_abcdef1234567890' } } as any;
+    const reply = new ReplyClass();
+
+    const result = await verifyApiKey(request, reply);
+
+    expect(result).toBeUndefined();
+    expect(request.user).toEqual({ userId: 'user-123', role: 'user' });
+    expect(getMocks().findFirst).toHaveBeenCalledWith({
+      where: {
+        action: 'API_KEY_CREATED',
+        details: { contains: 'ib_abcde' },
+      },
+    });
+  });
+
+  it('should return 401 when API key is not found', async () => {
+    const { verifyApiKey } = await import('../src/utils/security.js');
+    getMocks().findFirst.mockResolvedValue(null);
+
+    const request = { headers: { 'x-api-key': 'ib_invalid_key' } } as any;
+    const reply = new ReplyClass();
+
+    const result = await verifyApiKey(request, reply);
+
+    expect(result).toBe(reply);
+    expect(reply._statusCode).toBe(401);
+    expect(reply._body).toEqual({ error: 'Invalid API key' });
+  });
+
+  it('should default userId to unknown when keyRecord has no userId', async () => {
+    const { verifyApiKey } = await import('../src/utils/security.js');
+    getMocks().findFirst.mockResolvedValue({ id: 'key-789', userId: null });
+
+    const request = { headers: { 'x-api-key': 'ib_xyz98765' } } as any;
+    const reply = new ReplyClass();
+
+    await verifyApiKey(request, reply);
+
+    expect(request.user).toEqual({ userId: 'unknown', role: 'user' });
+  });
+});

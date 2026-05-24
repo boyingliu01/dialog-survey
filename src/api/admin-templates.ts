@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
 import { TemplateRepository } from '../repositories/template.repository.js';
+import { AnalyticsService } from '../services/analytics.service.js';
 import { error, info } from '../utils/logger.js';
 
 const createTemplateSchema = z.object({
@@ -627,21 +628,60 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // GET /admin/analytics - Analytics dashboard placeholder
+  // GET /admin/analytics - Analytics dashboard
   fastify.get(
     `${BASE_PATH}/analytics`,
     { preHandler: adminAuth },
     async (_r: FastifyRequest, reply: FastifyReply) => {
       try {
-        const [templates, plans] = await Promise.all([
-          prisma.template.findMany({ select: { id: true, name: true } }),
-          prisma.interviewPlan.findMany({ select: { id: true, name: true } }),
-        ]);
-        return reply.view('analytics/index.njk', { adminApiKey: ADMIN_API_KEY, templates, plans });
+        const analyticsService = new AnalyticsService(prisma);
+        const [kpis, statusDistribution, planCompletionRates, weeklyTrend, templates, plans] =
+          await Promise.all([
+            analyticsService.getKPIs(),
+            analyticsService.getStatusDistribution(),
+            analyticsService.getPlanCompletionRates(),
+            analyticsService.getWeeklyTrend(),
+            prisma.template.findMany({ select: { id: true, name: true } }),
+            prisma.interviewPlan.findMany({ select: { id: true, name: true } }),
+          ]);
+        return reply.view('analytics/index.njk', {
+          adminApiKey: ADMIN_API_KEY,
+          kpis,
+          statusDistribution,
+          planCompletionRates,
+          weeklyTrend,
+          templates,
+          plans,
+        });
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : 'Failed to load analytics';
         error('Failed to load analytics', { error: errMsg });
         return reply.status(500).view('error.njk', { message: errMsg });
+      }
+    }
+  );
+
+  // GET /api/admin/analytics/data - Analytics data API
+  fastify.get(
+    `${API_PATH}/analytics/data`,
+    { preHandler: adminAuth },
+    async (_r: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const analyticsService = new AnalyticsService(prisma);
+        const [kpis, statusDistribution, planCompletionRates, weeklyTrend] = await Promise.all([
+          analyticsService.getKPIs(),
+          analyticsService.getStatusDistribution(),
+          analyticsService.getPlanCompletionRates(),
+          analyticsService.getWeeklyTrend(),
+        ]);
+        return reply.send({
+          success: true,
+          data: { kpis, statusDistribution, planCompletionRates, weeklyTrend },
+        });
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Failed to fetch analytics data';
+        error('Failed to fetch analytics data', { error: errMsg });
+        return reply.status(500).send({ success: false, error: errMsg });
       }
     }
   );

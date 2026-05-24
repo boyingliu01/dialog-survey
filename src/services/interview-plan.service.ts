@@ -40,6 +40,8 @@ export class InterviewPlanService {
         targetDate: input.targetDate,
         schedule: input.schedule,
         status: PlanStatus.PENDING,
+        createdBy: 'admin',
+        updatedBy: 'admin',
       },
     });
     info('Interview plan created', { planId: plan.id, name: input.name });
@@ -128,6 +130,7 @@ export class InterviewPlanService {
       data: {
         inviteeData: invitees as unknown as Prisma.InputJsonValue,
         status: PlanStatus.READY,
+        updatedBy: 'admin',
       },
     });
 
@@ -177,6 +180,7 @@ export class InterviewPlanService {
         sentCount: { increment: sent },
         failedCount: { increment: failed },
         startedAt: plan.startedAt || new Date(),
+        updatedBy: 'admin',
       },
     });
 
@@ -192,7 +196,7 @@ export class InterviewPlanService {
   }
 
   async updatePlanStatus(planId: string, status: PlanStatus): Promise<void> {
-    const updateData: Record<string, unknown> = { status };
+    const updateData: Record<string, unknown> = { status, updatedBy: 'admin' };
     if (status === PlanStatus.COMPLETED) {
       updateData.completedAt = new Date();
     }
