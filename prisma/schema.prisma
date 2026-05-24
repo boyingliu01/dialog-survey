@@ -80,6 +80,8 @@ model Template {
   status          TemplateStatus @default(DRAFT)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+  createdBy       String         @default("admin")
+  updatedBy       String         @default("admin")
 
   interviews    Interview[]
   interviewPlans InterviewPlan[]
@@ -102,6 +104,8 @@ model InterviewPlan {
   updatedAt     DateTime  @updatedAt
   startedAt     DateTime?
   completedAt   DateTime?
+  createdBy     String    @default("admin")
+  updatedBy     String    @default("admin")
 
   interviews Interview[]
   template   Template   @relation(fields: [templateId], references: [id])
@@ -173,6 +177,8 @@ model BatchAnalysisReport {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   completedAt DateTime?
+  createdBy   String  @default("admin")
+  updatedBy   String  @default("admin")
 
   plan     InterviewPlan @relation(fields: [planId], references: [id])
   template Template      @relation(fields: [templateId], references: [id])

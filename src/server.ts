@@ -13,7 +13,7 @@ import { templateRoutes } from './api/templates.js';
 import { webhookRoutes } from './api/webhook.js';
 import { DingTalkStreamClient } from './integrations/dingtalk/stream-client.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
-import { error, info } from './utils/logger.js';
+import { error, info, warn } from './utils/logger.js';
 import { securityMiddleware } from './utils/security.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -96,7 +96,7 @@ export async function startServer() {
   const app = await buildApp();
 
   try {
-    await app.listen({ port: 3000, host: '0.0.0.0' });
+    await app.listen({ port: Number(process.env.PORT) || 3001, host: '0.0.0.0' });
 
     const clientId = process.env.DINGTALK_CLIENT_ID;
     const clientSecret = process.env.DINGTALK_CLIENT_SECRET;
@@ -129,7 +129,12 @@ export async function startServer() {
         info('DingTalk Stream disconnected');
       });
 
-      await client.connect();
+      // Non-blocking DingTalk connection — server stays up even if DingTalk fails
+      client.connect().catch((err) => {
+        warn('DingTalk Stream connection failed, server continues without it', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
 
       const gracefulShutdown = async (signal: string) => {
         info(`Received ${signal}, shutting down gracefully`);

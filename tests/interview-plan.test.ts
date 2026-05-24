@@ -44,6 +44,8 @@ describe('InterviewPlanService', () => {
           targetDate: undefined,
           schedule: undefined,
           status: PlanStatus.PENDING,
+          createdBy: 'admin',
+          updatedBy: 'admin',
         },
       });
     });
@@ -176,7 +178,7 @@ describe('InterviewPlanService', () => {
 
       expect(mockPrisma.interviewPlan.update).toHaveBeenCalledWith({
         where: { id: 'plan-1' },
-        data: { status: PlanStatus.PAUSED },
+        data: { status: PlanStatus.PAUSED, updatedBy: 'admin' },
       });
     });
 
@@ -187,7 +189,7 @@ describe('InterviewPlanService', () => {
 
       expect(mockPrisma.interviewPlan.update).toHaveBeenCalledWith({
         where: { id: 'plan-1' },
-        data: { status: PlanStatus.RUNNING },
+        data: { status: PlanStatus.RUNNING, updatedBy: 'admin' },
       });
     });
 
@@ -198,7 +200,7 @@ describe('InterviewPlanService', () => {
 
       expect(mockPrisma.interviewPlan.update).toHaveBeenCalledWith({
         where: { id: 'plan-1' },
-        data: { status: PlanStatus.CANCELLED },
+        data: { status: PlanStatus.CANCELLED, updatedBy: 'admin' },
       });
     });
   });

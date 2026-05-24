@@ -19,6 +19,8 @@ export class TemplateRepository {
         content: JSON.stringify(data.content),
         version: 1,
         status: TemplateStatus.DRAFT,
+        createdBy: 'admin',
+        updatedBy: 'admin',
       },
     });
   }
@@ -49,6 +51,7 @@ export class TemplateRepository {
     if (data.description) updateData.description = data.description;
     if (data.content) updateData.content = JSON.stringify(data.content);
     if (data.status) updateData.status = data.status;
+    updateData.updatedBy = 'admin';
 
     return this.prisma.template.update({
       where: { id },
@@ -117,6 +120,7 @@ export class TemplateRepository {
     if (data.content) updateData.content = JSON.stringify(data.content);
     if (data.status) updateData.status = data.status as TemplateStatus;
     updateData.version = { increment: 1 };
+    updateData.updatedBy = 'admin';
 
     return this.prisma.template.update({
       where: { id, version: expectedVersion },
