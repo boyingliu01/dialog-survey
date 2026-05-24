@@ -35,14 +35,19 @@
   <!-- Top bar -->
   <header class="bg-white border-b border-gray-200 flex-shrink-0 h-11 flex items-center px-4 gap-3">
     <span class="text-sm font-semibold text-gray-800">访谈管理后台</span>
-    <a href="/" class="ml-auto text-xs text-gray-500 hover:text-gray-800">返回主站</a>
+    <div class="ml-auto flex items-center gap-3 text-xs">
+      <a href="/admin/templates" class="text-gray-400 hover:text-gray-700" title="模板管理">模板</a>
+      <a href="/admin/plans" class="text-gray-400 hover:text-gray-700" title="访谈计划">计划</a>
+      <a href="/admin/analytics" class="text-gray-400 hover:text-gray-700" title="统计分析">统计</a>
+      <a href="/" class="text-gray-400 hover:text-gray-800">返回主站</a>
+    </div>
   </header>
 
   <div class="flex flex-1 overflow-hidden">
     <!-- Left Sidebar: Tree (server-rendered) -->
     <aside class="w-72 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
       <div class="flex-1 overflow-y-auto sidebar-scroll px-1 py-2 text-sm">
-        {% include "admin/tree-body.njk" %}
+        {% block tree %}{% include "admin/tree-body.njk" %}{% endblock %}
       </div>
     </aside>
 
