@@ -55,6 +55,7 @@ describe('TemplateRepository - updateWithVersion', () => {
       data: {
         name: 'Updated Name',
         version: { increment: 1 },
+        updatedBy: 'admin',
       },
     });
   });
@@ -86,6 +87,7 @@ describe('TemplateRepository - updateWithVersion', () => {
         content: '{"new":"data"}',
         status: 'PUBLISHED',
         version: { increment: 1 },
+        updatedBy: 'admin',
       },
     });
   });
@@ -100,7 +102,7 @@ describe('TemplateRepository - updateWithVersion', () => {
     );
     expect(mockPrisma.template.update).toHaveBeenCalledWith({
       where: { id: 'tpl-1', version: 5 },
-      data: { name: 'Test', version: { increment: 1 } },
+      data: { name: 'Test', version: { increment: 1 }, updatedBy: 'admin' },
     });
   });
 

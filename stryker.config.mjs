@@ -1,13 +1,7 @@
 export default {
   testRunner: 'vitest',
   coverageAnalysis: 'perTest',
-  mutate: [
-    'src/utils/logger.ts',
-    'src/utils/date.ts',
-    'src/utils/pii-anonymizer.ts',
-    'src/services/asr.service.ts',
-  ],
-  testFiles: ['tests/logger.test.ts', 'tests/pii-anonymizer.test.ts', 'tests/asr.test.ts'],
+  mutate: ['src/utils/logger.ts', 'src/utils/pii-anonymizer.ts', 'src/services/asr.service.ts'],
   vitest: {
     configFile: 'vitest.config.ts',
   },

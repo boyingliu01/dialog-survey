@@ -99,6 +99,7 @@ describe('InterviewPlanService - Additional Coverage', () => {
         data: expect.objectContaining({
           status: PlanStatus.COMPLETED,
           completedAt: expect.any(Date),
+          updatedBy: 'admin',
         }),
       });
     });
@@ -114,7 +115,7 @@ describe('InterviewPlanService - Additional Coverage', () => {
 
       expect(mockPrisma.interviewPlan.update).toHaveBeenCalledWith({
         where: { id: 'plan-1' },
-        data: { status: PlanStatus.RUNNING },
+        data: { status: PlanStatus.RUNNING, updatedBy: 'admin' },
       });
     });
   });
