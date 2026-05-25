@@ -437,7 +437,56 @@ analysis.service → report.service
 3. Test Prisma connection via `/health` endpoint
 4. Check DingTalk webhook signature verification
 
-### When Refactoring
+---
+
+## 人工验收效率原则（2026-05-24 生效）
+
+### 核心原则
+AI 自动化所有能自动化的工作，用户只做必须由人做的事（确认实现是否符合意图）。
+
+### 具体规则
+1. **AI 必须预先完成**：数据库启动、服务启动、端口验证、curl 页面测试、类型检查、lint —— 用户验收时页面必须已经能正常打开
+2. **用户只做**：在浏览器中人工确认 UI 是否符合预期、确认业务逻辑是否正确
+3. **AI 不反复要求用户执行命令**：发现问题 → AI 自己定位 → AI 修复 → AI 验证 → 通知用户结果
+4. **缺工具/权限说明**：如果 AI 无法完成（如 sudo 启动 PostgreSQL、访问外部 API），明确列出用户需要执行的操作清单，且只列一次
+
+此原则写入本项目，所有后续 session 必须遵守。
+
+## Karpathy 工程原则（2026-05-25 生效）
+
+源自 Andrej Karpathy 的 LLM 编码观察，针对"改 A 导致 B 被破坏"问题的两条核心原则。
+
+### 3. Surgical Changes（外科手术式改动）
+
+**只碰必须碰的代码。只清理自己制造的混乱。**
+
+- 编辑现有代码时，不"优化"相邻代码、注释或 formatting
+- 不重构没坏的东西
+- 匹配现有代码风格，即使你更喜欢另一种
+- 发现无关的死代码 → **提及但不要删除**（除非用户明确要求）
+- 自己的改动产生的 orphaned import/variable/function → 必须清理
+
+**判定标准**: 每一行改动都应能直接追溯到用户的请求。
+
+### 4. Goal-Driven Execution（目标驱动执行）
+
+**定义成功标准。循环直到验证。**
+
+- 把指令转化为可验证的目标：
+  - "加验证" → "写非法输入测试 → 让测试通过"
+  - "修 bug" → "写复现测试 → 让测试通过"
+  - "重构 X" → "确保重构前后测试都通过"
+- 多步骤任务时，列出简要计划并标注验证点：
+  ```
+  1. [步骤] → verify: [检查方式]
+  2. [步骤] → verify: [检查方式]
+  ```
+- **改完任何代码后必须运行 `npm run test` 确认无 regression**
+- 强成功标准 → AI 可独立完成闭环；弱标准（"让它跑起来"）→ 需要反复确认
+
+---
+
+### 当 Refactoring
 
 - Follow existing naming conventions
 - Use `import type` for type-only imports
