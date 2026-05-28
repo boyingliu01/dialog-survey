@@ -1,0 +1,90 @@
+{% if template %}
+<div id="delete-modal-{{ template.id }}"
+     x-data="{ open: true }"
+     x-show="open"
+     x-cloak
+     class="fixed inset-0 z-50 overflow-y-auto"
+     aria-labelledby="modal-title" role="dialog" aria-modal="true">
+  <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="open = false"></div>
+    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+    <div class="relative inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg w-full">
+      <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+        <div class="sm:flex sm:items-start">
+          <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+            <svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+            <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+              确认删除模板
+            </h3>
+            <div class="mt-2">
+              <p class="text-sm text-gray-500">
+                您确定要删除模板 <span class="font-semibold text-gray-700">{{ template.name }}</span> 吗？此操作不可撤销。
+              </p>
+
+              {% if usageStats %}
+              <div class="mt-4 bg-gray-50 rounded-md p-3">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">影响范围</h4>
+                <div class="space-y-1 text-sm text-gray-600">
+                  {% if usageStats.interviews %}
+                  <div class="flex justify-between">
+                    <span>关联访谈</span>
+                    <span class="font-medium">{{ usageStats.interviews.total }} 个</span>
+                  </div>
+                  {% if usageStats.interviews.byStatus %}
+                  <div class="pl-4 text-xs text-gray-500">
+                    {% for status, count in usageStats.interviews.byStatus %}
+                    <span>{{ status }}: {{ count }}</span>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                  {% endif %}
+
+                  {% if usageStats.plans %}
+                  <div class="flex justify-between mt-1">
+                    <span>关联计划</span>
+                    <span class="font-medium">{{ usageStats.plans.total }} 个</span>
+                  </div>
+                  {% if usageStats.plans.byStatus %}
+                  <div class="pl-4 text-xs text-gray-500">
+                    {% for status, count in usageStats.plans.byStatus %}
+                    <span>{{ status }}: {{ count }}</span>{% if not loop.last %}, {% endif %}
+                    {% endfor %}
+                  </div>
+                  {% endif %}
+                  {% endif %}
+                </div>
+              </div>
+              {% endif %}
+
+              <p class="mt-2 text-sm text-red-600 font-medium">
+                警告：删除后，正在使用该模板的访谈将无法正常进行。
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+        <button type="button"
+                hx-delete="/admin/api/templates/{{ template.id }}"
+                hx-headers='{"X-Admin-Key": "{{ adminApiKey }}"}'
+                hx-target="#delete-modal-container"
+                hx-swap="innerHTML"
+                hx-confirm="确定要永久删除此模板吗？"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
+          确认删除
+        </button>
+        <button type="button"
+                @click="open = false"
+                hx-on::after-request="document.getElementById('delete-modal-container').innerHTML = ''"
+                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+          取消
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}

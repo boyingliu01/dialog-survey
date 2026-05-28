@@ -1,6 +1,8 @@
+import 'dotenv/config';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cors from '@fastify/cors';
+import fastifyFormbody from '@fastify/formbody';
 import fastifyView from '@fastify/view';
 import { PrismaClient } from '@prisma/client';
 import Fastify from 'fastify';
@@ -57,18 +59,47 @@ export async function buildApp() {
     },
   });
 
-  fastify.addContentTypeParser('*', { parseAs: 'string' }, (_req, _body, done) => {
-    done(null, '');
-  });
+  // Security: limit content-type parsing to known safe types (XML bombs, CSV injection).
+  // Fastify natively handles `application/json` and `application/x-www-form-urlencoded`.
+  fastify.addContentTypeParser(
+    ['application/xml', 'text/xml', 'text/csv'],
+    { parseAs: 'string' },
+    (_req, _body, done) => {
+      done(null, '');
+    }
+  );
 
   await fastify.register(cors, {
     origin: true,
   });
 
+  await fastify.register(fastifyFormbody);
+
   const viewsDir = resolve(__dirname, '..', 'src', 'views');
 
+  const customNunjucks = {
+    ...nunjucks,
+    configure(templatesDir: string | string[], opts: any) {
+      const env = nunjucks.configure(templatesDir, opts);
+      env.addFilter('date', (input: Date | string | null, format?: string) => {
+        if (!input) return '';
+        const date = new Date(input);
+        if (Number.isNaN(date.getTime())) return '';
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        const HH = String(date.getHours()).padStart(2, '0');
+        const MM = String(date.getMinutes()).padStart(2, '0');
+
+        if (format === 'Y-m-d H:i') return `${yyyy}-${mm}-${dd} ${HH}:${MM}`;
+        return `${yyyy}-${mm}-${dd}`;
+      });
+      return env;
+    },
+  };
+
   await fastify.register(fastifyView, {
-    engine: { nunjucks },
+    engine: { nunjucks: customNunjucks as any },
     templates: viewsDir,
     options: {
       autoescape: true,

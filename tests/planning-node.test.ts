@@ -1,13 +1,13 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { planningNode } from '../src/core/nodes/planning.js';
 import type { InterviewState } from '../src/core/types/index.js';
+
+const mockFindById = vi.fn().mockResolvedValue(null);
 
 vi.mock('../src/repositories/template.repository.js', () => {
   return {
     TemplateRepository: class {
-      async findById() {
-        return null;
-      }
+      findById = mockFindById;
       async findAll() {
         return [];
       }
@@ -98,5 +98,23 @@ describe('planningNode', () => {
     const result = await planningNode(state);
 
     expect(result.currentQuestion).toBe(0);
+  });
+
+  it('should handle template with empty questions array gracefully', async () => {
+    mockFindById.mockResolvedValueOnce({
+      id: 'template-empty',
+      content: JSON.stringify({
+        name: 'Empty Template',
+        invitationPrompt: '欢迎！',
+        questions: [],
+      }),
+    });
+
+    const state = { ...baseState, templateId: 'template-empty' };
+    const result = await planningNode(state);
+
+    expect(result.response).toContain('欢迎！');
+    expect(result.response).not.toContain('undefined');
+    expect(result.shouldContinue).toBe(true);
   });
 });

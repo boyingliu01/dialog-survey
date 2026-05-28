@@ -3,11 +3,6 @@ import type { InterviewState } from '../src/core/types/index.js';
 import type { StreamMessage } from '../src/services/stream-message.service.js';
 import { parseStreamMessage } from '../src/services/stream-message.service.js';
 
-interface GraphResult {
-  response: string;
-  nextState: InterviewState;
-}
-
 interface MockRepository {
   loadFullState: ReturnType<typeof vi.fn>;
   saveFullState: ReturnType<typeof vi.fn>;

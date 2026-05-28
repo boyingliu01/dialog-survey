@@ -1,0 +1,36 @@
+{% extends "layouts/admin.njk" %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">访谈计划</h1>
+</div>
+
+<div class="overflow-x-auto">
+  <table class="min-w-full divide-y divide-gray-200">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">计划名称</th>
+        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">关联模板</th>
+        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">状态</th>
+        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">访谈数</th>
+        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">创建时间</th>
+        <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+      </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-gray-200">
+      {% for plan in plans %}
+      <tr>
+        <td class="px-4 py-2"><a href="/admin/plans/{{ plan.id }}" class="text-blue-600 hover:text-blue-800">{{ plan.name }}</a></td>
+        <td class="px-4 py-2 text-sm text-gray-500"><a href="/admin/templates/{{ plan.templateId }}" class="text-blue-600 hover:text-blue-800">{{ plan.templateName }}</a></td>
+        <td class="px-4 py-2"><span class="px-2 py-1 text-xs font-semibold rounded-full {% if plan.status == 'COMPLETED' %}bg-green-100 text-green-800{% elif plan.status == 'RUNNING' %}bg-blue-100 text-blue-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">{{ plan.status }}</span></td>
+        <td class="px-4 py-2 text-sm text-gray-500">{{ plan.interviewCount }}</td>
+        <td class="px-4 py-2 text-sm text-gray-500">{{ plan.createdAtFormatted }}</td>
+        <td class="px-4 py-2"><a href="/admin/plans/{{ plan.id }}" class="text-blue-600 hover:text-blue-800 text-sm">查看</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">暂无访谈计划。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

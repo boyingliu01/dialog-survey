@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, afterEach, vi } from 'vitest';
 
+// biome-ignore lint/suspicious/noExplicitAny: mock instance stored in vi.mock() module scope
 let lastMockInstance: any = null;
-let currentReadyState = 1;
 
 vi.mock('ws', () => {
   const mockSend = vi.fn();
@@ -43,7 +43,6 @@ function getWsMock(): WsMock {
 
 beforeEach(() => {
   lastMockInstance = null;
-  currentReadyState = 1;
 });
 
 describe('DingTalkStreamClient Branch Coverage', () => {
@@ -96,7 +95,7 @@ describe('DingTalkStreamClient Branch Coverage', () => {
     const wsMock = getWsMock();
     expect(wsMock).toBeTruthy();
 
-    currentReadyState = 3;
+    // readyState behavior is not actually tested via this variable -- see MockWs definition
 
     const openCb = wsMock._callbacks.get('open');
     if (openCb) openCb();

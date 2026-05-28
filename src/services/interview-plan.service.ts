@@ -10,6 +10,16 @@ export interface CreatePlanInput {
   schedule?: string;
 }
 
+export interface CreateAndPublishInput {
+  name: string;
+  description?: string;
+  templateId: string;
+  targetDate?: string;
+  schedule?: string;
+  invitees: string;
+  publish?: boolean;
+}
+
 export interface InviteeData {
   userId: string;
   name: string;
@@ -104,8 +114,14 @@ export class InterviewPlanService {
       ).map((i) => i.userId)
     );
 
+    // Deduplicate input invitees by userId
+    const uniqueInvitees = new Map<string, InviteeData>();
+    for (const inv of invitees) {
+      uniqueInvitees.set(inv.userId, inv);
+    }
+
     const interviews = [];
-    for (const invitee of invitees) {
+    for (const invitee of uniqueInvitees.values()) {
       if (existingUserIds.has(invitee.userId)) {
         result.failed++;
         result.errors.push(`User ${invitee.userId} already exists in plan`);
@@ -128,7 +144,7 @@ export class InterviewPlanService {
     await this.prisma.interviewPlan.update({
       where: { id: planId },
       data: {
-        inviteeData: invitees as unknown as Prisma.InputJsonValue,
+        inviteeData: Array.from(uniqueInvitees.values()) as unknown as Prisma.InputJsonValue,
         status: PlanStatus.READY,
         updatedBy: 'admin',
       },
@@ -146,6 +162,7 @@ export class InterviewPlanService {
     const plan = await this.prisma.interviewPlan.findUnique({
       where: { id: planId },
       include: {
+        template: { select: { content: true } },
         interviews: {
           where: { status: 'PENDING' },
         },
@@ -156,12 +173,20 @@ export class InterviewPlanService {
       throw new Error(`Plan not found: ${planId}`);
     }
 
+    let invitationPrompt = '';
+    if (plan.template?.content) {
+      try {
+        const content = JSON.parse(plan.template.content) as { invitationPrompt?: string };
+        invitationPrompt = content.invitationPrompt || '';
+      } catch {}
+    }
+
     let sent = 0;
     let failed = 0;
 
     for (const interview of plan.interviews) {
       try {
-        await this.sendInvitation(interview.userId, plan.name);
+        await this.sendInvitation(interview.userId, plan.name, invitationPrompt);
         sent++;
       } catch (err) {
         failed++;
@@ -188,11 +213,15 @@ export class InterviewPlanService {
     return { sent, failed };
   }
 
-  private async sendInvitation(userId: string, planName: string): Promise<void> {
-    await messageSender.sendTextMessage(
-      [userId],
-      `您被邀请参与「${planName}」访谈。请直接在钉钉中回复 OpenClaw小钉 任意消息（如"你好"或"开始"）即可开始访谈。`
-    );
+  private async sendInvitation(
+    userId: string,
+    planName: string,
+    invitationPrompt: string
+  ): Promise<void> {
+    const message = invitationPrompt
+      ? `${invitationPrompt}\n\n（来自「${planName}」访谈。请直接在钉钉中回复 OpenClaw小钉 任意消息即可开始访谈。）`
+      : `您被邀请参与「${planName}」访谈。请直接在钉钉中回复 OpenClaw小钉 任意消息（如"你好"或"开始"）即可开始访谈。`;
+    await messageSender.sendTextMessage([userId], message);
   }
 
   async updatePlanStatus(planId: string, status: PlanStatus): Promise<void> {
@@ -219,7 +248,145 @@ export class InterviewPlanService {
     await this.updatePlanStatus(planId, PlanStatus.CANCELLED);
   }
 
+  /**
+   * Create a plan, import invitees, and optionally send invitations in one step.
+   */
+  async createAndPublish(input: CreateAndPublishInput): Promise<{
+    planId: string;
+    imported: number;
+    sent: number;
+    failed: number;
+    errors: string[];
+  }> {
+    const planId = await this.createPlan({
+      name: input.name,
+      description: input.description,
+      templateId: input.templateId,
+      targetDate: input.targetDate ? new Date(input.targetDate) : undefined,
+      schedule: input.schedule,
+    });
+
+    const invitees = parseInviteeText(input.invitees);
+    if (invitees.length === 0) {
+      return { planId, imported: 0, sent: 0, failed: 0, errors: ['未提供有效的受访人员'] };
+    }
+
+    const importResult = await this.importInvitees(planId, invitees);
+
+    let sent = 0;
+    let failed = 0;
+    if (input.publish !== false) {
+      const sendResult = await this.sendInvitations(planId);
+      sent = sendResult.sent;
+      failed = sendResult.failed;
+    }
+
+    return {
+      planId,
+      imported: importResult.success,
+      sent,
+      failed,
+      errors: importResult.errors,
+    };
+  }
+
+  async updatePlan(
+    planId: string,
+    input: {
+      name?: string;
+      description?: string;
+      targetDate?: string;
+      schedule?: string;
+      invitees?: string;
+    }
+  ): Promise<void> {
+    const updateData: Record<string, unknown> = { updatedBy: 'admin' };
+    if (input.name !== undefined) updateData.name = input.name;
+    if (input.description !== undefined) updateData.description = input.description;
+    if (input.targetDate !== undefined)
+      updateData.targetDate = input.targetDate ? new Date(input.targetDate) : null;
+    if (input.schedule !== undefined) updateData.schedule = input.schedule;
+
+    if (input.invitees !== undefined) {
+      const rawInvitees = parseInviteeText(input.invitees);
+
+      // Deduplicate by userId to prevent duplicates from form input
+      const uniqueInvitees = new Map<string, InviteeData>();
+      for (const inv of rawInvitees) {
+        uniqueInvitees.set(inv.userId, inv);
+      }
+      const newInvitees = Array.from(uniqueInvitees.values());
+      const newIds = new Set(uniqueInvitees.keys());
+
+      // Sync interviews: remove those no longer in the list, add new ones
+      const existing = await this.prisma.interview.findMany({
+        where: { planId },
+        select: { id: true, userId: true },
+      });
+
+      // Find interviews to remove (exist in DB but not in new list)
+      const toRemove = existing.filter((inv) => !newIds.has(inv.userId));
+
+      // Find users to add (in new list but not in DB)
+      const existingIds = new Set(existing.map((inv) => inv.userId));
+      const toAdd = newInvitees.filter((inv) => !existingIds.has(inv.userId));
+
+      if (toRemove.length > 0) {
+        await this.prisma.interview.deleteMany({
+          where: {
+            id: { in: toRemove.map((inv) => inv.id) },
+          },
+        });
+      }
+
+      if (toAdd.length > 0) {
+        const plan = await this.prisma.interviewPlan.findUnique({
+          where: { id: planId },
+          select: { templateId: true },
+        });
+        if (!plan) throw new Error(`Plan not found: ${planId}`);
+
+        await this.prisma.interview.createMany({
+          data: toAdd.map((inv) => ({
+            userId: inv.userId,
+            templateId: plan.templateId,
+            planId,
+            status: 'PENDING' as const,
+          })),
+        });
+      }
+
+      updateData.inviteeData = newInvitees as unknown as Prisma.InputJsonValue;
+    }
+
+    await this.prisma.interviewPlan.update({
+      where: { id: planId },
+      data: updateData,
+    });
+
+    info('Interview plan updated', { planId });
+  }
+
   async disconnect(): Promise<void> {
     await this.prisma.$disconnect();
   }
+}
+
+/**
+ * Parse invitee text input into InviteeData array.
+ * Format: one user per line, "userId [name]"
+ * Lines starting with '#' are comments (ignored).
+ * Empty lines are skipped.
+ */
+export function parseInviteeText(text: string): InviteeData[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'))
+    .map((line) => {
+      const parts = line.split(/\s+/);
+      const userId = parts[0];
+      const name = parts.length > 1 ? parts.slice(1).join(' ') : '';
+      return { userId, name };
+    });
 }

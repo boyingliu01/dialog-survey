@@ -82,6 +82,37 @@ describe('InterviewPlanService - Additional Coverage', () => {
 
       await expect(service.sendInvitations('invalid')).rejects.toThrow('Plan not found');
     });
+
+    /**
+     * @test bugfix-sendInvitation-uses-template-invitationPrompt
+     * @intent 修复Bug: 发送邀请时应使用模板的invitationPrompt而非硬编码文案
+     */
+    it('should use template invitationPrompt instead of hardcoded message', async () => {
+      const invitationPrompt = '你好～我是AI访谈师，本次访谈全程匿名，请放心回答。';
+      const templateContent = JSON.stringify({
+        invitationPrompt,
+        questions: ['q1', 'q2'],
+        closingMessage: '感谢参与！',
+      });
+
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        name: 'Test Plan',
+        templateId: 'template-1',
+        template: { content: templateContent },
+        startedAt: null,
+        interviews: [{ userId: 'user-1' }],
+      });
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+
+      const { messageSender } = await import('../src/integrations/dingtalk/message-sender.js');
+      await service.sendInvitations('plan-1');
+
+      expect(messageSender.sendTextMessage).toHaveBeenCalledWith(
+        ['user-1'],
+        expect.stringContaining(invitationPrompt)
+      );
+    });
   });
 
   describe('updatePlanStatus', () => {

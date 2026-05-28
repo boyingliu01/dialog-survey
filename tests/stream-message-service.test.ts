@@ -458,6 +458,58 @@ describe('StreamMessageService', () => {
     });
 
     /**
+     * @test bugfix-use-pending-interview
+     * @intent 修复Bug: 当用户已有预创建的PENDING访谈时，应使用它而非创建新的
+     */
+    it('should use pre-created PENDING interview instead of creating new one', async () => {
+      const pendingState: InterviewState = {
+        ...baseState,
+        interviewId: 'pre-created-interview',
+        templateId: 'plan-template-999',
+        status: 'PENDING',
+      };
+      mockRepo.findActiveInterview.mockResolvedValueOnce(pendingState);
+      mockRepo.saveFullState.mockResolvedValueOnce({
+        success: true,
+        newVersion: 2,
+      });
+
+      vi.mocked(runInterviewGraph).mockResolvedValueOnce({
+        response: '您好！欢迎参与本次访谈。',
+        nextState: {
+          ...pendingState,
+          status: 'ACTIVE',
+        },
+      });
+
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      const message: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: {
+          topic: 'chat',
+          messageId: 'msg-pending',
+          time: '2024-01-01T00:00:00Z',
+        },
+        data: JSON.stringify({
+          senderStaffId: 'user-123',
+          text: { content: '你好' },
+          sessionWebhook: 'https://webhook.example.com',
+        }),
+      };
+
+      const result = await service.processStreamMessage(message);
+
+      expect(result.success).toBe(true);
+      expect(mockRepo.createInterview).not.toHaveBeenCalled();
+      expect(mockRepo.findActiveInterview).toHaveBeenCalledWith('user-123');
+      const graphCallArg = vi.mocked(runInterviewGraph).mock.calls[0][0];
+      expect(graphCallArg.interviewId).toBe('pre-created-interview');
+      expect(graphCallArg.templateId).toBe('plan-template-999');
+    });
+
+    /**
      * @test REQ-002-9-06
      * @intent 验证使用现有面试记录继续处理的流程
      */

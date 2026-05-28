@@ -1,0 +1,82 @@
+<!-- template-new.njk -- Inline template creation form in sidebar -->
+<div class="p-4 border-b border-gray-100 bg-white" x-data="{
+  questions: [{ text: '', uid: 'uid_' + Date.now() }],
+  addQuestion() { this.questions.push({ text: '', uid: 'uid_' + Date.now() }); },
+  removeQuestion(index) { if (this.questions.length > 1) this.questions.splice(index, 1); },
+}">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="text-sm font-semibold text-gray-800">新建模板</h3>
+    <button
+      hx-get="/admin"
+      hx-target="#main-content"
+      hx-swap="innerHTML"
+      class="text-gray-400 hover:text-gray-600"
+      title="取消"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+  <form
+    hx-post="/admin/api/templates"
+    hx-target="#form-result"
+    hx-swap="innerHTML"
+    hx-indicator="#submit-btn"
+    hx-on::after-request="if (event.detail.successful) { htmx.ajax('GET', '/admin', {target: '#main-content', swap: 'innerHTML'}); }"
+    class="space-y-3"
+  >
+    <div>
+      <label for="name" class="block text-xs font-medium text-gray-600 mb-1">
+        名称 <span class="text-red-500">*</span>
+      </label>
+      <input type="text" id="name" name="name" required
+             class="block w-full text-sm rounded-md border border-gray-300 px-2 py-1.5 focus:border-indigo-500 focus:ring-indigo-500"
+             placeholder="模板名称" />
+    </div>
+    <div>
+      <label for="invitationPrompt" class="block text-xs font-medium text-gray-600 mb-1">
+        邀约提示词 <span class="text-red-500">*</span>
+      </label>
+      <textarea id="invitationPrompt" name="invitationPrompt" required rows="3"
+                class="block w-full text-sm rounded-md border border-gray-300 px-2 py-1.5 focus:border-indigo-500 focus:ring-indigo-500 resize-none"
+                placeholder="输入AI邀约提示词"></textarea>
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">
+        问题列表 <span class="text-red-500">*</span>
+      </label>
+      <template x-for="(question, index) in questions" :key="question.uid">
+        <div class="flex items-start gap-1 mb-1">
+          <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 text-xs text-gray-500 flex-shrink-0 mt-1.5" x-text="index + 1"></span>
+          <input type="text" :name="`questions[${index}][text]`" x-model="question.text"
+                 class="flex-1 text-sm rounded-md border border-gray-300 px-2 py-1 focus:border-indigo-500 focus:ring-indigo-500"
+                 placeholder="输入问题内容" />
+          <button type="button" @click="removeQuestion(index)" x-show="questions.length > 1"
+                  class="text-gray-400 hover:text-red-500 text-lg leading-none mt-0.5" title="删除">×</button>
+        </div>
+      </template>
+      <button type="button" @click="addQuestion()"
+              class="mt-1 text-xs text-indigo-600 hover:text-indigo-800">+ 添加问题</button>
+    </div>
+    <div>
+      <label for="description" class="block text-xs font-medium text-gray-600 mb-1">描述</label>
+      <textarea id="description" name="description" rows="2"
+                class="block w-full text-sm rounded-md border border-gray-300 px-2 py-1.5 focus:border-indigo-500 focus:ring-indigo-500 resize-none"
+                placeholder="可选"></textarea>
+    </div>
+    <div class="flex justify-end gap-2 pt-1">
+      <button type="submit" id="submit-btn"
+              class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 disabled:opacity-50">
+        <span class="htmx-indicator hidden mr-1.5">
+          <svg class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </span>
+        创建
+      </button>
+    </div>
+  </form>
+  <div id="form-result" class="mt-2"></div>
+</div>

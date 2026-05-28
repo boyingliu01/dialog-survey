@@ -5,17 +5,28 @@ import { beforeEach, describe, expect, it } from 'vitest';
 let idCounter = 0;
 const generateId = () => `tmpl-${Date.now()}-${++idCounter}`;
 
+interface TemplateRecord {
+  id: string;
+  name: string;
+  description?: string;
+  content: object;
+  version: number;
+  status: TemplateStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Template Repository (will be implemented)
 class TemplateRepository {
   private prisma: PrismaClient;
-  private store: Map<string, any>;
+  private store: Map<string, TemplateRecord>;
 
   constructor(prisma?: PrismaClient) {
     this.prisma = prisma || new PrismaClient();
     this.store = new Map();
   }
 
-  async create(data: { name: string; content: any; description?: string }) {
+  async create(data: { name: string; content: object; description?: string }) {
     // TODO: Implement with real Prisma
     const template = {
       id: generateId(),
@@ -39,7 +50,7 @@ class TemplateRepository {
     return this.store.get(id) || null;
   }
 
-  async update(id: string, data: Partial<{ name: string; content: any; description: string }>) {
+  async update(id: string, data: Partial<{ name: string; content: object; description: string }>) {
     const existing = this.store.get(id);
     if (!existing) throw new Error('Template not found');
     const updated = { ...existing, ...data, updatedAt: new Date() };

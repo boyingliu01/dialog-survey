@@ -18,7 +18,7 @@ export async function planningNode(
   state: InterviewState
 ): Promise<Partial<InterviewState> & NodeOutput> {
   const content = await loadTemplateContent(state.templateId);
-  const firstQuestion = content.questions[0];
+  const firstQuestion = content.questions[0] || '请开始回答，我会根据您的回答进行追问。';
   const greeting = content.invitationPrompt;
 
   return {

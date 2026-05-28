@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const DINGTALK_SECRET = 'test-secret-for-webhook';
 

@@ -1,0 +1,102 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Database
+*.db
+*.sqlite3
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Ruff
+.ruff_cache/
+
+# MyPy
+.mypy_cache/
+
+# Reports (generated)
+reports/*.md
+!reports/.gitkeep
+
+# Local database
+interview_bot.db
+
+# TypeScript / Node.js
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Prisma
+prisma/migrations/
+
+# Vitest
+.nyc_output/
+
+# Bun (project uses npm)
+bun.lock
+
+# V8 isolate logs
+isolate-*.log
+
+# Legacy archive
+legacy-python/
+
+# Cleaned duplicates
+dist-clean/
+src-clean/
+tests-clean/
+
+# Git worktrees
+.worktrees/
+worktrees/

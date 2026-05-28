@@ -1,0 +1,54 @@
+# specification.yaml - 访谈体验优化
+# Generated: 2026-04-28
+# Source: docs/plans/2026-04-28-interview-experience-optimization.md
+# Delphi Review: Round 2 APPROVED (2/2 experts)
+
+version: "2.0"
+project: interview-bot
+feature: "访谈体验优化：温度恢复 + 身份记忆 + 优雅收尾 + 提示词管理"
+
+requirements:
+  - id: REQ-020
+    title: "LLM Prompt 可定制"
+    priority: critical
+    description: "管理员可在模板编辑界面自定义系统提示词，覆盖默认的智能追问模板"
+    acceptance_criteria:
+      - "Template.content 新增 llmPromptTemplate 字段"
+      - "generateSmartResponse 支持自定义 prompt 参数"
+      - "未配置时使用系统默认模板"
+      - "支持变量替换：{userName}, {lastQuestionFlag}, {conversationHistory}"
+
+  - id: REQ-021
+    title: "受访者身份记忆"
+    priority: critical
+    description: "系统能从邀约信息中获取受访者姓名，并在深度访谈中体现对受访者的了解和尊重"
+    acceptance_criteria:
+      - "在访谈开始时从 inviteeData 中提取 userName"
+      - "Prompt 中注入 userName"
+      - "用户质疑身份时，LLM 能正确回应"
+
+  - id: REQ-022
+    title: "后置质量护栏"
+    priority: critical
+    description: "代码层面检测 LLM 是否在单个回复中同时问了多个问题，并自动截断"
+    acceptance_criteria:
+      - "containsMultipleQuestions 检测逻辑"
+      - "超过 1 个问号自动截断"
+      - "不破坏原有温暖过渡"
+
+  - id: REQ-023
+    title: "定制化优雅告别"
+    priority: critical
+    description: "最后一个问题结束后，LLM 基于对话历史生成温暖的定制化告别语"
+    acceptance_criteria:
+      - "传递 isLastQuestion 标识"
+      - "告别语引用用户的核心分享"
+      - "不再拼接固定模板"
+
+  - id: REQ-024
+    title: "Token 预算优化"
+    priority: high
+    description: "控制传入 LLM 的上下文长度，避免成本激增"
+    acceptance_criteria:
+      - "对话历史限制为最近 6 轮 (.slice(-6))"
+      - "深度告别场景使用最近对话而非全文"

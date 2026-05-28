@@ -18,8 +18,9 @@ export async function interviewingNode(
 ): Promise<Partial<InterviewState> & NodeOutput> {
   const content = await loadTemplateContent(state.templateId);
   const currentQ = state.currentQuestion;
-  const currentQuestion = content.questions[currentQ];
-  const isLastQuestion = currentQ >= content.questions.length - 1;
+  const currentQuestion = content.questions[currentQ] || '请根据用户的回答进行追问或总结。';
+  const hasQuestions = content.questions.length > 0;
+  const isLastQuestion = hasQuestions ? currentQ >= content.questions.length - 1 : true;
 
   const newResponses = [
     ...state.responses,
