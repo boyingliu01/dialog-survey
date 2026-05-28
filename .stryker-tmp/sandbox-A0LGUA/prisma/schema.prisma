@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum InterviewStatus {
+  PENDING
+  ACTIVE
+  WAITING
+  COMPLETED
+  CANCELLED
+}
+
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Interview {
+  id              String          @id @default(uuid())
+  userId          String
+  templateId      String
+  planId          String?
+  status          InterviewStatus @default(PENDING)
+  currentQuestion Int              @default(0)
+  followupCount   Int              @default(0)
+  maxFollowups    Int              @default(2)
+  version         Int              @default(1) // Optimistic locking
+  startedAt       DateTime?
+  completedAt     DateTime?
+  reportPath      String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  messages     Message[]
+  responses    Response[]
+  plan         InterviewPlan? @relation(fields: [planId], references: [id])
+  template     Template        @relation(fields: [templateId], references: [id])
+  reports      AnalysisReport[]
+}
+
+model Message {
+  id            String   @id @default(uuid())
+  interviewId   String
+  role          String
+  content       String
+  messageId     String?
+  isVoice       Boolean  @default(false)
+  voiceText     String?
+  createdAt     DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
+
+model Response {
+  id           String   @id @default(uuid())
+  interviewId  String
+  questionId   String
+  content      String
+  isFollowup   Boolean  @default(false)
+  followupDepth Int     @default(0)
+  createdAt    DateTime @default(now())
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+}
+
+model Template {
+  id              String         @id @default(uuid())
+  name            String
+  description     String?
+  content         String         // JSON string
+  dimensions      Json?          // NEW: Analysis dimensions for dimension-tag analysis
+  analysisConfig  Json?          // NEW: Analysis configuration
+  version         Int            @default(1)
+  status          TemplateStatus @default(DRAFT)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  interviews    Interview[]
+  interviewPlans InterviewPlan[]
+  batchReports  BatchAnalysisReport[]
+}
+
+model InterviewPlan {
+  id            String    @id @default(uuid())
+  name          String
+  description   String?
+  templateId    String
+  targetDate    DateTime?
+  status        PlanStatus @default(PENDING)
+  schedule      String?   // Cron expression for scheduling
+  inviteeData   Json?     // Imported interviewee data (JSON)
+  sentCount     Int       @default(0)
+  completedCount Int      @default(0)
+  failedCount   Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  startedAt     DateTime?
+  completedAt   DateTime?
+
+  interviews Interview[]
+  template   Template   @relation(fields: [templateId], references: [id])
+  batchReports BatchAnalysisReport[]
+}
+
+enum PlanStatus {
+  PENDING
+  READY
+  RUNNING
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+model AnalysisReport {
+  id              String   @id @default(uuid())
+  interviewId     String
+  content         String
+  keyFindings     String[]
+  sentiment       String?
+  recommendations String[]
+  dimensionTags   Json?          // NEW: Structured dimension annotations
+  emergentTags    String[]       // NEW: Emergent issues not in preset dimensions
+  interviewerRating Int?         // NEW: Overall satisfaction rating (1-5)
+  createdAt       DateTime @default(now())
+
+  interview Interview? @relation(fields: [interviewId], references: [id])
+}
+
+model AnalysisFailure {
+  id           String    @id @default(uuid())
+  interviewId  String
+  errorType    String
+  errorMessage String
+  createdAt    DateTime  @default(now())
+  retried      Boolean   @default(false)
+  retryCount   Int       @default(0)
+
+  @@unique([interviewId, errorType])
+  @@index([retried])
+}
+
+enum BatchReportStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum BatchReportType {
+  SUMMARY
+  COMPARISON
+  TREND
+}
+
+model BatchAnalysisReport {
+  id          String            @id @default(uuid())
+  planId      String
+  templateId  String
+  type        BatchReportType   @default(SUMMARY)
+  status      BatchReportStatus @default(PENDING)
+  content     String            // Markdown aggregate report
+  metrics     Json              // Dimension mention rates and sentiment breakdowns
+  topics      Json              // Clustered sub-themes per dimension
+  emergents   Json              // Emergent issues
+  checkpoint  Json?             // Intermediate step results for failure recovery
+  error       String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  completedAt DateTime?
+
+  plan     InterviewPlan @relation(fields: [planId], references: [id])
+  template Template      @relation(fields: [templateId], references: [id])
+
+  @@index([planId, status, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  action     String
+  entityType String
+  entityId   String?
+  userId     String?
+  details    String?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+}

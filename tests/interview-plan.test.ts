@@ -19,6 +19,7 @@ describe('InterviewPlanService', () => {
       interview: {
         findMany: vi.fn(),
         createMany: vi.fn(),
+        deleteMany: vi.fn(),
       },
       $disconnect: vi.fn(),
     };
@@ -167,6 +168,71 @@ describe('InterviewPlanService', () => {
       expect(result.success).toBe(1);
       expect(result.failed).toBe(1);
       expect(result.errors).toContain('User user-1 already exists in plan');
+    });
+  });
+
+  describe('updatePlan', () => {
+    it('should parse invitee with only userId and NOT duplicate the userId as name', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        templateId: 'template-1',
+      });
+      mockPrisma.interview.findMany.mockResolvedValue([]);
+      mockPrisma.interview.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.interview.createMany.mockResolvedValue({ count: 1 });
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+
+      await service.updatePlan('plan-1', { invitees: 'user-123' });
+
+      const updateCall = mockPrisma.interviewPlan.update.mock.calls[0][0];
+      const inviteeData = updateCall.data.inviteeData as Array<{
+        userId: string;
+        name: string;
+      }>;
+
+      expect(inviteeData).toHaveLength(1);
+      expect(inviteeData[0].userId).toBe('user-123');
+      expect(inviteeData[0].name).toBe('');
+    });
+
+    it('should parse invitee with userId and name correctly', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        templateId: 'template-1',
+      });
+      mockPrisma.interview.findMany.mockResolvedValue([]);
+      mockPrisma.interview.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrisma.interview.createMany.mockResolvedValue({ count: 1 });
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+
+      await service.updatePlan('plan-1', { invitees: 'user-123 张三' });
+
+      const updateCall = mockPrisma.interviewPlan.update.mock.calls[0][0];
+      const inviteeData = updateCall.data.inviteeData as Array<{
+        userId: string;
+        name: string;
+      }>;
+
+      expect(inviteeData).toHaveLength(1);
+      expect(inviteeData[0].userId).toBe('user-123');
+      expect(inviteeData[0].name).toBe('张三');
+    });
+
+    it('should remove interviews for users no longer in the list', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        templateId: 'template-1',
+      });
+      mockPrisma.interview.findMany.mockResolvedValue([{ id: 'int-1', userId: 'old-user' }]);
+      mockPrisma.interview.deleteMany.mockResolvedValue({ count: 1 });
+      mockPrisma.interview.createMany.mockResolvedValue({ count: 1 });
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+
+      await service.updatePlan('plan-1', { invitees: 'new-user 新人' });
+
+      expect(mockPrisma.interview.deleteMany).toHaveBeenCalledWith({
+        where: { id: { in: ['int-1'] } },
+      });
     });
   });
 

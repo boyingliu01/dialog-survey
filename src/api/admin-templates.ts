@@ -8,18 +8,17 @@ import { error, info } from '../utils/logger.js';
 
 const createTemplateSchema = z.object({
   name: z.string().min(1),
-  description: z.string().optional(),
+  description: z.string().optional().or(z.undefined()),
   content: z.object({}).passthrough(),
 });
 const updateTemplateSchema = z.object({
   name: z.string().min(1),
-  description: z.string().optional(),
+  description: z.string().optional().or(z.undefined()),
   content: z.object({}).passthrough(),
 });
 const versionSchema = z.object({ version: z.coerce.number().int().positive() });
 
 function buildContentFromForm(body: Record<string, unknown>): Record<string, unknown> {
-  // If body already has a content object (JSON POST), use it directly
   if (body.content && typeof body.content === 'object' && !Array.isArray(body.content)) {
     return body.content as Record<string, unknown>;
   }
@@ -32,7 +31,6 @@ function buildContentFromForm(body: Record<string, unknown>): Record<string, unk
   if (body.closingMessage) content.closingMessage = body.closingMessage;
   if (body.llmPromptTemplate) content.llmPromptTemplate = body.llmPromptTemplate;
 
-  // Extract questions from body.questions[*][text] (form data format)
   const questionsObj = body.questions as Record<string, { text: string }> | undefined;
   if (questionsObj && typeof questionsObj === 'object') {
     const questions: string[] = [];
@@ -44,9 +42,34 @@ function buildContentFromForm(body: Record<string, unknown>): Record<string, unk
       }
     }
     content.questions = questions;
+  } else {
+    const questions: string[] = [];
+    for (const [key, value] of Object.entries(body)) {
+      const match = key.match(/^questions\[(\d+)\]\[text\]$/);
+      if (match && typeof value === 'string') {
+        const index = Number.parseInt(match[1], 10);
+        const trimmed = value.trim();
+        if (trimmed) {
+          questions[index] = trimmed;
+        }
+      }
+    }
+    content.questions = questions.filter((q): q is string => q !== undefined);
   }
 
   return content;
+}
+
+function validateTemplateContent(content: Record<string, unknown>): string | null {
+  const questions = content.questions as string[] | undefined;
+  if (!questions || questions.length === 0) {
+    return '请至少添加一个问题';
+  }
+  const invitationPrompt = content.invitationPrompt as string | undefined;
+  if (!invitationPrompt || !invitationPrompt.trim()) {
+    return '请填写邀约提示词';
+  }
+  return null;
 }
 
 function htmlEscape(text: string): string {
@@ -134,6 +157,58 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
     }
   );
 
+  fastify.get(
+    '/admin/content/templates/new',
+    { preHandler: adminAuth },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      return reply.view('admin/content/template-new.njk', {
+        adminApiKey: ADMIN_API_KEY,
+      });
+    }
+  );
+
+  fastify.get(
+    '/admin/plans/new',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { templateId } = (request.query as Record<string, string | undefined>) || {};
+      const templates = await prisma.template.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true },
+      });
+      return reply.view('plans/form.njk', {
+        adminApiKey: ADMIN_API_KEY,
+        templates,
+        selectedTemplateId: templateId || null,
+      });
+    }
+  );
+
+  // GET /admin/plans/:id/edit — Plan edit form
+  fastify.get(
+    '/admin/plans/:id/edit',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const plan = await prisma.interviewPlan.findUnique({
+        where: { id },
+        include: { template: { select: { id: true, name: true } } },
+      });
+      if (!plan) return reply.status(404).type('text/html').send('计划不存在');
+      const templates = await prisma.template.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true },
+      });
+      return reply.view('plans/form.njk', {
+        adminApiKey: ADMIN_API_KEY,
+        templates,
+        plan,
+        selectedTemplateId: plan.templateId,
+        isEdit: true,
+      });
+    }
+  );
+
   // GET /admin/content/templates/:id
   fastify.get(
     '/admin/content/templates/:id',
@@ -150,10 +225,18 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
           version: true,
           createdAt: true,
           updatedAt: true,
+          content: true,
           _count: { select: { interviewPlans: true, interviews: true } },
         },
       });
       if (!template) return reply.status(404).type('text/html').send('模板不存在');
+      let parsedContent: Record<string, unknown>;
+      try {
+        parsedContent = JSON.parse(template.content) as Record<string, unknown>;
+      } catch {
+        parsedContent = {};
+      }
+      const questions = (parsedContent.questions as string[]) || [];
       const tpl = {
         ...template,
         _planCount: template._count.interviewPlans,
@@ -162,6 +245,9 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
       return reply.view('admin/content/template-info.njk', {
         adminApiKey: ADMIN_API_KEY,
         template: tpl,
+        questions,
+        invitationPrompt: parsedContent.invitationPrompt as string | undefined,
+        closingMessage: parsedContent.closingMessage as string | undefined,
       });
     }
   );
@@ -312,17 +398,44 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
           parsedContent = {};
         }
         const questions = (parsedContent.questions as string[]) || [];
-        return reply.view('templates/form.njk', {
+        return reply.view('admin/content/template-edit.njk', {
           adminApiKey: ADMIN_API_KEY,
           isEdit: true,
           template: { ...template, ...parsedContent },
-          existingQuestions: questions.map((q, i) => ({ text: q, order: i })),
+          existingQuestions: questions.map((q, i) => ({ text: q, order: i, uid: `uid_${i}` })),
           action: 'edit',
         });
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : 'Failed to load template';
         error('Failed to load admin template edit form', { error: errMsg, templateId: id });
         return reply.status(500).view('error.njk', { message: errMsg });
+      }
+    }
+  );
+
+  // POST /admin/api/templates/:id/publish — Change template status to PUBLISHED
+  fastify.post(
+    `${API_PATH}/templates/:id/publish`,
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      try {
+        const existing = await templateRepo.findById(id);
+        if (!existing) return reply.status(404).send(htmlError('模板不存在'));
+        if (existing.status === 'PUBLISHED') return reply.send(htmlError('模板已发布'));
+        await prisma.template.update({
+          where: { id },
+          data: { status: 'PUBLISHED', updatedAt: new Date() },
+        });
+        info('Admin template published', { templateId: id });
+        return reply
+          .header('HX-Get', `/admin/content/templates/${id}`)
+          .header('HX-Target', '#main-content')
+          .send('<div class="text-green-600 text-sm mb-2">已发布</div>');
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Failed to publish template';
+        error('Failed to publish admin template', { error: errMsg, templateId: id });
+        return reply.status(500).send(htmlError(errMsg));
       }
     }
   );
@@ -334,6 +447,8 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
       try {
         const rawBody = request.body as Record<string, unknown>;
         const content = buildContentFromForm(rawBody);
+        const validationError = validateTemplateContent(content);
+        if (validationError) return reply.status(422).send(htmlError(validationError));
         const input = createTemplateSchema.parse({
           name: rawBody.name,
           description: rawBody.description,
@@ -345,7 +460,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
           content: input.content as Record<string, unknown>,
         });
         info('Admin template created', { name: input.name });
-        return reply.status(201).header('HX-Redirect', '/admin/templates');
+        return reply.status(201).header('HX-Redirect', '/admin').send('');
       } catch (e) {
         if (e instanceof z.ZodError)
           return reply.status(422).send(htmlError(e.issues[0]?.message ?? 'Validation failed'));
@@ -369,6 +484,8 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
         if (!versionParsed.success)
           return reply.status(422).send(htmlError('Version number is required'));
         const content = buildContentFromForm(body);
+        const validationError = validateTemplateContent(content);
+        if (validationError) return reply.status(422).send(htmlError(validationError));
         const input = updateTemplateSchema.parse({
           name: body.name,
           description: body.description,
@@ -380,7 +497,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
           content: input.content as Record<string, unknown>,
         });
         info('Admin template updated', { templateId: id });
-        return reply.status(200).header('HX-Redirect', '/admin/templates');
+        return reply.status(200).header('HX-Redirect', '/admin').send('');
       } catch (e) {
         if (e instanceof z.ZodError)
           return reply.status(422).send(htmlError(e.issues[0]?.message ?? 'Validation failed'));
@@ -624,6 +741,46 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
         const errMsg = e instanceof Error ? e.message : 'Failed to load plan detail';
         error('Failed to load plan detail', { error: errMsg, planId: id });
         return reply.status(500).view('error.njk', { message: errMsg });
+      }
+    }
+  );
+
+  fastify.delete(
+    `${API_PATH}/plans/:id`,
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      try {
+        const plan = await prisma.interviewPlan.findUnique({
+          where: { id },
+          include: { _count: { select: { interviews: true, batchReports: true } } },
+        });
+
+        if (!plan) return reply.status(404).type('text/html').send('计划不存在');
+
+        if (plan._count.interviews > 0) {
+          return reply
+            .status(409)
+            .send(
+              `<div class="text-red-600">不能删除：该计划关联了 ${plan._count.interviews} 个访谈记录</div>`
+            );
+        }
+
+        if (plan._count.batchReports > 0) {
+          return reply
+            .status(409)
+            .send(
+              `<div class="text-red-600">不能删除：该计划关联了 ${plan._count.batchReports} 个批量报告</div>`
+            );
+        }
+
+        await prisma.interviewPlan.delete({ where: { id } });
+        info('Admin plan deleted', { planId: id });
+        return reply.send('<div class="text-green-600">计划已删除</div>');
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Failed to delete plan';
+        error('Failed to delete admin plan', { error: errMsg, planId: id });
+        return reply.status(500).send(htmlError(errMsg));
       }
     }
   );

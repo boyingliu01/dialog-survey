@@ -1,0 +1,1860 @@
+{
+  "$schema": "https://schemastore.azurewebsites.net/schemas/json/sarif-2.1.0-rtm.5.json",
+  "runs": [
+    {
+      "results": [
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/interview-state.repository.ts"
+                },
+                "region": {
+                  "endColumn": 12,
+                  "endLine": 161,
+                  "startColumn": 5,
+                  "startLine": 123
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/interview-state.repository.ts"
+                },
+                "region": {
+                  "endColumn": 12,
+                  "endLine": 212,
+                  "startColumn": 5,
+                  "startLine": 174
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Code Clone\n\nReason: Identical or near-identical code blocks found in multiple locations. This violates the DRY (Don't Repeat Yourself) principle.\n\nRecommendations:\nExtract the duplicated code into a shared function, class, or module"
+          },
+          "ruleId": "code_clone"
+        },
+        {
+          "level": "error",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/interview-state.repository.ts"
+                },
+                "region": {
+                  "endColumn": 29,
+                  "endLine": 158,
+                  "startColumn": 9,
+                  "startLine": 133
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/interview-state.repository.ts"
+                },
+                "region": {
+                  "endColumn": 29,
+                  "endLine": 209,
+                  "startColumn": 9,
+                  "startLine": 184
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/interview-state.repository.ts"
+                },
+                "region": {
+                  "endColumn": 27,
+                  "endLine": 383,
+                  "startColumn": 7,
+                  "startLine": 358
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Code Clone\n\nReason: Identical or near-identical code blocks found in multiple locations. This violates the DRY (Don't Repeat Yourself) principle.\n\nRecommendations:\nExtract the duplicated code into a shared function, class, or module"
+          },
+          "ruleId": "code_clone"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/services/batch-aggregation.service.ts"
+                },
+                "region": {
+                  "endColumn": 38,
+                  "endLine": 42,
+                  "startColumn": 17,
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Function `computeDimensionStats` has high cognitive complexity (20)\n\nReason: High cognitive complexity indicates that the function is difficult to understand and maintain due to complex logic and deep nesting.\n\nRecommendations:\nExtract nested blocks into well-named helper functions\nUse early returns (guard clauses) to flatten the code\nSimplify complex boolean expressions\nReplace nested if/else with polymorphism or a lookup table\nBreak down large loops into smaller processing steps"
+          },
+          "ruleId": "cognitive_complexity"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/services/stream-message.service.ts"
+                },
+                "region": {
+                  "endColumn": 29,
+                  "endLine": 132,
+                  "startColumn": 9,
+                  "startLine": 132
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Function `StreamMessageService.processStreamMessage` has high cognitive complexity (19)\n\nReason: High cognitive complexity indicates that the function is difficult to understand and maintain due to complex logic and deep nesting.\n\nRecommendations:\nExtract nested blocks into well-named helper functions\nUse early returns (guard clauses) to flatten the code\nSimplify complex boolean expressions\nReplace nested if/else with polymorphism or a lookup table\nBreak down large loops into smaller processing steps"
+          },
+          "ruleId": "cognitive_complexity"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/services/interview-plan.service.ts"
+                },
+                "region": {
+                  "endColumn": 19,
+                  "endLine": 218,
+                  "startColumn": 9,
+                  "startLine": 218
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/services/prompt.service.ts"
+                },
+                "region": {
+                  "endColumn": 14,
+                  "endLine": 148,
+                  "startColumn": 3,
+                  "startLine": 148
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/message.repository.ts"
+                },
+                "region": {
+                  "endColumn": 24,
+                  "endLine": 30,
+                  "startColumn": 9,
+                  "startLine": 30
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/message.repository.ts"
+                },
+                "region": {
+                  "endColumn": 17,
+                  "endLine": 37,
+                  "startColumn": 9,
+                  "startLine": 37
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/message.repository.ts"
+                },
+                "region": {
+                  "endColumn": 26,
+                  "endLine": 43,
+                  "startColumn": 9,
+                  "startLine": 43
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/interview-state.repository.ts"
+                },
+                "region": {
+                  "endColumn": 19,
+                  "endLine": 387,
+                  "startColumn": 9,
+                  "startLine": 387
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/services/conversation-engine.ts"
+                },
+                "region": {
+                  "endColumn": 23,
+                  "endLine": 18,
+                  "startColumn": 9,
+                  "startLine": 18
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/integrations/dingtalk/client.ts"
+                },
+                "region": {
+                  "endColumn": 16,
+                  "endLine": 24,
+                  "startColumn": 9,
+                  "startLine": 24
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/integrations/dingtalk/client.ts"
+                },
+                "region": {
+                  "endColumn": 20,
+                  "endLine": 52,
+                  "startColumn": 3,
+                  "startLine": 52
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/integrations/dingtalk/client.ts"
+                },
+                "region": {
+                  "endColumn": 17,
+                  "endLine": 57,
+                  "startColumn": 10,
+                  "startLine": 57
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/integrations/llm/alibaba.ts"
+                },
+                "region": {
+                  "endColumn": 13,
+                  "endLine": 17,
+                  "startColumn": 9,
+                  "startLine": 17
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/integrations/llm/alibaba.ts"
+                },
+                "region": {
+                  "endColumn": 17,
+                  "endLine": 70,
+                  "startColumn": 10,
+                  "startLine": 70
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/domains/interview/services/interview.domain.ts"
+                },
+                "region": {
+                  "endColumn": 19,
+                  "endLine": 4,
+                  "startColumn": 3,
+                  "startLine": 4
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/domains/interview/services/interview.domain.ts"
+                },
+                "region": {
+                  "endColumn": 25,
+                  "endLine": 11,
+                  "startColumn": 3,
+                  "startLine": 11
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/domains/interview/services/interview.domain.ts"
+                },
+                "region": {
+                  "endColumn": 24,
+                  "endLine": 28,
+                  "startColumn": 3,
+                  "startLine": 28
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/domains/interview/services/interview.domain.ts"
+                },
+                "region": {
+                  "endColumn": 22,
+                  "endLine": 32,
+                  "startColumn": 3,
+                  "startLine": 32
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/template.repository.ts"
+                },
+                "region": {
+                  "endColumn": 21,
+                  "endLine": 66,
+                  "startColumn": 9,
+                  "startLine": 66
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/template.repository.ts"
+                },
+                "region": {
+                  "endColumn": 19,
+                  "endLine": 83,
+                  "startColumn": 9,
+                  "startLine": 83
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/template.repository.ts"
+                },
+                "region": {
+                  "endColumn": 26,
+                  "endLine": 89,
+                  "startColumn": 9,
+                  "startLine": 89
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class Method detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/domains/interview/entities/response.entity.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 27,
+                  "startColumn": 8,
+                  "startLine": 11
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/domains/interview/entities/message.entity.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 24,
+                  "startColumn": 8,
+                  "startLine": 11
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/security.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 41,
+                  "startColumn": 8,
+                  "startLine": 19
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/security.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 78,
+                  "startColumn": 8,
+                  "startLine": 63
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/security.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 82,
+                  "startColumn": 8,
+                  "startLine": 80
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/message.repository.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 49,
+                  "startColumn": 8,
+                  "startLine": 3
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/validation.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 4,
+                  "startColumn": 8,
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/validation.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 9,
+                  "startColumn": 8,
+                  "startLine": 6
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/validation.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 18,
+                  "startColumn": 8,
+                  "startLine": 11
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/validation.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 23,
+                  "startColumn": 8,
+                  "startLine": 20
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/validation.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 27,
+                  "startColumn": 8,
+                  "startLine": 25
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/validation.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 31,
+                  "startColumn": 8,
+                  "startLine": 29
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/validation.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 35,
+                  "startColumn": 8,
+                  "startLine": 33
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/date.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 42,
+                  "startColumn": 8,
+                  "startLine": 20
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/date.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 46,
+                  "startColumn": 8,
+                  "startLine": 44
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/date.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 56,
+                  "startColumn": 8,
+                  "startLine": 48
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/date.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 62,
+                  "startColumn": 8,
+                  "startLine": 58
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/index.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 15,
+                  "startColumn": 8,
+                  "startLine": 13
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/encryption.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 24,
+                  "startColumn": 8,
+                  "startLine": 13
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/encryption.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 45,
+                  "startColumn": 8,
+                  "startLine": 26
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/services/conversation-engine.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 68,
+                  "startColumn": 8,
+                  "startLine": 17
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/rate-limiter.ts"
+                },
+                "region": {
+                  "endColumn": 52,
+                  "endLine": 94,
+                  "startColumn": 14,
+                  "startLine": 94
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Variable detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/rate-limiter.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 104,
+                  "startColumn": 8,
+                  "startLine": 96
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/services/dingtalk.service.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 93,
+                  "startColumn": 8,
+                  "startLine": 42
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/services/dingtalk.service.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 97,
+                  "startColumn": 8,
+                  "startLine": 95
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Function detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/domains/interview/services/interview.domain.ts"
+                },
+                "region": {
+                  "endColumn": 2,
+                  "endLine": 35,
+                  "startColumn": 8,
+                  "startLine": 3
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused Class detected\n\nReason: The symbol is defined but not imported by any other file or used locally.\n\nRecommendations:\nRemove the unused symbol if it is truly no longer needed\nCheck if it should be an internal helper or if it was meant to be exported and used"
+          },
+          "ruleId": "dead_symbols"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/services/analysis.service.ts"
+                },
+                "region": {
+                  "endColumn": 38,
+                  "endLine": 197,
+                  "startColumn": 5,
+                  "startLine": 181
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/analysis-features.test.ts"
+                },
+                "region": {
+                  "endColumn": 113,
+                  "endLine": 31,
+                  "startColumn": 5,
+                  "startLine": 15
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Code Clone\n\nReason: Identical or near-identical code blocks found in multiple locations. This violates the DRY (Don't Repeat Yourself) principle.\n\nRecommendations:\nExtract the duplicated code into a shared function, class, or module"
+          },
+          "ruleId": "code_clone"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/api/templates.ts"
+                },
+                "region": {
+                  "endColumn": 14,
+                  "endLine": 75,
+                  "startColumn": 5,
+                  "startLine": 63
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/api/templates.ts"
+                },
+                "region": {
+                  "endColumn": 14,
+                  "endLine": 103,
+                  "startColumn": 5,
+                  "startLine": 91
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Code Clone\n\nReason: Identical or near-identical code blocks found in multiple locations. This violates the DRY (Don't Repeat Yourself) principle.\n\nRecommendations:\nExtract the duplicated code into a shared function, class, or module"
+          },
+          "ruleId": "code_clone"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/template-crud.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/dingtalk-stream.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/smart-response.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/interviewing-smart-response.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/analyze-with-dimensions.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/report.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/stream-message-full.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/langgraph.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/asr.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/utils.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/logger.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/dingtalk-services.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/template-schema.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/health-check.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/multi-turn-conversation.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/analyzing-node.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/token-manager.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/state-persistence.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/webhook-message.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/batch-aggregate-api.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/volcengine.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/pii-anonymizer.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/schema-analysis-dimensions.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/llm-clustering.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "vitest.config.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/template-dimensions-api.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/batch-aggregation.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/graph.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/env-config.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/prisma-schema.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/message-sender.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/report-dimensions.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/dead-letter.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/llm-followup-report.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/analysis-features.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/retry.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/template-import-export.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/interview-state-full.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/dingtalk-signature.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/template-version.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/analysis.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/interview-plan.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/interview-plan-additional.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/interviewing-node.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/completed-node.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/project-structure.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/planning-node.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/stream-message-service.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "tests/dimension-validation.test.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Vendor Coupling: `vitest`\n\nReason: Direct usage of a third-party package in many files. This makes it difficult to replace the vendor library in the future.\n\nRecommendations:\nCreate a wrapper or abstraction layer around the library"
+          },
+          "ruleId": "vendor_coupling"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/services/batch-aggregation.service.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Orphan Type `PipelineStep` detected\n\nReason: The type or interface is exported but never used by any other module in the codebase.\n\nRecommendations:\nRemove the unused type or interface"
+          },
+          "ruleId": "orphan_types"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/api/webhook.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Orphan Type `DingTalkMessageEvent` detected\n\nReason: The type or interface is exported but never used by any other module in the codebase.\n\nRecommendations:\nRemove the unused type or interface"
+          },
+          "ruleId": "orphan_types"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/integrations/dingtalk/stream-client.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Orphan Type `DingTalkMessageData` detected\n\nReason: The type or interface is exported but never used by any other module in the codebase.\n\nRecommendations:\nRemove the unused type or interface"
+          },
+          "ruleId": "orphan_types"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/encryption.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused file detected\n\nReason: This file is not imported by any other module in the codebase. It may be leftover code from refactoring, experimental code that was never integrated, or a genuinely unused module.\n\nRecommendations:\nVerify the file is truly unused (check dynamic imports, tests, configs)\nRemove the file if confirmed as dead code\nIf keeping for reference, move to an archive or documentation\nAdd the file to entry_points config if it's an intentional entry point\nReview recent refactorings to understand why it became unused"
+          },
+          "ruleId": "dead_code"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/repositories/message.repository.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused file detected\n\nReason: This file is not imported by any other module in the codebase. It may be leftover code from refactoring, experimental code that was never integrated, or a genuinely unused module.\n\nRecommendations:\nVerify the file is truly unused (check dynamic imports, tests, configs)\nRemove the file if confirmed as dead code\nIf keeping for reference, move to an archive or documentation\nAdd the file to entry_points config if it's an intentional entry point\nReview recent refactorings to understand why it became unused"
+          },
+          "ruleId": "dead_code"
+        },
+        {
+          "level": "warning",
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/utils/validation.ts"
+                },
+                "region": {
+                  "startLine": 1
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "Unused file detected\n\nReason: This file is not imported by any other module in the codebase. It may be leftover code from refactoring, experimental code that was never integrated, or a genuinely unused module.\n\nRecommendations:\nVerify the file is truly unused (check dynamic imports, tests, configs)\nRemove the file if confirmed as dead code\nIf keeping for reference, move to an archive or documentation\nAdd the file to entry_points config if it's an intentional entry point\nReview recent refactorings to understand why it became unused"
+          },
+          "ruleId": "dead_code"
+        }
+      ],
+      "tool": {
+        "driver": {
+          "name": "archlint",
+          "rules": [
+            {
+              "helpUri": "https://archlinter.github.io/archlint/detectors/code_clone.html",
+              "id": "code_clone",
+              "shortDescription": {
+                "text": "Code Clone"
+              }
+            },
+            {
+              "helpUri": "https://archlinter.github.io/archlint/detectors/cognitive_complexity.html",
+              "id": "cognitive_complexity",
+              "shortDescription": {
+                "text": "High Cognitive Complexity"
+              }
+            },
+            {
+              "helpUri": "https://archlinter.github.io/archlint/detectors/dead_symbols.html",
+              "id": "dead_symbols",
+              "shortDescription": {
+                "text": "Dead Symbol"
+              }
+            },
+            {
+              "helpUri": "https://archlinter.github.io/archlint/detectors/vendor_coupling.html",
+              "id": "vendor_coupling",
+              "shortDescription": {
+                "text": "Vendor Coupling"
+              }
+            },
+            {
+              "helpUri": "https://archlinter.github.io/archlint/detectors/orphan_types.html",
+              "id": "orphan_types",
+              "shortDescription": {
+                "text": "Orphan Type"
+              }
+            },
+            {
+              "helpUri": "https://archlinter.github.io/archlint/detectors/dead_code.html",
+              "id": "dead_code",
+              "shortDescription": {
+                "text": "Dead Code"
+              }
+            }
+          ],
+          "version": "0.16.0"
+        }
+      }
+    }
+  ],
+  "version": "2.1.0"
+}

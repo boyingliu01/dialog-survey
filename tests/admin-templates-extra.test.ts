@@ -368,6 +368,108 @@ describe('Admin Templates Routes - Extra Coverage', () => {
     });
   });
 
+  describe('DELETE /admin/api/plans/:id — Delete plan', () => {
+    let deletablePlan: Awaited<ReturnType<typeof prisma.interviewPlan.create>>;
+    let planWithBatchReport: Awaited<ReturnType<typeof prisma.interviewPlan.create>>;
+
+    beforeAll(async () => {
+      deletablePlan = await prisma.interviewPlan.create({
+        data: {
+          name: 'Deletable Plan',
+          templateId: ctx.draftTemplate.id,
+          status: 'PENDING',
+        },
+      });
+
+      planWithBatchReport = await prisma.interviewPlan.create({
+        data: {
+          name: 'Plan With Batch Report',
+          templateId: ctx.draftTemplate.id,
+          status: 'PENDING',
+        },
+      });
+
+      await prisma.batchAnalysisReport.create({
+        data: {
+          planId: planWithBatchReport.id,
+          templateId: ctx.draftTemplate.id,
+          type: 'SUMMARY',
+          status: 'COMPLETED',
+          content: 'Test batch report',
+          metrics: {},
+          topics: {},
+          emergents: {},
+        },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.batchAnalysisReport.deleteMany({
+        where: { planId: planWithBatchReport.id },
+      });
+      await prisma.interviewPlan.delete({ where: { id: deletablePlan.id } }).catch(() => {});
+      await prisma.interviewPlan.delete({ where: { id: planWithBatchReport.id } }).catch(() => {});
+    });
+
+    it('should delete a plan with no interviews', async () => {
+      const response = await ctx.app.inject({
+        method: 'DELETE',
+        url: `/admin/api/plans/${deletablePlan.id}`,
+        headers: { 'x-admin-key': 'test-secret-key' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toContain('计划已删除');
+
+      const verify = await prisma.interviewPlan.findUnique({
+        where: { id: deletablePlan.id },
+      });
+      expect(verify).toBeNull();
+    });
+
+    it('should return 409 when plan has interviews', async () => {
+      const response = await ctx.app.inject({
+        method: 'DELETE',
+        url: `/admin/api/plans/${ctx.plan.id}`,
+        headers: { 'x-admin-key': 'test-secret-key' },
+      });
+
+      expect(response.statusCode).toBe(409);
+      expect(response.body).toContain('访谈记录');
+    });
+
+    it('should return 409 when plan has batch reports (bug fix)', async () => {
+      const response = await ctx.app.inject({
+        method: 'DELETE',
+        url: `/admin/api/plans/${planWithBatchReport.id}`,
+        headers: { 'x-admin-key': 'test-secret-key' },
+      });
+
+      expect(response.statusCode).toBe(409);
+      expect(response.body).toContain('批量报告');
+    });
+
+    it('should return 404 for non-existent plan', async () => {
+      const response = await ctx.app.inject({
+        method: 'DELETE',
+        url: '/admin/api/plans/non-existent',
+        headers: { 'x-admin-key': 'test-secret-key' },
+      });
+
+      expect(response.statusCode).toBe(404);
+      expect(response.body).toContain('计划不存在');
+    });
+
+    it('should return 401 without admin key', async () => {
+      const response = await ctx.app.inject({
+        method: 'DELETE',
+        url: `/admin/api/plans/${ctx.plan.id}`,
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+  });
+
   describe('GET /admin/templates/:id/edit — Edit template form', () => {
     it('should return 200 with edit form for existing template', async () => {
       const response = await ctx.app.inject({
@@ -550,7 +652,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
         url: '/admin/api/templates',
         headers: { 'x-admin-key': 'test-secret-key', 'content-type': 'application/json' },
         body: JSON.stringify({
-          content: { questions: [] },
+          content: { invitationPrompt: 'test', questions: [] },
         }),
       });
 
@@ -622,7 +724,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
         headers: { 'x-admin-key': 'test-secret-key', 'content-type': 'application/json' },
         body: JSON.stringify({
           name: 'No Version Update',
-          content: { questions: [] },
+          content: { invitationPrompt: 'test', questions: ['test q'] },
         }),
       });
 
@@ -637,7 +739,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
         headers: { 'x-admin-key': 'test-secret-key', 'content-type': 'application/json' },
         body: JSON.stringify({
           name: 'Conflict Update',
-          content: { questions: [] },
+          content: { invitationPrompt: 'test', questions: ['test question'] },
         }),
       });
 

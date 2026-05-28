@@ -1,8 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { error, info } from '../utils/logger.js';
 
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY;
-
 const UNPROTECTED_METHODS = new Set<string>(['GET', 'HEAD', 'OPTIONS']);
 
 export async function adminAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
@@ -10,9 +8,10 @@ export async function adminAuth(request: FastifyRequest, reply: FastifyReply): P
     return;
   }
 
+  const adminApiKey = process.env.ADMIN_API_KEY;
   const providedKey = request.headers['x-admin-key'];
 
-  if (!ADMIN_API_KEY) {
+  if (!adminApiKey) {
     error('Admin authentication failed: ADMIN_API_KEY not configured', {
       method: request.method,
       url: request.url,
@@ -24,7 +23,7 @@ export async function adminAuth(request: FastifyRequest, reply: FastifyReply): P
     return;
   }
 
-  if (providedKey !== ADMIN_API_KEY) {
+  if (providedKey !== adminApiKey) {
     error('Admin authentication failed', {
       method: request.method,
       url: request.url,

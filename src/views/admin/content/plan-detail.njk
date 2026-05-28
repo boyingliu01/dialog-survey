@@ -1,24 +1,70 @@
+{% if not plan %}
+  <div class="p-6 text-red-600">Error: Plan data is missing.</div>
+{% else %}
 <div x-data="{ activeTab: 'basic' }" class="max-w-4xl mx-auto p-6">
-  <div class="flex border-b border-gray-200 mb-4">
-    <button @click="activeTab='basic'" :class="activeTab==='basic' ? 'text-indigo-600 border-b-2 border-indigo-500 font-medium' : 'text-gray-500'" class="px-4 py-2 text-sm">基本信息</button>
-    <button @click="activeTab='stats'" :class="activeTab==='stats' ? 'text-indigo-600 border-b-2 border-indigo-500 font-medium' : 'text-gray-500'" class="px-4 py-2 text-sm">统计分析</button>
-    <button @click="activeTab='members'" :class="activeTab==='members' ? 'text-indigo-600 border-b-2 border-indigo-500 font-medium' : 'text-gray-500'" class="px-4 py-2 text-sm">成员列表</button>
+  <div class="flex items-center justify-between mb-4">
+    <div class="flex border-b border-gray-200">
+      <button @click="activeTab='basic'" :class="activeTab==='basic' ? 'text-indigo-600 border-b-2 border-indigo-500 font-medium' : 'text-gray-500'" class="px-4 py-2 text-sm">基本信息</button>
+      <button @click="activeTab='stats'" :class="activeTab==='stats' ? 'text-indigo-600 border-b-2 border-indigo-500 font-medium' : 'text-gray-500'" class="px-4 py-2 text-sm">统计分析</button>
+      <button @click="activeTab='members'" :class="activeTab==='members' ? 'text-indigo-600 border-b-2 border-indigo-500 font-medium' : 'text-gray-500'" class="px-4 py-2 text-sm">成员列表</button>
+    </div>
+    <div class="flex gap-2">
+      <button
+        hx-get="/admin/plans/{{ plan.id }}/edit"
+        hx-target="#main-content"
+        hx-swap="innerHTML"
+        hx-push-url="true"
+        class="inline-flex items-center px-2.5 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100"
+      >
+        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </svg>
+        编辑
+      </button>
+      {% if plan.status == 'PENDING' or plan.status == 'READY' %}
+      <button
+        hx-post="/api/plans/{{ plan.id }}/send"
+        hx-target="#main-content"
+        hx-swap="innerHTML"
+        hx-confirm="确认发送访谈邀约？将向 {{ totalInterviews or 0 }} 位受访者发送钉钉消息。"
+        class="inline-flex items-center px-2.5 py-1 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-md hover:bg-emerald-100"
+      >
+        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+        </svg>
+        发布
+      </button>
+      {% endif %}
+      <button
+        hx-delete="/admin/api/plans/{{ plan.id }}"
+        hx-target="#main-content"
+        hx-swap="innerHTML"
+        hx-confirm="确认删除计划「{{ plan.name }}」？关联的访谈记录将一并删除。"
+        class="inline-flex items-center px-2.5 py-1 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100"
+      >
+        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+        删除
+      </button>
+    </div>
   </div>
   <div x-show="activeTab==='basic'" class="space-y-3 text-sm">
     <p><span class="text-gray-500">计划名称:</span> {{ plan.name }}</p>
-    <p><span class="text-gray-500">关联模板:</span> <a href="/admin/content/templates/{{ template.id }}" hx-get="/admin/content/templates/{{ template.id }}" hx-target="#main-content" class="text-indigo-600 hover:underline">{{ template.name }}</a></p>
+    <p><span class="text-gray-500">关联模板:</span> {% if template %}<a href="/admin/content/templates/{{ template.id }}" hx-get="/admin/content/templates/{{ template.id }}" hx-target="#main-content" class="text-indigo-600 hover:underline">{{ template.name }}</a>{% else %}<span class="text-gray-400">模板已删除或不可用</span>{% endif %}</p>
     <p><span class="text-gray-500">状态:</span> {{ plan.status }}</p>
-    <p><span class="text-gray-500">进度:</span> {{ completedCount }}/{{ totalInterviews }} ({{ completionRate }}%)</p>
+    <p><span class="text-gray-500">截止日期:</span> {% if plan.targetDate %}{{ plan.targetDate.toISOString().split('T')[0] }}{% else %}未设置{% endif %}</p>
+    <p><span class="text-gray-500">进度:</span> {{ completedCount or 0 }}/{{ totalInterviews or 0 }} ({{ completionRate or 0 }}%)</p>
     {% if plan.description %}
     <p><span class="text-gray-500">描述:</span> {{ plan.description }}</p>
     {% endif %}
   </div>
   <div x-show="activeTab==='stats'" x-cloak class="text-sm">
-    {% if completedCount == 0 %}
+    {% if (completedCount or 0) == 0 %}
     <div class="text-center text-gray-400 py-8">暂无数据，完成访谈后可查看统计</div>
     {% else %}
     <div class="space-y-3">
-      <p><span class="text-gray-500">已完成:</span> {{ completedCount }} 人</p>
+      <p><span class="text-gray-500">已完成:</span> {{ completedCount or 0 }} 人</p>
       <p class="text-gray-400 text-xs italic">统计分析功能开发中...</p>
     </div>
     {% endif %}
@@ -27,14 +73,15 @@
     <table class="w-full">
       <thead><tr class="border-b"><th class="text-left py-2">被访者</th><th class="text-left py-2">状态</th><th class="text-left py-2">完成时间</th></tr></thead>
       <tbody>
-        {% for interview in interviews %}
+        {% for interview in (interviews or []) %}
         <tr class="border-b">
           <td class="py-1.5">{{ interview.userId }}</td>
           <td class="py-1.5">{{ interview.status }}</td>
-          <td class="py-1.5">{{ interview.completedAt | default('-') }}</td>
+          <td class="py-1.5">{{ interview.completedAt or '-' }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+{% endif %}

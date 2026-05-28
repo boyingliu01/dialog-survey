@@ -15,7 +15,7 @@ describe('Template Dimension Service', () => {
     const result = await updateTemplateDimensions(prisma, t.id, dims);
 
     expect(result.dimensions).not.toBeNull();
-    const parsed = result.dimensions as any[];
+    const parsed = result.dimensions as unknown as Array<Record<string, unknown>>;
     expect(parsed).toHaveLength(1);
     expect(parsed[0].label).toBe('稳定性');
 
@@ -45,7 +45,7 @@ describe('Template Dimension Service', () => {
       data: { name: 'DimBad', content: '[]', status: 'DRAFT' },
     });
 
-    const dims = [{ id: 'stability' }] as any;
+    const dims = [{ id: 'stability' }] as unknown as Parameters<typeof updateTemplateDimensions>[2];
     await expect(updateTemplateDimensions(prisma, t.id, dims)).rejects.toThrow();
 
     await prisma.template.delete({ where: { id: t.id } });
@@ -57,7 +57,7 @@ describe('Template Dimension Service', () => {
       data: { name: 'DimBad2', content: '[]', status: 'DRAFT' },
     });
 
-    const dims = [{ label: '稳定性' }] as any;
+    const dims = [{ label: '稳定性' }] as unknown as Parameters<typeof updateTemplateDimensions>[2];
     await expect(updateTemplateDimensions(prisma, t.id, dims)).rejects.toThrow();
 
     await prisma.template.delete({ where: { id: t.id } });

@@ -1,6 +1,19 @@
 <!-- tree-body.njk -- Server-rendered hierarchical tree -->
 <div x-data="{ selectedId: null }" class="font-sans">
-  <div class="font-semibold text-[11px] text-gray-400 uppercase tracking-wider px-2 py-1">访谈模板</div>
+  <div class="flex items-center justify-between px-2 py-1">
+    <span class="font-semibold text-[11px] text-gray-400 uppercase tracking-wider">访谈模板</span>
+    <button
+      hx-get="/admin/content/templates/new"
+      hx-target="#main-content"
+      hx-swap="innerHTML"
+      class="inline-flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50"
+      title="新建模板"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+    </button>
+  </div>
   {% for template in templates %}
   <div x-data="toggleNode(true)" class="tree-group">
     <div class="tree-node flex items-center cursor-pointer rounded-md px-2 py-1 text-[13px]"
@@ -20,16 +33,16 @@
     <template x-if="$data._expanded">
       <div class="ml-3">
         {% for plan in template._plans %}
-        <div x-data="toggleNode({{ plan._interviews.length <= 15 | lower }})">
+        <div x-data="toggleNode({{ ((plan._interviews.length <= 15) | string | lower) }})">
           <div class="tree-node flex items-center cursor-pointer rounded-md px-2 py-1 text-[13px]"
                :class="{'selected': selectedId === '{{ plan.id }}'}"
                @click="selectedId = '{{ plan.id }}'; htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', {target: '#main-content', swap: 'innerHTML', pushUrl: true})">
-            <button @click.stop="toggle($data)" class="p-0.5 mr-0.5 flex-shrink-0" x-show="{{ plan._interviews.length > 0 | lower }}">
+            <button @click.stop="toggle($data)" class="p-0.5 mr-0.5 flex-shrink-0" x-show="{{ ((plan._interviews.length > 0) | string | lower) }}">
               <svg class="w-3 h-3 text-gray-400 chevron" :class="{'rotated': $data._expanded}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
               </svg>
             </button>
-            <span class="w-4 flex-shrink-0" x-show="{{ plan._interviews.length <= 0 | lower }}"></span>
+            <span class="w-4 flex-shrink-0" x-show="{{ ((plan._interviews.length <= 0) | string | lower) }}"></span>
             <span class="w-1.5 h-1.5 rounded-full mr-1.5 flex-shrink-0 status-dot-{{ plan.status }}"></span>
             <span class="truncate flex-1">{{ plan.name }}</span>
             <span class="text-[10px] text-gray-400 ml-1">{{ plan._completedCount }}/{{ plan._interviewCount }}</span>
@@ -62,22 +75,23 @@
       </div>
     </template>
   </div>
+  {% else %}
+  <div class="text-center px-4 py-8">
+    <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+    </svg>
+    <p class="text-sm text-gray-500 mb-4">暂无访谈模板</p>
+    <button
+      hx-get="/admin/content/templates/new"
+      hx-target="#main-content"
+      hx-swap="innerHTML"
+      class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100"
+    >
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      新建模板
+    </button>
+  </div>
   {% endfor %}
 </div>
-
-<script>
-function toggleNode(defaultExpanded) {
-  return { _expanded: defaultExpanded, toggle(node) { node._expanded = !node._expanded; } };
-}
-</script>
-
-<style>
-.status-dot-PENDING { background: #9ca3af; }
-.status-dot-READY { background: #60a5fa; }
-.status-dot-RUNNING { background: #facc15; }
-.status-dot-PAUSED { background: #fb923c; }
-.status-dot-COMPLETED { background: #4ade80; }
-.status-dot-CANCELLED { background: #f87171; }
-.status-dot-ACTIVE { background: #facc15; }
-.status-dot-WAITING { background: #fb923c; }
-</style>

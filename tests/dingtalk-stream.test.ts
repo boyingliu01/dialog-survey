@@ -308,46 +308,64 @@ describe('DingTalkStreamClient', () => {
 
     /**
      * @test REQ-002-8-05
-     * @intent 跳过-验证在接收到消息后发送ACK(需要模拟更复杂的WebSocket行为)
+     * @intent 验证在接收到消息后发送ACK
      */
-    it.skip('should send ACK after receiving message', async () => {
-      const mockSend = vi.fn();
-
+    it('should send ACK after receiving message', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => mockConnectionResponse,
       });
 
-      vi.doMock('ws', () => ({
-        WebSocket: class MockWebSocket {
-          on = vi.fn((event: string, handler: (data: unknown) => void) => {
-            if (event === 'open') {
-              setTimeout(() => handler(undefined), 0);
-            }
-            if (event === 'message') {
-              setTimeout(() => handler(Buffer.from(JSON.stringify(mockMessage))), 10);
-            }
-            return this;
-          });
-          send = mockSend;
-          close = vi.fn();
-          readyState = 1;
-        },
-      }));
+      let openHandler: (() => void) | null = null;
+      let messageHandler: ((data: Buffer) => void) | null = null;
+      let wsInstance: WebSocket | null = null;
+      const mockSend = vi.fn();
 
-      const { DingTalkStreamClient } = await import(
-        '../src/integrations/dingtalk/stream-client.js'
-      );
+      // biome-ignore lint/suspicious/noExplicitAny: ws library's WebSocket.on type is incompatible with vi.spyOn
+      vi.spyOn(WebSocket.prototype as any, 'on').mockImplementation(function (
+        this: WebSocket,
+        event: string,
+        handler: (data: unknown) => void
+      ) {
+        wsInstance = this;
+        if (event === 'open') {
+          openHandler = handler as () => void;
+        }
+        if (event === 'message') {
+          messageHandler = handler as (data: Buffer) => void;
+        }
+        return this;
+      });
+      // biome-ignore lint/suspicious/noExplicitAny: same reason
+      vi.spyOn(WebSocket.prototype as any, 'send').mockImplementation(mockSend);
+
       const client = new DingTalkStreamClient(mockConfig);
-
       await client.connect();
-      await new Promise((resolve) => setTimeout(resolve, 50));
 
+      // Mark WebSocket as open so sendAck doesn't bail out
+      // ws's readyState is a getter-only property, must use defineProperty
+      if (wsInstance) {
+        Object.defineProperty(wsInstance, 'readyState', {
+          value: WebSocket.OPEN,
+          configurable: true,
+        });
+      }
+
+      // Simulate open first so the client marks itself as connected
+      if (openHandler) {
+        openHandler();
+      }
+
+      // Simulate an incoming message
+      if (messageHandler) {
+        messageHandler(Buffer.from(JSON.stringify(mockMessage)));
+      }
+
+      // Verify ACK was sent over the WebSocket
       expect(mockSend).toHaveBeenCalled();
       const sentMessage = JSON.parse(mockSend.mock.calls[0][0]);
       expect(sentMessage.code).toBe(200);
-
-      vi.doUnmock('ws');
+      expect(sentMessage.headers.messageId).toBe('msg-123');
     });
   });
 
@@ -486,38 +504,37 @@ describe('DingTalkStreamClient', () => {
      * @test REQ-002-8-01
      * @intent 验证WebSocket连接错误处理
      */
-    it.skip('should handle WebSocket connection error', async () => {
+    it('should handle WebSocket connection error', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => mockConnectionResponse,
       });
 
-      vi.doMock('ws', () => ({
-        WebSocket: class MockWebSocket {
-          on = vi.fn((event: string, handler: (data: unknown) => void) => {
-            if (event === 'error') {
-              setTimeout(() => handler(new Error('Connection failed')), 0);
-            }
-            return this;
-          });
-          send = vi.fn();
-          close = vi.fn();
-        },
-      }));
+      let errorHandler: ((err: Error) => void) | null = null;
 
-      const { DingTalkStreamClient } = await import(
-        '../src/integrations/dingtalk/stream-client.js'
-      );
+      // biome-ignore lint/suspicious/noExplicitAny: ws library's WebSocket.on type is incompatible with vi.spyOn
+      vi.spyOn(WebSocket.prototype as any, 'on').mockImplementation(function (
+        this: WebSocket,
+        event: string,
+        handler: (data: unknown) => void
+      ) {
+        if (event === 'error') {
+          errorHandler = handler as (err: Error) => void;
+        }
+        return this;
+      });
+
       const client = new DingTalkStreamClient(mockConfig);
       const errorSpy = vi.fn();
       client.on('error', errorSpy);
 
       await client.connect();
-      await new Promise((resolve) => setTimeout(resolve, 50));
 
-      expect(errorSpy).toHaveBeenCalled();
+      if (errorHandler) {
+        errorHandler(new Error('Connection failed'));
+      }
 
-      vi.doUnmock('ws');
+      expect(errorSpy).toHaveBeenCalledWith(new Error('Connection failed'));
     });
 
     /**

@@ -93,11 +93,11 @@ export async function generateSmartResponse(
       );
       const parsed = parseLLMResponse(response.content);
       if (!parsed) {
-        warn('Failed to parse custom prompt result, falling back');
+        warn('Failed to parse custom prompt result as JSON, using raw text');
         return {
-          response: FALLBACK_RESPONSE,
-          action: 'NEXT',
-          shouldProceedToNext: true,
+          response: smartTruncate(response.content, 150),
+          action: 'STAY',
+          shouldProceedToNext: false,
           shouldEndInterview: false,
         };
       }

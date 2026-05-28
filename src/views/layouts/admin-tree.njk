@@ -16,7 +16,20 @@
     .chevron.rotated { transform: rotate(90deg); }
     .sidebar-scroll::-webkit-scrollbar { width: 5px; }
     .sidebar-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+    .status-dot-PENDING { background: #9ca3af; }
+    .status-dot-READY { background: #60a5fa; }
+    .status-dot-RUNNING { background: #facc15; }
+    .status-dot-PAUSED { background: #fb923c; }
+    .status-dot-COMPLETED { background: #4ade80; }
+    .status-dot-CANCELLED { background: #f87171; }
+    .status-dot-ACTIVE { background: #facc15; }
+    .status-dot-WAITING { background: #fb923c; }
   </style>
+  <script>
+    function toggleNode(defaultExpanded) {
+      return { _expanded: defaultExpanded, toggle(node) { node._expanded = !node._expanded; } };
+    }
+  </script>
 </head>
 <body class="bg-gray-50 h-screen flex flex-col overflow-hidden" hx-headers='{"X-Admin-Key": "{{ adminApiKey | default('') }}"}'>
   <!-- Top bar -->
@@ -29,7 +42,7 @@
     <!-- Left Sidebar: Tree (server-rendered) -->
     <aside class="w-72 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
       <div class="flex-1 overflow-y-auto sidebar-scroll px-1 py-2 text-sm">
-        {% block tree %}{% endblock %}
+        {% include "admin/tree-body.njk" %}
       </div>
     </aside>
 
@@ -49,20 +62,25 @@
     </main>
   </div>
 
-  <!-- Global HTMX error toast -->
+  <!-- Global HTMX toast: errors (red) + success (green) -->
   <script>
   document.body.addEventListener('htmx:afterOnLoad', function(evt) {
     var s = evt.detail.xhr.status;
-    if (s >= 400) {
-      var msg = '操作失败 (HTTP ' + s + ')';
-      var txt = evt.detail.xhr.responseText;
-      if (txt) { var d = document.createElement('div'); d.innerHTML = txt; msg = (d.textContent||d.innerText||msg).trim().substring(0,150); }
-      var t = document.createElement('div');
+    var txt = evt.detail.xhr.responseText;
+    if (!txt) return;
+    var isErr = s >= 400;
+    var d = document.createElement('div'); d.innerHTML = txt;
+    var msg = (d.textContent||d.innerText||'').trim().substring(0,150);
+    if (!msg) return;
+    var t = document.createElement('div');
+    if (isErr) {
       t.className = 'fixed top-3 right-3 z-50 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-xs';
-      t.textContent = msg;
-      document.body.appendChild(t);
-      setTimeout(function(){t.remove()}, 4000);
+    } else {
+      t.className = 'fixed top-3 right-3 z-50 bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-xs';
     }
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(function(){t.remove()}, 3000);
   });
 
   // Initialize Alpine in HTMX-loaded content

@@ -312,6 +312,59 @@ describe('InterviewStateRepository - Missing Coverage Tests', () => {
 
       expect(result).toBeNull();
     });
+
+    /**
+     * @test bugfix-findActiveInterview-includes-pending
+     * @intent 修复Bug: 计划发布后预创建的PENDING状态访谈应被findActiveInterview找到，
+     *         否则用户回复时会被分配到错误的模板
+     */
+    it('should include PENDING status in the status filter for findFirst', async () => {
+      const mockInterview = {
+        id: 'pending-interview',
+        userId: 'test-user-1',
+        templateId: 'plan-template-id',
+        status: 'PENDING',
+        currentQuestion: 0,
+        followupCount: 0,
+        maxFollowups: 2,
+        version: 1,
+        messages: [],
+        responses: [],
+        reportPath: null,
+      };
+      mockPrisma.interview.findFirst.mockResolvedValue(mockInterview);
+
+      await repository.findActiveInterview('test-user-1');
+
+      const callArgs = mockPrisma.interview.findFirst.mock.calls[0][0];
+      expect(callArgs.where.status.in).toContain('PENDING');
+      expect(callArgs.where.status.in).toContain('ACTIVE');
+      expect(callArgs.where.status.in).toContain('WAITING');
+    });
+
+    it('should return the correct PENDING interview data', async () => {
+      const mockInterview = {
+        id: 'pending-interview',
+        userId: 'test-user-1',
+        templateId: 'plan-template-id',
+        status: 'PENDING',
+        currentQuestion: 0,
+        followupCount: 0,
+        maxFollowups: 2,
+        version: 1,
+        messages: [],
+        responses: [],
+        reportPath: null,
+      };
+      mockPrisma.interview.findFirst.mockResolvedValue(mockInterview);
+
+      const result = await repository.findActiveInterview('test-user-1');
+
+      expect(result).not.toBeNull();
+      expect(result?.interviewId).toBe('pending-interview');
+      expect(result?.status).toBe('PENDING');
+      expect(result?.templateId).toBe('plan-template-id');
+    });
   });
 
   describe('disconnect', () => {

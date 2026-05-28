@@ -4,15 +4,26 @@ import { beforeEach, describe, expect, it } from 'vitest';
 let idCounter = 0;
 const generateId = () => `tmpl-${Date.now()}-${++idCounter}`;
 
+interface TemplateRecord {
+  id: string;
+  name: string;
+  description?: string;
+  content: string;
+  version: number;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 class TemplateRepository {
-  private store: Map<string, any>;
+  private store: Map<string, TemplateRecord>;
 
   constructor() {
     this.store = new Map();
   }
 
-  async create(data: { name: string; content: any; description?: string }) {
-    const template = {
+  async create(data: { name: string; content: object; description?: string }) {
+    const template: TemplateRecord = {
       id: generateId(),
       name: data.name,
       description: data.description,
