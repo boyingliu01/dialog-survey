@@ -339,13 +339,13 @@ export class InterviewStateRepository {
 
   /**
    * Find active interview for a user (for multi-turn conversation)
-   * Returns the most recent ACTIVE/WAITING interview
+   * Returns the most recent ACTIVE/WAITING/PENDING interview
    */
   async findActiveInterview(userId: string): Promise<InterviewState | null> {
     const interview = await this.prisma.interview.findFirst({
       where: {
         userId,
-        status: { in: ['ACTIVE', 'WAITING'] },
+        status: { in: ['ACTIVE', 'WAITING', 'PENDING'] },
       },
       orderBy: { createdAt: 'desc' },
       include: {

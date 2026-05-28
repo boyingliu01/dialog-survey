@@ -1,0 +1,82 @@
+<div class="max-w-2xl mx-auto p-6">
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-lg font-semibold text-gray-800">{% if isEdit %}编辑访谈计划{% else %}新建访谈计划{% endif %}</h2>
+    <button
+      hx-get="/admin"
+      hx-target="#main-content"
+      hx-swap="innerHTML"
+      class="text-gray-400 hover:text-gray-600"
+      title="取消"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <form
+    {% if isEdit %}hx-put="/api/plans/{{ plan.id }}"{% else %}hx-post="/api/plans"{% endif %}
+    hx-target="#plan-form-result"
+    hx-swap="innerHTML"
+    hx-indicator="#plan-submit-btn"
+    hx-on::after-request="if (event.detail.successful) { htmx.ajax('GET', '/admin', {target: '#main-content', swap: 'innerHTML'}); }"
+    class="space-y-4"
+  >
+    <div>
+      <label for="templateId" class="block text-sm font-medium text-gray-700 mb-1">
+        选择模板 <span class="text-red-500">*</span>
+      </label>
+      <select id="templateId" name="templateId" required
+              class="block w-full text-sm rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500">
+        <option value="">-- 请选择模板 --</option>
+        {% for t in templates %}
+        <option value="{{ t.id }}" {% if selectedTemplateId == t.id %}selected{% endif %}>{{ t.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="planName" class="block text-sm font-medium text-gray-700 mb-1">
+        计划名称 <span class="text-red-500">*</span>
+      </label>
+      <input type="text" id="planName" name="name" required value="{% if isEdit %}{{ plan.name }}{% endif %}"
+             class="block w-full text-sm rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500"
+             placeholder="如：Q2 满意度调研" />
+    </div>
+    <div>
+      <label for="description" class="block text-sm font-medium text-gray-600 mb-1">描述</label>
+      <textarea id="description" name="description" rows="2"
+                class="block w-full text-sm rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500 resize-none"
+                placeholder="可选">{% if isEdit %}{{ plan.description }}{% endif %}</textarea>
+    </div>
+    <div>
+      <label for="targetDate" class="block text-sm font-medium text-gray-600 mb-1">访谈截止日期</label>
+      <input type="date" id="targetDate" name="targetDate" value="{% if isEdit and plan.targetDate %}{{ plan.targetDate | date('Y-m-d') }}{% endif %}"
+             class="block w-full text-sm rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500" />
+      <p class="text-xs text-gray-400 mt-1">可选，设置后受访者需在此日期前完成访谈</p>
+    </div>
+    <div>
+      <label for="invitees" class="block text-sm font-medium text-gray-700 mb-1">
+        受访人员 <span class="text-red-500">*</span>
+      </label>
+      <textarea id="invitees" name="invitees" rows="5" {% if isEdit %}{% else %}required{% endif %}
+                class="block w-full text-sm rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500">{% if isEdit %}{% for invitee in (plan.inviteeData or []) %}{{ invitee.userId }}{% if invitee.name %} {{ invitee.name }}{% endif %}
+{% endfor %}{% endif %}</textarea>
+      <p class="text-xs text-gray-400 mt-1">每行一个受访者，格式为「钉钉UserId 姓名」，姓名可选。{% if not isEdit %}发布后将通过钉钉机器人自动发送访谈邀约。{% endif %}</p>
+      <p class="text-xs text-gray-400 mt-1">每行一个受访者，格式为「钉钉UserId 姓名」，姓名可选。发布后将通过钉钉机器人自动发送访谈邀约。</p>
+    </div>
+    <input type="hidden" name="publish" value="true" />
+    <div class="flex justify-end gap-2 pt-2">
+      <button type="submit" id="plan-submit-btn"
+              class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 disabled:opacity-50">
+        <span class="htmx-indicator hidden mr-1.5">
+          <svg class="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </span>
+        {% if isEdit %}更新计划{% else %}发布计划{% endif %}
+      </button>
+    </div>
+  </form>
+  <div id="plan-form-result" class="mt-3"></div>
+</div>

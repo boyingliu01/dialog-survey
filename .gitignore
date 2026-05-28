@@ -100,3 +100,4 @@ tests-clean/
 # Git worktrees
 .worktrees/
 worktrees/
+.gstack/

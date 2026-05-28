@@ -8,7 +8,7 @@
 </div>
 
 <div x-data="{
-  questions: {{ existingQuestions | default('[]') | safe }},
+  questions: {{ existingQuestions | dump | safe }},
   addQuestion() {
     this.questions.push({ text: '', order: this.questions.length });
   },
@@ -141,10 +141,9 @@
         </button>
       </div>
     </div>
-    </div>
 
     <div class="px-6 py-4 bg-gray-50 flex justify-end space-x-3">
-      <a href="/admin/templates"
+      <a href="/admin"
          class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
         取消
       </a>

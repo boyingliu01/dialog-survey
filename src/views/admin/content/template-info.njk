@@ -1,5 +1,58 @@
 <div class="max-w-3xl mx-auto p-6">
-  <h2 class="text-lg font-semibold text-gray-800 mb-4">{{ template.name }}</h2>
+  <div class="flex items-center justify-between mb-4">
+    <h2 class="text-lg font-semibold text-gray-800">{{ template.name }}</h2>
+    <div class="flex gap-2">
+      {% if template.status != 'PUBLISHED' %}
+      <button
+        hx-post="/admin/api/templates/{{ template.id }}/publish"
+        hx-target="#form-result"
+        hx-swap="innerHTML"
+        class="inline-flex items-center px-2.5 py-1 text-xs font-medium text-amber-600 bg-amber-50 rounded-md hover:bg-amber-100"
+      >
+        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        发布
+      </button>
+      {% endif %}
+      <button
+        hx-get="/admin/templates/{{ template.id }}/edit"
+        hx-target="#main-content"
+        hx-swap="innerHTML"
+        hx-push-url="true"
+        class="inline-flex items-center px-2.5 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100"
+      >
+        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+        </svg>
+        编辑
+      </button>
+      <button
+        hx-get="/admin/plans/new?templateId={{ template.id }}"
+        hx-target="#main-content"
+        hx-swap="innerHTML"
+        hx-push-url="true"
+        class="inline-flex items-center px-2.5 py-1 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-md hover:bg-emerald-100"
+      >
+        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        创建计划
+      </button>
+      <button
+        hx-delete="/admin/api/templates/{{ template.id }}"
+        hx-target="#main-content"
+        hx-swap="innerHTML"
+        hx-confirm="确认删除模板「{{ template.name }}」？关联的计划和访谈将一并删除。"
+        class="inline-flex items-center px-2.5 py-1 text-xs font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100"
+      >
+        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+        删除
+      </button>
+    </div>
+  </div>
   <div class="grid grid-cols-2 gap-4 text-sm">
     <div><span class="text-gray-500">状态:</span> {{ template.status }}</div>
     <div><span class="text-gray-500">版本:</span> v{{ template.version }}</div>
@@ -8,5 +61,30 @@
   </div>
   {% if template.description %}
   <p class="mt-4 text-sm text-gray-600">{{ template.description }}</p>
+  {% endif %}
+
+  {% if invitationPrompt %}
+  <div class="mt-4">
+    <h3 class="text-sm font-medium text-gray-700 mb-1">邀约提示词</h3>
+    <p class="text-sm text-gray-600 bg-gray-50 p-3 rounded-md whitespace-pre-wrap">{{ invitationPrompt }}</p>
+  </div>
+  {% endif %}
+
+  {% if questions and questions|length > 0 %}
+  <div class="mt-4">
+    <h3 class="text-sm font-medium text-gray-700 mb-2">问题列表（{{ questions|length }}）</h3>
+    <ol class="list-decimal list-inside space-y-1">
+      {% for q in questions %}
+      <li class="text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-md">{{ q }}</li>
+      {% endfor %}
+    </ol>
+  </div>
+  {% endif %}
+
+  {% if closingMessage %}
+  <div class="mt-4">
+    <h3 class="text-sm font-medium text-gray-700 mb-1">结束语</h3>
+    <p class="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">{{ closingMessage }}</p>
+  </div>
   {% endif %}
 </div>

@@ -3,13 +3,14 @@ import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { buildApp } from '../src/server.js';
 
+const ADMIN_KEY = 'test-admin-key';
 const prisma = new PrismaClient();
 
 describe('Admin Tree Routes', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    process.env.ADMIN_API_KEY = 'test-admin-key';
+    process.env.ADMIN_API_KEY = ADMIN_KEY;
     app = await buildApp();
     await app.ready();
   });
@@ -34,7 +35,7 @@ describe('Admin Tree Routes', () => {
         method: 'GET',
         url: '/admin',
         headers: {
-          'X-Admin-Key': 'test-admin-key',
+          'x-admin-key': ADMIN_KEY,
         },
       });
 
@@ -49,7 +50,7 @@ describe('Admin Tree Routes', () => {
         method: 'GET',
         url: '/admin',
         headers: {
-          'X-Admin-Key': 'test-admin-key',
+          'x-admin-key': ADMIN_KEY,
         },
       });
 
@@ -64,7 +65,7 @@ describe('Admin Tree Routes', () => {
         method: 'GET',
         url: '/admin/content/templates/non-existent-template-id',
         headers: {
-          'X-Admin-Key': 'test-admin-key',
+          'x-admin-key': ADMIN_KEY,
         },
       });
 
@@ -79,7 +80,7 @@ describe('Admin Tree Routes', () => {
         method: 'GET',
         url: '/admin/content/plans/non-existent-plan-id',
         headers: {
-          'X-Admin-Key': 'test-admin-key',
+          'x-admin-key': ADMIN_KEY,
         },
       });
 
@@ -94,7 +95,7 @@ describe('Admin Tree Routes', () => {
         method: 'GET',
         url: '/admin/content/reports/non-existent-interview-id',
         headers: {
-          'X-Admin-Key': 'test-admin-key',
+          'x-admin-key': ADMIN_KEY,
         },
       });
 
@@ -109,12 +110,124 @@ describe('Admin Tree Routes', () => {
         method: 'GET',
         url: '/admin/content/plans/non-existent-plan-id-2/all-interviews',
         headers: {
-          'X-Admin-Key': 'test-admin-key',
+          'x-admin-key': ADMIN_KEY,
         },
       });
 
       expect(response.statusCode).toBe(404);
       expect(response.body).toContain('计划不存在');
+    });
+  });
+
+  describe('POST /admin/api/templates — Create template (JSON)', () => {
+    it('should create template and return 201 with redirect', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/admin/api/templates',
+        headers: {
+          'x-admin-key': ADMIN_KEY,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: 'Integration Test Template',
+          invitationPrompt: 'Please answer our survey',
+          questions: { '0': { text: 'How are you?' } },
+        }),
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.headers['hx-redirect']).toBe('/admin');
+
+      const created = await prisma.template.findFirst({
+        where: { name: 'Integration Test Template' },
+      });
+      if (!created) throw new Error('Created template not found');
+      expect(created.content).toContain('Please answer our survey');
+
+      await prisma.template.delete({ where: { id: created.id } });
+    });
+
+    it('should return 422 when name is missing', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/admin/api/templates',
+        headers: {
+          'x-admin-key': ADMIN_KEY,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: { invitationPrompt: 'test' },
+        }),
+      });
+
+      expect(response.statusCode).toBe(422);
+      expect(response.body).toContain('text-red-600');
+    });
+  });
+
+  describe('GET /admin/content/templates/:id — action buttons render', () => {
+    it('should render template detail page with edit, delete, and create plan buttons', async () => {
+      const template = await prisma.template.create({
+        data: {
+          name: 'Buttons Test Template',
+          content: '[]',
+          status: 'DRAFT',
+        },
+      });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/admin/content/templates/${template.id}`,
+        headers: {
+          'x-admin-key': ADMIN_KEY,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toContain('编辑');
+      expect(response.body).toContain('删除');
+      expect(response.body).toContain('创建计划');
+
+      await prisma.template.delete({ where: { id: template.id } });
+    });
+  });
+
+  describe('GET /admin/plans/new — Plan creation form', () => {
+    it('should return 200 and render plan form with template dropdown', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/admin/plans/new',
+        headers: {
+          'x-admin-key': ADMIN_KEY,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toContain('新建访谈计划');
+      expect(response.body).toContain('发布计划');
+    });
+
+    it('should pre-select template when templateId query param is provided', async () => {
+      const template = await prisma.template.create({
+        data: {
+          name: 'Preselect Test',
+          content: '[]',
+          status: 'DRAFT',
+        },
+      });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/admin/plans/new?templateId=${template.id}`,
+        headers: {
+          'x-admin-key': ADMIN_KEY,
+        },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toContain('selected');
+
+      await prisma.template.delete({ where: { id: template.id } });
     });
   });
 });

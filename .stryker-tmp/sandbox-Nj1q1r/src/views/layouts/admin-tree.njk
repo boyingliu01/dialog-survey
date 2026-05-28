@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ title | default('访谈管理后台') }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" onerror="this.src='/js/htmx.min.js'"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js" onerror="this.src='/js/alpine.min.js'"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .tree-node { transition: background 0.12s; border-left: 2px solid transparent; }
+    .tree-node:hover { background: #f1f5f9; border-left-color: #94a3b8; }
+    .tree-node.selected { background: #e0e7ff; border-left-color: #6366f1; color: #4338ca; }
+    .chevron { transition: transform 0.15s; }
+    .chevron.rotated { transform: rotate(90deg); }
+    .sidebar-scroll::-webkit-scrollbar { width: 5px; }
+    .sidebar-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col overflow-hidden" hx-headers='{"X-Admin-Key": "{{ adminApiKey | default('') }}"}'>
+  <!-- Top bar -->
+  <header class="bg-white border-b border-gray-200 flex-shrink-0 h-11 flex items-center px-4 gap-3">
+    <span class="text-sm font-semibold text-gray-800">访谈管理后台</span>
+    <a href="/" class="ml-auto text-xs text-gray-500 hover:text-gray-800">返回主站</a>
+  </header>
+
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Left Sidebar: Tree (server-rendered) -->
+    <aside class="w-72 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+      <div class="flex-1 overflow-y-auto sidebar-scroll px-1 py-2 text-sm">
+        {% block tree %}{% endblock %}
+      </div>
+    </aside>
+
+    <!-- Right Content Area -->
+    <main id="main-content" class="flex-1 overflow-y-auto">
+      {% if content_html | default(false) %}
+      <div class="p-6">{{ content_html | safe }}</div>
+      {% else %}
+      <div class="flex flex-col items-center justify-center h-full text-gray-400">
+        <svg class="w-16 h-16 mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+        </svg>
+        <p class="text-sm">点击左侧节点查看详情</p>
+        <p class="text-xs mt-1 text-gray-300">模板 → 计划 → 访谈</p>
+      </div>
+      {% endif %}
+    </main>
+  </div>
+
+  <!-- Global HTMX error toast -->
+  <script>
+  document.body.addEventListener('htmx:afterOnLoad', function(evt) {
+    var s = evt.detail.xhr.status;
+    if (s >= 400) {
+      var msg = '操作失败 (HTTP ' + s + ')';
+      var txt = evt.detail.xhr.responseText;
+      if (txt) { var d = document.createElement('div'); d.innerHTML = txt; msg = (d.textContent||d.innerText||msg).trim().substring(0,150); }
+      var t = document.createElement('div');
+      t.className = 'fixed top-3 right-3 z-50 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-xs';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(function(){t.remove()}, 4000);
+    }
+  });
+
+  // Initialize Alpine in HTMX-loaded content
+  document.addEventListener('htmx:afterSwap', function(evt) {
+    if (typeof Alpine !== 'undefined') {
+      Alpine.initTree(evt.detail.target);
+    }
+  });
+  </script>
+</body>
+</html>

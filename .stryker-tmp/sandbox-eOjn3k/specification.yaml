@@ -1,0 +1,304 @@
+specification:
+  id: "SPEC-ANALYSIS-001"
+  name: "Cross-Interview Insight Analysis"
+  version: "1.0.0"
+  description: "Automatically annotate 1000+ interview results with dimensions, cluster topics, discover emergent issues, and generate structured insight reports"
+
+  requirements:
+    - id: "REQ-TEMPLATE-001"
+      description: "Templates support analysis dimensions (dimensions) and analysis config (analysisConfig) for guiding single and batch analysis"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-TEMPLATE-001-01"
+          given: "A template exists with empty dimensions"
+          when: "User updates the template dimensions via PUT /api/templates/:id/dimensions with a valid dimensions array"
+          then: "API returns 200 and the complete Template object including the new dimensions"
+        - id: "AC-TEMPLATE-001-02"
+          given: "User submits a dimensions array with missing required fields (no label)"
+          when: "PUT /api/templates/:id/dimensions is called"
+          then: "API returns 400 with validation error details"
+        - id: "AC-TEMPLATE-001-03"
+          given: "A newly created template"
+          when: "User creates a template via POST /api/templates without dimensions field"
+          then: "Template is created successfully with dimensions set to null (zero-config mode)"
+
+    - id: "REQ-TEMPLATE-002"
+      description: "Pre-built example templates (quality satisfaction, standard group feedback, employee satisfaction) are seeded out-of-the-box"
+      priority: "SHOULD"
+      acceptance_criteria:
+        - id: "AC-TEMPLATE-002-01"
+          given: "No seed templates exist in database"
+          when: "System initialization or seed script is triggered"
+          then: "At least 3 example templates are created (quality satisfaction, standard group feedback, employee satisfaction), each with complete dimensions"
+
+    - id: "REQ-SINGLE-001"
+      description: "After a single interview completes, automatic dimension-tag analysis runs asynchronously including sentiment, representative quotes, emergent tags, and overall rating"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-SINGLE-001-01"
+          given: "An interview is marked COMPLETED with complete messages"
+          when: "The analyzing node triggers async analysis"
+          then: "An AnalysisReport is created with dimensionTags array, each containing dimensionId, label, sentiment, and quotes"
+        - id: "AC-SINGLE-001-02"
+          given: "The interview template has no dimensions defined"
+          when: "Analyzing node triggers analysis"
+          then: "AnalysisReport is created with empty dimensionTags (does not block interview), emergentTags extracted from conversation"
+        - id: "AC-SINGLE-001-03"
+          given: "LLM analysis service times out or returns error"
+          when: "Single analysis LLM call fails"
+          then: "Error is recorded in dead-letter table, AnalysisReport content and keyFindings are still generated normally"
+
+    - id: "REQ-SINGLE-002"
+      description: "Single analysis uses prompt.service.ts to manage analyzeWithDimensions prompt, not hardcoded"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-SINGLE-002-01"
+          given: "prompt.service.ts has analyzeWithDimensions template registered"
+          when: "report.service.ts calls analyzeWithDimensions"
+          then: "Prompt correctly renders with dimensions injected via render method"
+
+    - id: "REQ-BATCH-001"
+      description: "POST /api/analysis/aggregate/:planId triggers batch aggregate analysis, asynchronously processing all COMPLETED interviews dimensionTags"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-BATCH-001-01"
+          given: "A planId has multiple COMPLETED interviews with dimensionTags"
+          when: "User posts POST /api/analysis/aggregate/:planId"
+          then: "Returns 201 with batchReportId and status PENDING, background pipeline starts"
+        - id: "AC-BATCH-001-02"
+          given: "Same planId already has a RUNNING BatchAnalysisReport"
+          when: "User posts again to same planId"
+          then: "Returns 409 with existing report ID, no duplicate analysis starts"
+        - id: "AC-BATCH-001-03"
+          given: "Plan has no COMPLETED interviews"
+          when: "User posts POST /api/analysis/aggregate/:planId"
+          then: "Returns 400 with error message indicating no analyzable interviews"
+
+    - id: "REQ-BATCH-002"
+      description: "Pipeline Step 1: Pure computation dimension statistics with no LLM calls, calculating mention rates and sentiment distributions"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-BATCH-002-01"
+          given: "100 reports where 62 contain stability dimension and 48 are negative"
+          when: "Step 1 computes dimension statistics"
+          then: "Output shows 62 percent mention rate and 77.4 percent negative rate, results saved to checkpoint"
+        - id: "AC-BATCH-002-02"
+          given: "Cursor-based batch reading at 100 records per batch"
+          when: "Reading 1000+ interview reports"
+          then: "Memory stays stable with no OOM, statistics match full-load results"
+
+    - id: "REQ-BATCH-003"
+      description: "Pipeline Step 2: LLM topic clustering for high-mention dimensions, identifying 3 to 8 sub-themes per dimension"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-BATCH-003-01"
+          given: "Stability dimension has 150 quotes"
+          when: "Step 2 calls LLM clustering"
+          then: "Returns 3 to 8 sub-theme objects each with subTopicName, mentionCount, quotes array, and overallSentiment"
+        - id: "AC-BATCH-003-02"
+          given: "Step 2 is called twice with identical input"
+          when: "Second call is made"
+          then: "Cached result is returned with zero LLM calls"
+
+    - id: "REQ-BATCH-004"
+      description: "Pipeline Step 3: LLM emergent discovery finding top 5 emergent issues across all interviews"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-BATCH-004-01"
+          given: "1000 interview emergentTags collected"
+          when: "Step 3 calls LLM emergent discovery"
+          then: "Returns up to 5 emergent issue objects each with name, mentionCount, up to 3 representativeQuotes, and urgency"
+
+    - id: "REQ-BATCH-005"
+      description: "LLM concurrency control limits concurrent LLM calls to 3 or fewer using p-limit"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-BATCH-005-01"
+          given: "5 dimensions simultaneously need LLM clustering"
+          when: "Parallel LLM calls are initiated"
+          then: "At most 3 LLM calls run concurrently, remaining queued"
+
+    - id: "REQ-BATCH-006"
+      description: "Pipeline resumes from last completed checkpoint step after interruption or failure"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-BATCH-006-01"
+          given: "Pipeline fails during Step 2 due to LLM timeout"
+          when: "User re-posts aggregate for same planId"
+          then: "System skips completed Step 1 and resumes from Step 2"
+
+    - id: "REQ-BATCH-007"
+      description: "Pipeline has a 5-minute global timeout that marks report as FAILED with error details"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-BATCH-007-01"
+          given: "Pipeline runs for 5 minutes without completing"
+          when: "Pipeline timer fires"
+          then: "BatchAnalysisReport status set to FAILED with timeout error message"
+
+    - id: "REQ-REPORT-001"
+      description: "GET /api/analysis/aggregate/:batchReportId retrieves aggregate analysis results"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-REPORT-001-01"
+          given: "batchReportId exists with COMPLETED status"
+          when: "User GETs /api/analysis/aggregate/:batchReportId"
+          then: "Returns full JSON including content, metrics, topics, and emergents"
+
+    - id: "REQ-REPORT-002"
+      description: "GET /api/analysis/dimensions/:planId retrieves lightweight dimension statistics without triggering full aggregation"
+      priority: "SHOULD"
+      acceptance_criteria:
+        - id: "AC-REPORT-002-01"
+          given: "Plan has 100 COMPLETED reports"
+          when: "User GETs /api/analysis/dimensions/:planId"
+          then: "Returns dimension mention rates and sentiment breakdown without sub-theme clustering or emergent issues"
+
+    - id: "REQ-REPORT-003"
+      description: "GET /api/analysis/aggregate/:batchReportId/export?format=md exports Markdown report"
+      priority: "SHOULD"
+      acceptance_criteria:
+        - id: "AC-REPORT-003-01"
+          given: "batchReportId exists with COMPLETED status"
+          when: "User GETs export endpoint with format=md query parameter"
+          then: "Returns text/markdown content type with raw Markdown body"
+
+    - id: "REQ-SAFETY-001"
+      description: "Dimensions JSONB validated using Zod schema before writing, invalid data rejected with 400"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-SAFETY-001-01"
+          given: "Dimensions array contains invalid objects missing id or label"
+          when: "PUT /api/templates/:id/dimensions is called"
+          then: "Zod validation fails with 400 response and specific error message indicating missing field"
+
+    - id: "REQ-SAFETY-002"
+      description: "PII in quotes (names, phones, emails) is anonymized in aggregate reports"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-SAFETY-002-01"
+          given: "Quotes contain Chinese names and phone numbers"
+          when: "Aggregate report is generated"
+          then: "Names replaced with username placeholder, phone numbers masked with asterisks"
+
+    - id: "REQ-SAFETY-003"
+      description: "Analysis APIs protected by existing securityMiddleware X-API-Key authentication"
+      priority: "MUST"
+      acceptance_criteria:
+        - id: "AC-SAFETY-003-01"
+          given: "Request without valid X-API-Key header"
+          when: "User calls POST /api/analysis/aggregate/:planId"
+          then: "API returns 401 Unauthorized"
+
+    - id: "REQ-RELIABILITY-001"
+      description: "Single analysis failures recorded in dead-letter table for later batch retry"
+      priority: "SHOULD"
+      acceptance_criteria:
+        - id: "AC-RELIABILITY-001-01"
+          given: "Single LLM analysis request times out"
+          when: "Analyzing node async analysis catches the error"
+          then: "New row added to dead-letter table with interviewId, error type, and createdAt timestamp"
+
+    - id: "REQ-RELIABILITY-002"
+      description: "Exact-duplicate quotes within same dimension are hash-deduplicated before aggregation"
+      priority: "SHOULD"
+      acceptance_criteria:
+        - id: "AC-RELIABILITY-002-01"
+          given: "Two interviews have identical quote text in same dimension"
+          when: "Pipeline processes quotes for sub-theme clustering"
+          then: "mentionCount counts as 2 people but quote appears only once in sub-theme output"
+
+  design_decisions:
+    - id: "DD-ANALYSIS-001"
+      description: "Dimensions defined at Template level not Plan level"
+      rationale: "Same template used across plans, dimensions should stay with template"
+      alternatives_considered:
+        - "Plan-level dimensions"
+        - "Global default dimensions"
+    - id: "DD-ANALYSIS-002"
+      description: "Single analysis runs async (setImmediate) without blocking interview completion"
+      rationale: "Interview response speed is priority. Consistent with existing analyzing.ts pattern"
+      alternatives_considered:
+        - "Synchronous analysis before interview completes"
+    - id: "DD-ANALYSIS-003"
+      description: "Batch aggregation async with batchReportId for polling"
+      rationale: "Prevents long request timeouts. PENDING immediately returned"
+      alternatives_considered:
+        - "Synchronous long-polling endpoint"
+    - id: "DD-ANALYSIS-004"
+      description: "Zero-config fallback: auto-clustering when no dimensions defined"
+      rationale: "Lowers barrier to entry. Users can analyze without defining dimensions first"
+      alternatives_considered:
+        - "Require dimensions before any analysis"
+    - id: "DD-ANALYSIS-005"
+      description: "LLM clustering uses temperature 0.1 for reproducibility"
+      rationale: "Same input produces similar output for report stability"
+      alternatives_considered:
+        - "Deterministic clustering algorithms (K-means)"
+    - id: "DD-ANALYSIS-006"
+      description: "Prisma migration uses Json? for dimensions (nullable)"
+      rationale: "Existing template records will not fail migration with new column"
+      alternatives_considered:
+        - "Non-null Json with default empty array"
+    - id: "DD-ANALYSIS-007"
+      description: "BatchAnalysisReport status and type use Prisma enums"
+      rationale: "Type safety prevents dirty data from breaking polling"
+      alternatives_considered:
+        - "Bare strings with application-level validation"
+    - id: "DD-ANALYSIS-008"
+      description: "Cursor-based pagination at 100 records per batch"
+      rationale: "Prevents OOM at 1000+ interviews"
+      alternatives_considered:
+        - "Full in-memory load with offset/limit"
+    - id: "DD-ANALYSIS-009"
+      description: "LLM concurrency limited to 3 using p-limit"
+      rationale: "Prevents API rate limiting"
+      alternatives_considered:
+        - "Sequential LLM calls"
+    - id: "DD-ANALYSIS-010"
+      description: "Each pipeline step checkpoint saved to BatchAnalysisReport.checkpoint"
+      rationale: "Failure recovery without re-burning LLM tokens"
+      alternatives_considered:
+        - "Full restart on failure"
+
+  api_contracts:
+    - endpoint: "PUT /api/templates/:id/dimensions"
+      method: "PUT"
+      description: "Update template dimensions configuration"
+      request_body:
+        dimensions: "Array of dimension objects with id, label, description, keywords"
+        analysisConfig: "Optional object with emergentThreshold and customSentimentWords"
+      response_200: "Template object with updated dimensions"
+      response_400: "Validation error with details"
+
+    - endpoint: "POST /api/analysis/aggregate/:planId"
+      method: "POST"
+      description: "Trigger batch aggregate analysis"
+      response_201:
+        batchReportId: "string"
+        status: "PENDING"
+      response_409: "Existing running report ID"
+      response_400: "No analyzable interviews"
+
+    - endpoint: "GET /api/analysis/aggregate/:batchReportId"
+      method: "GET"
+      description: "Retrieve aggregate analysis results"
+      response_200:
+        id: "string"
+        planId: "string"
+        templateId: "string"
+        type: "SUMMARY"
+        status: "COMPLETED"
+        content: "Markdown report string"
+        metrics: "Object with dimension mention rates and sentiment breakdowns"
+        topics: "Object with per-dimension sub-theme clusters"
+        emergents: "Array of emergent issue objects"
+      response_404: "Report not found"
+
+    - endpoint: "GET /api/analysis/dimensions/:planId"
+      method: "GET"
+      description: "Lightweight dimension statistics without full aggregation"
+      response_200:
+        totalInterviews: "number"
+        completedInterviews: "number"
+        dimensions: "Array with dimensionId, label, mentionRate, sentimentBreakdown"

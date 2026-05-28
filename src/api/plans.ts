@@ -7,8 +7,10 @@ const createPlanSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
   templateId: z.string().uuid(),
-  targetDate: z.string().datetime().optional(),
+  targetDate: z.string().optional(),
   schedule: z.string().optional(),
+  invitees: z.string().optional(),
+  publish: z.coerce.boolean().optional().default(true),
 });
 
 const importInviteesSchema = z.object({
@@ -28,9 +30,32 @@ export async function interviewPlanRoutes(fastify: FastifyInstance) {
 
   fastify.post('/api/plans', async (request, _reply) => {
     const input = createPlanSchema.parse(request.body);
+
+    if (input.invitees) {
+      const result = await planService.createAndPublish({
+        name: input.name,
+        description: input.description,
+        templateId: input.templateId,
+        targetDate: input.targetDate,
+        schedule: input.schedule,
+        invitees: input.invitees,
+        publish: input.publish,
+      });
+      return {
+        id: result.planId,
+        imported: result.imported,
+        sent: result.sent,
+        failed: result.failed,
+        errors: result.errors,
+      };
+    }
+
     const planId = await planService.createPlan({
-      ...input,
+      name: input.name,
+      description: input.description,
+      templateId: input.templateId,
       targetDate: input.targetDate ? new Date(input.targetDate) : undefined,
+      schedule: input.schedule,
     });
     return { id: planId };
   });
@@ -51,6 +76,19 @@ export async function interviewPlanRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Plan not found' });
     }
     return plan;
+  });
+
+  fastify.put('/api/plans/:id', async (request, _reply) => {
+    const { id } = request.params as { id: string };
+    const input = createPlanSchema.parse(request.body);
+    await planService.updatePlan(id, {
+      name: input.name,
+      description: input.description,
+      targetDate: input.targetDate,
+      schedule: input.schedule,
+      invitees: input.invitees,
+    });
+    return { id };
   });
 
   fastify.post('/api/plans/:id/invitees', async (request, _reply) => {

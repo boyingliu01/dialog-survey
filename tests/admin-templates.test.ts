@@ -400,6 +400,10 @@ describe('TemplateRepository - getUsageStats', () => {
 
 describe('Admin Auth middleware', () => {
   describe('without ADMIN_API_KEY configured', () => {
+    beforeAll(() => {
+      delete process.env.ADMIN_API_KEY;
+    });
+
     it('should allow GET requests without checking API key', async () => {
       const mockReply = {
         code: vi.fn().mockReturnThis(),
