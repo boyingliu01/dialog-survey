@@ -102,3 +102,7 @@ tests-clean/
 worktrees/
 .gstack/
 .design-review/
+
+# Tool-generated sandboxes / runtime state
+.stryker-tmp/
+.sprint-state/
