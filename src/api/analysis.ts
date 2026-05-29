@@ -69,56 +69,32 @@ export async function analysisRoutes(fastify: FastifyInstance) {
 
   fastify.post('/api/analysis/aggregate/:planId', async (request, reply) => {
     const { planId } = request.params as { planId: string };
-    const prisma = analysisService.prisma;
 
     try {
-      const existing = (await prisma.batchAnalysisReport.findFirst({
-        where: { planId, status: 'RUNNING' },
-      })) as { id: string } | null;
+      const result = await analysisService.createBatchReportIfEligible(planId);
 
-      if (existing) {
-        return reply.status(409).send({
-          error: 'Aggregate analysis already running',
-          existingReportId: existing.id,
-        });
+      switch (result.kind) {
+        case 'created':
+          return reply.status(201).send({
+            batchReportId: result.report.id,
+            status: result.report.status,
+          });
+        case 'conflict':
+          return reply.status(409).send({
+            error: 'Aggregate analysis already running',
+            existingReportId: result.existingId,
+          });
+        case 'no-completed':
+          return reply.status(400).send({
+            error: 'No COMPLETED interviews found in this plan',
+          });
+        case 'plan-not-found':
+          return reply.status(404).send({ error: 'Plan not found' });
+        default: {
+          const _exhaustive: never = result;
+          throw new Error(`Unhandled result kind: ${JSON.stringify(_exhaustive)}`);
+        }
       }
-
-      const completed = (await prisma.interview.findFirst({
-        where: { planId, status: 'COMPLETED' },
-      })) as { id: string } | null;
-
-      if (!completed) {
-        return reply.status(400).send({
-          error: 'No COMPLETED interviews found in this plan',
-        });
-      }
-
-      const plan = (await prisma.interviewPlan.findUnique({
-        where: { id: planId },
-        select: { templateId: true },
-      })) as { templateId: string } | null;
-
-      if (!plan) {
-        return reply.status(404).send({ error: 'Plan not found' });
-      }
-
-      const report = (await prisma.batchAnalysisReport.create({
-        data: {
-          planId,
-          templateId: plan.templateId,
-          type: 'SUMMARY',
-          status: 'PENDING',
-          content: '',
-          metrics: {},
-          topics: {},
-          emergents: [],
-        },
-      })) as { id: string; status: string };
-
-      return reply.status(201).send({
-        batchReportId: report.id,
-        status: report.status,
-      });
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : 'Unknown error';
       return reply.status(500).send({ error: errorMsg });
@@ -129,9 +105,7 @@ export async function analysisRoutes(fastify: FastifyInstance) {
     const { batchReportId } = request.params as { batchReportId: string };
 
     try {
-      const report = await analysisService.prisma.batchAnalysisReport.findUnique({
-        where: { id: batchReportId },
-      });
+      const report = await analysisService.getBatchReportById(batchReportId);
 
       if (!report) {
         return reply.status(404).send({ error: 'Aggregate report not found' });
