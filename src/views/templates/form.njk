@@ -8,7 +8,7 @@
 </div>
 
 <div x-data="{
-  questions: {{ existingQuestions | dump | safe }},
+  questions: {{ existingQuestions | dump | replace('"', '&quot;') | safe }},
   addQuestion() {
     this.questions.push({ text: '', order: this.questions.length });
   },
@@ -19,15 +19,17 @@
   moveUp(index) {
     if (index === 0) return;
     const temp = this.questions[index];
-    this.$set(this.questions, index, this.questions[index - 1]);
-    this.$set(this.questions, index - 1, temp);
+    this.questions[index] = this.questions[index - 1];
+    this.questions[index - 1] = temp;
+    this.questions = [...this.questions];
     this.questions.forEach((q, i) => q.order = i);
   },
   moveDown(index) {
     if (index === this.questions.length - 1) return;
     const temp = this.questions[index];
-    this.$set(this.questions, index, this.questions[index + 1]);
-    this.$set(this.questions, index + 1, temp);
+    this.questions[index] = this.questions[index + 1];
+    this.questions[index + 1] = temp;
+    this.questions = [...this.questions];
     this.questions.forEach((q, i) => q.order = i);
   }
 }" class="bg-white shadow sm:rounded-lg">

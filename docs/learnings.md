@@ -145,3 +145,82 @@ document.body.addEventListener('htmx:afterOnLoad', function(evt) {
 2. API 端点验证当前状态（防止重复发布）
 3. 发布后刷新详情视图（HTMX `HX-Get` header）
 **置信度**: 9/10
+
+---
+
+## 2026-05-28: Design Review & Delphi Review 经验
+
+### dual-template-set (pitfall)
+**文件**: `src/views/admin/content/*`, `src/views/templates/*`, `src/views/plans/*`
+**问题**: 项目有两套模板——新的 admin tree view HTMX fragments（`admin/content/`）和旧的全页面模板（`templates/`、`plans/`）。修改模板行为时必须同时修改两套，否则会遗漏。用 `grep -r` 搜索所有相关文件。
+**置信度**: 9/10
+
+### alpinejs-v3-no-set (pitfall)
+**文件**: `src/views/admin/content/template-edit.njk`, `src/views/templates/form.njk`
+**问题**: Alpine.js v3（admin-tree.njk 加载 v3.14.8）没有 `this.$set()` API。这是 v2/Vue.js 的 API，在 v3 中静默失败。正确做法：直接赋值 `this.questions[index] = value` + `this.questions = [...this.questions]` 触发响应式更新。
+**置信度**: 10/10
+
+### hx-indicator-declarative-only (pitfall)
+**文件**: `src/views/admin/tree-body.njk`, `src/views/layouts/admin-tree.njk`
+**问题**: HTMX 的 `hx-indicator` 属性只对声明式 `hx-get`/`hx-post` 有效，对 `htmx.ajax()` JavaScript 调用无效。对于 `htmx.ajax()` 内容加载，需要使用 `htmx:beforeRequest`/`htmx:afterOnLoad` 事件监听器来显示/隐藏自定义 loading overlay。
+**置信度**: 9/10
+
+### delphi-round2-file-coverage (pattern)
+**问题**: Delphi Round 2 验证时，专家会读取实际代码库而不是声称的修复清单。本次验证发现 4/8 修复只应用到了新模板，旧模板被遗漏。这比自我验证更有效——让专家检查所有相关文件，不只是我声称修改的文件。
+**置信度**: 9/10
+
+### nunjucks-dump-html-attribute (pitfall) — 2026-05-28
+**文件**: `src/views/admin/content/template-edit.njk`, `src/views/templates/form.njk`
+**问题**: Nunjucks `| dump | safe` filter 产生带双引号的 JSON（如 `"q1"`），这会破坏 HTML 属性中也用双引号包裹的 `x-data` 属性。浏览器在第一个 `"` 处截断属性，导致 Alpine.js 初始化失败。
+**修复**: 使用 `| dump | replace('"', '&quot;') | safe` 编码引号，或改用单引号包裹 uid。
+**置信度**: 10/10
+
+### browse-qa-for-htmx-alpine (pattern) — 2026-05-28
+**文件**: `src/views/layouts/admin-tree.njk`, `src/views/admin/content/template-edit.njk`
+**模式**: HTMX+Alpine.js 应用必须用浏览器测试，不能只用 curl。curl 测试会遗漏 JavaScript 执行错误（如 Alpine.js 解析失败）。browse 工具可以检测控制台错误、测试 HTMX 内容交换、验证 Alpine.js 响应式更新。
+**置信度**: 9/10
+
+### htmx-confirm-not-testable (pitfall) — 2026-05-28
+**文件**: `src/views/admin/content/template-info.njk`, `src/views/admin/content/plan-detail.njk`
+**问题**: HTMX `hx-confirm` 使用浏览器原生 `confirm()` 对话框，browse 自动化工具无法与之交互。对于可测试的删除确认，应使用 Alpine.js 自定义模态对话框代替 `hx-confirm`。
+**置信度**: 8/10
+
+### status-label-nunjucks-filter (pattern)
+**文件**: 所有模板文件
+**模式**: 项目没有自定义 Nunjucks filter 基础设施，用模板条件块显示状态中文标签：
+```nunjucks
+{% if status == 'PUBLISHED' %}已发布{% elif status == 'DRAFT' %}草稿{% else %}{{ status }}{% endif %}
+```
+跨所有模板文件（新旧两套）保持一致。
+**置信度**: 8/10
+
+---
+
+## 2026-05-29: HTMX 嵌套 Bug 修复经验
+
+### htmx-success-redirect-to-shell-url (pitfall)
+**文件**: `src/views/plans/form.njk`
+**问题**: 在 `hx-on::after-request` 成功回调中调用 `htmx.ajax('GET', '/admin', {target: '#main-content', swap: 'innerHTML'})` 会把整个完整 HTML 页面（含 layout、sidebar、`#main-content` 自身）塞进当前页内的容器，产生页面套页面的嵌套效果。
+**根因**: `/admin` 是 shell URL（返回完整页面），不是 fragment。HTMX 不区分 "完整页面" 和 "内容片段"，它只做字符串替换。
+**修复**: redirect 到 fragment endpoint（如 `/admin/content/plans/:id`），它只返回内容区 HTML。任何重定向到 shell/layout URL 的 `hx-on` 都是 bug。
+**与 `htmx-fragment-must-not-extend-layout` 的区别**: 那条是 **GET 请求返回完整页面**，这条是 **成功回调主动加载完整页面**。Root cause 不同，但症状相同（嵌套显示）。
+**置信度**: 10/10
+
+### htmx-create-success-redirect-via-json-id (pattern)
+**文件**: `src/views/plans/form.njk`
+**模式**: HTMX 表单 POST 创建资源后，若 API 返回 JSON `{id}` 而非 `HX-Redirect` header，可在 `hx-on::after-request` 中解析 `event.detail.xhr.responseText` 拿到 id，然后用 `htmx.ajax` 加载详情 fragment：
+```javascript
+var newId = null; try { newId = JSON.parse(event.detail.xhr.responseText).id; } catch(_){}
+if (newId) { htmx.ajax('GET', '/admin/content/plans/' + newId, {target: '#main-content', swap: 'innerHTML'}); }
+```
+比改后端加 `HX-Redirect` header 更轻量，不需要修改 API 层。
+**置信度**: 9/10
+
+### fragment-vs-shell-url-naming (architecture)
+**文件**: `src/api/admin-templates.ts`
+**约定**: interview-bot 项目的 URL 分两类：
+- **Shell URL**（完整页面，含 layout）：`/admin`、`/admin/templates`、`/admin/plans`、`/admin/analytics`
+- **Fragment URL**（仅内容区，用于 HTMX swap）：`/admin/content/templates/:id`、`/admin/content/plans/:id`
+
+命名约定靠 `/content/` 前缀区分。所有 `hx-get` + `hx-target="#main-content"` 必须使用 `/content/` 前缀的 URL。Shell URL 只用于浏览器直接导航或 `window.location`。
+**置信度**: 9/10

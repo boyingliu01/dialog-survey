@@ -1,6 +1,6 @@
 <!-- template-edit.njk -- HTMX fragment for editing templates in admin tree view -->
 <div x-data="{
-  questions: {% for q in existingQuestions %}{% if loop.first %}[{% endif %}{ text: {{ q.text | dump | safe }}, order: {{ q.order | default(loop.index0) }}, uid: "uid_{{ q.order | default(loop.index0) }}"}{% if not loop.last %},{% endif %}{% endfor %}],
+  questions: [{% for q in existingQuestions %}{ text: {{ q.text | dump | replace('"', '&quot;') | safe }}, order: {{ q.order | default(loop.index0) }}, uid: 'uid_{{ q.order | default(loop.index0) }}'}{% if not loop.last %},{% endif %}{% endfor %}],
   addQuestion() {
     this.questions.push({ text: '', order: this.questions.length, uid: 'uid_' + Date.now() });
   },
@@ -11,15 +11,17 @@
   moveUp(index) {
     if (index === 0) return;
     const temp = this.questions[index];
-    this.$set(this.questions, index, this.questions[index - 1]);
-    this.$set(this.questions, index - 1, temp);
+    this.questions[index] = this.questions[index - 1];
+    this.questions[index - 1] = temp;
+    this.questions = [...this.questions];
     this.questions.forEach((q, i) => q.order = i);
   },
   moveDown(index) {
     if (index === this.questions.length - 1) return;
     const temp = this.questions[index];
-    this.$set(this.questions, index, this.questions[index + 1]);
-    this.$set(this.questions, index + 1, temp);
+    this.questions[index] = this.questions[index + 1];
+    this.questions[index + 1] = temp;
+    this.questions = [...this.questions];
     this.questions.forEach((q, i) => q.order = i);
   }
 }" class="p-6">

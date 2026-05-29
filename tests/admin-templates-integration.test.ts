@@ -305,11 +305,11 @@ describe('Admin Templates Integration — save → load → render', () => {
     });
 
     expect(resp.statusCode).toBe(200);
-    expect(resp.body).toContain('"Q1 问题一"');
-    expect(resp.body).toContain('"Q2 问题二"');
-    expect(resp.body).toContain('"Q3 问题三"');
+    expect(resp.body).toContain('&quot;Q1 问题一&quot;');
+    expect(resp.body).toContain('&quot;Q2 问题二&quot;');
+    expect(resp.body).toContain('&quot;Q3 问题三&quot;');
     expect(resp.body).toContain('order: 0');
-    expect(resp.body).toContain('uid: "uid_0"');
+    expect(resp.body).toContain("uid: 'uid_0'");
   });
 
   // --- Test 6: Full round-trip — create → edit load → update → re-load ---
