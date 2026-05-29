@@ -186,7 +186,13 @@ describe('Admin Templates Integration — save → load → render', () => {
       templates: viewsDir,
       options: { autoescape: true, noCache: true },
     });
-    await app.register(adminTemplatesRoutes);
+    const { PrismaClient } = await import('@prisma/client');
+    const { TemplateRepository } = await import('../src/repositories/template.repository.js');
+    const prisma = new PrismaClient();
+    await app.register(adminTemplatesRoutes, {
+      templateRepo: new TemplateRepository(prisma),
+      prisma,
+    });
     await app.ready();
   }
 

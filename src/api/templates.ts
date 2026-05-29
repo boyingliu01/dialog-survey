@@ -1,8 +1,14 @@
-import { PrismaClient, TemplateStatus } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
+import { TemplateStatus } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { TemplateRepository } from '../repositories/template.repository.js';
+import type { TemplateRepository } from '../repositories/template.repository.js';
 import { updateTemplateDimensions } from '../services/template-dimension.service.js';
+
+export interface TemplateRoutesOptions {
+  templateRepo: TemplateRepository;
+  prisma: PrismaClient;
+}
 
 const createTemplateSchema = z.object({
   name: z.string().min(1),
@@ -17,9 +23,8 @@ const updateTemplateSchema = z.object({
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional(),
 });
 
-export async function templateRoutes(fastify: FastifyInstance) {
-  const templateRepo = new TemplateRepository();
-  const prisma = new PrismaClient();
+export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRoutesOptions) {
+  const { templateRepo, prisma } = opts;
 
   fastify.post('/api/templates', async (request, _reply) => {
     const input = createTemplateSchema.parse(request.body);

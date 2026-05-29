@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { templateRoutes } from '../src/api/templates.js';
+import { TemplateRepository } from '../src/repositories/template.repository.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),
@@ -18,7 +19,7 @@ describe('Template API Endpoints', () => {
 
   beforeAll(async () => {
     fastify = Fastify({ logger: false });
-    await templateRoutes(fastify);
+    await templateRoutes(fastify, { templateRepo: new TemplateRepository(prisma), prisma });
     await fastify.ready();
   });
 

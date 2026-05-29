@@ -14,6 +14,7 @@ import { interviewPlanRoutes } from './api/plans.js';
 import { templateRoutes } from './api/templates.js';
 import { webhookRoutes } from './api/webhook.js';
 import { DingTalkStreamClient } from './integrations/dingtalk/stream-client.js';
+import { TemplateRepository } from './repositories/template.repository.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
 import { error, info, warn } from './utils/logger.js';
 import { securityMiddleware } from './utils/security.js';
@@ -108,12 +109,16 @@ export async function buildApp() {
   });
 
   await securityMiddleware(fastify);
+
+  const prisma = new PrismaClient();
+  const templateRepo = new TemplateRepository(prisma);
+
   await fastify.register(healthRoutes);
   await fastify.register(webhookRoutes);
   await fastify.register(interviewPlanRoutes);
-  await fastify.register(templateRoutes);
+  await fastify.register(templateRoutes, { templateRepo, prisma });
   await fastify.register(analysisRoutes);
-  await fastify.register(adminTemplatesRoutes);
+  await fastify.register(adminTemplatesRoutes, { templateRepo, prisma });
 
   return fastify;
 }

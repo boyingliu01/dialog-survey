@@ -1,10 +1,15 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
-import { TemplateRepository } from '../repositories/template.repository.js';
+import type { TemplateRepository } from '../repositories/template.repository.js';
 import { AnalyticsService } from '../services/analytics.service.js';
 import { error, info } from '../utils/logger.js';
+
+export interface AdminTemplatesRoutesOptions {
+  templateRepo: TemplateRepository;
+  prisma: PrismaClient;
+}
 
 const createTemplateSchema = z.object({
   name: z.string().min(1),
@@ -90,9 +95,11 @@ function fmtDate(d: Date | null | undefined): string {
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
 
-export async function adminTemplatesRoutes(fastify: FastifyInstance) {
-  const templateRepo = new TemplateRepository();
-  const prisma = new PrismaClient();
+export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: AdminTemplatesRoutesOptions) {
+  const { templateRepo, prisma } = opts;
+  // TODO(arch): The 23 raw `prisma.*` calls below should migrate to repository/service layer.
+  // Tracked in GitHub follow-up issue. This file owns route registration + HTMX rendering,
+  // not direct data access. Until migrated, prisma is injected via DI from server.ts.
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
 
