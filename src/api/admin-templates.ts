@@ -183,7 +183,25 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
         orderBy: { name: 'asc' },
         select: { id: true, name: true },
       });
-      return reply.view('plans/form.njk', {
+      return reply.view('admin/content/plan-form.njk', {
+        adminApiKey: ADMIN_API_KEY,
+        templates,
+        selectedTemplateId: templateId || null,
+      });
+    }
+  );
+
+  // GET /admin/content/plans/new — HTMX fragment for new plan form
+  fastify.get(
+    '/admin/content/plans/new',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { templateId } = (request.query as Record<string, string | undefined>) || {};
+      const templates = await prisma.template.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true },
+      });
+      return reply.view('admin/content/plan-form.njk', {
         adminApiKey: ADMIN_API_KEY,
         templates,
         selectedTemplateId: templateId || null,
@@ -206,7 +224,32 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
         orderBy: { name: 'asc' },
         select: { id: true, name: true },
       });
-      return reply.view('plans/form.njk', {
+      return reply.view('admin/content/plan-form.njk', {
+        adminApiKey: ADMIN_API_KEY,
+        templates,
+        plan,
+        selectedTemplateId: plan.templateId,
+        isEdit: true,
+      });
+    }
+  );
+
+  // GET /admin/content/plans/:id/edit — HTMX fragment for edit plan form
+  fastify.get(
+    '/admin/content/plans/:id/edit',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { id } = request.params as { id: string };
+      const plan = await prisma.interviewPlan.findUnique({
+        where: { id },
+        include: { template: { select: { id: true, name: true } } },
+      });
+      if (!plan) return reply.status(404).type('text/html').send('计划不存在');
+      const templates = await prisma.template.findMany({
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true },
+      });
+      return reply.view('admin/content/plan-form.njk', {
         adminApiKey: ADMIN_API_KEY,
         templates,
         plan,
