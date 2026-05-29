@@ -2,9 +2,9 @@
   <div class="flex items-center justify-between mb-4">
     <h2 class="text-lg font-semibold text-gray-800">{% if isEdit %}编辑访谈计划{% else %}新建访谈计划{% endif %}</h2>
     <button
-      hx-get="/admin"
-      hx-target="#main-content"
-      hx-swap="innerHTML"
+      type="button"
+      {% if isEdit %}hx-get="/admin/content/plans/{{ plan.id }}"{% else %}onclick="document.getElementById('main-content').innerHTML=''"{% endif %}
+      {% if isEdit %}hx-target="#main-content" hx-swap="innerHTML"{% endif %}
       class="text-gray-400 hover:text-gray-600"
       title="取消"
     >
@@ -19,7 +19,14 @@
     hx-target="#plan-form-result"
     hx-swap="innerHTML"
     hx-indicator="#plan-submit-btn"
-    hx-on::after-request="if (event.detail.successful) { htmx.ajax('GET', '/admin', {target: '#main-content', swap: 'innerHTML'}); }"
+    hx-on::after-request="if (event.detail.successful) {
+      {% if isEdit %}
+      htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', {target: '#main-content', swap: 'innerHTML'});
+      {% else %}
+      var newId = null; try { newId = JSON.parse(event.detail.xhr.responseText).id; } catch(_){}
+      if (newId) { htmx.ajax('GET', '/admin/content/plans/' + newId, {target: '#main-content', swap: 'innerHTML'}); }
+      {% endif %}
+    }"
     class="space-y-4"
   >
     <div>
@@ -62,7 +69,6 @@
                 class="block w-full text-sm rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500">{% if isEdit %}{% for invitee in (plan.inviteeData or []) %}{{ invitee.userId }}{% if invitee.name %} {{ invitee.name }}{% endif %}
 {% endfor %}{% endif %}</textarea>
       <p class="text-xs text-gray-400 mt-1">每行一个受访者，格式为「钉钉UserId 姓名」，姓名可选。{% if not isEdit %}发布后将通过钉钉机器人自动发送访谈邀约。{% endif %}</p>
-      <p class="text-xs text-gray-400 mt-1">每行一个受访者，格式为「钉钉UserId 姓名」，姓名可选。发布后将通过钉钉机器人自动发送访谈邀约。</p>
     </div>
     <input type="hidden" name="publish" value="true" />
     <div class="flex justify-end gap-2 pt-2">

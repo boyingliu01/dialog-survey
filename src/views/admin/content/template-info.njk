@@ -54,7 +54,15 @@
     </div>
   </div>
   <div class="grid grid-cols-2 gap-4 text-sm">
-    <div><span class="text-gray-500">状态:</span> {{ template.status }}</div>
+    <div>
+      <span class="text-gray-500">状态:</span>
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+        {% if template.status == 'PUBLISHED' %}bg-green-100 text-green-800
+        {% elif template.status == 'DRAFT' %}bg-yellow-100 text-yellow-800
+        {% else %}bg-gray-100 text-gray-800{% endif %}">
+        {% if template.status == 'PUBLISHED' %}已发布{% elif template.status == 'DRAFT' %}草稿{% else %}{{ template.status }}{% endif %}
+      </span>
+    </div>
     <div><span class="text-gray-500">版本:</span> v{{ template.version }}</div>
     <div><span class="text-gray-500">关联计划:</span> {{ template._planCount }}</div>
     <div><span class="text-gray-500">关联访谈:</span> {{ template._interviewCount }}</div>
@@ -75,7 +83,7 @@
     <h3 class="text-sm font-medium text-gray-700 mb-2">问题列表（{{ questions|length }}）</h3>
     <ol class="list-decimal list-inside space-y-1">
       {% for q in questions %}
-      <li class="text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-md">{{ q }}</li>
+      <li class="text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-md break-words">{{ q }}</li>
       {% endfor %}
     </ol>
   </div>
