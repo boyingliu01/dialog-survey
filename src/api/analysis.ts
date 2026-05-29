@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AnalysisService } from '../services/analysis.service.js';
@@ -6,8 +7,12 @@ const analyzeSingleSchema = z.object({
   interviewId: z.string().uuid(),
 });
 
-export async function analysisRoutes(fastify: FastifyInstance) {
-  const analysisService = new AnalysisService();
+interface AnalysisRoutesOptions {
+  prisma: PrismaClient;
+}
+
+export async function analysisRoutes(fastify: FastifyInstance, opts: AnalysisRoutesOptions) {
+  const analysisService = new AnalysisService(opts.prisma);
 
   fastify.post('/api/analysis/single', async (request, reply) => {
     const { interviewId } = analyzeSingleSchema.parse(request.body);

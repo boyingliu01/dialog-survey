@@ -114,7 +114,7 @@ async function createAnalysisApp() {
   const { default: Fastify } = await import('fastify');
   const app = Fastify({ logger: false });
   const { analysisRoutes } = await import('../src/api/analysis.js');
-  await app.register(analysisRoutes);
+  await app.register(analysisRoutes, { prisma });
   await app.ready();
   return app;
 }

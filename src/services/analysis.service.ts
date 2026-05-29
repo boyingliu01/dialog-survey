@@ -301,5 +301,3 @@ export class AnalysisService {
     });
   }
 }
-
-export const analysisService = new AnalysisService();
