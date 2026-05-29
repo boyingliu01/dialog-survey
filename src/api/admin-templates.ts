@@ -433,7 +433,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
   );
 
   fastify.get(
-    `${BASE_PATH}/templates/:id/edit`,
+    `${BASE_PATH}/content/templates/:id/edit`,
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };

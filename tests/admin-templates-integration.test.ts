@@ -306,7 +306,7 @@ describe('Admin Templates Integration — save → load → render', () => {
 
     const resp = await app.inject({
       method: 'GET',
-      url: `/admin/templates/${tpl.id}/edit`,
+        url: `/admin/content/templates/${tpl.id}/edit`,
       headers: authHeader(),
     });
 
@@ -342,7 +342,7 @@ describe('Admin Templates Integration — save → load → render', () => {
     // Step 2: Load edit page — verify initial questions
     const loadResp = await app.inject({
       method: 'GET',
-      url: `/admin/templates/${tplId}/edit`,
+        url: `/admin/content/templates/${tplId}/edit`,
       headers: authHeader(),
     });
     expect(loadResp.statusCode).toBe(200);
@@ -368,7 +368,7 @@ describe('Admin Templates Integration — save → load → render', () => {
     // Step 4: Reload edit page — verify updated questions
     const reloadResp = await app.inject({
       method: 'GET',
-      url: `/admin/templates/${tplId}/edit`,
+        url: `/admin/content/templates/${tplId}/edit`,
       headers: authHeader(),
     });
     expect(reloadResp.statusCode).toBe(200);
@@ -401,7 +401,7 @@ describe('Admin Templates Integration — save → load → render', () => {
 
     const loadResp = await app.inject({
       method: 'GET',
-      url: `/admin/templates/${tplId}/edit`,
+        url: `/admin/content/templates/${tplId}/edit`,
       headers: authHeader(),
     });
     expect(loadResp.statusCode).toBe(200);

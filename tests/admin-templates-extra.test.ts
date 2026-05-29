@@ -471,11 +471,11 @@ describe('Admin Templates Routes - Extra Coverage', () => {
     });
   });
 
-  describe('GET /admin/templates/:id/edit — Edit template form', () => {
+  describe('GET /admin/content/templates/:id/edit — Edit template form', () => {
     it('should return 200 with edit form for existing template', async () => {
       const response = await ctx.app.inject({
         method: 'GET',
-        url: `/admin/templates/${ctx.draftTemplate.id}/edit`,
+        url: `/admin/content/templates/${ctx.draftTemplate.id}/edit`,
       });
 
       expect(response.statusCode).toBe(200);
@@ -485,7 +485,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
     it('should return 404 for non-existent template', async () => {
       const response = await ctx.app.inject({
         method: 'GET',
-        url: '/admin/templates/non-existent/edit',
+        url: '/admin/content/templates/non-existent/edit',
       });
 
       expect(response.statusCode).toBe(404);
