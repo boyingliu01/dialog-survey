@@ -32,7 +32,7 @@
         <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
         </svg>
-        发布
+        发送邀约
       </button>
       {% endif %}
       <button
@@ -52,7 +52,25 @@
   <div x-show="activeTab==='basic'" class="space-y-3 text-sm">
     <p><span class="text-gray-500">计划名称:</span> {{ plan.name }}</p>
     <p><span class="text-gray-500">关联模板:</span> {% if template %}<a href="/admin/content/templates/{{ template.id }}" hx-get="/admin/content/templates/{{ template.id }}" hx-target="#main-content" class="text-indigo-600 hover:underline">{{ template.name }}</a>{% else %}<span class="text-gray-400">模板已删除或不可用</span>{% endif %}</p>
-    <p><span class="text-gray-500">状态:</span> {{ plan.status }}</p>
+    <p>
+      <span class="text-gray-500">状态:</span>
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+        {% if plan.status == 'COMPLETED' %}bg-green-100 text-green-800
+        {% elif plan.status == 'RUNNING' %}bg-blue-100 text-blue-800
+        {% elif plan.status == 'PENDING' %}bg-gray-100 text-gray-800
+        {% elif plan.status == 'READY' %}bg-yellow-100 text-yellow-800
+        {% elif plan.status == 'PAUSED' %}bg-orange-100 text-orange-800
+        {% elif plan.status == 'CANCELLED' %}bg-red-100 text-red-800
+        {% else %}bg-gray-100 text-gray-800{% endif %}">
+        {% if plan.status == 'COMPLETED' %}已完成
+        {% elif plan.status == 'RUNNING' %}进行中
+        {% elif plan.status == 'PENDING' %}待处理
+        {% elif plan.status == 'READY' %}就绪
+        {% elif plan.status == 'PAUSED' %}已暂停
+        {% elif plan.status == 'CANCELLED' %}已取消
+        {% else %}{{ plan.status }}{% endif %}
+      </span>
+    </p>
     <p><span class="text-gray-500">截止日期:</span> {% if plan.targetDate %}{{ plan.targetDate.toISOString().split('T')[0] }}{% else %}未设置{% endif %}</p>
     <p><span class="text-gray-500">进度:</span> {{ completedCount or 0 }}/{{ totalInterviews or 0 }} ({{ completionRate or 0 }}%)</p>
     {% if plan.description %}
