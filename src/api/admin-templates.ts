@@ -97,9 +97,9 @@ const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
 
 export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: AdminTemplatesRoutesOptions) {
   const { templateRepo, prisma } = opts;
-  // TODO(arch): The 23 raw `prisma.*` calls below should migrate to repository/service layer.
-  // Tracked in GitHub follow-up issue. This file owns route registration + HTMX rendering,
-  // not direct data access. Until migrated, prisma is injected via DI from server.ts.
+  // TODO(arch) #15: The 23 raw `prisma.*` calls below should migrate to repository/service layer.
+  // See https://github.com/boyingliu01/InterviewAgent/issues/15. This file owns route registration
+  // + HTMX rendering, not direct data access. Until migrated, prisma is injected via DI from server.ts.
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
 
