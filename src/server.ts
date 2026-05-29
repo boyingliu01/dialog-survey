@@ -80,7 +80,7 @@ export async function buildApp() {
 
   const customNunjucks = {
     ...nunjucks,
-    configure(templatesDir: string | string[], opts: any) {
+    configure(templatesDir: string | string[], opts: Record<string, unknown>) {
       const env = nunjucks.configure(templatesDir, opts);
       env.addFilter('date', (input: Date | string | null, format?: string) => {
         if (!input) return '';
@@ -100,7 +100,7 @@ export async function buildApp() {
   };
 
   await fastify.register(fastifyView, {
-    engine: { nunjucks: customNunjucks as any },
+    engine: { nunjucks: customNunjucks as unknown as typeof nunjucks },
     templates: viewsDir,
     options: {
       autoescape: true,
