@@ -349,14 +349,9 @@ Admin UI URLs split into two categories:
 
 **Rule**: Any `hx-get`/`hx-post`/`htmx.ajax()` targeting `#main-content` MUST use a fragment URL (`/admin/content/...`). Using a shell URL nests the entire layout inside `#main-content`, producing page-in-page rendering. See `docs/learnings.md` → `fragment-vs-shell-url-naming`.
 
-### Dual Template Set (REQUIRES PARITY)
+### Dual Template Set (REMOVED in sprint-2026-05-29-01)
 
-Templates exist in TWO directories that must stay in sync:
-
-- `src/views/admin/content/*` — NEW HTMX fragments (no layout extends)
-- `src/views/templates/*`, `src/views/plans/*` — OLD full-page (extends `layouts/admin.njk`)
-
-When modifying template UI (status badges, action buttons, form behavior), `grep -rn` to find all instances and fix BOTH sets. See `docs/learnings.md` → `dual-template-set-maintenance`.
+The old `src/views/templates/*` and `src/views/plans/*` full-page template set has been deleted. All admin UI now uses the fragment set at `src/views/admin/content/*` exclusively. When adding new admin pages, create them as HTMX fragments under `admin/content/`.
 
 ---
 

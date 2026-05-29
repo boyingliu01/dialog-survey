@@ -19,8 +19,8 @@
       {% for report in reports %}
       <tr>
         <td class="px-4 py-2 text-sm">{{ report.interview.userId }}</td>
-        <td class="px-4 py-2 text-sm">{% if report.interview.plan %}<a href="/admin/plans/{{ report.interview.plan.id }}" class="text-blue-600 hover:text-blue-800">{{ report.interview.plan.name }}</a>{% else %}-{% endif %}</td>
-        <td class="px-4 py-2 text-sm">{% if report.interview.template %}<a href="/admin/templates/{{ report.interview.template.id }}" class="text-blue-600 hover:text-blue-800">{{ report.interview.template.name }}</a>{% else %}-{% endif %}</td>
+        <td class="px-4 py-2 text-sm">{% if report.interview.plan %}<span title="在树形视图中查看">{{ report.interview.plan.name }}</span>{% else %}-{% endif %}</td>
+        <td class="px-4 py-2 text-sm">{% if report.interview.template %}<span title="在树形视图中查看">{{ report.interview.template.name }}</span>{% else %}-{% endif %}</td>
         <td class="px-4 py-2"><span class="px-2 py-1 text-xs font-semibold rounded-full {% if report.interview.status == 'COMPLETED' %}bg-green-100 text-green-800{% elif report.interview.status == 'ACTIVE' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-600{% endif %}">{{ report.interview.status }}</span></td>
         <td class="px-4 py-2 text-sm">{{ report.sentiment or '-' }}</td>
         <td class="px-4 py-2 text-sm text-gray-500">{{ report.createdAtFormatted }}</td>

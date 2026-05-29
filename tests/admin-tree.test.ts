@@ -192,7 +192,7 @@ describe('Admin Tree Routes', () => {
     });
   });
 
-  describe('GET /admin/plans/new — Plan creation form', () => {
+  describe('GET /admin/content/plans/new — Plan creation form', () => {
     it('should return 200 and render plan form with template dropdown', async () => {
       const response = await app.inject({
         method: 'GET',
