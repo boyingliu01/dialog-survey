@@ -54,27 +54,29 @@ async function checkLLM(): Promise<{
   }
 
   try {
-    const apiKey = process.env.DASHSCOPE_API_KEY;
-    if (!apiKey || apiKey === 'your-dashscope-api-key') {
+    const apiKey = process.env.VOLCENGINE_API_KEY;
+    if (!apiKey) {
       return { status: 'degraded', error: 'API key not configured' };
     }
 
+    const baseUrl =
+      process.env.VOLCENGINE_BASE_URL || 'https://ark.cn-beijing.volces.com/api/coding';
+    const model = process.env.VOLCENGINE_MODEL || 'deepseek-v3.2';
+
     const start = Date.now();
-    const response = await fetch(
-      'https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'text-embedding-v3',
-          input: 'health check',
-        }),
-        signal: AbortSignal.timeout(5000),
-      }
-    );
+    const response = await fetch(`${baseUrl}${baseUrl.endsWith('/') ? '' : '/'}v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'health check' }],
+        max_tokens: 10,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
 
     const latencyMs = Date.now() - start;
 
