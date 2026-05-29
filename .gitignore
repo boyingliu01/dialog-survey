@@ -101,3 +101,4 @@ tests-clean/
 .worktrees/
 worktrees/
 .gstack/
+.design-review/
