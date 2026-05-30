@@ -68,9 +68,9 @@
       <textarea id="invitees" name="invitees" rows="5" {% if isEdit %}{% else %}required{% endif %}
                 class="block w-full text-sm rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500">{% if isEdit %}{% for invitee in (plan.inviteeData or []) %}{{ invitee.userId }}{% if invitee.name %} {{ invitee.name }}{% endif %}
 {% endfor %}{% endif %}</textarea>
-      <p class="text-xs text-gray-400 mt-1">每行一个受访者，格式为「钉钉UserId 姓名」，姓名可选。{% if not isEdit %}发布后将通过钉钉机器人自动发送访谈邀约。{% endif %}</p>
+      <p class="text-xs text-gray-400 mt-1">每行一个受访者，格式为「钉钉UserId 姓名」，姓名可选。{% if not isEdit %}保存后可前往计划详情页手动发送邀约。{% endif %}</p>
     </div>
-    <input type="hidden" name="publish" value="true" />
+
     <div class="flex justify-end gap-2 pt-2">
       <button type="submit" id="plan-submit-btn"
               class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 disabled:opacity-50">
@@ -80,7 +80,7 @@
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
         </span>
-        {% if isEdit %}更新计划{% else %}发布计划{% endif %}
+        {% if isEdit %}更新计划{% else %}保存计划{% endif %}
       </button>
     </div>
   </form>
