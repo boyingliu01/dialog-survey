@@ -1,7 +1,7 @@
 import { PlanStatus } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { InterviewPlanService, type InviteeData } from '../services/interview-plan.service.js';
+import { InterviewPlanService, parseInviteeText, type InviteeData } from '../services/interview-plan.service.js';
 
 const createPlanSchema = z.object({
   name: z.string().min(1),
@@ -10,7 +10,7 @@ const createPlanSchema = z.object({
   targetDate: z.string().optional(),
   schedule: z.string().optional(),
   invitees: z.string().optional(),
-  publish: z.coerce.boolean().optional().default(true),
+  publish: z.coerce.boolean().optional().default(false),
 });
 
 const importInviteesSchema = z.object({
@@ -31,25 +31,7 @@ export async function interviewPlanRoutes(fastify: FastifyInstance) {
   fastify.post('/api/plans', async (request, _reply) => {
     const input = createPlanSchema.parse(request.body);
 
-    if (input.invitees) {
-      const result = await planService.createAndPublish({
-        name: input.name,
-        description: input.description,
-        templateId: input.templateId,
-        targetDate: input.targetDate,
-        schedule: input.schedule,
-        invitees: input.invitees,
-        publish: input.publish,
-      });
-      return {
-        id: result.planId,
-        imported: result.imported,
-        sent: result.sent,
-        failed: result.failed,
-        errors: result.errors,
-      };
-    }
-
+    // Always create the plan first
     const planId = await planService.createPlan({
       name: input.name,
       description: input.description,
@@ -57,6 +39,28 @@ export async function interviewPlanRoutes(fastify: FastifyInstance) {
       targetDate: input.targetDate ? new Date(input.targetDate) : undefined,
       schedule: input.schedule,
     });
+
+    if (input.invitees) {
+      const inviteeData = parseInviteeText(input.invitees);
+      const importResult = await planService.importInvitees(planId, inviteeData);
+
+      let sent = 0;
+      let failed = 0;
+      if (input.publish === true) {
+        const sendResult = await planService.sendInvitations(planId);
+        sent = sendResult.sent;
+        failed = sendResult.failed;
+      }
+
+      return {
+        id: planId,
+        imported: importResult.success,
+        sent,
+        failed,
+        errors: importResult.errors,
+      };
+    }
+
     return { id: planId };
   });
 
@@ -101,6 +105,12 @@ export async function interviewPlanRoutes(fastify: FastifyInstance) {
   fastify.post('/api/plans/:id/send', async (request, _reply) => {
     const { id } = request.params as { id: string };
     const result = await planService.sendInvitations(id);
+    return result;
+  });
+
+  fastify.post('/api/plans/:id/interviews/:interviewId/send', async (request, _reply) => {
+    const { id, interviewId } = request.params as { id: string; interviewId: string };
+    const result = await planService.resendToInterview(id, interviewId);
     return result;
   });
 
