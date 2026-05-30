@@ -300,4 +300,12 @@ export class AnalysisService {
       where: { id },
     });
   }
+
+  async findRecentReports(limit: number) {
+    return this.prisma.analysisReport.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: { interview: { select: { id: true, userId: true, status: true } } },
+    });
+  }
 }

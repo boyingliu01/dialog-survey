@@ -1,14 +1,18 @@
 {
-  "id": "sprint-2026-05-29-01",
+  "id": "sprint-2026-05-30-01",
   "phase": -1,
   "status": "running",
-  "goal": "Fix P4 tech-debt issues #1 (architecture violation) and #14 (deprecate dual template set)",
+  "goal": "Fix issue #15: migrate 23 raw prisma calls in src/api/admin-templates.ts to repository/service methods (zero behavior change)",
   "isolation": {
-    "worktree_path": ".worktrees/sprint/sprint-2026-05-29-01",
-    "branch": "sprint/2026-05-29-01",
+    "worktree_path": ".worktrees/sprint/sprint-2026-05-30-01",
+    "branch": "sprint/2026-05-30-01",
     "created_from": "master",
-    "created_from_commit": "dfc324222442872e5f83f2cdd9464bc758ed3c86"
+    "created_from_commit": "f5667210e11f31d414ebf5fe5c13794739f85149"
   },
-  "issues": [1, 14],
-  "outputs": {}
+  "issues": [15],
+  "outputs": {},
+  "metrics": {
+    "baseline_tests_passed": 699,
+    "baseline_tests_failed": 0
+  }
 }
