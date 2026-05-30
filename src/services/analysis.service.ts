@@ -1,3 +1,4 @@
+import type { BatchAnalysisReport } from '@prisma/client';
 import { PrismaClient } from '@prisma/client';
 import { error, info } from '../utils/logger.js';
 import { anonymizePII } from '../utils/pii-anonymizer.js';
@@ -33,14 +34,20 @@ export interface ClusterAnalysis {
   representativeViewpoints: string[];
 }
 
+export type CreateBatchReportResult =
+  | { kind: 'created'; report: BatchAnalysisReport }
+  | { kind: 'conflict'; existingId: string }
+  | { kind: 'no-completed' }
+  | { kind: 'plan-not-found' };
+
 export class AnalysisService {
-  private _prisma: PrismaClient;
+  private readonly _prisma: PrismaClient;
 
   constructor(prisma?: PrismaClient) {
     this._prisma = prisma ?? new PrismaClient();
   }
 
-  get prisma(): PrismaClient {
+  private get prisma(): PrismaClient {
     return this._prisma;
   }
 
@@ -247,6 +254,50 @@ export class AnalysisService {
       orderBy: { createdAt: 'desc' },
     });
   }
-}
 
-export const analysisService = new AnalysisService();
+  async createBatchReportIfEligible(planId: string): Promise<CreateBatchReportResult> {
+    const existing = await this.prisma.batchAnalysisReport.findFirst({
+      where: { planId, status: 'RUNNING' },
+      select: { id: true },
+    });
+    if (existing) {
+      return { kind: 'conflict', existingId: existing.id };
+    }
+
+    const completed = await this.prisma.interview.findFirst({
+      where: { planId, status: 'COMPLETED' },
+      select: { id: true },
+    });
+    if (!completed) {
+      return { kind: 'no-completed' };
+    }
+
+    const plan = await this.prisma.interviewPlan.findUnique({
+      where: { id: planId },
+      select: { templateId: true },
+    });
+    if (!plan) {
+      return { kind: 'plan-not-found' };
+    }
+
+    const report = await this.prisma.batchAnalysisReport.create({
+      data: {
+        planId,
+        templateId: plan.templateId,
+        type: 'SUMMARY',
+        status: 'PENDING',
+        content: '',
+        metrics: {},
+        topics: {},
+        emergents: [],
+      },
+    });
+    return { kind: 'created', report };
+  }
+
+  async getBatchReportById(id: string): Promise<BatchAnalysisReport | null> {
+    return this.prisma.batchAnalysisReport.findUnique({
+      where: { id },
+    });
+  }
+}

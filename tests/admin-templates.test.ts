@@ -412,7 +412,7 @@ describe('Admin Auth middleware', () => {
       const mockRequest = {
         method: 'GET',
         headers: {},
-        url: '/admin/templates',
+        url: '/admin/api/templates',
       } as FastifyRequest;
 
       await adminAuth(mockRequest, mockReply);
@@ -428,7 +428,7 @@ describe('Admin Auth middleware', () => {
       const mockRequest = {
         method: 'HEAD',
         headers: {},
-        url: '/admin/templates',
+        url: '/admin/api/templates',
       } as FastifyRequest;
 
       await adminAuth(mockRequest, mockReply);
@@ -444,7 +444,7 @@ describe('Admin Auth middleware', () => {
       const mockRequest = {
         method: 'OPTIONS',
         headers: {},
-        url: '/admin/templates',
+        url: '/admin/api/templates',
       } as FastifyRequest;
 
       await adminAuth(mockRequest, mockReply);

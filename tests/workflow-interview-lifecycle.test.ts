@@ -78,7 +78,8 @@ async function createAdminApp() {
   });
 
   const { adminTemplatesRoutes } = await import('../src/api/admin-templates.js');
-  await app.register(adminTemplatesRoutes);
+  const { TemplateRepository } = await import('../src/repositories/template.repository.js');
+  await app.register(adminTemplatesRoutes, { templateRepo: new TemplateRepository(prisma), prisma });
 
   return app;
 }
@@ -113,7 +114,7 @@ async function createAnalysisApp() {
   const { default: Fastify } = await import('fastify');
   const app = Fastify({ logger: false });
   const { analysisRoutes } = await import('../src/api/analysis.js');
-  await app.register(analysisRoutes);
+  await app.register(analysisRoutes, { prisma });
   await app.ready();
   return app;
 }

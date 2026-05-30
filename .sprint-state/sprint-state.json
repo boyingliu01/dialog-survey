@@ -1,22 +1,14 @@
 {
-  "id": "sprint-2026-05-21-01",
-  "phase": 3,
+  "id": "sprint-2026-05-29-01",
+  "phase": -1,
   "status": "running",
-  "description": "完成剩余功能：统计分析页 Dashboard + Prisma 审计字段补全",
-  "requirements": [
-    { "id": "REQ-AUDIT-001", "title": "Prisma 审计字段补全", "status": "completed" },
-    { "id": "REQ-AUDIT-002", "title": "管理后台审计字段写入", "status": "completed" },
-    { "id": "REQ-ANALYTICS-001", "title": "统计分析 API 端点", "status": "completed" },
-    { "id": "REQ-ANALYTICS-002", "title": "统计分析 Dashboard 页面", "status": "completed" }
-  ],
-  "outputs": {
-    "mvp": "completed"
+  "goal": "Fix P4 tech-debt issues #1 (architecture violation) and #14 (deprecate dual template set)",
+  "isolation": {
+    "worktree_path": ".worktrees/sprint/sprint-2026-05-29-01",
+    "branch": "sprint/2026-05-29-01",
+    "created_from": "master",
+    "created_from_commit": "dfc324222442872e5f83f2cdd9464bc758ed3c86"
   },
-  "metrics": {
-    "type_check_pass": true,
-    "lint_pass": true,
-    "mock_tests_pass": true,
-    "files_changed": 8,
-    "lines_added": 215
-  }
+  "issues": [1, 14],
+  "outputs": {}
 }
