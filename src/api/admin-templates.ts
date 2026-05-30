@@ -2,13 +2,19 @@ import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
+import { InterviewRepository } from '../repositories/interview.repository.js';
 import type { TemplateRepository } from '../repositories/template.repository.js';
+import { AnalysisService } from '../services/analysis.service.js';
 import { AnalyticsService } from '../services/analytics.service.js';
+import { InterviewPlanService } from '../services/interview-plan.service.js';
 import { error, info } from '../utils/logger.js';
 
 export interface AdminTemplatesRoutesOptions {
   templateRepo: TemplateRepository;
   prisma: PrismaClient;
+  interviewPlanService?: InterviewPlanService;
+  interviewRepo?: InterviewRepository;
+  analysisService?: AnalysisService;
 }
 
 const createTemplateSchema = z.object({
@@ -97,9 +103,9 @@ const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
 
 export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: AdminTemplatesRoutesOptions) {
   const { templateRepo, prisma } = opts;
-  // TODO(arch) #15: The 23 raw `prisma.*` calls below should migrate to repository/service layer.
-  // See https://github.com/boyingliu01/InterviewAgent/issues/15. This file owns route registration
-  // + HTMX rendering, not direct data access. Until migrated, prisma is injected via DI from server.ts.
+  const interviewPlanService = opts.interviewPlanService ?? new InterviewPlanService(prisma);
+  const interviewRepo = opts.interviewRepo ?? new InterviewRepository(prisma);
+  const analysisService = opts.analysisService ?? new AnalysisService(prisma);
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
 
@@ -109,37 +115,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     { preHandler: adminAuth },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const templates = await prisma.template.findMany({
-          orderBy: { name: 'asc' },
-          select: {
-            id: true,
-            name: true,
-            description: true,
-            status: true,
-            version: true,
-            createdAt: true,
-            _count: { select: { interviewPlans: true, interviews: true } },
-            interviewPlans: {
-              orderBy: { createdAt: 'desc' },
-              take: 20,
-              select: {
-                id: true,
-                name: true,
-                description: true,
-                status: true,
-                completedCount: true,
-                sentCount: true,
-                createdAt: true,
-                _count: { select: { interviews: true } },
-                interviews: {
-                  orderBy: { createdAt: 'desc' },
-                  take: 15,
-                  select: { id: true, userId: true, status: true, completedAt: true },
-                },
-              },
-            },
-          },
-        });
+        const templates = await templateRepo.findAllForAdminTree();
         const templatesWithPlans = templates.map((t) => ({
           ...t,
           _plans: t.interviewPlans.map((p) => ({
@@ -180,10 +156,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { templateId } = (request.query as Record<string, string | undefined>) || {};
-      const templates = await prisma.template.findMany({
-        orderBy: { name: 'asc' },
-        select: { id: true, name: true },
-      });
+      const templates = await templateRepo.findAllForSelect();
       return reply.view('admin/content/plan-form.njk', {
         adminApiKey: ADMIN_API_KEY,
         templates,
@@ -198,15 +171,9 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      const plan = await prisma.interviewPlan.findUnique({
-        where: { id },
-        include: { template: { select: { id: true, name: true } } },
-      });
+      const plan = await interviewPlanService.findByIdWithTemplate(id);
       if (!plan) return reply.status(404).type('text/html').send('计划不存在');
-      const templates = await prisma.template.findMany({
-        orderBy: { name: 'asc' },
-        select: { id: true, name: true },
-      });
+      const templates = await templateRepo.findAllForSelect();
       return reply.view('admin/content/plan-form.njk', {
         adminApiKey: ADMIN_API_KEY,
         templates,
@@ -223,20 +190,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      const template = await prisma.template.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          status: true,
-          version: true,
-          createdAt: true,
-          updatedAt: true,
-          content: true,
-          _count: { select: { interviewPlans: true, interviews: true } },
-        },
-      });
+      const template = await templateRepo.findByIdWithCounts(id);
       if (!template) return reply.status(404).type('text/html').send('模板不存在');
       let parsedContent: Record<string, unknown>;
       try {
@@ -266,17 +220,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      const plan = await prisma.interviewPlan.findUnique({
-        where: { id },
-        include: {
-          template: { select: { id: true, name: true } },
-          interviews: {
-            orderBy: { status: 'asc' },
-            select: { id: true, userId: true, status: true, createdAt: true, completedAt: true },
-          },
-          _count: { select: { interviews: true } },
-        },
-      });
+      const plan = await interviewPlanService.findByIdWithInterviewsAndCounts(id);
       if (!plan) return reply.status(404).type('text/html').send('计划不存在');
       const completed = plan.interviews.filter((i) => i.status === 'COMPLETED');
       return reply.view('admin/content/plan-detail.njk', {
@@ -298,15 +242,8 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
-      const interviews = await prisma.interview.findMany({
-        where: { planId: id },
-        orderBy: { status: 'asc' },
-        select: { id: true, userId: true, status: true, completedAt: true },
-      });
-      const plan = await prisma.interviewPlan.findUnique({
-        where: { id },
-        include: { template: { select: { id: true, name: true } } },
-      });
+      const interviews = await interviewRepo.findByPlanId(id);
+      const plan = await interviewPlanService.findByIdWithTemplate(id);
       if (!plan) return reply.status(404).type('text/html').send('计划不存在');
       const completed = interviews.filter((i) => i.status === 'COMPLETED');
       return reply.view('admin/content/plan-detail.njk', {
@@ -327,15 +264,9 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { interviewId } = request.params as { interviewId: string };
-      const interview = await prisma.interview.findUnique({
-        where: { id: interviewId },
-        select: { id: true, userId: true, status: true, createdAt: true, completedAt: true },
-      });
+      const interview = await interviewRepo.findByIdForReport(interviewId);
       if (!interview) return reply.status(404).type('text/html').send('访谈不存在');
-      const report = await prisma.analysisReport.findFirst({
-        where: { interviewId },
-        orderBy: { createdAt: 'desc' },
-      });
+      const report = await analysisService.getReportByInterviewId(interviewId);
       return reply.view('admin/content/report-detail.njk', {
         adminApiKey: ADMIN_API_KEY,
         interview,
@@ -385,10 +316,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
         const existing = await templateRepo.findById(id);
         if (!existing) return reply.status(404).send(htmlError('模板不存在'));
         if (existing.status === 'PUBLISHED') return reply.send(htmlError('模板已发布'));
-        await prisma.template.update({
-          where: { id },
-          data: { status: 'PUBLISHED', updatedAt: new Date() },
-        });
+        await templateRepo.publish(id);
         info('Admin template published', { templateId: id });
         return reply
           .header('HX-Get', `/admin/content/templates/${id}`)
@@ -523,11 +451,9 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
             );
         }
 
-        // Bypass repository to avoid stale Prisma instance issues
-        await prisma.template.delete({ where: { id } });
-        const verify = await prisma.template.findUnique({ where: { id } });
+        const verified = await templateRepo.deleteAndVerify(id);
 
-        if (verify) {
+        if (!verified) {
           error('Database delete failed: record still exists after delete call', {
             templateId: id,
           });
@@ -598,21 +524,13 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
       try {
-        const interviews = await prisma.interview.groupBy({
-          by: ['status'],
-          where: { templateId: id },
-          _count: true,
-        });
-        const plans = await prisma.interviewPlan.groupBy({
-          by: ['status'],
-          where: { templateId: id },
-          _count: true,
-        });
+        const interviewStats = await interviewRepo.countByStatusForTemplate(id);
+        const planStats = await interviewPlanService.countByStatusForTemplate(id);
         return reply.send({
-          interviews: Object.fromEntries(interviews.map((i) => [i.status, i._count])),
-          plans: Object.fromEntries(plans.map((p) => [p.status, p._count])),
-          totalInterviews: interviews.reduce((sum: number, i) => sum + (i._count as number), 0),
-          totalPlans: plans.reduce((sum: number, p) => sum + (p._count as number), 0),
+          interviews: interviewStats.counts,
+          plans: planStats.counts,
+          totalInterviews: interviewStats.total,
+          totalPlans: planStats.total,
         });
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : 'Failed';
@@ -627,10 +545,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
       try {
-        const plan = await prisma.interviewPlan.findUnique({
-          where: { id },
-          include: { _count: { select: { interviews: true, batchReports: true } } },
-        });
+        const plan = await interviewPlanService.findByIdWithDeleteChecks(id);
 
         if (!plan) return reply.status(404).type('text/html').send('计划不存在');
 
@@ -650,7 +565,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
             );
         }
 
-        await prisma.interviewPlan.delete({ where: { id } });
+        await interviewPlanService.deletePlan(id);
         info('Admin plan deleted', { planId: id });
         return reply.send('<div class="text-green-600">计划已删除</div>');
       } catch (e) {
@@ -674,8 +589,8 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
             analyticsService.getStatusDistribution(),
             analyticsService.getPlanCompletionRates(),
             analyticsService.getWeeklyTrend(),
-            prisma.template.findMany({ select: { id: true, name: true } }),
-            prisma.interviewPlan.findMany({ select: { id: true, name: true } }),
+            templateRepo.findAllForSelect(),
+            interviewPlanService.findAllForSelect(),
           ]);
         return reply.view('analytics/index.njk', {
           adminApiKey: ADMIN_API_KEY,
@@ -724,11 +639,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     { preHandler: adminAuth },
     async (_r: FastifyRequest, reply: FastifyReply) => {
       try {
-        const reports = await prisma.analysisReport.findMany({
-          orderBy: { createdAt: 'desc' },
-          take: 100,
-          include: { interview: { select: { id: true, userId: true, status: true } } },
-        });
+        const reports = await analysisService.findRecentReports(100);
         return reply.view('reports/index.njk', {
           adminApiKey: ADMIN_API_KEY,
           reports: reports.map((r) => ({
@@ -753,14 +664,8 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { interviewId } = request.params as { interviewId: string };
       try {
-        const report = await prisma.analysisReport.findFirst({
-          where: { interviewId },
-          orderBy: { createdAt: 'desc' },
-        });
-        const interview = await prisma.interview.findUnique({
-          where: { id: interviewId },
-          select: { id: true, userId: true, status: true, createdAt: true },
-        });
+        const report = await analysisService.getReportByInterviewId(interviewId);
+        const interview = await interviewRepo.findByIdForReportPage(interviewId);
         if (!interview)
           return reply.status(404).view('error.njk', { message: 'Interview not found' });
         return reply.view('reports/detail.njk', {
