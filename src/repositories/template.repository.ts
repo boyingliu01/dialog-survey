@@ -128,6 +128,77 @@ export class TemplateRepository {
     });
   }
 
+  async findAllForAdminTree() {
+    return this.prisma.template.findMany({
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        status: true,
+        version: true,
+        createdAt: true,
+        _count: { select: { interviewPlans: true, interviews: true } },
+        interviewPlans: {
+          orderBy: { createdAt: 'desc' },
+          take: 20,
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            status: true,
+            completedCount: true,
+            sentCount: true,
+            createdAt: true,
+            _count: { select: { interviews: true } },
+            interviews: {
+              orderBy: { createdAt: 'desc' },
+              take: 15,
+              select: { id: true, userId: true, status: true, completedAt: true },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async findAllForSelect(): Promise<Array<{ id: string; name: string }>> {
+    return this.prisma.template.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    });
+  }
+
+  async findByIdWithCounts(id: string) {
+    return this.prisma.template.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        status: true,
+        version: true,
+        createdAt: true,
+        updatedAt: true,
+        content: true,
+        _count: { select: { interviewPlans: true, interviews: true } },
+      },
+    });
+  }
+
+  async publish(id: string): Promise<Template> {
+    return this.prisma.template.update({
+      where: { id },
+      data: { status: TemplateStatus.PUBLISHED, updatedAt: new Date() },
+    });
+  }
+
+  async deleteAndVerify(id: string): Promise<boolean> {
+    await this.prisma.template.delete({ where: { id } });
+    const verify = await this.prisma.template.findUnique({ where: { id } });
+    return verify === null;
+  }
+
   async findAllPaginated(
     page: number,
     limit: number
