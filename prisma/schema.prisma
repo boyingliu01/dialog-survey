@@ -15,6 +15,13 @@ enum InterviewStatus {
   CANCELLED
 }
 
+enum SendStatus {
+  NOT_SENT
+  SENT
+  FAILED
+  DELIVERED
+}
+
 enum TemplateStatus {
   DRAFT
   PUBLISHED
@@ -31,6 +38,9 @@ model Interview {
   followupCount   Int              @default(0)
   maxFollowups    Int              @default(2)
   version         Int              @default(1) // Optimistic locking
+  sendStatus      SendStatus       @default(NOT_SENT)
+  sentAt          DateTime?
+  sendError       String?
   startedAt       DateTime?
   completedAt     DateTime?
   reportPath      String?
@@ -100,6 +110,7 @@ model InterviewPlan {
   sentCount     Int       @default(0)
   completedCount Int      @default(0)
   failedCount   Int       @default(0)
+  sendStatus    SendStatus @default(NOT_SENT)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   startedAt     DateTime?
