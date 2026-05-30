@@ -11,7 +11,7 @@ describe('POST /api/analysis/aggregate/:planId', () => {
 
   beforeAll(async () => {
     fastify = Fastify({ logger: false });
-    await analysisRoutes(fastify);
+    await analysisRoutes(fastify, { prisma });
     await fastify.ready();
   });
 

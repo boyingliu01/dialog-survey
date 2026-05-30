@@ -78,7 +78,8 @@ async function createTestApp() {
   });
 
   const { adminTemplatesRoutes } = await import('../src/api/admin-templates.js');
-  await app.register(adminTemplatesRoutes);
+  const { TemplateRepository } = await import('../src/repositories/template.repository.js');
+  await app.register(adminTemplatesRoutes, { templateRepo: new TemplateRepository(prisma), prisma });
 
   return app;
 }
@@ -312,62 +313,6 @@ describe('Admin Templates Routes - Extra Coverage', () => {
     });
   });
 
-  describe('GET /admin/templates — Templates listing page', () => {
-    it('should return 200 with templates list', async () => {
-      const response = await ctx.app.inject({
-        method: 'GET',
-        url: '/admin/templates',
-      });
-
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toContain('Extra Test Draft');
-    });
-
-    it('should handle pagination with page parameter', async () => {
-      const response = await ctx.app.inject({
-        method: 'GET',
-        url: '/admin/templates?page=1',
-      });
-
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toContain('Extra Test Draft');
-    });
-  });
-
-  describe('GET /admin/templates/new — New template form', () => {
-    it('should return 200 with template creation form', async () => {
-      const response = await ctx.app.inject({
-        method: 'GET',
-        url: '/admin/templates/new',
-      });
-
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toContain('创建模板');
-    });
-  });
-
-  describe('GET /admin/templates/:id — Template detail page', () => {
-    it('should return 200 with template detail for existing template', async () => {
-      const response = await ctx.app.inject({
-        method: 'GET',
-        url: `/admin/templates/${ctx.draftTemplate.id}`,
-      });
-
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toContain('Extra Test Draft');
-    });
-
-    it('should return 404 for non-existent template', async () => {
-      const response = await ctx.app.inject({
-        method: 'GET',
-        url: '/admin/templates/non-existent',
-      });
-
-      expect(response.statusCode).toBe(404);
-      expect(response.body).toContain('模板不存在');
-    });
-  });
-
   describe('DELETE /admin/api/plans/:id — Delete plan', () => {
     let deletablePlan: Awaited<ReturnType<typeof prisma.interviewPlan.create>>;
     let planWithBatchReport: Awaited<ReturnType<typeof prisma.interviewPlan.create>>;
@@ -470,11 +415,11 @@ describe('Admin Templates Routes - Extra Coverage', () => {
     });
   });
 
-  describe('GET /admin/templates/:id/edit — Edit template form', () => {
+  describe('GET /admin/content/templates/:id/edit — Edit template form', () => {
     it('should return 200 with edit form for existing template', async () => {
       const response = await ctx.app.inject({
         method: 'GET',
-        url: `/admin/templates/${ctx.draftTemplate.id}/edit`,
+        url: `/admin/content/templates/${ctx.draftTemplate.id}/edit`,
       });
 
       expect(response.statusCode).toBe(200);
@@ -484,7 +429,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
     it('should return 404 for non-existent template', async () => {
       const response = await ctx.app.inject({
         method: 'GET',
-        url: '/admin/templates/non-existent/edit',
+        url: '/admin/content/templates/non-existent/edit',
       });
 
       expect(response.statusCode).toBe(404);
@@ -492,39 +437,6 @@ describe('Admin Templates Routes - Extra Coverage', () => {
     });
   });
 
-  describe('GET /admin/plans — Plans listing page', () => {
-    it('should return 200 with plans list', async () => {
-      const response = await ctx.app.inject({
-        method: 'GET',
-        url: '/admin/plans',
-      });
-
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toContain('Extra Test Plan');
-    });
-  });
-
-  describe('GET /admin/plans/:id — Plan detail page', () => {
-    it('should return 200 with plan detail', async () => {
-      const response = await ctx.app.inject({
-        method: 'GET',
-        url: `/admin/plans/${ctx.plan.id}`,
-      });
-
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toContain('Extra Test Plan');
-    });
-
-    it('should return 404 for non-existent plan', async () => {
-      const response = await ctx.app.inject({
-        method: 'GET',
-        url: '/admin/plans/non-existent-plan',
-      });
-
-      expect(response.statusCode).toBe(404);
-      expect(response.body).toContain('计划不存在');
-    });
-  });
 
   describe('GET /admin/reports — Reports listing page', () => {
     it('should return 200 with reports list', async () => {

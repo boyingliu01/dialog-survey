@@ -192,11 +192,11 @@ describe('Admin Tree Routes', () => {
     });
   });
 
-  describe('GET /admin/plans/new — Plan creation form', () => {
+  describe('GET /admin/content/plans/new — Plan creation form', () => {
     it('should return 200 and render plan form with template dropdown', async () => {
       const response = await app.inject({
         method: 'GET',
-        url: '/admin/plans/new',
+        url: '/admin/content/plans/new',
         headers: {
           'x-admin-key': ADMIN_KEY,
         },
@@ -218,7 +218,7 @@ describe('Admin Tree Routes', () => {
 
       const response = await app.inject({
         method: 'GET',
-        url: `/admin/plans/new?templateId=${template.id}`,
+        url: `/admin/content/plans/new?templateId=${template.id}`,
         headers: {
           'x-admin-key': ADMIN_KEY,
         },

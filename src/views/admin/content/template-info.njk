@@ -16,7 +16,7 @@
       </button>
       {% endif %}
       <button
-        hx-get="/admin/templates/{{ template.id }}/edit"
+        hx-get="/admin/content/templates/{{ template.id }}/edit"
         hx-target="#main-content"
         hx-swap="innerHTML"
         hx-push-url="true"
@@ -28,7 +28,7 @@
         编辑
       </button>
       <button
-        hx-get="/admin/plans/new?templateId={{ template.id }}"
+        hx-get="/admin/content/plans/new?templateId={{ template.id }}"
         hx-target="#main-content"
         hx-swap="innerHTML"
         hx-push-url="true"
