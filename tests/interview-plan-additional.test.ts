@@ -115,6 +115,28 @@ describe('InterviewPlanService - Additional Coverage', () => {
         expect.stringContaining(invitationPrompt)
       );
     });
+
+    /**
+     * @test REQ-007-4-01
+     * @intent 验证发送成功后更新每个受访者的sendStatus为SENT
+     */
+    it('should update per-interview sendStatus to SENT on success', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        name: 'Test Plan',
+        startedAt: null,
+        interviews: [{ id: 'int-1', userId: 'user-1' }],
+      });
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+      mockPrisma.interview.update.mockResolvedValue({});
+
+      await service.sendInvitations('plan-1');
+
+      expect(mockPrisma.interview.update).toHaveBeenCalled();
+      const updateCall = mockPrisma.interview.update.mock.calls[0][0];
+      expect(updateCall.data.sendStatus).toBe('SENT');
+      expect(updateCall.data.sentAt).toBeInstanceOf(Date);
+    });
   });
 
   describe('updatePlanStatus', () => {

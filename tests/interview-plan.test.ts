@@ -18,7 +18,9 @@ describe('InterviewPlanService', () => {
       },
       interview: {
         findMany: vi.fn(),
+        findUnique: vi.fn(),
         createMany: vi.fn(),
+        update: vi.fn(),
         deleteMany: vi.fn(),
       },
       $disconnect: vi.fn(),

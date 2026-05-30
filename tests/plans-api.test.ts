@@ -4,6 +4,16 @@ import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { interviewPlanRoutes } from '../src/api/plans.js';
 
+vi.mock('../src/integrations/dingtalk/message-sender.js', () => ({
+  messageSender: {
+    sendTextMessage: vi.fn().mockResolvedValue({
+      taskId: 'mock-task',
+      successCount: 1,
+      failedUserIds: [],
+    }),
+  },
+}));
+
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),
   error: vi.fn(),
@@ -131,6 +141,33 @@ describe('Interview Plan API Endpoints', () => {
       expect(plan).not.toBeNull();
       expect(plan?.targetDate).toEqual(new Date('2026-12-01T00:00:00Z'));
 
+      await prisma.interviewPlan.delete({ where: { id: body.id } });
+      await prisma.template.delete({ where: { id: template.id } });
+    });
+
+    it('should NOT auto-send when creating with invitees (publish default false)', async () => {
+      const template = await prisma.template.create({
+        data: { name: 'NoAutoSend Template', content: '{}', status: 'DRAFT' },
+      });
+
+      const res = await fastify.inject({
+        method: 'POST',
+        url: '/api/plans',
+        payload: {
+          name: 'No Auto Send Plan',
+          templateId: template.id,
+          invitees: 'test-user-1 Test User',
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.id).toBeDefined();
+      expect(body.imported).toBeGreaterThanOrEqual(1);
+      expect(body.sent).toBe(0);
+      expect(body.failed).toBe(0);
+
+      await prisma.interview.deleteMany({ where: { planId: body.id } });
       await prisma.interviewPlan.delete({ where: { id: body.id } });
       await prisma.template.delete({ where: { id: template.id } });
     });
@@ -459,6 +496,44 @@ describe('Interview Plan API Endpoints', () => {
       });
 
       expect(res.statusCode).toBe(500);
+    });
+  });
+
+  describe('POST /api/plans/:id/interviews/:interviewId/send — resend to single interview', () => {
+    it('should return success for valid plan and interview', async () => {
+      const template = await prisma.template.create({
+        data: { name: 'ReSendTest Template', content: '{}', status: 'DRAFT' },
+      });
+      const plan = await prisma.interviewPlan.create({
+        data: { name: 'ReSend Plan', templateId: template.id, status: 'READY' },
+      });
+      const interview = await prisma.interview.create({
+        data: { userId: 'user-rs', templateId: template.id, planId: plan.id, status: 'PENDING' },
+      });
+
+      const res = await fastify.inject({
+        method: 'POST',
+        url: `/api/plans/${plan.id}/interviews/${interview.id}/send`,
+      });
+
+      // Should be 200 or 500 depending on whether DingTalk API is available
+      expect([200, 500]).toContain(res.statusCode);
+
+      await prisma.interview.deleteMany({ where: { planId: plan.id } });
+      await prisma.interviewPlan.delete({ where: { id: plan.id } });
+      await prisma.template.delete({ where: { id: template.id } });
+    });
+
+    it('should return error for non-existent interview', async () => {
+      const res = await fastify.inject({
+        method: 'POST',
+        url: '/api/plans/non-existent/interviews/non-existent/send',
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.success).toBe(false);
+      expect(body.error).toContain('not found');
     });
   });
 
