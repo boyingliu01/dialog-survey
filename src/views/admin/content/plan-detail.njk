@@ -163,14 +163,51 @@
     {% endif %}
   </div>
   <div x-show="activeTab==='members'" x-cloak class="text-sm">
+    <div class="flex gap-2 mb-3">
+      {% if plan.status == 'PENDING' or plan.status == 'READY' %}
+      <button
+        hx-post="/api/plans/{{ plan.id }}/send"
+        hx-target="#main-content"
+        hx-swap="innerHTML"
+        hx-confirm="确认向所有未发送成员发送访谈邀约？"
+        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700"
+      >批量发送邀约</button>
+      {% endif %}
+    </div>
     <table class="w-full">
-      <thead><tr class="border-b"><th class="text-left py-2">被访者</th><th class="text-left py-2">状态</th><th class="text-left py-2">完成时间</th></tr></thead>
+      <thead><tr class="border-b">
+        <th class="text-left py-2">被访者</th>
+        <th class="text-left py-2">发送状态</th>
+        <th class="text-left py-2">访谈状态</th>
+        <th class="text-left py-2">完成时间</th>
+        <th class="text-left py-2">操作</th>
+      </tr></thead>
       <tbody>
         {% for interview in (interviews or []) %}
         <tr class="border-b">
           <td class="py-1.5">{{ interview.userId }}</td>
+          <td class="py-1.5">
+            {% if interview.sendStatus == 'SENT' or interview.sendStatus == 'DELIVERED' %}
+            <span class="text-emerald-600 text-xs">已发送</span>
+            {% elif interview.sendStatus == 'FAILED' %}
+            <span class="text-red-600 text-xs" title="{{ interview.sendError or '' }}">发送失败</span>
+            {% else %}
+            <span class="text-gray-400 text-xs">未发送</span>
+            {% endif %}
+          </td>
           <td class="py-1.5">{{ interview.status }}</td>
           <td class="py-1.5">{{ interview.completedAt or '-' }}</td>
+          <td class="py-1.5">
+            {% if interview.sendStatus == 'NOT_SENT' or interview.sendStatus == 'FAILED' %}
+            <button
+              hx-post="/api/plans/{{ plan.id }}/interviews/{{ interview.id }}/send"
+              hx-target="#main-content"
+              hx-swap="innerHTML"
+              hx-confirm="确认向 {{ interview.userId }} 发送访谈邀约？"
+              class="text-xs text-indigo-600 hover:underline"
+            >发送</button>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
