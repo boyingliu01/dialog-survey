@@ -316,6 +316,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
   describe('DELETE /admin/api/plans/:id — Delete plan', () => {
     let deletablePlan: Awaited<ReturnType<typeof prisma.interviewPlan.create>>;
     let planWithBatchReport: Awaited<ReturnType<typeof prisma.interviewPlan.create>>;
+    let planWithInterviews: Awaited<ReturnType<typeof prisma.interviewPlan.create>>;
 
     beforeAll(async () => {
       deletablePlan = await prisma.interviewPlan.create({
@@ -346,6 +347,24 @@ describe('Admin Templates Routes - Extra Coverage', () => {
           emergents: {},
         },
       });
+
+      planWithInterviews = await prisma.interviewPlan.create({
+        data: {
+          name: 'Plan With Interviews',
+          templateId: ctx.draftTemplate.id,
+          status: 'PENDING',
+        },
+      });
+
+      await prisma.interview.create({
+        data: {
+          userId: 'delete-test-user',
+          templateId: ctx.draftTemplate.id,
+          planId: planWithInterviews.id,
+          status: 'COMPLETED',
+          completedAt: new Date(),
+        },
+      });
     });
 
     afterAll(async () => {
@@ -354,6 +373,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
       });
       await prisma.interviewPlan.delete({ where: { id: deletablePlan.id } }).catch(() => {});
       await prisma.interviewPlan.delete({ where: { id: planWithBatchReport.id } }).catch(() => {});
+      await prisma.interviewPlan.delete({ where: { id: planWithInterviews.id } }).catch(() => {});
     });
 
     it('should delete a plan with no interviews', async () => {
@@ -372,16 +392,34 @@ describe('Admin Templates Routes - Extra Coverage', () => {
       expect(verify).toBeNull();
     });
 
-    it('should return 409 when plan has interviews', async () => {
+    it('should return 409 warning when plan has interviews', async () => {
       const response = await ctx.app.inject({
         method: 'DELETE',
-        url: `/admin/api/plans/${ctx.plan.id}`,
+        url: `/admin/api/plans/${planWithInterviews.id}`,
         headers: { 'x-admin-key': 'test-secret-key' },
       });
 
       expect(response.statusCode).toBe(409);
       expect(response.body).toContain('访谈记录');
+      expect(response.body).toContain('data-delete-warning');
     });
+
+    it('should cascade delete plan with interviews when force=true', async () => {
+      const response = await ctx.app.inject({
+        method: 'DELETE',
+        url: `/admin/api/plans/${planWithInterviews.id}?force=true`,
+        headers: { 'x-admin-key': 'test-secret-key' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toContain('已删除');
+      expect(response.body).toMatch(/访谈记录/);
+
+      const verify = await prisma.interviewPlan.findUnique({
+        where: { id: planWithInterviews.id },
+      });
+      expect(verify).toBeNull();
+    }, 10000);
 
     it('should return 409 when plan has batch reports (bug fix)', async () => {
       const response = await ctx.app.inject({
@@ -408,7 +446,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
     it('should return 401 without admin key', async () => {
       const response = await ctx.app.inject({
         method: 'DELETE',
-        url: `/admin/api/plans/${ctx.plan.id}`,
+        url: `/admin/api/plans/${planWithBatchReport.id}`,
       });
 
       expect(response.statusCode).toBe(401);
