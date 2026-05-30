@@ -28,7 +28,9 @@ describe('InterviewPlanService - Additional Coverage', () => {
       },
       interview: {
         findMany: vi.fn(),
+        findUnique: vi.fn(),
         createMany: vi.fn(),
+        update: vi.fn(),
       },
       $disconnect: vi.fn(),
     };

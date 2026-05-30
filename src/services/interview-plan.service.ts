@@ -69,6 +69,8 @@ export class InterviewPlanService {
             userId: true,
             status: true,
             completedAt: true,
+            sendStatus: true,
+            sentAt: true,
           },
         },
       },
@@ -188,29 +190,105 @@ export class InterviewPlanService {
       try {
         await this.sendInvitation(interview.userId, plan.name, invitationPrompt);
         sent++;
+        await this.prisma.interview.update({
+          where: { id: interview.id },
+          data: { sendStatus: 'SENT', sentAt: new Date() },
+        });
       } catch (err) {
         failed++;
+        const errorMsg = err instanceof Error ? err.message : String(err);
         error('Failed to send invitation', {
           planId,
           userId: interview.userId,
-          error: err instanceof Error ? err.message : String(err),
+          error: errorMsg,
+        });
+        await this.prisma.interview.update({
+          where: { id: interview.id },
+          data: { sendStatus: 'FAILED', sendError: errorMsg },
         });
       }
     }
 
+    let planSendStatus: 'SENT' | 'FAILED' | 'NOT_SENT' = 'NOT_SENT';
+    if (failed > 0 && sent > 0) {
+      planSendStatus = 'SENT'; // partial success
+    } else if (failed > 0 && sent === 0) {
+      planSendStatus = 'FAILED';
+    } else if (failed === 0 && sent > 0) {
+      planSendStatus = 'SENT';
+    }
+
+    const planUpdateData: Record<string, unknown> = {
+      status: PlanStatus.RUNNING,
+      sentCount: { increment: sent },
+      failedCount: { increment: failed },
+      startedAt: plan.startedAt || new Date(),
+      updatedBy: 'admin',
+    };
+    if (planSendStatus !== 'NOT_SENT') {
+      planUpdateData.sendStatus = planSendStatus;
+    }
+
     await this.prisma.interviewPlan.update({
       where: { id: planId },
-      data: {
-        status: PlanStatus.RUNNING,
-        sentCount: { increment: sent },
-        failedCount: { increment: failed },
-        startedAt: plan.startedAt || new Date(),
-        updatedBy: 'admin',
-      },
+      data: planUpdateData,
     });
 
     info('Invitations sent', { planId, sent, failed });
     return { sent, failed };
+  }
+
+  async resendToInterview(
+    planId: string,
+    interviewId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const interview = await this.prisma.interview.findUnique({
+      where: { id: interviewId },
+      include: { plan: { select: { id: true, name: true, templateId: true } } },
+    });
+
+    if (!interview) {
+      return { success: false, error: `Interview not found: ${interviewId}` };
+    }
+
+    if (interview.plan?.id !== planId) {
+      return { success: false, error: `Interview ${interviewId} does not belong to plan ${planId}` };
+    }
+
+    const template = await this.prisma.template.findUnique({
+      where: { id: interview.plan.templateId },
+      select: { content: true },
+    });
+
+    let invitationPrompt = '';
+    if (template?.content) {
+      try {
+        const content = JSON.parse(template.content) as { invitationPrompt?: string };
+        invitationPrompt = content.invitationPrompt || '';
+      } catch {}
+    }
+
+    try {
+      await this.sendInvitation(interview.userId, interview.plan.name, invitationPrompt);
+      await this.prisma.interview.update({
+        where: { id: interviewId },
+        data: { sendStatus: 'SENT', sentAt: new Date(), sendError: null },
+      });
+      await this.prisma.interviewPlan.update({
+        where: { id: planId },
+        data: { sentCount: { increment: 1 } },
+      });
+      info('Resent invitation', { planId, interviewId, userId: interview.userId });
+      return { success: true };
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      await this.prisma.interview.update({
+        where: { id: interviewId },
+        data: { sendStatus: 'FAILED', sendError: errorMsg },
+      });
+      error('Failed to resend invitation', { planId, interviewId, userId: interview.userId, error: errorMsg });
+      return { success: false, error: errorMsg };
+    }
   }
 
   private async sendInvitation(
@@ -275,7 +353,7 @@ export class InterviewPlanService {
 
     let sent = 0;
     let failed = 0;
-    if (input.publish !== false) {
+    if (input.publish === true) {
       const sendResult = await this.sendInvitations(planId);
       sent = sendResult.sent;
       failed = sendResult.failed;
@@ -385,7 +463,7 @@ export class InterviewPlanService {
         template: { select: { id: true, name: true } },
         interviews: {
           orderBy: { status: 'asc' },
-          select: { id: true, userId: true, status: true, createdAt: true, completedAt: true },
+          select: { id: true, userId: true, status: true, createdAt: true, completedAt: true, sendStatus: true, sentAt: true, sendError: true },
         },
         _count: { select: { interviews: true } },
       },
