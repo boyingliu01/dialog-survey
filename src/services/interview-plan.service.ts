@@ -1,4 +1,4 @@
-import { PlanStatus, Prisma, PrismaClient } from '@prisma/client';
+import { PlanStatus, Prisma, PrismaClient, SendStatus } from '@prisma/client';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import { error, info } from '../utils/logger.js';
 
@@ -192,7 +192,7 @@ export class InterviewPlanService {
         sent++;
         await this.prisma.interview.update({
           where: { id: interview.id },
-          data: { sendStatus: 'SENT', sentAt: new Date() },
+          data: { sendStatus: SendStatus.SENT, sentAt: new Date() },
         });
       } catch (err) {
         failed++;
@@ -204,18 +204,18 @@ export class InterviewPlanService {
         });
         await this.prisma.interview.update({
           where: { id: interview.id },
-          data: { sendStatus: 'FAILED', sendError: errorMsg },
+          data: { sendStatus: SendStatus.FAILED, sendError: errorMsg },
         });
       }
     }
 
-    let planSendStatus: 'SENT' | 'FAILED' | 'NOT_SENT' = 'NOT_SENT';
+    let planSendStatus: SendStatus | undefined;
     if (failed > 0 && sent > 0) {
-      planSendStatus = 'SENT'; // partial success
+      planSendStatus = SendStatus.SENT; // partial success
     } else if (failed > 0 && sent === 0) {
-      planSendStatus = 'FAILED';
+      planSendStatus = SendStatus.FAILED;
     } else if (failed === 0 && sent > 0) {
-      planSendStatus = 'SENT';
+      planSendStatus = SendStatus.SENT;
     }
 
     const planUpdateData: Record<string, unknown> = {
@@ -225,7 +225,7 @@ export class InterviewPlanService {
       startedAt: plan.startedAt || new Date(),
       updatedBy: 'admin',
     };
-    if (planSendStatus !== 'NOT_SENT') {
+    if (planSendStatus !== undefined) {
       planUpdateData.sendStatus = planSendStatus;
     }
 
@@ -244,7 +244,12 @@ export class InterviewPlanService {
   ): Promise<{ success: boolean; error?: string }> {
     const interview = await this.prisma.interview.findUnique({
       where: { id: interviewId },
-      include: { plan: { select: { id: true, name: true, templateId: true } } },
+      select: {
+        id: true,
+        userId: true,
+        sendStatus: true,
+        plan: { select: { id: true, name: true, templateId: true } },
+      },
     });
 
     if (!interview) {
@@ -268,24 +273,35 @@ export class InterviewPlanService {
       } catch {}
     }
 
+    const wasAlreadyCounted =
+      interview.sendStatus === SendStatus.SENT || interview.sendStatus === SendStatus.FAILED;
+
     try {
       await this.sendInvitation(interview.userId, interview.plan.name, invitationPrompt);
       await this.prisma.interview.update({
         where: { id: interviewId },
-        data: { sendStatus: 'SENT', sentAt: new Date(), sendError: null },
+        data: { sendStatus: SendStatus.SENT, sentAt: new Date(), sendError: null },
       });
-      await this.prisma.interviewPlan.update({
-        where: { id: planId },
-        data: { sentCount: { increment: 1 } },
-      });
+      if (!wasAlreadyCounted) {
+        await this.prisma.interviewPlan.update({
+          where: { id: planId },
+          data: { sentCount: { increment: 1 } },
+        });
+      }
       info('Resent invitation', { planId, interviewId, userId: interview.userId });
       return { success: true };
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       await this.prisma.interview.update({
         where: { id: interviewId },
-        data: { sendStatus: 'FAILED', sendError: errorMsg },
+        data: { sendStatus: SendStatus.FAILED, sendError: errorMsg },
       });
+      if (!wasAlreadyCounted) {
+        await this.prisma.interviewPlan.update({
+          where: { id: planId },
+          data: { failedCount: { increment: 1 } },
+        });
+      }
       error('Failed to resend invitation', { planId, interviewId, userId: interview.userId, error: errorMsg });
       return { success: false, error: errorMsg };
     }
