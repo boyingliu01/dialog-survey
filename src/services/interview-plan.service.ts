@@ -409,6 +409,56 @@ export class InterviewPlanService {
     await this.prisma.interviewPlan.delete({ where: { id } });
   }
 
+  /**
+   * Cascade delete a plan along with its interviews and batch reports.
+   * Returns a summary of what was deleted.
+   */
+  async deletePlanWithInterviews(id: string): Promise<{
+    planName: string;
+    interviewCount: number;
+    batchReportCount: number;
+  }> {
+    const plan = await this.prisma.interviewPlan.findUnique({
+      where: { id },
+      include: { _count: { select: { interviews: true, batchReports: true } } },
+    });
+
+    if (!plan) {
+      throw new Error(`Plan not found: ${id}`);
+    }
+
+    const interviewCount = plan._count.interviews;
+    const batchReportCount = plan._count.batchReports;
+
+    if (interviewCount > 0) {
+      const interviewIds = (
+        await this.prisma.interview.findMany({ where: { planId: id }, select: { id: true } })
+      ).map((i) => i.id);
+
+      await this.prisma.analysisReport.deleteMany({ where: { interviewId: { in: interviewIds } } });
+      await this.prisma.analysisFailure.deleteMany({ where: { interviewId: { in: interviewIds } } });
+      await this.prisma.message.deleteMany({ where: { interviewId: { in: interviewIds } } });
+      await this.prisma.response.deleteMany({ where: { interviewId: { in: interviewIds } } });
+      await this.prisma.interview.deleteMany({ where: { planId: id } });
+    }
+
+    await this.prisma.batchAnalysisReport.deleteMany({ where: { planId: id } });
+    await this.prisma.interviewPlan.delete({ where: { id } });
+
+    info('Plan cascade deleted', {
+      planId: id,
+      planName: plan.name,
+      interviewCount,
+      batchReportCount,
+    });
+
+    return {
+      planName: plan.name,
+      interviewCount,
+      batchReportCount,
+    };
+  }
+
   async countByStatusForTemplate(templateId: string): Promise<{
     counts: Record<string, number>;
     total: number;
