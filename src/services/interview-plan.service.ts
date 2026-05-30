@@ -370,6 +370,58 @@ export class InterviewPlanService {
   async disconnect(): Promise<void> {
     await this.prisma.$disconnect();
   }
+
+  async findByIdWithTemplate(id: string) {
+    return this.prisma.interviewPlan.findUnique({
+      where: { id },
+      include: { template: { select: { id: true, name: true } } },
+    });
+  }
+
+  async findByIdWithInterviewsAndCounts(id: string) {
+    return this.prisma.interviewPlan.findUnique({
+      where: { id },
+      include: {
+        template: { select: { id: true, name: true } },
+        interviews: {
+          orderBy: { status: 'asc' },
+          select: { id: true, userId: true, status: true, createdAt: true, completedAt: true },
+        },
+        _count: { select: { interviews: true } },
+      },
+    });
+  }
+
+  async findByIdWithDeleteChecks(id: string) {
+    return this.prisma.interviewPlan.findUnique({
+      where: { id },
+      include: { _count: { select: { interviews: true, batchReports: true } } },
+    });
+  }
+
+  async findAllForSelect(): Promise<Array<{ id: string; name: string }>> {
+    return this.prisma.interviewPlan.findMany({
+      select: { id: true, name: true },
+    });
+  }
+
+  async deletePlan(id: string): Promise<void> {
+    await this.prisma.interviewPlan.delete({ where: { id } });
+  }
+
+  async countByStatusForTemplate(templateId: string): Promise<{
+    counts: Record<string, number>;
+    total: number;
+  }> {
+    const groups = await this.prisma.interviewPlan.groupBy({
+      by: ['status'],
+      where: { templateId },
+      _count: true,
+    });
+    const counts = Object.fromEntries(groups.map((g) => [g.status, g._count as number]));
+    const total = groups.reduce((sum, g) => sum + (g._count as number), 0);
+    return { counts, total };
+  }
 }
 
 /**
