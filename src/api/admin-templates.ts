@@ -544,24 +544,30 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
+      const query = request.query as { force?: string };
       try {
         const plan = await interviewPlanService.findByIdWithDeleteChecks(id);
 
         if (!plan) return reply.status(404).type('text/html').send('计划不存在');
 
-        if (plan._count.interviews > 0) {
-          return reply
-            .status(409)
-            .send(
-              `<div class="text-red-600">不能删除：该计划关联了 ${plan._count.interviews} 个访谈记录</div>`
-            );
+        const hasInterviews = plan._count.interviews > 0;
+        const hasBatchReports = plan._count.batchReports > 0;
+
+        if (query.force === 'true') {
+          const result = await interviewPlanService.deletePlanWithInterviews(id);
+          return reply.send(
+            `<div class="text-green-600">计划「${result.planName}」已删除，同时删除 ${result.interviewCount} 条访谈记录和 ${result.batchReportCount} 个批量报告</div>`
+          );
         }
 
-        if (plan._count.batchReports > 0) {
+        if (hasInterviews || hasBatchReports) {
+          const parts = [];
+          if (hasInterviews) parts.push(`${plan._count.interviews} 个访谈记录`);
+          if (hasBatchReports) parts.push(`${plan._count.batchReports} 个批量报告`);
           return reply
             .status(409)
             .send(
-              `<div class="text-red-600">不能删除：该计划关联了 ${plan._count.batchReports} 个批量报告</div>`
+              `<div class="text-red-600" data-delete-warning="true" data-count-interviews="${plan._count.interviews}" data-count-reports="${plan._count.batchReports}">该计划关联了 ${parts.join('、')}，删除将一并删除这些数据</div>`
             );
         }
 
