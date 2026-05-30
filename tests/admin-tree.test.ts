@@ -204,7 +204,7 @@ describe('Admin Tree Routes', () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.body).toContain('新建访谈计划');
-      expect(response.body).toContain('发布计划');
+      expect(response.body).toContain('保存计划');
     });
 
     it('should pre-select template when templateId query param is provided', async () => {
