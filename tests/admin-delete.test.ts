@@ -12,6 +12,8 @@ vi.mock('../src/utils/logger.js', () => ({
   debug: vi.fn(),
 }));
 
+const prisma = new PrismaClient();
+
 // Create a minimal test app
 async function createTestApp() {
   const { default: Fastify } = await import('fastify');
@@ -32,14 +34,14 @@ async function createTestApp() {
   app.addContentTypeParser('*', () => {});
 
   const { adminTemplatesRoutes } = await import('../src/api/admin-templates.js');
-  await app.register(adminTemplatesRoutes);
+  const { TemplateRepository } = await import('../src/repositories/template.repository.js');
+  await app.register(adminTemplatesRoutes, { templateRepo: new TemplateRepository(prisma), prisma });
 
   return app;
 }
 
 describe('DELETE /admin/api/templates/:id', () => {
   let app: Awaited<ReturnType<typeof createTestApp>>;
-  const prisma = new PrismaClient();
 
   beforeAll(async () => {
     vi.resetModules();

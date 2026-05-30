@@ -1,10 +1,15 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
-import { TemplateRepository } from '../repositories/template.repository.js';
+import type { TemplateRepository } from '../repositories/template.repository.js';
 import { AnalyticsService } from '../services/analytics.service.js';
 import { error, info } from '../utils/logger.js';
+
+export interface AdminTemplatesRoutesOptions {
+  templateRepo: TemplateRepository;
+  prisma: PrismaClient;
+}
 
 const createTemplateSchema = z.object({
   name: z.string().min(1),
@@ -90,9 +95,11 @@ function fmtDate(d: Date | null | undefined): string {
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
 
-export async function adminTemplatesRoutes(fastify: FastifyInstance) {
-  const templateRepo = new TemplateRepository();
-  const prisma = new PrismaClient();
+export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: AdminTemplatesRoutesOptions) {
+  const { templateRepo, prisma } = opts;
+  // TODO(arch) #15: The 23 raw `prisma.*` calls below should migrate to repository/service layer.
+  // See https://github.com/boyingliu01/InterviewAgent/issues/15. This file owns route registration
+  // + HTMX rendering, not direct data access. Until migrated, prisma is injected via DI from server.ts.
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
 
@@ -167,8 +174,9 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // GET /admin/content/plans/new — HTMX fragment for new plan form
   fastify.get(
-    '/admin/plans/new',
+    '/admin/content/plans/new',
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { templateId } = (request.query as Record<string, string | undefined>) || {};
@@ -176,7 +184,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
         orderBy: { name: 'asc' },
         select: { id: true, name: true },
       });
-      return reply.view('plans/form.njk', {
+      return reply.view('admin/content/plan-form.njk', {
         adminApiKey: ADMIN_API_KEY,
         templates,
         selectedTemplateId: templateId || null,
@@ -184,9 +192,9 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // GET /admin/plans/:id/edit — Plan edit form
+  // GET /admin/content/plans/:id/edit — HTMX fragment for edit plan form
   fastify.get(
-    '/admin/plans/:id/edit',
+    '/admin/content/plans/:id/edit',
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
@@ -199,7 +207,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
         orderBy: { name: 'asc' },
         select: { id: true, name: true },
       });
-      return reply.view('plans/form.njk', {
+      return reply.view('admin/content/plan-form.njk', {
         adminApiKey: ADMIN_API_KEY,
         templates,
         plan,
@@ -337,53 +345,7 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
   );
 
   fastify.get(
-    `${BASE_PATH}/templates`,
-    { preHandler: adminAuth },
-    async (_request: FastifyRequest, reply: FastifyReply) => {
-      try {
-        const pageParam = (_request.query as Record<string, string | undefined>).page;
-        const page = pageParam ? Math.max(1, Number.parseInt(pageParam, 10)) : 1;
-        const limit = 20;
-        const result = await templateRepo.findAllPaginated(page, limit);
-        const templates = await Promise.all(
-          result.items.map(async (t) => ({
-            ...t,
-            usageStats: await templateRepo.getUsageStats(t.id),
-          }))
-        );
-        return reply.view('templates/index.njk', {
-          adminApiKey: ADMIN_API_KEY,
-          templates,
-          pagination: {
-            total: result.total,
-            page: result.page,
-            limit: result.limit,
-          },
-        });
-      } catch (e) {
-        const errMsg = e instanceof Error ? e.message : 'Failed to load templates';
-        error('Failed to load admin templates list', { error: errMsg });
-        return reply.status(500).view('error.njk', { message: errMsg });
-      }
-    }
-  );
-
-  fastify.get(
-    `${BASE_PATH}/templates/new`,
-    { preHandler: adminAuth },
-    async (_r: FastifyRequest, reply: FastifyReply) => {
-      return reply.view('templates/form.njk', {
-        adminApiKey: ADMIN_API_KEY,
-        isEdit: false,
-        template: null,
-        existingQuestions: [],
-        action: 'create',
-      });
-    }
-  );
-
-  fastify.get(
-    `${BASE_PATH}/templates/:id/edit`,
+    `${BASE_PATH}/content/templates/:id/edit`,
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
@@ -629,52 +591,6 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // GET /admin/templates/:id - Template detail page
-  fastify.get(
-    `${BASE_PATH}/templates/:id`,
-    { preHandler: adminAuth },
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { id } = request.params as { id: string };
-      try {
-        const template = await prisma.template.findUnique({
-          where: { id },
-          include: {
-            _count: { select: { interviewPlans: true, interviews: true } },
-            interviewPlans: {
-              orderBy: { createdAt: 'desc' },
-              take: 20,
-              select: {
-                id: true,
-                name: true,
-                status: true,
-                completedCount: true,
-                sentCount: true,
-                createdAt: true,
-              },
-            },
-          },
-        });
-        if (!template) return reply.status(404).type('text/html').send('模板不存在');
-
-        const content = JSON.parse(template.content || '{}') as Record<string, unknown>;
-        const plans = template.interviewPlans;
-
-        return reply.view('templates/detail.njk', {
-          adminApiKey: ADMIN_API_KEY,
-          template,
-          content,
-          plans,
-          planCount: template._count.interviewPlans,
-          interviewCount: template._count.interviews,
-        });
-      } catch (e) {
-        const errMsg = e instanceof Error ? e.message : 'Failed to load template detail';
-        error('Failed to load template detail', { error: errMsg, templateId: id });
-        return reply.status(500).view('error.njk', { message: errMsg });
-      }
-    }
-  );
-
   // GET /admin/api/templates/:id/stats - Usage statistics JSON
   fastify.get(
     `${API_PATH}/templates/:id/stats`,
@@ -701,46 +617,6 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : 'Failed';
         return reply.status(500).send({ error: errMsg });
-      }
-    }
-  );
-
-  // GET /admin/plans/:id - Plan detail page
-  fastify.get(
-    `${BASE_PATH}/plans/:id`,
-    { preHandler: adminAuth },
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      const { id } = request.params as { id: string };
-      try {
-        const plan = await prisma.interviewPlan.findUnique({
-          where: { id },
-          include: {
-            template: { select: { id: true, name: true } },
-            interviews: {
-              orderBy: { createdAt: 'desc' },
-              select: { id: true, userId: true, status: true, createdAt: true, updatedAt: true },
-            },
-            _count: { select: { interviews: true } },
-          },
-        });
-        if (!plan) return reply.status(404).type('text/html').send('计划不存在');
-
-        const completedCount = plan.interviews.filter((i) => i.status === 'COMPLETED').length;
-
-        return reply.view('plans/detail.njk', {
-          adminApiKey: ADMIN_API_KEY,
-          plan,
-          template: plan.template,
-          interviews: plan.interviews,
-          totalInterviews: plan._count.interviews,
-          completedCount,
-          completionRate:
-            plan.sentCount > 0 ? Math.round((completedCount / plan.sentCount) * 100) : 0,
-        });
-      } catch (e) {
-        const errMsg = e instanceof Error ? e.message : 'Failed to load plan detail';
-        error('Failed to load plan detail', { error: errMsg, planId: id });
-        return reply.status(500).view('error.njk', { message: errMsg });
       }
     }
   );
@@ -839,38 +715,6 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance) {
         const errMsg = e instanceof Error ? e.message : 'Failed to fetch analytics data';
         error('Failed to fetch analytics data', { error: errMsg });
         return reply.status(500).send({ success: false, error: errMsg });
-      }
-    }
-  );
-
-  fastify.get(
-    `${BASE_PATH}/plans`,
-    { preHandler: adminAuth },
-    async (_r: FastifyRequest, reply: FastifyReply) => {
-      try {
-        const plans = await prisma.interviewPlan.findMany({
-          orderBy: { createdAt: 'desc' },
-          include: {
-            template: { select: { id: true, name: true } },
-            _count: { select: { interviews: true } },
-          },
-        });
-        return reply.view('plans/index.njk', {
-          adminApiKey: ADMIN_API_KEY,
-          plans: plans.map((p) => ({
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            status: p.status,
-            templateName: p.template?.name ?? '-',
-            interviewCount: p._count.interviews,
-            createdAtFormatted: fmtDate(p.createdAt),
-          })),
-        });
-      } catch (e) {
-        const errMsg = e instanceof Error ? e.message : 'Failed to load plans';
-        error('Failed to load admin plans', { error: errMsg });
-        return reply.status(500).view('error.njk', { message: errMsg });
       }
     }
   );
