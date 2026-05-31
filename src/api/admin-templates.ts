@@ -99,6 +99,22 @@ function fmtDate(d: Date | null | undefined): string {
   return d?.toLocaleString('zh-CN') ?? '-';
 }
 
+function buildInviteeNameMap(inviteeData: unknown): Record<string, string> {
+  const map: Record<string, string> = {};
+  if (!Array.isArray(inviteeData)) return map;
+  for (const entry of inviteeData) {
+    if (entry && typeof entry === 'object') {
+      const obj = entry as Record<string, unknown>;
+      const userId = typeof obj.userId === 'string' ? obj.userId : undefined;
+      const name = typeof obj.name === 'string' ? obj.name : undefined;
+      if (userId && name) {
+        map[userId] = name;
+      }
+    }
+  }
+  return map;
+}
+
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
 
 export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: AdminTemplatesRoutesOptions) {
@@ -223,6 +239,9 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
       const plan = await interviewPlanService.findByIdWithInterviewsAndCounts(id);
       if (!plan) return reply.status(404).type('text/html').send('计划不存在');
       const completed = plan.interviews.filter((i) => i.status === 'COMPLETED');
+      const analyticsService = new AnalyticsService(prisma);
+      const planStats = await analyticsService.getPlanStats(id);
+      const inviteeMap = buildInviteeNameMap(plan.inviteeData);
       return reply.view('admin/content/plan-detail.njk', {
         adminApiKey: ADMIN_API_KEY,
         plan,
@@ -232,6 +251,8 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
         completedCount: completed.length,
         completionRate:
           plan.sentCount > 0 ? Math.round((completed.length / plan.sentCount) * 100) : 0,
+        planStats,
+        inviteeMap,
       });
     }
   );
@@ -272,6 +293,24 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
         interview,
         report,
       });
+    }
+  );
+
+  // GET /admin/api/reports/:interviewId/download - download report as Markdown file
+  fastify.get(
+    '/admin/api/reports/:interviewId/download',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { interviewId } = request.params as { interviewId: string };
+      const report = await analysisService.getReportByInterviewId(interviewId);
+      if (!report) {
+        return reply.status(404).type('text/plain').send('Report not found');
+      }
+      const filename = `interview-report-${interviewId}.md`;
+      return reply
+        .header('Content-Type', 'text/markdown; charset=utf-8')
+        .header('Content-Disposition', `attachment; filename="${filename}"`)
+        .send(report.content ?? '');
     }
   );
 

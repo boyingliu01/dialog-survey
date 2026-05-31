@@ -25,6 +25,11 @@ const importInviteesSchema = z.object({
   ),
 });
 
+const addMemberSchema = z.object({
+  userId: z.string().min(1),
+  name: z.string().min(1),
+});
+
 export async function interviewPlanRoutes(fastify: FastifyInstance) {
   const planService = new InterviewPlanService();
 
@@ -130,5 +135,43 @@ export async function interviewPlanRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     await planService.cancelPlan(id);
     return { status: 'cancelled' };
+  });
+
+  fastify.post('/api/plans/:id/members', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { userId, name } = addMemberSchema.parse(request.body);
+    try {
+      const result = await planService.addMember(id, userId, name);
+      return result;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to add member';
+      const status = message.includes('not found') ? 404 : 409;
+      return reply.status(status).send({ error: message });
+    }
+  });
+
+  fastify.delete('/api/plans/:id/members/:interviewId', async (request, reply) => {
+    const { id, interviewId } = request.params as { id: string; interviewId: string };
+    try {
+      await planService.removeMember(id, interviewId);
+      return { status: 'removed' };
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to remove member';
+      const status = message.includes('not found') ? 404 : 400;
+      return reply.status(status).send({ error: message });
+    }
+  });
+
+  fastify.post('/api/plans/:id/remind', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { interviewId } = (request.body ?? {}) as { interviewId?: string };
+    try {
+      const result = await planService.sendReminder(id, interviewId);
+      return result;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to send reminder';
+      const status = message.includes('not found') ? 404 : 400;
+      return reply.status(status).send({ error: message });
+    }
   });
 }

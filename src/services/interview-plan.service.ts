@@ -566,6 +566,143 @@ export class InterviewPlanService {
     const total = groups.reduce((sum, g) => sum + (g._count as number), 0);
     return { counts, total };
   }
+
+  async addMember(
+    planId: string,
+    userId: string,
+    name: string
+  ): Promise<{ interviewId: string }> {
+    const plan = await this.prisma.interviewPlan.findUnique({ where: { id: planId } });
+    if (!plan) {
+      throw new Error(`Plan not found: ${planId}`);
+    }
+
+    const existing = await this.prisma.interview.findFirst({
+      where: { planId, userId },
+    });
+    if (existing) {
+      throw new Error(`Member already exists in plan: ${userId}`);
+    }
+
+    const interview = await this.prisma.interview.create({
+      data: {
+        userId,
+        templateId: plan.templateId,
+        planId,
+        status: 'PENDING' as const,
+      },
+    });
+
+    const existingInvitees = Array.isArray(plan.inviteeData)
+      ? (plan.inviteeData as unknown as InviteeData[])
+      : [];
+    const updatedInvitees = [...existingInvitees, { userId, name }];
+
+    await this.prisma.interviewPlan.update({
+      where: { id: planId },
+      data: {
+        inviteeData: updatedInvitees as unknown as Prisma.InputJsonValue,
+        updatedBy: 'admin',
+      },
+    });
+
+    info('Member added to plan', { planId, userId, interviewId: interview.id });
+    return { interviewId: interview.id };
+  }
+
+  async removeMember(planId: string, interviewId: string): Promise<void> {
+    const interview = await this.prisma.interview.findUnique({ where: { id: interviewId } });
+    if (!interview) {
+      throw new Error(`Interview not found: ${interviewId}`);
+    }
+    if (interview.planId !== planId) {
+      throw new Error(`Interview does not belong to plan: ${interviewId}`);
+    }
+    if (interview.status === 'COMPLETED') {
+      throw new Error(`Cannot remove completed interview: ${interviewId}`);
+    }
+
+    const plan = await this.prisma.interviewPlan.findUnique({ where: { id: planId } });
+    if (!plan) {
+      throw new Error(`Plan not found: ${planId}`);
+    }
+
+    await this.prisma.interview.delete({ where: { id: interviewId } });
+
+    const existingInvitees = Array.isArray(plan.inviteeData)
+      ? (plan.inviteeData as unknown as InviteeData[])
+      : [];
+    const updatedInvitees = existingInvitees.filter((inv) => inv.userId !== interview.userId);
+
+    await this.prisma.interviewPlan.update({
+      where: { id: planId },
+      data: {
+        inviteeData: updatedInvitees as unknown as Prisma.InputJsonValue,
+        updatedBy: 'admin',
+      },
+    });
+
+    info('Member removed from plan', { planId, interviewId, userId: interview.userId });
+  }
+
+  async sendReminder(
+    planId: string,
+    interviewId?: string
+  ): Promise<{ reminded: number; failed: number }> {
+    const plan = await this.prisma.interviewPlan.findUnique({
+      where: { id: planId },
+      include: interviewId
+        ? undefined
+        : {
+            interviews: {
+              select: { id: true, userId: true, status: true },
+            },
+          },
+    });
+    if (!plan) {
+      throw new Error(`Plan not found: ${planId}`);
+    }
+
+    let targets: Array<{ id: string; userId: string }>;
+    if (interviewId) {
+      const interview = await this.prisma.interview.findUnique({ where: { id: interviewId } });
+      if (!interview || interview.planId !== planId) {
+        throw new Error(`Interview not found in plan: ${interviewId}`);
+      }
+      if (interview.status === 'COMPLETED' || interview.status === 'CANCELLED') {
+        return { reminded: 0, failed: 0 };
+      }
+      targets = [{ id: interview.id, userId: interview.userId }];
+    } else {
+      const incomplete = (
+        plan as unknown as {
+          interviews: Array<{ id: string; userId: string; status: string }>;
+        }
+      ).interviews.filter((i) => i.status !== 'COMPLETED' && i.status !== 'CANCELLED');
+      targets = incomplete.map((i) => ({ id: i.id, userId: i.userId }));
+    }
+
+    if (targets.length === 0) {
+      return { reminded: 0, failed: 0 };
+    }
+
+    const message = `【访谈提醒】您参与的访谈 "${plan.name}" 尚未完成，请抽空回复访谈邀约消息继续完成。`;
+    let reminded = 0;
+    let failed = 0;
+    for (const target of targets) {
+      try {
+        await messageSender.sendTextMessage([target.userId], message);
+        reminded++;
+      } catch (e) {
+        failed++;
+        const errMsg = e instanceof Error ? e.message : 'send failed';
+        error('Reminder send failed', { planId, userId: target.userId, error: errMsg });
+      }
+    }
+
+    info('Reminders sent', { planId, reminded, failed });
+    return { reminded, failed };
+  }
 }
 
 /**
