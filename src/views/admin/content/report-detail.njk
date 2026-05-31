@@ -1,11 +1,20 @@
 <div class="max-w-4xl mx-auto p-6">
-  <h2 class="text-lg font-semibold text-gray-800 mb-2">访谈报告 — {{ interview.userId }}</h2>
+  <div class="flex items-start justify-between mb-2">
+    <h2 class="text-lg font-semibold text-gray-800">访谈报告 — {{ interview.userId }}</h2>
+    {% if report %}
+    <a
+      href="/admin/api/reports/{{ interview.id }}/download"
+      class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+      download
+    >下载报告 (.md)</a>
+    {% endif %}
+  </div>
   <div class="text-sm space-y-2 mb-4">
     <p><span class="text-gray-500">状态:</span> {{ interview.status }}</p>
     <p><span class="text-gray-500">创建时间:</span> {{ interview.createdAt | default('-') }}</p>
   </div>
   {% if report %}
-  <div class="prose prose-sm max-w-none whitespace-pre-wrap">{{ report.content | safe }}</div>
+  <div class="prose prose-sm max-w-none">{{ report.content | markdown | safe }}</div>
   {% else %}
   <div class="text-center text-gray-400 py-8">暂无报告</div>
   {% endif %}

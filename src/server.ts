@@ -17,6 +17,7 @@ import { DingTalkStreamClient } from './integrations/dingtalk/stream-client.js';
 import { TemplateRepository } from './repositories/template.repository.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
 import { error, info, warn } from './utils/logger.js';
+import { renderMarkdown } from './utils/markdown.js';
 import { securityMiddleware } from './utils/security.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -95,6 +96,7 @@ export async function buildApp() {
         if (format === 'Y-m-d H:i') return `${yyyy}-${mm}-${dd} ${HH}:${MM}`;
         return `${yyyy}-${mm}-${dd}`;
       });
+      env.addFilter('markdown', (input: string | null | undefined) => renderMarkdown(input));
       return env;
     },
   };

@@ -25,6 +25,16 @@ export interface WeeklyTrendEntry {
   count: number;
 }
 
+export interface PlanStats {
+  planId: string;
+  planName: string;
+  totalInterviews: number;
+  completedCount: number;
+  completionRate: number;
+  averageDurationMinutes: number;
+  statusDistribution: StatusDistribution;
+}
+
 export class AnalyticsService {
   constructor(private prisma: PrismaClient) {}
 
@@ -195,5 +205,68 @@ export class AnalyticsService {
     const pastDays = Math.floor((date.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
     const weekNum = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7);
     return `${date.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+  }
+
+  async getPlanStats(planId: string): Promise<PlanStats | null> {
+    try {
+      const plan = await this.prisma.interviewPlan.findUnique({
+        where: { id: planId },
+        select: {
+          id: true,
+          name: true,
+          interviews: {
+            select: {
+              status: true,
+              startedAt: true,
+              completedAt: true,
+            },
+          },
+        },
+      });
+
+      if (!plan) {
+        return null;
+      }
+
+      const allStatuses = ['PENDING', 'ACTIVE', 'WAITING', 'COMPLETED', 'CANCELLED'];
+      const statusDistribution: StatusDistribution = {};
+      for (const status of allStatuses) {
+        statusDistribution[status] = 0;
+      }
+
+      let totalMinutes = 0;
+      let durationCount = 0;
+
+      for (const interview of plan.interviews) {
+        statusDistribution[interview.status] = (statusDistribution[interview.status] ?? 0) + 1;
+
+        if (interview.status === 'COMPLETED' && interview.startedAt && interview.completedAt) {
+          const diffMs = interview.completedAt.getTime() - interview.startedAt.getTime();
+          totalMinutes += diffMs / (1000 * 60);
+          durationCount++;
+        }
+      }
+
+      const totalInterviews = plan.interviews.length;
+      const completedCount = statusDistribution.COMPLETED ?? 0;
+      const completionRate =
+        totalInterviews > 0 ? Math.round((completedCount / totalInterviews) * 100) : 0;
+      const averageDurationMinutes =
+        durationCount > 0 ? Math.round(totalMinutes / durationCount) : 0;
+
+      return {
+        planId: plan.id,
+        planName: plan.name,
+        totalInterviews,
+        completedCount,
+        completionRate,
+        averageDurationMinutes,
+        statusDistribution,
+      };
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : 'Failed to compute plan stats';
+      error('Failed to compute plan stats', { planId, error: errMsg });
+      throw e;
+    }
   }
 }
