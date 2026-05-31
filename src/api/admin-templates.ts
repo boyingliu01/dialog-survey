@@ -240,7 +240,13 @@ export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: Admin
       if (!plan) return reply.status(404).type('text/html').send('计划不存在');
       const completed = plan.interviews.filter((i) => i.status === 'COMPLETED');
       const analyticsService = new AnalyticsService(prisma);
-      const planStats = await analyticsService.getPlanStats(id);
+      let planStats = null;
+      try {
+        planStats = await analyticsService.getPlanStats(id);
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Failed to compute plan stats';
+        error('Failed to load plan stats for plan-detail render', { planId: id, error: errMsg });
+      }
       const inviteeMap = buildInviteeNameMap(plan.inviteeData);
       return reply.view('admin/content/plan-detail.njk', {
         adminApiKey: ADMIN_API_KEY,

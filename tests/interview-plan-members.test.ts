@@ -39,6 +39,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
         update: vi.fn(),
       },
       $disconnect: vi.fn(),
+      $transaction: vi.fn((cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
     };
     service = new InterviewPlanService(mockPrisma as unknown as PrismaClient);
   });
@@ -184,6 +185,73 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
         'Cannot remove completed interview'
       );
     });
+
+    it('should decrement sentCount when removing a SENT interview', async () => {
+      mockPrisma.interview.findUnique.mockResolvedValue({
+        id: 'int-1',
+        planId: 'plan-1',
+        userId: 'user-1',
+        status: 'PENDING',
+        sendStatus: 'SENT',
+      });
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        inviteeData: [{ userId: 'user-1', name: 'Alice' }],
+      });
+
+      await service.removeMember('plan-1', 'int-1');
+
+      expect(mockPrisma.interviewPlan.update).toHaveBeenCalledWith({
+        where: { id: 'plan-1' },
+        data: expect.objectContaining({
+          sentCount: { decrement: 1 },
+        }),
+      });
+    });
+
+    it('should decrement sentCount and failedCount when removing a FAILED interview', async () => {
+      mockPrisma.interview.findUnique.mockResolvedValue({
+        id: 'int-1',
+        planId: 'plan-1',
+        userId: 'user-1',
+        status: 'PENDING',
+        sendStatus: 'FAILED',
+      });
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        inviteeData: [{ userId: 'user-1', name: 'Alice' }],
+      });
+
+      await service.removeMember('plan-1', 'int-1');
+
+      expect(mockPrisma.interviewPlan.update).toHaveBeenCalledWith({
+        where: { id: 'plan-1' },
+        data: expect.objectContaining({
+          sentCount: { decrement: 1 },
+          failedCount: { decrement: 1 },
+        }),
+      });
+    });
+
+    it('should NOT decrement counters when removing a NOT_SENT interview', async () => {
+      mockPrisma.interview.findUnique.mockResolvedValue({
+        id: 'int-1',
+        planId: 'plan-1',
+        userId: 'user-1',
+        status: 'PENDING',
+        sendStatus: 'NOT_SENT',
+      });
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        inviteeData: [{ userId: 'user-1', name: 'Alice' }],
+      });
+
+      await service.removeMember('plan-1', 'int-1');
+
+      const updateCall = mockPrisma.interviewPlan.update.mock.calls[0][0];
+      expect(updateCall.data.sentCount).toBeUndefined();
+      expect(updateCall.data.failedCount).toBeUndefined();
+    });
   });
 
   describe('sendReminder', () => {
@@ -197,8 +265,8 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
       mockPrisma.interviewPlan.findUnique.mockResolvedValue({
         id: 'plan-1',
         name: 'Test Plan',
-        interviews: [],
       });
+      mockPrisma.interview.findMany.mockResolvedValue([]);
 
       const result = await service.sendReminder('plan-1');
 
@@ -209,14 +277,12 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
       mockPrisma.interviewPlan.findUnique.mockResolvedValue({
         id: 'plan-1',
         name: 'Q2 Survey',
-        interviews: [
-          { id: 'int-1', userId: 'user-1', status: 'PENDING' },
-          { id: 'int-2', userId: 'user-2', status: 'ACTIVE' },
-          { id: 'int-3', userId: 'user-3', status: 'WAITING' },
-          { id: 'int-4', userId: 'user-4', status: 'COMPLETED' },
-          { id: 'int-5', userId: 'user-5', status: 'CANCELLED' },
-        ],
       });
+      mockPrisma.interview.findMany.mockResolvedValue([
+        { id: 'int-1', userId: 'user-1' },
+        { id: 'int-2', userId: 'user-2' },
+        { id: 'int-3', userId: 'user-3' },
+      ]);
 
       const result = await service.sendReminder('plan-1');
 
@@ -224,6 +290,13 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
         '../src/integrations/dingtalk/message-sender.js'
       );
       expect(messageSender.sendTextMessage).toHaveBeenCalledTimes(3);
+      expect(mockPrisma.interview.findMany).toHaveBeenCalledWith({
+        where: {
+          planId: 'plan-1',
+          status: { notIn: ['COMPLETED', 'CANCELLED'] },
+        },
+        select: { id: true, userId: true },
+      });
       expect(result.reminded).toBe(3);
       expect(result.failed).toBe(0);
     });
@@ -250,6 +323,78 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
         expect.any(String)
       );
       expect(result.reminded).toBe(1);
+    });
+
+    it('should count partial failures correctly', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        name: 'Test',
+      });
+      mockPrisma.interview.findMany.mockResolvedValue([
+        { id: 'int-1', userId: 'user-1' },
+        { id: 'int-2', userId: 'user-2' },
+        { id: 'int-3', userId: 'user-3' },
+      ]);
+
+      const { messageSender } = await import(
+        '../src/integrations/dingtalk/message-sender.js'
+      );
+      (messageSender.sendTextMessage as ReturnType<typeof vi.fn>).mockReset();
+      (messageSender.sendTextMessage as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({ taskId: 't1', successCount: 1, failedUserIds: [] })
+        .mockRejectedValueOnce(new Error('network error'))
+        .mockResolvedValueOnce({ taskId: 't3', successCount: 1, failedUserIds: [] });
+
+      const result = await service.sendReminder('plan-1');
+
+      expect(result.reminded).toBe(2);
+      expect(result.failed).toBe(1);
+    });
+  });
+
+  describe('typed errors', () => {
+    it('addMember should throw PlanNotFoundError for missing plan', async () => {
+      const { PlanNotFoundError } = await import('../src/services/interview-plan.service.js');
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue(null);
+      await expect(service.addMember('missing', 'u', 'n')).rejects.toBeInstanceOf(
+        PlanNotFoundError
+      );
+    });
+
+    it('addMember should throw MemberConflictError for duplicate', async () => {
+      const { MemberConflictError } = await import('../src/services/interview-plan.service.js');
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        templateId: 'tpl-1',
+        inviteeData: [],
+      });
+      mockPrisma.interview.findFirst.mockResolvedValue({ id: 'int-1', userId: 'user-1' });
+      await expect(service.addMember('plan-1', 'user-1', 'Alice')).rejects.toBeInstanceOf(
+        MemberConflictError
+      );
+    });
+
+    it('removeMember should throw InterviewNotFoundError when missing', async () => {
+      const { InterviewNotFoundError } = await import(
+        '../src/services/interview-plan.service.js'
+      );
+      mockPrisma.interview.findUnique.mockResolvedValue(null);
+      await expect(service.removeMember('plan-1', 'missing')).rejects.toBeInstanceOf(
+        InterviewNotFoundError
+      );
+    });
+
+    it('removeMember should throw InvalidStateError for COMPLETED interview', async () => {
+      const { InvalidStateError } = await import('../src/services/interview-plan.service.js');
+      mockPrisma.interview.findUnique.mockResolvedValue({
+        id: 'int-1',
+        planId: 'plan-1',
+        userId: 'user-1',
+        status: 'COMPLETED',
+      });
+      await expect(service.removeMember('plan-1', 'int-1')).rejects.toBeInstanceOf(
+        InvalidStateError
+      );
     });
   });
 });

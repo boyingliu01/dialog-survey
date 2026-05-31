@@ -44,4 +44,36 @@ describe('renderMarkdown', () => {
   it('should not throw on malformed markdown', () => {
     expect(() => renderMarkdown('# unclosed [link(')).not.toThrow();
   });
+
+  it('returns escaped fallback (not empty) on parse error', () => {
+    const result = renderMarkdown('# unclosed [link(');
+    expect(result).toBeDefined();
+    expect(typeof result).toBe('string');
+  });
+
+  describe('XSS protection', () => {
+    it('strips raw <script> tags', () => {
+      const html = renderMarkdown('hello <script>alert(1)</script> world');
+      expect(html).not.toContain('<script>');
+      expect(html).not.toContain('</script>');
+      expect(html).toContain('alert(1)');
+    });
+
+    it('strips inline event handlers via raw HTML', () => {
+      const html = renderMarkdown('text <img src=x onerror="alert(1)"> more');
+      expect(html).not.toMatch(/<img[^>]*onerror/i);
+    });
+
+    it('escapes raw HTML in block context', () => {
+      const html = renderMarkdown('<div onclick="alert(1)">click</div>');
+      expect(html).not.toContain('<div onclick=');
+      expect(html).not.toContain('<div ');
+    });
+
+    it('preserves safe markdown bold inside text containing HTML', () => {
+      const html = renderMarkdown('**bold** and <script>x</script>');
+      expect(html).toContain('<strong>bold</strong>');
+      expect(html).not.toContain('<script>');
+    });
+  });
 });

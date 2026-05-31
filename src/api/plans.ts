@@ -1,7 +1,16 @@
 import { PlanStatus } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { InterviewPlanService, parseInviteeText, type InviteeData } from '../services/interview-plan.service.js';
+import { adminAuth } from '../middleware/admin-auth.js';
+import {
+  InterviewNotFoundError,
+  InterviewPlanService,
+  InvalidStateError,
+  MemberConflictError,
+  PlanNotFoundError,
+  parseInviteeText,
+  type InviteeData,
+} from '../services/interview-plan.service.js';
 
 const createPlanSchema = z.object({
   name: z.string().min(1),
@@ -29,6 +38,24 @@ const addMemberSchema = z.object({
   userId: z.string().min(1),
   name: z.string().min(1),
 });
+
+const remindSchema = z.object({
+  interviewId: z.string().min(1).optional(),
+});
+
+function mapServiceErrorToStatus(err: unknown): { status: number; message: string } {
+  if (err instanceof PlanNotFoundError || err instanceof InterviewNotFoundError) {
+    return { status: 404, message: err.message };
+  }
+  if (err instanceof MemberConflictError) {
+    return { status: 409, message: err.message };
+  }
+  if (err instanceof InvalidStateError) {
+    return { status: 400, message: err.message };
+  }
+  const message = err instanceof Error ? err.message : 'Unexpected error';
+  return { status: 500, message };
+}
 
 export async function interviewPlanRoutes(fastify: FastifyInstance) {
   const planService = new InterviewPlanService();
@@ -137,41 +164,50 @@ export async function interviewPlanRoutes(fastify: FastifyInstance) {
     return { status: 'cancelled' };
   });
 
-  fastify.post('/api/plans/:id/members', async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const { userId, name } = addMemberSchema.parse(request.body);
-    try {
-      const result = await planService.addMember(id, userId, name);
-      return result;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to add member';
-      const status = message.includes('not found') ? 404 : 409;
-      return reply.status(status).send({ error: message });
+  fastify.post(
+    '/api/plans/:id/members',
+    { preHandler: adminAuth },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const { userId, name } = addMemberSchema.parse(request.body);
+      try {
+        const result = await planService.addMember(id, userId, name);
+        return result;
+      } catch (e) {
+        const { status, message } = mapServiceErrorToStatus(e);
+        return reply.status(status).send({ error: message });
+      }
     }
-  });
+  );
 
-  fastify.delete('/api/plans/:id/members/:interviewId', async (request, reply) => {
-    const { id, interviewId } = request.params as { id: string; interviewId: string };
-    try {
-      await planService.removeMember(id, interviewId);
-      return { status: 'removed' };
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to remove member';
-      const status = message.includes('not found') ? 404 : 400;
-      return reply.status(status).send({ error: message });
+  fastify.delete(
+    '/api/plans/:id/members/:interviewId',
+    { preHandler: adminAuth },
+    async (request, reply) => {
+      const { id, interviewId } = request.params as { id: string; interviewId: string };
+      try {
+        await planService.removeMember(id, interviewId);
+        return { status: 'removed' };
+      } catch (e) {
+        const { status, message } = mapServiceErrorToStatus(e);
+        return reply.status(status).send({ error: message });
+      }
     }
-  });
+  );
 
-  fastify.post('/api/plans/:id/remind', async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const { interviewId } = (request.body ?? {}) as { interviewId?: string };
-    try {
-      const result = await planService.sendReminder(id, interviewId);
-      return result;
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Failed to send reminder';
-      const status = message.includes('not found') ? 404 : 400;
-      return reply.status(status).send({ error: message });
+  fastify.post(
+    '/api/plans/:id/remind',
+    { preHandler: adminAuth },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const { interviewId } = remindSchema.parse(request.body ?? {});
+      try {
+        const result = await planService.sendReminder(id, interviewId);
+        return result;
+      } catch (e) {
+        const { status, message } = mapServiceErrorToStatus(e);
+        return reply.status(status).send({ error: message });
+      }
     }
-  });
+  );
 }

@@ -221,11 +221,11 @@
       >添加成员</button>
       <button
         hx-post="/api/plans/{{ plan.id }}/remind"
-        hx-target="#main-content"
-        hx-swap="innerHTML"
+        hx-swap="none"
         hx-confirm="确认向所有未完成成员发送提醒？"
         hx-headers='{"Content-Type": "application/json"}'
         hx-vals='{}'
+        hx-on::after-request="if(event.detail.successful){htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content')}"
         class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700"
       >批量提醒</button>
     </div>
@@ -253,10 +253,15 @@
         @click="
           if (!newUserId || !newName) { alert('请填写钉钉 ID 和姓名'); return; }
           htmx.ajax('POST', '/api/plans/{{ plan.id }}/members', {
-            target: '#main-content',
-            swap: 'innerHTML',
+            swap: 'none',
             values: { userId: newUserId, name: newName },
             headers: { 'Content-Type': 'application/json' }
+          }).then(function(xhr) {
+            if (xhr.xhr && xhr.xhr.status >= 200 && xhr.xhr.status < 300) {
+              htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', '#main-content');
+            } else {
+              alert('添加成员失败');
+            }
           });
         "
         class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700"
@@ -310,16 +315,16 @@
             {% if interview.status != 'COMPLETED' and interview.status != 'CANCELLED' and (interview.sendStatus == 'SENT' or interview.sendStatus == 'DELIVERED') %}
             <button
               type="button"
-              onclick="htmx.ajax('POST', '/api/plans/{{ plan.id }}/remind', { target: '#main-content', swap: 'innerHTML', values: { interviewId: '{{ interview.id }}' }, headers: { 'Content-Type': 'application/json' } })"
+              onclick="htmx.ajax('POST', '/api/plans/{{ plan.id }}/remind', { swap: 'none', values: { interviewId: '{{ interview.id }}' }, headers: { 'Content-Type': 'application/json' } }).then(function(xhr){ if(xhr.xhr && xhr.xhr.status>=200 && xhr.xhr.status<300){ htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content'); } else { alert('提醒发送失败'); } })"
               class="text-xs text-amber-600 hover:underline"
             >提醒</button>
             {% endif %}
             {% if interview.status != 'COMPLETED' %}
             <button
               hx-delete="/api/plans/{{ plan.id }}/members/{{ interview.id }}"
-              hx-target="#main-content"
-              hx-swap="innerHTML"
+              hx-swap="none"
               hx-confirm="确认删除成员 {{ interview.userId }}？"
+              hx-on::after-request="if(event.detail.successful){htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content')}"
               class="text-xs text-red-600 hover:underline"
             >删除</button>
             {% endif %}
