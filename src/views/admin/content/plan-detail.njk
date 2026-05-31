@@ -153,16 +153,57 @@
     {% endif %}
   </div>
   <div x-show="activeTab==='stats'" x-cloak class="text-sm">
-    {% if (completedCount or 0) == 0 %}
+    {% if not planStats or planStats.totalInterviews == 0 %}
     <div class="text-center text-gray-400 py-8">暂无数据，完成访谈后可查看统计</div>
     {% else %}
-    <div class="space-y-3">
-      <p><span class="text-gray-500">已完成:</span> {{ completedCount or 0 }} 人</p>
-      <p class="text-gray-400 text-xs italic">统计分析功能开发中...</p>
+    <div class="space-y-4">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="border rounded p-3 bg-gray-50">
+          <div class="text-xs text-gray-500">总成员数</div>
+          <div class="text-lg font-semibold">{{ planStats.totalInterviews }}</div>
+        </div>
+        <div class="border rounded p-3 bg-gray-50">
+          <div class="text-xs text-gray-500">已完成</div>
+          <div class="text-lg font-semibold text-emerald-600">{{ planStats.completedCount }}</div>
+        </div>
+        <div class="border rounded p-3 bg-gray-50">
+          <div class="text-xs text-gray-500">完成率</div>
+          <div class="text-lg font-semibold">{{ planStats.completionRate }}%</div>
+        </div>
+        <div class="border rounded p-3 bg-gray-50">
+          <div class="text-xs text-gray-500">平均访谈时长</div>
+          <div class="text-lg font-semibold">{{ planStats.averageDurationMinutes }} 分钟</div>
+        </div>
+      </div>
+      <div>
+        <h4 class="text-xs font-medium text-gray-600 mb-2">状态分布</h4>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <div class="border rounded p-2 text-center">
+            <div class="text-xs text-gray-500">待发送</div>
+            <div class="font-semibold">{{ planStats.statusDistribution.PENDING }}</div>
+          </div>
+          <div class="border rounded p-2 text-center">
+            <div class="text-xs text-gray-500">进行中</div>
+            <div class="font-semibold">{{ planStats.statusDistribution.ACTIVE }}</div>
+          </div>
+          <div class="border rounded p-2 text-center">
+            <div class="text-xs text-gray-500">等待回复</div>
+            <div class="font-semibold">{{ planStats.statusDistribution.WAITING }}</div>
+          </div>
+          <div class="border rounded p-2 text-center">
+            <div class="text-xs text-gray-500">已完成</div>
+            <div class="font-semibold text-emerald-600">{{ planStats.statusDistribution.COMPLETED }}</div>
+          </div>
+          <div class="border rounded p-2 text-center">
+            <div class="text-xs text-gray-500">已取消</div>
+            <div class="font-semibold text-gray-400">{{ planStats.statusDistribution.CANCELLED }}</div>
+          </div>
+        </div>
+      </div>
     </div>
     {% endif %}
   </div>
-  <div x-show="activeTab==='members'" x-cloak class="text-sm">
+  <div x-show="activeTab==='members'" x-cloak class="text-sm" x-data="{ showAdd: false, newUserId: '', newName: '' }">
     <div class="flex gap-2 mb-3">
       {% if plan.status == 'PENDING' or plan.status == 'READY' %}
       <button
@@ -173,6 +214,63 @@
         class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700"
       >批量发送邀约</button>
       {% endif %}
+      <button
+        @click="showAdd = !showAdd"
+        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
+        type="button"
+      >添加成员</button>
+      <button
+        hx-post="/api/plans/{{ plan.id }}/remind"
+        hx-swap="none"
+        hx-confirm="确认向所有未完成成员发送提醒？"
+        hx-headers='{"Content-Type": "application/json"}'
+        hx-vals='{}'
+        hx-on::after-request="if(event.detail.successful){htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content')}"
+        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700"
+      >批量提醒</button>
+    </div>
+    <div x-show="showAdd" x-cloak class="mb-3 p-3 border rounded bg-gray-50 flex gap-2 items-end">
+      <div class="flex-1">
+        <label class="block text-xs text-gray-500 mb-1">钉钉 ID</label>
+        <input
+          x-model="newUserId"
+          type="text"
+          class="w-full border rounded px-2 py-1 text-sm"
+          placeholder="userId"
+        />
+      </div>
+      <div class="flex-1">
+        <label class="block text-xs text-gray-500 mb-1">姓名</label>
+        <input
+          x-model="newName"
+          type="text"
+          class="w-full border rounded px-2 py-1 text-sm"
+          placeholder="姓名"
+        />
+      </div>
+      <button
+        type="button"
+        @click="
+          if (!newUserId || !newName) { alert('请填写钉钉 ID 和姓名'); return; }
+          htmx.ajax('POST', '/api/plans/{{ plan.id }}/members', {
+            swap: 'none',
+            values: { userId: newUserId, name: newName },
+            headers: { 'Content-Type': 'application/json' }
+          }).then(function(xhr) {
+            if (xhr.xhr && xhr.xhr.status >= 200 && xhr.xhr.status < 300) {
+              htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', '#main-content');
+            } else {
+              alert('添加成员失败');
+            }
+          });
+        "
+        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700"
+      >确认添加</button>
+      <button
+        type="button"
+        @click="showAdd = false; newUserId = ''; newName = ''"
+        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+      >取消</button>
     </div>
     <table class="w-full">
       <thead><tr class="border-b">
@@ -185,7 +283,14 @@
       <tbody>
         {% for interview in (interviews or []) %}
         <tr class="border-b">
-          <td class="py-1.5">{{ interview.userId }}</td>
+          <td class="py-1.5">
+            {% if inviteeMap and inviteeMap[interview.userId] %}
+              <span class="font-medium">{{ inviteeMap[interview.userId] }}</span>
+              <span class="text-gray-400 text-xs ml-1">({{ interview.userId }})</span>
+            {% else %}
+              {{ interview.userId }}
+            {% endif %}
+          </td>
           <td class="py-1.5">
             {% if interview.sendStatus == 'SENT' or interview.sendStatus == 'DELIVERED' %}
             <span class="text-emerald-600 text-xs">已发送</span>
@@ -196,8 +301,8 @@
             {% endif %}
           </td>
           <td class="py-1.5">{{ interview.status }}</td>
-          <td class="py-1.5">{{ interview.completedAt or '-' }}</td>
-          <td class="py-1.5">
+          <td class="py-1.5">{{ interview.completedAt | date('Y-m-d H:i') or '-' }}</td>
+          <td class="py-1.5 space-x-2">
             {% if interview.sendStatus == 'NOT_SENT' or interview.sendStatus == 'FAILED' %}
             <button
               hx-post="/api/plans/{{ plan.id }}/interviews/{{ interview.id }}/send"
@@ -206,6 +311,22 @@
               hx-confirm="确认向 {{ interview.userId }} 发送访谈邀约？"
               class="text-xs text-indigo-600 hover:underline"
             >发送</button>
+            {% endif %}
+            {% if interview.status != 'COMPLETED' and interview.status != 'CANCELLED' and (interview.sendStatus == 'SENT' or interview.sendStatus == 'DELIVERED') %}
+            <button
+              type="button"
+              onclick="htmx.ajax('POST', '/api/plans/{{ plan.id }}/remind', { swap: 'none', values: { interviewId: '{{ interview.id }}' }, headers: { 'Content-Type': 'application/json' } }).then(function(xhr){ if(xhr.xhr && xhr.xhr.status>=200 && xhr.xhr.status<300){ htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content'); } else { alert('提醒发送失败'); } })"
+              class="text-xs text-amber-600 hover:underline"
+            >提醒</button>
+            {% endif %}
+            {% if interview.status != 'COMPLETED' %}
+            <button
+              hx-delete="/api/plans/{{ plan.id }}/members/{{ interview.id }}"
+              hx-swap="none"
+              hx-confirm="确认删除成员 {{ interview.userId }}？"
+              hx-on::after-request="if(event.detail.successful){htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content')}"
+              class="text-xs text-red-600 hover:underline"
+            >删除</button>
             {% endif %}
           </td>
         </tr>
