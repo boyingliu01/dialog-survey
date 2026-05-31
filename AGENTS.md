@@ -86,10 +86,10 @@ src/
 ├── services/               # Application services (15 files)
 │   ├── conversation-engine.ts    # LangGraph orchestration
 │   ├── analysis.service.ts       # Report generation
-│   ├── analytics.service.ts      # Analytics data aggregation (new)
+│   ├── analytics.service.ts      # Analytics data aggregation (KPIs + per-plan stats)
 │   ├── dingtalk.service.ts       # Message handling
 │   ├── followup.service.ts       # Intelligent follow-ups
-│   ├── interview-plan.service.ts # Plan management (updated: save/send decoupled)
+│   ├── interview-plan.service.ts # Plan management (save/send decoupled, member CRUD with $transaction)
 │   ├── prompt.service.ts         # LLM prompt templates
 │   ├── report.service.ts         # Markdown reports
 │   ├── asr.service.ts            # Audio-to-text
@@ -141,6 +141,7 @@ src/
 │   ├── security.ts         # Fastify middleware + PII masking
 │   ├── validation.ts       # Input validation
 │   └── pii-anonymizer.ts   # PII anonymization (new)
+│   └── markdown.ts         # Markdown→HTML renderer with XSS sanitization (marked + walkTokens HTML stripping)
 │
 ├── server.ts               # Main entry point (Fastify factory)
 └── index.ts                # Barrel exports (UNUSED - dead code)
@@ -315,7 +316,7 @@ npx prisma studio    # Open Prisma Studio GUI
 | `src/repositories/interview-state.repository.ts` | 390 | InterviewStateRepository | Extract state mapping helpers |
 | `src/integrations/dingtalk/stream-client.ts` | 358 | DingTalkStreamClient | WebSocket client with reconnection |
 | `src/services/stream-message.service.ts` | 337 | StreamMessageService | Deduplicate class/standalone functions |
-| `src/services/interview-plan.service.ts` | 430+ | InterviewPlanService | Save/send decoupled, SendStatus tracking |
+| `src/services/interview-plan.service.ts` | 690+ | InterviewPlanService | Save/send decoupled, SendStatus tracking, member CRUD (add/remove/remind) with $transaction |
 
 **TODO Comments:**
 | File | Line | Content |
@@ -450,6 +451,7 @@ interview-plan.service → decoupled save/send (SendStatus tracking)
 | `retry.ts`    | 2       | Exponential backoff for LLM calls |
 | `security.ts` | 1       | API key middleware                |
 | `pii-anonymizer.ts` | new | PII data masking              |
+| `markdown.ts` | 1 (server.ts) | XSS-safe Markdown→HTML rendering (Nunjucks `markdown` filter) |
 
 ### When Adding New Features
 

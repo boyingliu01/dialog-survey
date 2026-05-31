@@ -17,7 +17,7 @@
   {% if report %}
   <div class="border-t pt-4">
     <h2 class="text-lg font-semibold mb-3">报告内容</h2>
-    <pre class="bg-gray-50 p-4 rounded-lg text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">{{ report.content }}</pre>
+    <div class="prose prose-sm max-w-none bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto">{{ report.content | markdown | safe }}</div>
   </div>
   {% if report.keyFindings and report.keyFindings | length > 0 %}
   <div class="mt-4"><h3 class="text-sm font-medium text-gray-700 mb-2">关键发现</h3><ul class="list-disc list-inside space-y-1">{% for f in report.keyFindings %}<li class="text-sm text-gray-700">{{ f }}</li>{% endfor %}</ul></div>

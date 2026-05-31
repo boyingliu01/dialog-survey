@@ -16,16 +16,16 @@ Application services layer: business logic orchestration for interview flow, rep
 | Failed analysis retry | `dead-letter.service.ts` | AnalysisFailure upsert + retry queue |
 | Quote clustering | `llm-clustering.ts` | LLM-powered sub-theme extraction |
 | Template dimensions | `template-dimension.service.ts` | Dimension tag analysis |
-| Interview plans | `interview-plan.service.ts` | Batch plan CRUD, save/send decoupled (SendStatus tracking) |
+| Interview plans | `interview-plan.service.ts` | Batch plan CRUD, save/send decoupled (SendStatus tracking), member CRUD (add/remove/remind) with $transaction atomicity |
 | DingTalk messaging | `dingtalk.service.ts` | Send/receive via DingTalk API |
 | ASR | `asr.service.ts` | Fun-ASR audio→text |
 | LLM prompts | `prompt.service.ts` | Prompt templates |
-| Analytics | `analytics.service.ts` | Analytics data aggregation (new) |
+| Analytics | `analytics.service.ts` | Analytics data aggregation (KPIs, status distribution, per-plan stats via `getPlanStats()`) |
 
 ## CONVENTIONS
 - **Naming**: `*.service.ts` suffix for services, `*.ts` plain for utilities (followup vs followup.service)
 - **Constructor DI**: Services accept PrismaClient/repo instances; create defaults if none provided
-- **Error handling**: Try/catch with `error()` logging, return `{ success, error }` objects
+- **Error handling**: Try/catch with `error()` logging, return `{ success, error }` objects, OR throw typed error subclasses (`PlanNotFoundError`, `InterviewNotFoundError`, `MemberConflictError`, `InvalidStateError` in `interview-plan.service.ts`; `StatePersistenceError` in `interview-state.repository.ts`)
 - **LLM calls**: Always wrapped in `retry.ts` exponential backoff (MAX_RETRIES=2)
 - **Dead letter**: Failed analyses → `AnalysisFailure` upsert, retried separately
 
@@ -33,7 +33,7 @@ Application services layer: business logic orchestration for interview flow, rep
 - `stream-message.service.ts` mixes standalone functions + class (deduplicate)
 - `dead-letter.service.ts` creates its own PrismaClient (should inject)
 - `batch-aggregation.service.ts` has eslint-disable for `noExplicitAny`
-- `interview-plan.service.ts` creates own PrismaClient (DI violation - 430+ lines)
+- `interview-plan.service.ts` creates own PrismaClient (DI violation - 570+ lines)
 - Several utils never imported externally: `encryption.ts`, `validation.ts`, `date.ts`, `rate-limiter.ts`
 
 ## SERVICE DEPENDENCIES

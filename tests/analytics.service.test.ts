@@ -22,6 +22,7 @@ describe('AnalyticsService', () => {
     };
     interviewPlan: {
       findMany: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
     };
   };
 
@@ -37,6 +38,7 @@ describe('AnalyticsService', () => {
       },
       interviewPlan: {
         findMany: vi.fn(),
+        findUnique: vi.fn(),
       },
     };
     service = new AnalyticsService(mockPrisma as unknown as PrismaClient);
@@ -290,6 +292,92 @@ describe('AnalyticsService', () => {
       expect(result).toHaveLength(8);
       const totalCompleted = result.reduce((sum, entry) => sum + entry.count, 0);
       expect(totalCompleted).toBe(1);
+    });
+  });
+
+  describe('getPlanStats', () => {
+    it('should return null when plan does not exist', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue(null);
+
+      const result = await service.getPlanStats('nonexistent-plan');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return zeros for plan with no interviews', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        name: 'Empty Plan',
+        interviews: [],
+      });
+
+      const result = await service.getPlanStats('plan-1');
+
+      expect(result).toEqual({
+        planId: 'plan-1',
+        planName: 'Empty Plan',
+        totalInterviews: 0,
+        completedCount: 0,
+        completionRate: 0,
+        averageDurationMinutes: 0,
+        statusDistribution: {
+          PENDING: 0,
+          ACTIVE: 0,
+          WAITING: 0,
+          COMPLETED: 0,
+          CANCELLED: 0,
+        },
+      });
+    });
+
+    it('should compute per-plan stats with mixed statuses', async () => {
+      const start = new Date('2026-05-24T10:00:00Z');
+      const end1 = new Date('2026-05-24T10:20:00Z');
+      const end2 = new Date('2026-05-24T11:00:00Z');
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-2',
+        name: 'Q2 Survey',
+        interviews: [
+          { status: 'COMPLETED', startedAt: start, completedAt: end1 },
+          { status: 'COMPLETED', startedAt: start, completedAt: end2 },
+          { status: 'ACTIVE', startedAt: null, completedAt: null },
+          { status: 'PENDING', startedAt: null, completedAt: null },
+          { status: 'CANCELLED', startedAt: null, completedAt: null },
+        ],
+      });
+
+      const result = await service.getPlanStats('plan-2');
+
+      expect(result).not.toBeNull();
+      expect(result?.planId).toBe('plan-2');
+      expect(result?.planName).toBe('Q2 Survey');
+      expect(result?.totalInterviews).toBe(5);
+      expect(result?.completedCount).toBe(2);
+      expect(result?.completionRate).toBe(40);
+      expect(result?.averageDurationMinutes).toBe(40); // (20 + 60)/2
+      expect(result?.statusDistribution).toEqual({
+        PENDING: 1,
+        ACTIVE: 1,
+        WAITING: 0,
+        COMPLETED: 2,
+        CANCELLED: 1,
+      });
+    });
+
+    it('should ignore completed interviews with null timestamps for duration', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-3',
+        name: 'Partial Data',
+        interviews: [
+          { status: 'COMPLETED', startedAt: null, completedAt: new Date() },
+          { status: 'COMPLETED', startedAt: new Date(), completedAt: null },
+        ],
+      });
+
+      const result = await service.getPlanStats('plan-3');
+
+      expect(result?.averageDurationMinutes).toBe(0);
+      expect(result?.completedCount).toBe(2);
     });
   });
 
