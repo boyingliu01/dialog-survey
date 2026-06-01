@@ -90,4 +90,102 @@ npm run build
 
 ## 部署
 
-详见 [架构设计文档](../docs/plans/2026-03-07-interview-robot-architecture.md)
+### 环境要求
+
+| 组件 | 版本/说明 |
+|------|-----------|
+| Node.js | >= 20.0.0 (推荐 v20 LTS) |
+| PostgreSQL | 14+ |
+| npm | 随 Node.js 自带 |
+| 操作系统 | Linux / macOS / Windows |
+
+### 部署步骤
+
+#### 1. 克隆或复制项目
+
+```bash
+# 推荐: 从 Git 仓库克隆
+git clone <repo-url> interview-bot
+cd interview-bot
+
+# 或: 直接拷贝项目目录到目标机器
+```
+
+#### 2. 安装依赖
+
+```bash
+npm install
+```
+
+#### 3. 配置环境变量
+
+```bash
+cp .env.example .env
+# 编辑 .env，填入实际配置值（见下方环境变量说明）
+```
+
+#### 4. 初始化数据库
+
+```bash
+npx prisma generate   # 生成 Prisma Client
+npx prisma db push     # 同步 schema 到数据库
+```
+
+#### 5. 启动服务
+
+**开发模式** (热重载):
+```bash
+npm run dev
+# 默认监听 http://0.0.0.0:3001
+```
+
+**生产模式** (推荐用于长期运行):
+```bash
+npm run build   # 编译到 dist/
+node dist/src/server.ts
+```
+
+或使用 PM2 管理进程:
+```bash
+npm install -g pm2
+pm2 start dist/src/server.ts --name interview-bot
+pm2 save
+pm2 startup  # 设置开机自启
+```
+
+### 环境变量说明
+
+| 变量名 | 说明 | 示例 |
+|--------|------|------|
+| `NODE_ENV` | 运行环境 | `production` |
+| `PORT` | 服务端口 | `3001` |
+| `HOST` | 监听地址 | `0.0.0.0` |
+| `DATABASE_URL` | PostgreSQL 连接串 | `postgresql://user:pass@localhost:5432/interview_bot?schema=public` |
+| `DASHSCOPE_API_KEY` | 阿里云通义千问 API Key | `sk-xxx` |
+| `DINGTALK_APP_KEY` | 钉钉 AppKey | 开放平台获取 |
+| `DINGTALK_APP_SECRET` | 钉钉 AppSecret | 开放平台获取 |
+| `DINGTALK_AGENT_ID` | 钉钉 AgentId | 开放平台获取 |
+| `PUBLIC_URL` | 公网回调地址 | `https://your-domain.com` |
+| `FUN_ASR_API_KEY` | 阿里云 Fun-ASR API Key | 语音识别用 |
+| `ENCRYPTION_KEY` | AES 加密密钥 | 32 字节 hex 字符串 |
+| `ADMIN_API_KEY` | 管理后台 API Key | 自定义密钥 |
+| `REPORTS_DIR` | 报告存储目录 | `./reports` |
+| `LOG_LEVEL` | 日志级别 | `info` |
+
+安全起见，`ENCRYPTION_KEY` 可通过 Node.js 生成:
+```bash
+node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
+```
+
+### 健康检查
+
+服务启动后可访问:
+```bash
+curl http://localhost:3001/health
+```
+
+### 预提交检查 (开发时)
+
+```bash
+npm run type-check && npm run lint && npm run test:coverage
+```
