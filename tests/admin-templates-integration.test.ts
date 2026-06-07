@@ -1,3 +1,7 @@
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import fastifyFormbody from '@fastify/formbody';
+import fastifyView from '@fastify/view';
 /**
  * @intent Integration tests for admin template CRUD — save → load → render flow
  * @covers admin-templates.ts: buildContentFromForm, validateTemplateContent, POST, PUT, GET edit
@@ -5,11 +9,7 @@
 import type { Template, TemplateStatus } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
-import fastifyFormbody from '@fastify/formbody';
-import fastifyView from '@fastify/view';
 import nunjucks from 'nunjucks';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -44,27 +44,53 @@ const mockBatchReportCount = vi.fn(() => Promise.resolve(0));
 vi.mock('@prisma/client', () => ({
   PrismaClient: class {
     template = {
-      get create() { return mockTemplateCreate; },
-      get findUnique() { return mockTemplateFindUnique; },
-      get findMany() { return mockTemplateFindMany; },
-      get update() { return mockTemplateUpdate; },
-      get delete() { return mockTemplateDelete; },
-      get count() { return mockTemplateCount; },
+      get create() {
+        return mockTemplateCreate;
+      },
+      get findUnique() {
+        return mockTemplateFindUnique;
+      },
+      get findMany() {
+        return mockTemplateFindMany;
+      },
+      get update() {
+        return mockTemplateUpdate;
+      },
+      get delete() {
+        return mockTemplateDelete;
+      },
+      get count() {
+        return mockTemplateCount;
+      },
     };
     interviewPlan = {
-      get findMany() { return mockInterviewPlanFindMany; },
-      get groupBy() { return mockInterviewPlanGroupBy; },
+      get findMany() {
+        return mockInterviewPlanFindMany;
+      },
+      get groupBy() {
+        return mockInterviewPlanGroupBy;
+      },
     };
     interview = {
-      get findMany() { return mockInterviewFindMany; },
-      get groupBy() { return mockInterviewGroupBy; },
+      get findMany() {
+        return mockInterviewFindMany;
+      },
+      get groupBy() {
+        return mockInterviewGroupBy;
+      },
     };
     analysisReport = {
-      get findMany() { return mockAnalysisReportFindMany; },
-      get findFirst() { return mockAnalysisReportFindFirst; },
+      get findMany() {
+        return mockAnalysisReportFindMany;
+      },
+      get findFirst() {
+        return mockAnalysisReportFindFirst;
+      },
     };
     batchAnalysisReport = {
-      get count() { return mockBatchReportCount; },
+      get count() {
+        return mockBatchReportCount;
+      },
     };
     $disconnect = vi.fn(() => Promise.resolve());
     $connect = vi.fn(() => Promise.resolve());
@@ -132,39 +158,43 @@ describe('Admin Templates Integration — save → load → render', () => {
       return Promise.resolve(template);
     });
 
-    mockTemplateFindUnique.mockImplementation((args: { where: { id: string; version?: number } }) => {
-      const id = args.where.id;
-      const tpl = mockStore.get(id);
-      if (!tpl) return Promise.resolve(null);
-      if (args.where.version !== undefined && tpl.version !== args.where.version) {
-        return Promise.resolve(null);
+    mockTemplateFindUnique.mockImplementation(
+      (args: { where: { id: string; version?: number } }) => {
+        const id = args.where.id;
+        const tpl = mockStore.get(id);
+        if (!tpl) return Promise.resolve(null);
+        if (args.where.version !== undefined && tpl.version !== args.where.version) {
+          return Promise.resolve(null);
+        }
+        return Promise.resolve(tpl);
       }
-      return Promise.resolve(tpl);
-    });
+    );
 
     mockTemplateFindMany.mockImplementation(() => Promise.resolve(Array.from(mockStore.values())));
 
-    mockTemplateUpdate.mockImplementation((args: { where: { id: string; version?: number }; data: Record<string, unknown> }) => {
-      const id = args.where.id;
-      const tpl = mockStore.get(id);
-      if (!tpl) return Promise.reject(new Error('Record not found'));
-      if (args.where.version !== undefined && tpl.version !== args.where.version) {
-        return Promise.reject(new Error('Record not found: version mismatch'));
+    mockTemplateUpdate.mockImplementation(
+      (args: { where: { id: string; version?: number }; data: Record<string, unknown> }) => {
+        const id = args.where.id;
+        const tpl = mockStore.get(id);
+        if (!tpl) return Promise.reject(new Error('Record not found'));
+        if (args.where.version !== undefined && tpl.version !== args.where.version) {
+          return Promise.reject(new Error('Record not found: version mismatch'));
+        }
+        const now = new Date();
+        const updated: Template = {
+          ...tpl,
+          name: (args.data.name as string) ?? tpl.name,
+          description: (args.data.description as string | null) ?? tpl.description,
+          content: (args.data.content as string) ?? tpl.content,
+          version: tpl.version + 1,
+          status: (args.data.status as TemplateStatus) ?? tpl.status,
+          updatedAt: now,
+          updatedBy: (args.data.updatedBy as string) ?? tpl.updatedBy,
+        };
+        mockStore.set(id, updated);
+        return Promise.resolve(updated);
       }
-      const now = new Date();
-      const updated: Template = {
-        ...tpl,
-        name: (args.data.name as string) ?? tpl.name,
-        description: (args.data.description as string | null) ?? tpl.description,
-        content: (args.data.content as string) ?? tpl.content,
-        version: tpl.version + 1,
-        status: (args.data.status as TemplateStatus) ?? tpl.status,
-        updatedAt: now,
-        updatedBy: (args.data.updatedBy as string) ?? tpl.updatedBy,
-      };
-      mockStore.set(id, updated);
-      return Promise.resolve(updated);
-    });
+    );
 
     mockTemplateDelete.mockImplementation((args: { where: { id: string } }) => {
       mockStore.delete(args.where.id);
@@ -292,7 +322,12 @@ describe('Admin Templates Integration — save → load → render', () => {
       method: 'PUT',
       url: `/admin/api/templates/${tpl.id}?version=1`,
       headers: { ...authHeader(), 'content-type': 'application/x-www-form-urlencoded' },
-      payload: formPayload({ name: '冲突', invitationPrompt: 'hello', version: '1', 'questions[0][text]': 'Q1' }),
+      payload: formPayload({
+        name: '冲突',
+        invitationPrompt: 'hello',
+        version: '1',
+        'questions[0][text]': 'Q1',
+      }),
     });
 
     expect(resp.statusCode).toBe(409);

@@ -499,7 +499,7 @@ describe('Admin Auth middleware', () => {
     });
 
     afterAll(() => {
-      process.env.ADMIN_API_KEY = undefined;
+      delete process.env.ADMIN_API_KEY;
     });
 
     it('should return 401 for POST with wrong API key', async () => {

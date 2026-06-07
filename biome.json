@@ -5,7 +5,7 @@
   },
   "linter": {
     "enabled": true,
-    "ignore": ["coverage/", "node_modules/", "**/.stryker-tmp/", ".omo/"],
+    "ignore": ["coverage/", "node_modules/", ".stryker-tmp/", ".omo/", "dist/", "build/"],
     "rules": {
       "recommended": true,
       "suspicious": {
@@ -34,7 +34,7 @@
     "indentWidth": 2,
     "lineEnding": "lf",
     "lineWidth": 100,
-    "ignore": ["coverage/", "node_modules/", "**/.stryker-tmp/", ".omo/"]
+    "ignore": ["coverage/", "node_modules/", ".stryker-tmp/", ".omo/", "dist/", "build/"]
   },
   "javascript": {
     "formatter": {
@@ -43,5 +43,20 @@
       "semicolons": "always",
       "arrowParentheses": "always"
     }
-  }
+  },
+  "overrides": [
+    {
+      "include": ["tests/**/*.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noExplicitAny": "off"
+          },
+          "performance": {
+            "noDelete": "off"
+          }
+        }
+      }
+    }
+  ]
 }

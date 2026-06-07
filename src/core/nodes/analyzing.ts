@@ -1,6 +1,6 @@
 import { AnalysisService } from '../../services/analysis.service.js';
-import { error, info } from '../../utils/logger.js';
 import { getDb } from '../../utils/db.js';
+import { error, info } from '../../utils/logger.js';
 import { InterviewState, NodeOutput } from '../types/index.js';
 
 export async function analyzingNode(

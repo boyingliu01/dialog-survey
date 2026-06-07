@@ -117,7 +117,10 @@ function buildInviteeNameMap(inviteeData: unknown): Record<string, string> {
 
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
 
-export async function adminTemplatesRoutes(fastify: FastifyInstance, opts: AdminTemplatesRoutesOptions) {
+export async function adminTemplatesRoutes(
+  fastify: FastifyInstance,
+  opts: AdminTemplatesRoutesOptions
+) {
   const { templateRepo, prisma } = opts;
   const interviewPlanService = opts.interviewPlanService ?? new InterviewPlanService(prisma);
   const interviewRepo = opts.interviewRepo ?? new InterviewRepository(prisma);

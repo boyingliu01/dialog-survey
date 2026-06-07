@@ -34,6 +34,10 @@ async function createTestApp() {
           const d = typeof date === 'string' ? new Date(date) : date;
           return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         });
+        env.addFilter('markdown', (input: string | null | undefined) => {
+          if (!input) return '';
+          return input;
+        });
       },
     },
   });
@@ -79,7 +83,10 @@ async function createTestApp() {
 
   const { adminTemplatesRoutes } = await import('../src/api/admin-templates.js');
   const { TemplateRepository } = await import('../src/repositories/template.repository.js');
-  await app.register(adminTemplatesRoutes, { templateRepo: new TemplateRepository(prisma), prisma });
+  await app.register(adminTemplatesRoutes, {
+    templateRepo: new TemplateRepository(prisma),
+    prisma,
+  });
 
   return app;
 }
@@ -474,7 +481,6 @@ describe('Admin Templates Routes - Extra Coverage', () => {
       expect(response.body).toContain('not found');
     });
   });
-
 
   describe('GET /admin/reports — Reports listing page', () => {
     it('should return 200 with reports list', async () => {

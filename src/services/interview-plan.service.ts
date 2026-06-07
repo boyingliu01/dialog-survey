@@ -257,7 +257,10 @@ export class InterviewPlanService {
     }
 
     if (interview.plan?.id !== planId) {
-      return { success: false, error: `Interview ${interviewId} does not belong to plan ${planId}` };
+      return {
+        success: false,
+        error: `Interview ${interviewId} does not belong to plan ${planId}`,
+      };
     }
 
     const template = await this.prisma.template.findUnique({
@@ -302,7 +305,12 @@ export class InterviewPlanService {
           data: { failedCount: { increment: 1 } },
         });
       }
-      error('Failed to resend invitation', { planId, interviewId, userId: interview.userId, error: errorMsg });
+      error('Failed to resend invitation', {
+        planId,
+        interviewId,
+        userId: interview.userId,
+        error: errorMsg,
+      });
       return { success: false, error: errorMsg };
     }
   }
@@ -479,7 +487,16 @@ export class InterviewPlanService {
         template: { select: { id: true, name: true } },
         interviews: {
           orderBy: { status: 'asc' },
-          select: { id: true, userId: true, status: true, createdAt: true, completedAt: true, sendStatus: true, sentAt: true, sendError: true },
+          select: {
+            id: true,
+            userId: true,
+            status: true,
+            createdAt: true,
+            completedAt: true,
+            sendStatus: true,
+            sentAt: true,
+            sendError: true,
+          },
         },
         _count: { select: { interviews: true } },
       },
@@ -530,7 +547,9 @@ export class InterviewPlanService {
       ).map((i) => i.id);
 
       await this.prisma.analysisReport.deleteMany({ where: { interviewId: { in: interviewIds } } });
-      await this.prisma.analysisFailure.deleteMany({ where: { interviewId: { in: interviewIds } } });
+      await this.prisma.analysisFailure.deleteMany({
+        where: { interviewId: { in: interviewIds } },
+      });
       await this.prisma.message.deleteMany({ where: { interviewId: { in: interviewIds } } });
       await this.prisma.response.deleteMany({ where: { interviewId: { in: interviewIds } } });
       await this.prisma.interview.deleteMany({ where: { planId: id } });
@@ -567,11 +586,7 @@ export class InterviewPlanService {
     return { counts, total };
   }
 
-  async addMember(
-    planId: string,
-    userId: string,
-    name: string
-  ): Promise<{ interviewId: string }> {
+  async addMember(planId: string, userId: string, name: string): Promise<{ interviewId: string }> {
     const newInterviewId = await this.prisma.$transaction(async (tx) => {
       const plan = await tx.interviewPlan.findUnique({ where: { id: planId } });
       if (!plan) {
@@ -718,8 +733,7 @@ export class InterviewPlanService {
           reminded++;
         } else {
           failed++;
-          const errMsg =
-            result.reason instanceof Error ? result.reason.message : 'send failed';
+          const errMsg = result.reason instanceof Error ? result.reason.message : 'send failed';
           error('Reminder send failed', {
             planId,
             userId: batch[j].userId,
