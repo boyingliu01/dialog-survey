@@ -42,7 +42,12 @@ export interface StreamClientOptions {
   maxReconnectAttempts?: number;
 }
 
+type CircuitState = 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+
 export type EventHandler = (data: unknown) => void;
+
+const CIRCUIT_COOLDOWN_MS = 30000;
+const FAILURE_THRESHOLD = 3;
 
 export class DingTalkStreamClient {
   private config: DingTalkStreamConfig;
@@ -51,6 +56,9 @@ export class DingTalkStreamClient {
   private connected = false;
   private reconnectAttempts = 0;
   private eventHandlers: Map<string, EventHandler[]> = new Map();
+  private circuitState: CircuitState = 'CLOSED';
+  private circuitOpenedAt: number | null = null;
+  private failureCount = 0;
 
   constructor(config: DingTalkStreamConfig, options: StreamClientOptions = {}) {
     if (!config.clientId) {
@@ -165,8 +173,26 @@ export class DingTalkStreamClient {
 
     this.ws.on('close', (code: number, reason: Buffer) => {
       this.connected = false;
-      info('WebSocket connection closed', { code, reason: reason.toString() });
+      this.failureCount++;
+      info('WebSocket connection closed', {
+        code,
+        reason: reason.toString(),
+        failureCount: this.failureCount,
+      });
       this.emit('disconnected', { code, reason: reason.toString() });
+
+      if (this.circuitState === 'CLOSED' && this.failureCount >= FAILURE_THRESHOLD) {
+        this.circuitState = 'OPEN';
+        this.circuitOpenedAt = Date.now();
+        info('Circuit breaker OPEN', { cooldownMs: CIRCUIT_COOLDOWN_MS });
+        return;
+      }
+
+      if (this.circuitState === 'HALF_OPEN') {
+        this.circuitState = 'OPEN';
+        this.circuitOpenedAt = Date.now();
+        return;
+      }
 
       const maxAttempts = this.options.maxReconnectAttempts ?? 3;
       if (this.reconnectAttempts < maxAttempts) {
@@ -268,6 +294,16 @@ export class DingTalkStreamClient {
    * Reconnect to DingTalk Stream
    */
   reconnect(): void {
+    if (this.circuitState === 'OPEN' && this.circuitOpenedAt) {
+      const elapsed = Date.now() - this.circuitOpenedAt;
+      if (elapsed < CIRCUIT_COOLDOWN_MS) {
+        debug('Circuit open, skipping reconnect', { remainingMs: CIRCUIT_COOLDOWN_MS - elapsed });
+        return;
+      }
+      this.circuitState = 'HALF_OPEN';
+      this.failureCount = 0;
+    }
+
     this.reconnectAttempts++;
     info('Reconnecting', { attempt: this.reconnectAttempts });
 
