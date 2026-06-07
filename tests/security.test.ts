@@ -99,18 +99,24 @@ describe('generateApiKey', () => {
  */
 describe('verifyApiKey', () => {
   let ReplyClass: any;
+  let mockPrisma: any;
 
   beforeEach(async () => {
     vi.resetModules();
-    getMocks().findFirst.mockReset();
+
+    mockPrisma = {
+      auditLog: {
+        findFirst: vi.fn(),
+      },
+    };
 
     ReplyClass = class MockReply {
       status(code: number) {
-        this._statusCode = code;
+        (this as any)._statusCode = code;
         return this;
       }
       send(body: any) {
-        this._body = body;
+        (this as any)._body = body;
         return this;
       }
       _statusCode: number | undefined;
@@ -124,7 +130,8 @@ describe('verifyApiKey', () => {
   });
 
   it('should return 401 when no API key header is present', async () => {
-    const { verifyApiKey } = await import('../src/utils/security.js');
+    const { createVerifyApiKey } = await import('../src/utils/security.js');
+    const verifyApiKey = createVerifyApiKey(mockPrisma);
     const request = { headers: {} } as any;
     const reply = new ReplyClass();
 
@@ -133,13 +140,14 @@ describe('verifyApiKey', () => {
     expect(result).toBe(reply);
     expect(reply._statusCode).toBe(401);
     expect(reply._body).toEqual({ error: 'API key required' });
-    expect(getMocks().findFirst).not.toHaveBeenCalled();
+    expect(mockPrisma.auditLog.findFirst).not.toHaveBeenCalled();
   });
 
   it('should set request.user when valid API key is found', async () => {
-    const { verifyApiKey } = await import('../src/utils/security.js');
-    getMocks().findFirst.mockResolvedValue({ userId: 'user-123', id: 'key-456' });
+    const { createVerifyApiKey } = await import('../src/utils/security.js');
+    mockPrisma.auditLog.findFirst.mockResolvedValue({ userId: 'user-123', id: 'key-456' });
 
+    const verifyApiKey = createVerifyApiKey(mockPrisma);
     const request = { headers: { 'x-api-key': 'ib_abcdef1234567890' } } as any;
     const reply = new ReplyClass();
 
@@ -147,7 +155,7 @@ describe('verifyApiKey', () => {
 
     expect(result).toBeUndefined();
     expect(request.user).toEqual({ userId: 'user-123', role: 'user' });
-    expect(getMocks().findFirst).toHaveBeenCalledWith({
+    expect(mockPrisma.auditLog.findFirst).toHaveBeenCalledWith({
       where: {
         action: 'API_KEY_CREATED',
         details: { contains: 'ib_abcde' },
@@ -156,9 +164,10 @@ describe('verifyApiKey', () => {
   });
 
   it('should return 401 when API key is not found', async () => {
-    const { verifyApiKey } = await import('../src/utils/security.js');
-    getMocks().findFirst.mockResolvedValue(null);
+    const { createVerifyApiKey } = await import('../src/utils/security.js');
+    mockPrisma.auditLog.findFirst.mockResolvedValue(null);
 
+    const verifyApiKey = createVerifyApiKey(mockPrisma);
     const request = { headers: { 'x-api-key': 'ib_invalid_key' } } as any;
     const reply = new ReplyClass();
 
@@ -170,9 +179,10 @@ describe('verifyApiKey', () => {
   });
 
   it('should default userId to unknown when keyRecord has no userId', async () => {
-    const { verifyApiKey } = await import('../src/utils/security.js');
-    getMocks().findFirst.mockResolvedValue({ id: 'key-789', userId: null });
+    const { createVerifyApiKey } = await import('../src/utils/security.js');
+    mockPrisma.auditLog.findFirst.mockResolvedValue({ id: 'key-789', userId: null });
 
+    const verifyApiKey = createVerifyApiKey(mockPrisma);
     const request = { headers: { 'x-api-key': 'ib_xyz98765' } } as any;
     const reply = new ReplyClass();
 

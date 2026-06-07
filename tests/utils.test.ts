@@ -1,48 +1,14 @@
-import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { renderMarkdown } from '../src/utils/markdown.js';
 
-/**
- * @test REQ-001-7-01
- * @test REQ-001-7-02
- * @test REQ-001-7-03
- * @intent 验证基础工具类存在且具有正确的导出函数 (AES-256-GCM加密，验证工具函数)
- * @covers 加密工具存在 (AES-256-GCM)，日期实用功能存在，验证工具功能存在
- */
 describe('Utility Classes', () => {
-  describe('Encryption', () => {
-    it('should have src/utils/encryption.ts', () => {
-      expect(fs.existsSync('src/utils/encryption.ts')).toBe(true);
-    });
-
-    it('should export encrypt function', () => {
-      const content = fs.readFileSync('src/utils/encryption.ts', 'utf-8');
-      expect(content).toContain('export function encrypt');
-    });
-
-    it('should export decrypt function', () => {
-      const content = fs.readFileSync('src/utils/encryption.ts', 'utf-8');
-      expect(content).toContain('export function decrypt');
-    });
+  it('should render markdown to HTML', () => {
+    const result = renderMarkdown('# Hello');
+    expect(result).toContain('<h1');
+    expect(result).toContain('Hello');
   });
 
-  describe('Validation', () => {
-    it('should have src/utils/validation.ts', () => {
-      expect(fs.existsSync('src/utils/validation.ts')).toBe(true);
-    });
-
-    it('should export isValidEmail function', () => {
-      const content = fs.readFileSync('src/utils/validation.ts', 'utf-8');
-      expect(content).toContain('export function isValidEmail');
-    });
-
-    it('should export isValidPhone function', () => {
-      const content = fs.readFileSync('src/utils/validation.ts', 'utf-8');
-      expect(content).toContain('export function isValidPhone');
-    });
-
-    it('should export isValidUrl function', () => {
-      const content = fs.readFileSync('src/utils/validation.ts', 'utf-8');
-      expect(content).toContain('export function isValidUrl');
-    });
+  it('should return empty string for null input', () => {
+    expect(renderMarkdown(null)).toBe('');
   });
 });

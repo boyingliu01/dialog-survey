@@ -99,31 +99,5 @@ describe('DingTalk Services', () => {
     });
   });
 
-  describe('Rate Limiting', () => {
-    /**
-     * @test REQ-002-6-01
-     * @intent 验证速率限制器工具文件存在（虽然这是REQ-002-6，但是在同一个文件中关联）
-     */
-    it('should have rate limiter utility', () => {
-      expect(fs.existsSync('src/utils/rate-limiter.ts')).toBe(true);
-    });
-
-    /**
-     * @test REQ-002-6-01
-     * @intent 验证队列机制实现（虽然这是REQ-002-6，但是在同一个文件中关联）
-     */
-    it('should implement queue mechanism', () => {
-      const content = fs.readFileSync('src/utils/rate-limiter.ts', 'utf-8');
-      expect(content.includes('queue') || content.toLowerCase().includes('rate')).toBe(true);
-    });
-
-    /**
-     * @test REQ-002-6-03
-     * @intent 验证当超过限制时返回429状态码（虽然这是REQ-002-6，但是在同一个文件中关联）
-     */
-    it('should return 429 when over limit', () => {
-      const content = fs.readFileSync('src/utils/rate-limiter.ts', 'utf-8');
-      expect(content.includes('429') || content.toLowerCase().includes('throttle')).toBe(true);
-    });
-  });
+  // rate-limiter.ts removed as dead code (unused)
 });

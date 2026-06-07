@@ -110,12 +110,12 @@ export async function buildApp() {
     },
   });
 
-  await securityMiddleware(fastify);
-
   const prisma = new PrismaClient();
   const templateRepo = new TemplateRepository(prisma);
 
-  await fastify.register(healthRoutes);
+  await securityMiddleware(fastify, prisma);
+
+  await fastify.register(healthRoutes, { prisma });
   await fastify.register(webhookRoutes);
   await fastify.register(interviewPlanRoutes);
   await fastify.register(templateRoutes, { templateRepo, prisma });
