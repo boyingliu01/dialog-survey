@@ -6,10 +6,10 @@ import {
   InterviewNotFoundError,
   InterviewPlanService,
   InvalidStateError,
+  type InviteeData,
   MemberConflictError,
   PlanNotFoundError,
   parseInviteeText,
-  type InviteeData,
 } from '../services/interview-plan.service.js';
 
 const createPlanSchema = z.object({
@@ -164,21 +164,17 @@ export async function interviewPlanRoutes(fastify: FastifyInstance) {
     return { status: 'cancelled' };
   });
 
-  fastify.post(
-    '/api/plans/:id/members',
-    { preHandler: adminAuth },
-    async (request, reply) => {
-      const { id } = request.params as { id: string };
-      const { userId, name } = addMemberSchema.parse(request.body);
-      try {
-        const result = await planService.addMember(id, userId, name);
-        return result;
-      } catch (e) {
-        const { status, message } = mapServiceErrorToStatus(e);
-        return reply.status(status).send({ error: message });
-      }
+  fastify.post('/api/plans/:id/members', { preHandler: adminAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { userId, name } = addMemberSchema.parse(request.body);
+    try {
+      const result = await planService.addMember(id, userId, name);
+      return result;
+    } catch (e) {
+      const { status, message } = mapServiceErrorToStatus(e);
+      return reply.status(status).send({ error: message });
     }
-  );
+  });
 
   fastify.delete(
     '/api/plans/:id/members/:interviewId',
@@ -195,19 +191,15 @@ export async function interviewPlanRoutes(fastify: FastifyInstance) {
     }
   );
 
-  fastify.post(
-    '/api/plans/:id/remind',
-    { preHandler: adminAuth },
-    async (request, reply) => {
-      const { id } = request.params as { id: string };
-      const { interviewId } = remindSchema.parse(request.body ?? {});
-      try {
-        const result = await planService.sendReminder(id, interviewId);
-        return result;
-      } catch (e) {
-        const { status, message } = mapServiceErrorToStatus(e);
-        return reply.status(status).send({ error: message });
-      }
+  fastify.post('/api/plans/:id/remind', { preHandler: adminAuth }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { interviewId } = remindSchema.parse(request.body ?? {});
+    try {
+      const result = await planService.sendReminder(id, interviewId);
+      return result;
+    } catch (e) {
+      const { status, message } = mapServiceErrorToStatus(e);
+      return reply.status(status).send({ error: message });
     }
-  );
+  });
 }

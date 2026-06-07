@@ -116,9 +116,8 @@ describe('DingTalkTokenManager', () => {
   });
 
   it('should throw error when environment variables are not set', async () => {
-    // biome-ignore lint/performance/noDelete: process.env requires delete for proper removal
     delete process.env.DINGTALK_CLIENT_ID;
-    // biome-ignore lint/performance/noDelete: process.env requires delete for proper removal
+
     delete process.env.DINGTALK_CLIENT_SECRET;
 
     await expect(tokenManager.getAccessToken()).rejects.toThrow(

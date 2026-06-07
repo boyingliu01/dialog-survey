@@ -1,0 +1,13 @@
+{
+  "output": ".jscpd-report.json",
+  "threshold": 0,
+  "absoluteImpact": 10,
+  "ignore": ["node_modules/**", "dist/**", ".git/**", "**.test.ts", "tests/**", "public/**"],
+  "minLines": 10,
+  "minTokens": 50,
+  "mode": "strict",
+  "formatsExts": {
+    "typescript": "ts"
+  },
+  "languages": ["typescript"]
+}

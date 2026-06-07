@@ -321,7 +321,6 @@ describe('DingTalkStreamClient', () => {
       let wsInstance: WebSocket | null = null;
       const mockSend = vi.fn();
 
-      // biome-ignore lint/suspicious/noExplicitAny: ws library's WebSocket.on type is incompatible with vi.spyOn
       vi.spyOn(WebSocket.prototype as any, 'on').mockImplementation(function (
         this: WebSocket,
         event: string,
@@ -336,7 +335,7 @@ describe('DingTalkStreamClient', () => {
         }
         return this;
       });
-      // biome-ignore lint/suspicious/noExplicitAny: same reason
+
       vi.spyOn(WebSocket.prototype as any, 'send').mockImplementation(mockSend);
 
       const client = new DingTalkStreamClient(mockConfig);
@@ -512,7 +511,6 @@ describe('DingTalkStreamClient', () => {
 
       let errorHandler: ((err: Error) => void) | null = null;
 
-      // biome-ignore lint/suspicious/noExplicitAny: ws library's WebSocket.on type is incompatible with vi.spyOn
       vi.spyOn(WebSocket.prototype as any, 'on').mockImplementation(function (
         this: WebSocket,
         event: string,

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { anonymizeData, generateApiKey } from '../src/utils/security.js';
 
 vi.mock('@prisma/client', () => {
@@ -11,7 +11,7 @@ vi.mock('@prisma/client', () => {
   };
 });
 
-const getMocks = () => ({
+const _getMocks = () => ({
   findFirst: (globalThis as any).__mockFindFirst,
 });
 

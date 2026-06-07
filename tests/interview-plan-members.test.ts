@@ -21,7 +21,7 @@ vi.mock('../src/utils/logger.js', () => ({
 
 describe('InterviewPlanService - Member Management (Issue #10)', () => {
   let service: InterviewPlanService;
-  // biome-ignore lint/suspicious/noExplicitAny: mock prisma per test pattern
+
   let mockPrisma: any;
 
   beforeEach(() => {
@@ -286,9 +286,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
 
       const result = await service.sendReminder('plan-1');
 
-      const { messageSender } = await import(
-        '../src/integrations/dingtalk/message-sender.js'
-      );
+      const { messageSender } = await import('../src/integrations/dingtalk/message-sender.js');
       expect(messageSender.sendTextMessage).toHaveBeenCalledTimes(3);
       expect(mockPrisma.interview.findMany).toHaveBeenCalledWith({
         where: {
@@ -315,9 +313,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
 
       const result = await service.sendReminder('plan-1', 'int-1');
 
-      const { messageSender } = await import(
-        '../src/integrations/dingtalk/message-sender.js'
-      );
+      const { messageSender } = await import('../src/integrations/dingtalk/message-sender.js');
       expect(messageSender.sendTextMessage).toHaveBeenLastCalledWith(
         ['user-1'],
         expect.any(String)
@@ -336,9 +332,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
         { id: 'int-3', userId: 'user-3' },
       ]);
 
-      const { messageSender } = await import(
-        '../src/integrations/dingtalk/message-sender.js'
-      );
+      const { messageSender } = await import('../src/integrations/dingtalk/message-sender.js');
       (messageSender.sendTextMessage as ReturnType<typeof vi.fn>).mockReset();
       (messageSender.sendTextMessage as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce({ taskId: 't1', successCount: 1, failedUserIds: [] })
@@ -375,9 +369,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
     });
 
     it('removeMember should throw InterviewNotFoundError when missing', async () => {
-      const { InterviewNotFoundError } = await import(
-        '../src/services/interview-plan.service.js'
-      );
+      const { InterviewNotFoundError } = await import('../src/services/interview-plan.service.js');
       mockPrisma.interview.findUnique.mockResolvedValue(null);
       await expect(service.removeMember('plan-1', 'missing')).rejects.toBeInstanceOf(
         InterviewNotFoundError

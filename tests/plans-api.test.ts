@@ -1,4 +1,4 @@
-import { PrismaClient, PlanStatus } from '@prisma/client';
+import { PlanStatus, PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -220,6 +220,16 @@ describe('Interview Plan API Endpoints', () => {
     });
 
     it('should return empty list for non-matching status filter', async () => {
+      const template = await prisma.template.create({
+        data: { name: 'NonMatch Template', content: '{}', status: 'DRAFT' },
+      });
+      const plan1 = await prisma.interviewPlan.create({
+        data: { name: 'Pending Plan', templateId: template.id, status: 'PENDING' },
+      });
+      const plan2 = await prisma.interviewPlan.create({
+        data: { name: 'Running Plan', templateId: template.id, status: 'RUNNING' },
+      });
+
       const res = await fastify.inject({
         method: 'GET',
         url: '/api/plans?status=READY',
@@ -229,6 +239,11 @@ describe('Interview Plan API Endpoints', () => {
       const body = JSON.parse(res.body);
       expect(body.plans).toEqual([]);
       expect(body.total).toBe(0);
+
+      await prisma.interviewPlan.deleteMany({
+        where: { id: { in: [plan1.id, plan2.id] } },
+      });
+      await prisma.template.delete({ where: { id: template.id } });
     });
 
     it('should include total count in response', async () => {

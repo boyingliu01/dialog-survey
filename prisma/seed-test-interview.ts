@@ -1,4 +1,4 @@
-import { PrismaClient, InterviewStatus } from '@prisma/client';
+import { InterviewStatus, PrismaClient } from '@prisma/client';
 import { info } from '../src/utils/logger.js';
 
 const prisma = new PrismaClient();
