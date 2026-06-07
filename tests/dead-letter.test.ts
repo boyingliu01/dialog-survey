@@ -19,7 +19,12 @@ describe('Analysis Dead-Letter Service', () => {
    * @covers AC-SINGLE-001-03
    */
   it('records failed analysis with interviewId and error', async () => {
-    await recordAnalysisFailure(prisma, 'interview-123', 'LLM_TIMEOUT', 'Request timed out after 30s');
+    await recordAnalysisFailure(
+      prisma,
+      'interview-123',
+      'LLM_TIMEOUT',
+      'Request timed out after 30s'
+    );
 
     const failures = await prisma.analysisFailure.findMany({
       where: { interviewId: 'interview-123' },

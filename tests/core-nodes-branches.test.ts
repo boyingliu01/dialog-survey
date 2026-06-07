@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { analyzingNode } from '../src/core/nodes/analyzing.js';
 import { interviewingNode } from '../src/core/nodes/interviewing.js';
 import type { InterviewState } from '../src/core/types/index.js';
@@ -9,7 +9,7 @@ import { generateSmartResponse } from '../src/services/followup.service.js';
 vi.mock('../src/services/analysis.service.js', () => {
   return {
     AnalysisService: class {
-      async analyzeInterview(interviewId: string) {
+      async analyzeInterview(_interviewId: string) {
         return {
           success: true,
           report: {

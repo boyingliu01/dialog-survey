@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PrismaClient } from '@prisma/client';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalyticsService } from '../src/services/analytics.service.js';
 
 vi.mock('../src/utils/logger.js', () => ({

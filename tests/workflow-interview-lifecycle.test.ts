@@ -79,7 +79,10 @@ async function createAdminApp() {
 
   const { adminTemplatesRoutes } = await import('../src/api/admin-templates.js');
   const { TemplateRepository } = await import('../src/repositories/template.repository.js');
-  await app.register(adminTemplatesRoutes, { templateRepo: new TemplateRepository(prisma), prisma });
+  await app.register(adminTemplatesRoutes, {
+    templateRepo: new TemplateRepository(prisma),
+    prisma,
+  });
 
   return app;
 }

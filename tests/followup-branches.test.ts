@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { InterviewState } from '../src/core/types/index.js';
 import {
+  generateSmartResponse,
   parseLLMResponse,
   smartTruncate,
-  generateSmartResponse,
 } from '../src/services/followup.service.js';
-import type { InterviewState } from '../src/core/types/index.js';
 
 describe('Branch Coverage: followup.service.ts', () => {
   describe('parseLLMResponse - Additional Branch Coverage', () => {
@@ -114,7 +114,7 @@ describe('Branch Coverage: followup.service.ts', () => {
 
   describe('generateSmartResponse - Custom Prompt Branch Path', () => {
     it('should follow custom prompt path when provided', async () => {
-      const mockState: InterviewState = {
+      const _mockState: InterviewState = {
         userId: 'test-user',
         status: 'ACTIVE',
         followupCount: 0,
