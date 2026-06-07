@@ -43,16 +43,12 @@ export type CreateBatchReportResult =
 export class AnalysisService {
   private readonly _prisma: PrismaClient;
 
-  constructor(prisma?: PrismaClient) {
-    this._prisma = prisma ?? new PrismaClient();
-  }
-
-  private get prisma(): PrismaClient {
-    return this._prisma;
+  constructor(prisma: PrismaClient) {
+    this._prisma = prisma;
   }
 
   async analyzeInterview(interviewId: string): Promise<AnalysisResult> {
-    const interview = await this.prisma.interview.findUnique({
+    const interview = await this._prisma.interview.findUnique({
       where: { id: interviewId },
       include: { responses: true, messages: true },
     });
@@ -83,7 +79,7 @@ export class AnalysisService {
     };
 
     try {
-      const template = await this.prisma.template.findUnique({
+      const template = await this._prisma.template.findUnique({
         where: { id: interview.templateId },
       });
       const dimsJson = template?.dimensions ? JSON.stringify(template.dimensions) : null;
@@ -103,13 +99,14 @@ export class AnalysisService {
         error: e instanceof Error ? e.message : String(e),
       });
       await recordAnalysisFailure(
+        this._prisma,
         interviewId,
         'DIMENSION_ANALYSIS_FAILED',
         e instanceof Error ? e.message : String(e)
       );
     }
 
-    await this.prisma.analysisReport.create({
+    await this._prisma.analysisReport.create({
       data: {
         interviewId,
         content: report.content,
@@ -126,7 +123,7 @@ export class AnalysisService {
   }
 
   async batchAnalyze(planId: string): Promise<AnalysisResult[]> {
-    const interviews = await this.prisma.interview.findMany({
+    const interviews = await this._prisma.interview.findMany({
       where: { planId, status: 'COMPLETED' },
     });
 
@@ -219,7 +216,7 @@ export class AnalysisService {
     const clusters: ClusterAnalysis[] = [];
 
     for (const clusterId of clusterIds) {
-      const interviews = await this.prisma.interview.findMany({
+      const interviews = await this._prisma.interview.findMany({
         where: { planId: clusterId },
         include: { responses: true },
       });
@@ -249,14 +246,14 @@ export class AnalysisService {
   }
 
   async getReportByInterviewId(interviewId: string) {
-    return this.prisma.analysisReport.findFirst({
+    return this._prisma.analysisReport.findFirst({
       where: { interviewId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   async createBatchReportIfEligible(planId: string): Promise<CreateBatchReportResult> {
-    const existing = await this.prisma.batchAnalysisReport.findFirst({
+    const existing = await this._prisma.batchAnalysisReport.findFirst({
       where: { planId, status: 'RUNNING' },
       select: { id: true },
     });
@@ -264,7 +261,7 @@ export class AnalysisService {
       return { kind: 'conflict', existingId: existing.id };
     }
 
-    const completed = await this.prisma.interview.findFirst({
+    const completed = await this._prisma.interview.findFirst({
       where: { planId, status: 'COMPLETED' },
       select: { id: true },
     });
@@ -272,7 +269,7 @@ export class AnalysisService {
       return { kind: 'no-completed' };
     }
 
-    const plan = await this.prisma.interviewPlan.findUnique({
+    const plan = await this._prisma.interviewPlan.findUnique({
       where: { id: planId },
       select: { templateId: true },
     });
@@ -280,7 +277,7 @@ export class AnalysisService {
       return { kind: 'plan-not-found' };
     }
 
-    const report = await this.prisma.batchAnalysisReport.create({
+    const report = await this._prisma.batchAnalysisReport.create({
       data: {
         planId,
         templateId: plan.templateId,
@@ -296,13 +293,13 @@ export class AnalysisService {
   }
 
   async getBatchReportById(id: string): Promise<BatchAnalysisReport | null> {
-    return this.prisma.batchAnalysisReport.findUnique({
+    return this._prisma.batchAnalysisReport.findUnique({
       where: { id },
     });
   }
 
   async findRecentReports(limit: number) {
-    return this.prisma.analysisReport.findMany({
+    return this._prisma.analysisReport.findMany({
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: { interview: { select: { id: true, userId: true, status: true } } },

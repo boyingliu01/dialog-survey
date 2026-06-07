@@ -26,6 +26,20 @@ describe('AnalysisService', () => {
         create: vi.fn(),
         findFirst: vi.fn(),
       },
+      template: {
+        findUnique: vi.fn(),
+      },
+      batchAnalysisReport: {
+        findFirst: vi.fn(),
+        create: vi.fn(),
+        findUnique: vi.fn(),
+      },
+      interviewPlan: {
+        findUnique: vi.fn(),
+      },
+      analysisFailure: {
+        upsert: vi.fn(),
+      },
     };
     service = new AnalysisService(mockPrisma);
     vi.clearAllMocks();

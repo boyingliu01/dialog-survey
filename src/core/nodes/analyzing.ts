@@ -1,5 +1,6 @@
 import { AnalysisService } from '../../services/analysis.service.js';
 import { error, info } from '../../utils/logger.js';
+import { getDb } from '../../utils/db.js';
 import { InterviewState, NodeOutput } from '../types/index.js';
 
 export async function analyzingNode(
@@ -20,7 +21,7 @@ export async function analyzingNode(
     try {
       info('Starting async analysis', { interviewId });
 
-      const analysisService = new AnalysisService();
+      const analysisService = new AnalysisService(getDb());
       const result = await analysisService.analyzeInterview(interviewId);
 
       info('Async analysis completed', {
