@@ -78,9 +78,34 @@ export class StreamMessageService {
     }
   }
 
+  /** Allowed DingTalk hostnames for SSRF protection */
+  private static readonly ALLOWED_WEBHOOK_HOSTS = new Set([
+    'oapi.dingtalk.com',
+    'api.dingtalk.com',
+    'router.dingtalk.com',
+  ]);
+
+  /**
+   * Validates that a webhook URL is from an allowed DingTalk hostname.
+   * Protects against SSRF attacks via malicious URLs (e.g., file:///, http://169.254169.254/, etc.)
+   */
+  private static isAllowedWebhookUrl(url: string): boolean {
+    try {
+      const parsed = new URL(url);
+      return StreamMessageService.ALLOWED_WEBHOOK_HOSTS.has(parsed.hostname);
+    } catch {
+      return false;
+    }
+  }
+
   async sendReply(sessionWebhook: string, content: string): Promise<boolean> {
     if (!sessionWebhook) {
       error('No sessionWebhook provided');
+      return false;
+    }
+
+    if (!StreamMessageService.isAllowedWebhookUrl(sessionWebhook)) {
+      error('Webhook URL hostname not in allowlist', { url: sessionWebhook });
       return false;
     }
 
@@ -385,7 +410,11 @@ export async function sendReply(sessionWebhook: string, content: string): Promis
   }
 }
 
-export async function processStreamMessage(message: StreamMessage): Promise<ProcessResult> {
-  const service = new StreamMessageService();
+export async function processStreamMessage(
+  message: StreamMessage,
+  prisma?: PrismaClient
+): Promise<ProcessResult> {
+  const repo = new InterviewStateRepository(prisma);
+  const service = new StreamMessageService(repo);
   return service.processStreamMessage(message);
 }

@@ -52,6 +52,10 @@ model Interview {
   plan         InterviewPlan? @relation(fields: [planId], references: [id])
   template     Template        @relation(fields: [templateId], references: [id])
   reports      AnalysisReport[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([planId])
 }
 
 model Message {

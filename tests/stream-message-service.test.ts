@@ -68,7 +68,7 @@ describe('StreamMessageService', () => {
           senderStaffId: 'user-123',
           text: { content: 'Hello world' },
           msgtype: 'text',
-          sessionWebhook: 'https://webhook.example.com/session',
+          sessionWebhook: 'https://oapi.dingtalk.com/session',
         }),
       };
 
@@ -77,7 +77,7 @@ describe('StreamMessageService', () => {
       expect(result).toEqual({
         userId: 'user-123',
         content: 'Hello world',
-        sessionWebhook: 'https://webhook.example.com/session',
+        sessionWebhook: 'https://oapi.dingtalk.com/session',
         messageId: 'msg-001',
       });
     });
@@ -98,7 +98,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-456',
           content: 'Direct message',
-          sessionWebhook: 'https://webhook.example.com/session',
+          sessionWebhook: 'https://oapi.dingtalk.com/session',
         }),
       };
 
@@ -107,7 +107,7 @@ describe('StreamMessageService', () => {
       expect(result).toEqual({
         userId: 'user-456',
         content: 'Direct message',
-        sessionWebhook: 'https://webhook.example.com/session',
+        sessionWebhook: 'https://oapi.dingtalk.com/session',
         messageId: 'msg-002',
       });
     });
@@ -127,7 +127,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           senderStaffId: 'user-789',
-          sessionWebhook: 'https://webhook.example.com/session',
+          sessionWebhook: 'https://oapi.dingtalk.com/session',
         }),
       };
 
@@ -136,7 +136,7 @@ describe('StreamMessageService', () => {
       expect(result).toEqual({
         userId: 'user-789',
         content: '',
-        sessionWebhook: 'https://webhook.example.com/session',
+        sessionWebhook: 'https://oapi.dingtalk.com/session',
         messageId: 'msg-003',
       });
     });
@@ -201,7 +201,7 @@ describe('StreamMessageService', () => {
         },
         data: JSON.stringify({
           text: { content: 'Hello' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
@@ -227,7 +227,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-123',
           text: { content: '' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
@@ -269,10 +269,10 @@ describe('StreamMessageService', () => {
     it('should send reply successfully', async () => {
       mockFetch.mockResolvedValueOnce({ ok: true });
 
-      const result = await service.sendReply('https://webhook.example.com', 'Test reply');
+      const result = await service.sendReply('https://oapi.dingtalk.com', 'Test reply');
 
       expect(result).toBe(true);
-      expect(mockFetch).toHaveBeenCalledWith('https://webhook.example.com', {
+      expect(mockFetch).toHaveBeenCalledWith('https://oapi.dingtalk.com', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -300,7 +300,7 @@ describe('StreamMessageService', () => {
     it('should return false when response not ok', async () => {
       mockFetch.mockResolvedValueOnce({ ok: false, status: 500 });
 
-      const result = await service.sendReply('https://webhook.example.com', 'Test reply');
+      const result = await service.sendReply('https://oapi.dingtalk.com', 'Test reply');
 
       expect(result).toBe(false);
     });
@@ -312,7 +312,7 @@ describe('StreamMessageService', () => {
     it('should return false when fetch throws error', async () => {
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-      const result = await service.sendReply('https://webhook.example.com', 'Test reply');
+      const result = await service.sendReply('https://oapi.dingtalk.com', 'Test reply');
 
       expect(result).toBe(false);
     });
@@ -374,7 +374,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: '',
           text: { content: 'Hello' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
@@ -400,7 +400,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-123',
           text: { content: '' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
@@ -444,7 +444,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-123',
           text: { content: '你好' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
@@ -495,7 +495,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-123',
           text: { content: '你好' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
@@ -538,7 +538,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-123',
           text: { content: '我的回答' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
@@ -589,7 +589,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-123',
           text: { content: 'Retry test' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
@@ -624,7 +624,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-123',
           text: { content: 'Max retry test' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
@@ -659,7 +659,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-123',
           text: { content: 'DB error test' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
@@ -698,13 +698,13 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-123',
           text: { content: 'Test' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
       await service.processStreamMessage(message);
 
-      expect(mockFetch).toHaveBeenCalledWith('https://webhook.example.com', expect.any(Object));
+      expect(mockFetch).toHaveBeenCalledWith('https://oapi.dingtalk.com', expect.any(Object));
     });
 
     /**
@@ -774,7 +774,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-123',
           text: { content: 'User message' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
@@ -826,7 +826,7 @@ describe('StreamMessageService', () => {
         data: JSON.stringify({
           senderStaffId: 'user-123',
           text: { content: 'My answer' },
-          sessionWebhook: 'https://webhook.example.com',
+          sessionWebhook: 'https://oapi.dingtalk.com',
         }),
       };
 
