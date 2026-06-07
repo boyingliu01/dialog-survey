@@ -29,7 +29,8 @@ async function rebuildApp(): Promise<FastifyInstance> {
   const { default: Fastify } = await import('fastify');
   const app = Fastify({ logger: false });
   const { healthRoutes } = await import('../src/api/health.js');
-  await app.register(healthRoutes);
+  await app.register(healthRoutes, { prisma: new MockPrismaClient() as any });
+  await app.ready();
   await app.ready();
   return app;
 }

@@ -19,7 +19,7 @@ describe('Analysis Dead-Letter Service', () => {
    * @covers AC-SINGLE-001-03
    */
   it('records failed analysis with interviewId and error', async () => {
-    await recordAnalysisFailure('interview-123', 'LLM_TIMEOUT', 'Request timed out after 30s');
+    await recordAnalysisFailure(prisma, 'interview-123', 'LLM_TIMEOUT', 'Request timed out after 30s');
 
     const failures = await prisma.analysisFailure.findMany({
       where: { interviewId: 'interview-123' },
@@ -31,10 +31,10 @@ describe('Analysis Dead-Letter Service', () => {
 
   /** @test REQ-RELIABILITY-001 @intent verify failed analyses can be queried @covers AC-RELIABILITY-001-01 */
   it('returns only failed analyses for batch retry', async () => {
-    await recordAnalysisFailure('dl-retry-a', 'LLM_ERROR', 'Rate limited');
-    await recordAnalysisFailure('dl-retry-b', 'LLM_TIMEOUT', 'Timed out');
+    await recordAnalysisFailure(prisma, 'dl-retry-a', 'LLM_ERROR', 'Rate limited');
+    await recordAnalysisFailure(prisma, 'dl-retry-b', 'LLM_TIMEOUT', 'Timed out');
 
-    const failures = await getFailedAnalyses();
+    const failures = await getFailedAnalyses(prisma);
     const dlFailures = failures.filter((f) => f.interviewId.startsWith('dl-retry-'));
     expect(dlFailures).toHaveLength(2);
     expect(dlFailures.map((f) => f.interviewId)).toContain('dl-retry-a');
@@ -42,8 +42,8 @@ describe('Analysis Dead-Letter Service', () => {
   });
 
   it('does not record duplicate failures for same interview', async () => {
-    await recordAnalysisFailure('dl-dedup', 'LLM_ERROR', 'Error 1');
-    await recordAnalysisFailure('dl-dedup', 'LLM_ERROR', 'Error 2');
+    await recordAnalysisFailure(prisma, 'dl-dedup', 'LLM_ERROR', 'Error 1');
+    await recordAnalysisFailure(prisma, 'dl-dedup', 'LLM_ERROR', 'Error 2');
 
     const failures = await prisma.analysisFailure.findMany({
       where: { interviewId: 'dl-dedup' },

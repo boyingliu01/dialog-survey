@@ -1,4 +1,4 @@
-import { Marked } from 'marked';
+import { Marked, type Token } from 'marked';
 import { error } from './logger.js';
 
 const marked = new Marked({
@@ -10,7 +10,7 @@ const marked = new Marked({
 // marked@14 has no built-in sanitizer; we convert `html` block/inline tokens
 // to escaped text so they render visibly but never execute.
 marked.use({
-  walkTokens(token) {
+  walkTokens(token: Token) {
     if (token.type === 'html') {
       token.type = 'text' as 'html';
       token.text = escapeHtml(token.text ?? '');
