@@ -26,55 +26,70 @@ export class VolcengineLLM implements LLMService {
       messageCount: request.messages.length,
     });
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: request.model || this.model,
-        messages: request.messages,
-        temperature: request.temperature ?? 0.7,
-        max_tokens: request.max_tokens ?? 2000,
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
 
-    if (!response.ok) {
-      const errText = await response.text();
-      error('Volcengine LLM error', { status: response.status, body: errText });
-      throw new Error(`Volcengine LLM API error: ${response.status} - ${errText}`);
-    }
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: request.model || this.model,
+          messages: request.messages,
+          temperature: request.temperature ?? 0.7,
+          max_tokens: request.max_tokens ?? 2000,
+        }),
+        signal: controller.signal,
+      });
 
-    const data = (await response.json()) as {
-      choices?: Array<{
-        message?: { content?: string };
-        finish_reason?: string;
-      }>;
-      usage?: {
-        prompt_tokens?: number;
-        completion_tokens?: number;
+      if (!response.ok) {
+        const errText = await response.text();
+        error('Volcengine LLM error', { status: response.status, body: errText });
+        throw new Error(`Volcengine LLM API error: ${response.status} - ${errText}`);
+      }
+
+      const data = (await response.json()) as {
+        choices?: Array<{
+          message?: { content?: string };
+          finish_reason?: string;
+        }>;
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+        };
       };
-    };
 
-    const choice = data.choices?.[0];
-    const content = choice?.message?.content || '';
-    const finishReason = choice?.finish_reason || 'stop';
+      const choice = data.choices?.[0];
+      const content = choice?.message?.content || '';
+      const finishReason = choice?.finish_reason || 'stop';
 
-    info('Volcengine LLM response', {
-      contentLength: content.length,
-      finishReason,
-      usage: data.usage,
-    });
+      info('Volcengine LLM response', {
+        contentLength: content.length,
+        finishReason,
+        usage: data.usage,
+      });
 
-    return {
-      content,
-      finishReason,
-      usage: {
-        promptTokens: data.usage?.prompt_tokens || 0,
-        completionTokens: data.usage?.completion_tokens || 0,
-      },
-    };
+      return {
+        content,
+        finishReason,
+        usage: {
+          promptTokens: data.usage?.prompt_tokens || 0,
+          completionTokens: data.usage?.completion_tokens || 0,
+        },
+      };
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        error('Volcengine LLM request timed out after 30s');
+        throw new Error('Volcengine LLM request timed out after 30s');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   async embeddings(_text: string): Promise<number[]> {

@@ -69,6 +69,8 @@ model Message {
   createdAt     DateTime @default(now())
 
   interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
 }
 
 model Response {
@@ -81,6 +83,8 @@ model Response {
   createdAt    DateTime @default(now())
 
   interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
 }
 
 model Template {

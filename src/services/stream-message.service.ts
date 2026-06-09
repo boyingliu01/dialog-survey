@@ -4,6 +4,7 @@ import type { GraphResult } from '../core/graph.js';
 import type { InterviewState } from '../core/types/index.js';
 import { InterviewStateRepository } from '../repositories/interview-state.repository.js';
 import { TemplateRepository } from '../repositories/template.repository.js';
+import { getDb } from '../utils/db.js';
 import { error, info } from '../utils/logger.js';
 
 export interface StreamMessage {
@@ -36,7 +37,7 @@ export class StreamMessageService {
   private repo: InterviewStateRepository;
 
   constructor(repo?: InterviewStateRepository) {
-    this.repo = repo || new InterviewStateRepository();
+    this.repo = repo || new InterviewStateRepository(getDb());
   }
 
   parseStreamMessage(message: StreamMessage): ParsedStreamMessage | null {
@@ -211,9 +212,8 @@ export class StreamMessageService {
 
     // Resolve userName for personalization if not already in state
     if (!state.userName) {
-      const prisma = new PrismaClient();
       try {
-        // Check for any interview belonging to this user to find the planId
+        const prisma = getDb();
         const interview = await prisma.interview.findFirst({
           where: { userId: parsed.userId },
           select: { planId: true },
@@ -231,8 +231,6 @@ export class StreamMessageService {
         }
       } catch {
         // Silently fail userName resolution
-      } finally {
-        await prisma.$disconnect();
       }
     }
 
@@ -337,7 +335,7 @@ export class StreamMessageService {
   }
 
   private async resolveDefaultTemplateId(): Promise<string> {
-    const repo = new TemplateRepository();
+    const repo = new TemplateRepository(getDb());
     const templates = await repo.findAll();
     const published = templates.find((t) => t.status === 'PUBLISHED');
     if (published) return published.id;
@@ -414,7 +412,7 @@ export async function processStreamMessage(
   message: StreamMessage,
   prisma?: PrismaClient
 ): Promise<ProcessResult> {
-  const repo = new InterviewStateRepository(prisma);
+  const repo = new InterviewStateRepository(prisma ?? getDb());
   const service = new StreamMessageService(repo);
   return service.processStreamMessage(message);
 }

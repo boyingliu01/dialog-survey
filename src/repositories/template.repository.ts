@@ -3,8 +3,8 @@ import { PrismaClient, Template, TemplateStatus } from '@prisma/client';
 export class TemplateRepository {
   private readonly prisma: PrismaClient;
 
-  constructor(prisma?: PrismaClient) {
-    this.prisma = prisma || new PrismaClient();
+  constructor(prisma: PrismaClient) {
+    this.prisma = prisma;
   }
 
   async create(data: {

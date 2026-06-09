@@ -1,5 +1,6 @@
 import { TemplateRepository } from '../../repositories/template.repository.js';
-import { InterviewState, NodeOutput } from '../types/index.js';
+import { getDb } from '../../utils/db.js';
+import type { InterviewState, NodeOutput } from '../types/index.js';
 
 export interface TemplateContent {
   name: string;
@@ -38,7 +39,7 @@ export async function planningNode(
 }
 
 async function loadTemplateContent(templateId?: string): Promise<TemplateContent> {
-  const repo = new TemplateRepository();
+  const repo = new TemplateRepository(getDb());
 
   if (templateId) {
     const template = await repo.findById(templateId);

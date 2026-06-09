@@ -28,7 +28,7 @@ describe('Interview Plan API Endpoints', () => {
 
   beforeAll(async () => {
     fastify = Fastify({ logger: false });
-    await interviewPlanRoutes(fastify);
+    await interviewPlanRoutes(fastify, { prisma });
     await fastify.ready();
   });
 

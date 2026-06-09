@@ -1,4 +1,4 @@
-import { PlanStatus } from '@prisma/client';
+import { PlanStatus, PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
@@ -43,6 +43,10 @@ const remindSchema = z.object({
   interviewId: z.string().min(1).optional(),
 });
 
+interface InterviewPlanRoutesOptions {
+  prisma: PrismaClient;
+}
+
 function mapServiceErrorToStatus(err: unknown): { status: number; message: string } {
   if (err instanceof PlanNotFoundError || err instanceof InterviewNotFoundError) {
     return { status: 404, message: err.message };
@@ -57,8 +61,8 @@ function mapServiceErrorToStatus(err: unknown): { status: number; message: strin
   return { status: 500, message };
 }
 
-export async function interviewPlanRoutes(fastify: FastifyInstance) {
-  const planService = new InterviewPlanService();
+export async function interviewPlanRoutes(fastify: FastifyInstance, opts: InterviewPlanRoutesOptions) {
+  const planService = new InterviewPlanService(opts.prisma);
 
   fastify.post('/api/plans', async (request, _reply) => {
     const input = createPlanSchema.parse(request.body);

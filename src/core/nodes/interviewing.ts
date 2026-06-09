@@ -1,5 +1,6 @@
 import { TemplateRepository } from '../../repositories/template.repository.js';
 import { generateSmartResponse } from '../../services/followup.service.js';
+import { getDb } from '../../utils/db.js';
 import { info, warn } from '../../utils/logger.js';
 import type { InterviewState, NodeOutput } from '../types/index.js';
 
@@ -134,7 +135,7 @@ function containsMultipleQuestions(text: string): boolean {
 }
 
 async function loadTemplateContent(templateId?: string): Promise<TemplateContent> {
-  const repo = new TemplateRepository();
+  const repo = new TemplateRepository(getDb());
   if (templateId) {
     const template = await repo.findById(templateId);
     if (template) return JSON.parse(template.content) as TemplateContent;

@@ -117,7 +117,7 @@ export async function buildApp() {
 
   await fastify.register(healthRoutes, { prisma });
   await fastify.register(webhookRoutes);
-  await fastify.register(interviewPlanRoutes);
+  await fastify.register(interviewPlanRoutes, { prisma });
   await fastify.register(templateRoutes, { templateRepo, prisma });
   await fastify.register(analysisRoutes, { prisma });
   await fastify.register(adminTemplatesRoutes, { templateRepo, prisma });

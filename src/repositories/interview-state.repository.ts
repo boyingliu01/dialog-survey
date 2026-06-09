@@ -29,8 +29,8 @@ const MAX_RETRIES = 3;
 export class InterviewStateRepository {
   private prisma: PrismaClient;
 
-  constructor(prisma?: PrismaClient) {
-    this.prisma = prisma || new PrismaClient();
+  constructor(prisma: PrismaClient) {
+    this.prisma = prisma;
   }
 
   /**

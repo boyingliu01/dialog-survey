@@ -37,8 +37,8 @@ export interface ImportResult {
 export class InterviewPlanService {
   private prisma: PrismaClient;
 
-  constructor(prisma?: PrismaClient) {
-    this.prisma = prisma || new PrismaClient();
+  constructor(prisma: PrismaClient) {
+    this.prisma = prisma;
   }
 
   async createPlan(input: CreatePlanInput): Promise<string> {
