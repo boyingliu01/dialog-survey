@@ -233,6 +233,28 @@ Required env vars (see `.env.example`):
 
 ## Development Workflow
 
+### 全量测试前置条件（CRITICAL）
+
+**执行 `npx vitest --run` 全量回归测试之前，必须确保 PostgreSQL 数据库已启动。**
+
+项目中有大量集成测试依赖真实 Prisma 连接数据库。数据库未启动时，所有集成测试会以 `PrismaClientInitializationError` 失败（表现为 90+ 测试失败），这是环境问题而非代码问题。
+
+```bash
+# 检查数据库状态
+pg_isready
+# 输出: /var/run/postgresql:5432 - accepting connections → 已就绪
+
+# 启动数据库（任选一种）
+sudo systemctl start postgresql
+# 或
+sudo pg_ctlcluster 16 main start
+
+# 确认数据库可连接后再跑测试
+npx vitest --run
+```
+
+**判定规则**: 如果测试输出中出现 `PrismaClientInitializationError` 或 `ECONNREFUSED`，先检查数据库是否启动，不要盲目改代码。
+
 ### Commands
 
 | Command                 | Purpose                             |
