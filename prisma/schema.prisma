@@ -211,3 +211,15 @@ model AuditLog {
   ipAddress  String?
   createdAt  DateTime @default(now())
 }
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  keyHash   String   @unique
+  userId    String?
+  role      String   @default("user")
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime?
+
+  @@index([revoked])
+}

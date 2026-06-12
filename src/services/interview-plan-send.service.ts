@@ -2,7 +2,11 @@ import { PlanStatus, Prisma, SendStatus } from '@prisma/client';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import { error, info } from '../utils/logger.js';
 import { InterviewPlanServiceBase } from './interview-plan-base.service.js';
-import type { CreateAndPublishInput, InviteeData, ImportResult } from './interview-plan-base.service.js';
+import type {
+  CreateAndPublishInput,
+  ImportResult,
+  InviteeData,
+} from './interview-plan-base.service.js';
 import { parseInviteeText } from './interview-plan-base.service.js';
 
 export class InterviewPlanSendService extends InterviewPlanServiceBase {
@@ -11,7 +15,9 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
     const plan = await this.prisma.interviewPlan.findUnique({ where: { id: planId } });
     if (!plan) throw new Error(`Plan not found: ${planId}`);
     const existingUserIds = new Set(
-      (await this.prisma.interview.findMany({ where: { planId }, select: { userId: true } })).map((i) => i.userId)
+      (await this.prisma.interview.findMany({ where: { planId }, select: { userId: true } })).map(
+        (i) => i.userId
+      )
     );
     const uniqueInvitees = new Map<string, InviteeData>();
     for (const inv of invitees) uniqueInvitees.set(inv.userId, inv);
@@ -22,7 +28,12 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
         result.errors.push(`User ${invitee.userId} already exists in plan`);
         continue;
       }
-      interviews.push({ userId: invitee.userId, templateId: plan.templateId, planId: planId, status: 'PENDING' as const });
+      interviews.push({
+        userId: invitee.userId,
+        templateId: plan.templateId,
+        planId: planId,
+        status: 'PENDING' as const,
+      });
     }
     if (interviews.length > 0) {
       await this.prisma.interview.createMany({ data: interviews });
@@ -30,7 +41,11 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
     }
     await this.prisma.interviewPlan.update({
       where: { id: planId },
-      data: { inviteeData: Array.from(uniqueInvitees.values()) as unknown as Prisma.InputJsonValue, status: PlanStatus.READY, updatedBy: 'admin' },
+      data: {
+        inviteeData: Array.from(uniqueInvitees.values()) as unknown as Prisma.InputJsonValue,
+        status: PlanStatus.READY,
+        updatedBy: 'admin',
+      },
     });
     info('Invitees imported', { planId, success: result.success, failed: result.failed });
     return result;
