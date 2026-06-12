@@ -1,6 +1,7 @@
-import { InterviewStatus, PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import type { InterviewState } from '../core/types/index.js';
 import { error, info } from '../utils/logger.js';
+import { mapInterviewToInterviewState } from './interview-state-mapper.js';
 
 export class StatePersistenceError extends Error {
   constructor(
@@ -33,16 +34,11 @@ export class InterviewStateRepository {
     this.prisma = prisma || new PrismaClient();
   }
 
-  /**
-   * Save interview state with optimistic locking
-   * Uses version field to prevent dirty writes
-   */
   async saveState(options: SaveStateOptions, retryCount = 0): Promise<void> {
     const { interviewId, state, version } = options;
 
     try {
       await this.prisma.$transaction(async (tx) => {
-        // Check current version
         const interview = await tx.interview.findUnique({
           where: { id: interviewId },
         });
@@ -63,11 +59,10 @@ export class InterviewStateRepository {
           );
         }
 
-        // Update state with version increment
         await tx.interview.update({
           where: { id: interviewId, version },
           data: {
-            status: state.status as InterviewStatus,
+            status: state.status,
             currentQuestion: state.currentQuestion,
             followupCount: state.followupCount,
             version: { increment: 1 },
@@ -114,9 +109,6 @@ export class InterviewStateRepository {
     }
   }
 
-  /**
-   * Load interview state from database
-   */
   async loadState(options: LoadStateOptions): Promise<InterviewState | null> {
     const { interviewId, userId } = options;
 
@@ -133,30 +125,7 @@ export class InterviewStateRepository {
         return null;
       }
 
-      return {
-        userId: interview.userId,
-        templateId: interview.templateId,
-        interviewId: interview.id,
-        status: interview.status as InterviewState['status'],
-        messages: interview.messages.map((m) => ({
-          role: m.role as 'user' | 'assistant' | 'system',
-          content: m.content,
-          timestamp: m.createdAt,
-        })),
-        currentQuestion: interview.currentQuestion,
-        followupCount: interview.followupCount,
-        maxFollowups: interview.maxFollowups,
-        responses: interview.responses.map((r) => ({
-          questionId: r.questionId,
-          content: r.content,
-          isFollowup: r.isFollowup,
-        })),
-        reportGenerated: !!interview.reportPath,
-        version: interview.version,
-        originalVersion: interview.version,
-        pendingMessages: [],
-        pendingResponses: [],
-      };
+      return mapInterviewToInterviewState(interview);
     } catch (err) {
       error('Failed to load state', {
         interviewId,
@@ -166,10 +135,6 @@ export class InterviewStateRepository {
     }
   }
 
-  /**
-   * Load full state for multi-turn conversation with version tracking
-   * Initializes pendingMessages and pendingResponses arrays
-   */
   async loadFullState(interviewId: string, userId: string): Promise<InterviewState | null> {
     try {
       const interview = await this.prisma.interview.findUnique({
@@ -184,30 +149,7 @@ export class InterviewStateRepository {
         return null;
       }
 
-      return {
-        userId: interview.userId,
-        templateId: interview.templateId,
-        interviewId: interview.id,
-        status: interview.status as InterviewState['status'],
-        messages: interview.messages.map((m) => ({
-          role: m.role as 'user' | 'assistant' | 'system',
-          content: m.content,
-          timestamp: m.createdAt,
-        })),
-        currentQuestion: interview.currentQuestion,
-        followupCount: interview.followupCount,
-        maxFollowups: interview.maxFollowups,
-        responses: interview.responses.map((r) => ({
-          questionId: r.questionId,
-          content: r.content,
-          isFollowup: r.isFollowup,
-        })),
-        reportGenerated: !!interview.reportPath,
-        version: interview.version,
-        originalVersion: interview.version,
-        pendingMessages: [],
-        pendingResponses: [],
-      };
+      return mapInterviewToInterviewState(interview);
     } catch (err) {
       error('Failed to load full state', {
         interviewId,
@@ -217,11 +159,6 @@ export class InterviewStateRepository {
     }
   }
 
-  /**
-   * Save full state with pending messages/responses in atomic transaction
-   * Uses originalVersion for optimistic locking check
-   * Returns new version after save
-   */
   async saveFullState(
     interviewId: string,
     state: InterviewState
@@ -273,7 +210,7 @@ export class InterviewStateRepository {
         const updated = await tx.interview.update({
           where: { id: interviewId, version: state.originalVersion },
           data: {
-            status: state.status as InterviewStatus,
+            status: state.status,
             currentQuestion: state.currentQuestion,
             followupCount: state.followupCount,
             version: { increment: 1 },
@@ -311,9 +248,6 @@ export class InterviewStateRepository {
     }
   }
 
-  /**
-   * Create new interview with initial state
-   */
   async createInterview(userId: string, templateId: string): Promise<string> {
     const interview = await this.prisma.interview.create({
       data: {
@@ -326,9 +260,6 @@ export class InterviewStateRepository {
     return interview.id;
   }
 
-  /**
-   * Get interview version for optimistic locking
-   */
   async getVersion(interviewId: string): Promise<number> {
     const interview = await this.prisma.interview.findUnique({
       where: { id: interviewId },
@@ -337,10 +268,6 @@ export class InterviewStateRepository {
     return interview?.version || 0;
   }
 
-  /**
-   * Find active interview for a user (for multi-turn conversation)
-   * Returns the most recent ACTIVE/WAITING/PENDING interview
-   */
   async findActiveInterview(userId: string): Promise<InterviewState | null> {
     const interview = await this.prisma.interview.findFirst({
       where: {
@@ -358,30 +285,7 @@ export class InterviewStateRepository {
       return null;
     }
 
-    return {
-      userId: interview.userId,
-      templateId: interview.templateId,
-      interviewId: interview.id,
-      status: interview.status as InterviewState['status'],
-      messages: interview.messages.map((m) => ({
-        role: m.role as 'user' | 'assistant' | 'system',
-        content: m.content,
-        timestamp: m.createdAt,
-      })),
-      currentQuestion: interview.currentQuestion,
-      followupCount: interview.followupCount,
-      maxFollowups: interview.maxFollowups,
-      responses: interview.responses.map((r) => ({
-        questionId: r.questionId,
-        content: r.content,
-        isFollowup: r.isFollowup,
-      })),
-      reportGenerated: !!interview.reportPath,
-      version: interview.version,
-      originalVersion: interview.version,
-      pendingMessages: [],
-      pendingResponses: [],
-    };
+    return mapInterviewToInterviewState(interview);
   }
 
   async disconnect(): Promise<void> {
