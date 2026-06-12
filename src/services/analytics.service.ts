@@ -207,9 +207,7 @@ export class AnalyticsService {
     return `${date.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
   }
 
-  private computeStatusDistribution(
-    interviews: Array<{ status: string }>
-  ): StatusDistribution {
+  private computeStatusDistribution(interviews: Array<{ status: string }>): StatusDistribution {
     const allStatuses = ['PENDING', 'ACTIVE', 'WAITING', 'COMPLETED', 'CANCELLED'] as const;
     const statusDistribution: StatusDistribution = {};
     for (const status of allStatuses) {
