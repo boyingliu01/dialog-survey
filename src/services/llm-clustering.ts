@@ -36,7 +36,7 @@ ${quotes.map((q, i) => `${i + 1}. "${q}"`).join('\n')}
 
   try {
     const response = await llm.chat({
-      model: process.env.VOLCENGINE_MODEL || 'deepseek-v3.2',
+      model: process.env.LLM_MODEL || process.env.VOLCENGINE_MODEL || 'deepseek-v3.2',
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 2000,
       temperature: 0.1,
@@ -70,7 +70,7 @@ ${allEmergents.join('\n')}
 
   try {
     const response = await llm.chat({
-      model: process.env.VOLCENGINE_MODEL || 'deepseek-v3.2',
+      model: process.env.LLM_MODEL || process.env.VOLCENGINE_MODEL || 'deepseek-v3.2',
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 1500,
       temperature: 0.1,
