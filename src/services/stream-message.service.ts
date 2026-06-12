@@ -5,30 +5,12 @@ import type { InterviewState } from '../core/types/index.js';
 import { InterviewStateRepository } from '../repositories/interview-state.repository.js';
 import { TemplateRepository } from '../repositories/template.repository.js';
 import { error, info } from '../utils/logger.js';
-
-export interface StreamMessage {
-  specVersion: string;
-  type: string;
-  headers: {
-    topic: string;
-    messageId: string;
-    time: string;
-  };
-  data: string;
-}
-
-export interface ParsedStreamMessage {
-  userId: string;
-  content: string;
-  sessionWebhook: string;
-  messageId: string;
-}
-
-export interface ProcessResult {
-  success: boolean;
-  response?: string;
-  error?: string;
-}
+import {
+  parseStreamMessage,
+  sendReply as sendReplyUnsafe,
+  isAllowedWebhookUrl,
+} from './stream-message-utils.js';
+export type { StreamMessage, ParsedStreamMessage, ProcessResult } from './stream-message-utils.js';
 
 const MAX_RETRIES = 3;
 
@@ -39,125 +21,21 @@ export class StreamMessageService {
     this.repo = repo || new InterviewStateRepository();
   }
 
-  parseStreamMessage(message: StreamMessage): ParsedStreamMessage | null {
-    try {
-      info('Parsing stream message', {
-        dataLength: message.data?.length,
-        hasData: !!message.data,
-      });
-
-      const data = JSON.parse(message.data);
-
-      info('Parsed outer data', {
-        hasSenderStaffId: !!data.senderStaffId,
-        hasText: !!data.text,
-        hasContent: !!data.content,
-        hasSessionWebhook: !!data.sessionWebhook,
-        msgtype: data.msgtype,
-      });
-
-      const content = data.text?.content || data.content || '';
-
-      info('Extracted content', {
-        contentLength: content?.length,
-        contentPreview: content?.substring(0, 50),
-      });
-
-      return {
-        userId: data.senderStaffId || '',
-        content: content,
-        sessionWebhook: data.sessionWebhook || '',
-        messageId: message.headers.messageId,
-      };
-    } catch (e) {
-      error('Failed to parse stream message', {
-        error: e instanceof Error ? e.message : String(e),
-        rawData: message.data?.substring(0, 500),
-      });
-      return null;
-    }
-  }
-
-  /** Allowed DingTalk hostnames for SSRF protection */
-  private static readonly ALLOWED_WEBHOOK_HOSTS = new Set([
-    'oapi.dingtalk.com',
-    'api.dingtalk.com',
-    'router.dingtalk.com',
-  ]);
-
-  /**
-   * Validates that a webhook URL is from an allowed DingTalk hostname.
-   * Protects against SSRF attacks via malicious URLs (e.g., file:///, http://169.254169.254/, etc.)
-   */
-  private static isAllowedWebhookUrl(url: string): boolean {
-    try {
-      const parsed = new URL(url);
-      return StreamMessageService.ALLOWED_WEBHOOK_HOSTS.has(parsed.hostname);
-    } catch {
-      return false;
-    }
-  }
+  parseStreamMessage = parseStreamMessage;
 
   async sendReply(sessionWebhook: string, content: string): Promise<boolean> {
-    if (!sessionWebhook) {
-      error('No sessionWebhook provided');
-      return false;
-    }
-
-    if (!StreamMessageService.isAllowedWebhookUrl(sessionWebhook)) {
+    if (!isAllowedWebhookUrl(sessionWebhook)) {
       error('Webhook URL hostname not in allowlist', { url: sessionWebhook });
       return false;
     }
-
-    info('Sending reply', {
-      webhook: sessionWebhook,
-      contentLength: content.length,
-      contentPreview: content.substring(0, 50),
-    });
-
-    try {
-      const body = {
-        msgtype: 'text',
-        text: { content },
-      };
-
-      const response = await fetch(sessionWebhook, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      info('Reply response', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok,
-      });
-
-      if (!response.ok) {
-        const responseText = await response.text();
-        error('Failed to send reply', {
-          status: response.status,
-          statusText: response.statusText,
-          webhook: sessionWebhook,
-          responseText: responseText.substring(0, 200),
-        });
-        return false;
-      }
-
-      info('Reply sent successfully', {
-        webhook: sessionWebhook,
-        contentLength: content.length,
-      });
-      return true;
-    } catch (e) {
-      const errMsg = e instanceof Error ? e.message : String(e);
-      error('Failed to send reply', { error: errMsg });
-      return false;
-    }
+    return sendReplyUnsafe(sessionWebhook, content);
   }
 
-  async processStreamMessage(message: StreamMessage, retryCount = 0): Promise<ProcessResult> {
-    const parsed = this.parseStreamMessage(message);
+  async processStreamMessage(
+    message: { data: string; headers: { messageId: string } },
+    retryCount = 0
+  ): Promise<{ success: boolean; response?: string; error?: string }> {
+    const parsed = parseStreamMessage(message as import('./stream-message-utils.js').StreamMessage);
 
     if (!parsed) {
       error('Message parse failed - invalid format', {
@@ -209,11 +87,9 @@ export class StreamMessageService {
       isVoice: false,
     });
 
-    // Resolve userName for personalization if not already in state
     if (!state.userName) {
       const prisma = new PrismaClient();
       try {
-        // Check for any interview belonging to this user to find the planId
         const interview = await prisma.interview.findFirst({
           where: { userId: parsed.userId },
           select: { planId: true },
@@ -243,7 +119,6 @@ export class StreamMessageService {
     });
 
     const nextState = graphResult.nextState;
-    // Persist only newly added responses to the Response table (diff against what was loaded from DB)
     const existingCount = state.responses.length;
     const newResponses = nextState.responses.slice(existingCount);
     if (newResponses.length > 0) {
@@ -304,12 +179,12 @@ export class StreamMessageService {
   }
 
   private async processStreamMessageWithState(
-    message: StreamMessage,
+    message: { data: string; headers: { messageId: string } },
     graphResult: GraphResult,
     state: InterviewState,
     retryCount: number
-  ): Promise<ProcessResult> {
-    const parsed = this.parseStreamMessage(message);
+  ): Promise<{ success: boolean; response?: string; error?: string }> {
+    const parsed = parseStreamMessage(message as import('./stream-message-utils.js').StreamMessage);
     if (!parsed) {
       return { success: false, error: 'Invalid message format' };
     }
@@ -345,75 +220,13 @@ export class StreamMessageService {
   }
 }
 
-export function parseStreamMessage(message: StreamMessage): ParsedStreamMessage | null {
-  try {
-    const data = JSON.parse(message.data);
-    const content = data.text?.content || data.content || '';
-
-    return {
-      userId: data.senderStaffId || '',
-      content: content,
-      sessionWebhook: data.sessionWebhook || '',
-      messageId: message.headers.messageId,
-    };
-  } catch (e) {
-    error('Failed to parse stream message', {
-      error: e instanceof Error ? e.message : String(e),
-    });
-    return null;
-  }
-}
-
-export async function sendReply(sessionWebhook: string, content: string): Promise<boolean> {
-  if (!sessionWebhook) {
-    error('No sessionWebhook provided');
-    return false;
-  }
-
-  info('Sending reply (exported)', {
-    webhook: sessionWebhook,
-    contentLength: content.length,
-  });
-
-  try {
-    const body = {
-      msgtype: 'text',
-      text: { content },
-    };
-
-    const response = await fetch(sessionWebhook, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const responseText = await response.text();
-      error('Failed to send reply', {
-        status: response.status,
-        statusText: response.statusText,
-        webhook: sessionWebhook,
-        responseText: responseText.substring(0, 200),
-      });
-      return false;
-    }
-
-    info('Reply sent', {
-      webhook: sessionWebhook,
-      contentLength: content.length,
-    });
-    return true;
-  } catch (e) {
-    const errMsg = e instanceof Error ? e.message : String(e);
-    error('Failed to send reply', { error: errMsg });
-    return false;
-  }
-}
+// Backwards-compatible exports
+export { parseStreamMessage, sendReply, isAllowedWebhookUrl } from './stream-message-utils.js';
 
 export async function processStreamMessage(
-  message: StreamMessage,
+  message: import('./stream-message-utils.js').StreamMessage,
   prisma?: PrismaClient
-): Promise<ProcessResult> {
+): Promise<{ success: boolean; response?: string; error?: string }> {
   const repo = new InterviewStateRepository(prisma);
   const service = new StreamMessageService(repo);
   return service.processStreamMessage(message);

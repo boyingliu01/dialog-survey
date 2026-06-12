@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderMarkdown } from '../src/utils/markdown.js';
+
+vi.mock('../src/utils/logger.js', () => ({
+  info: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+  debug: vi.fn(),
+}));
 
 describe('renderMarkdown', () => {
   it('should return empty string for empty input', () => {

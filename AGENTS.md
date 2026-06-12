@@ -366,6 +366,7 @@ npx prisma studio    # Open Prisma Studio GUI
 | Hardcoded model names         | Avoid     | Use `DEFAULT_MODEL` constant     |
 | HTMX swap shell URL into `#main-content` | **ERROR** | Causes nested page bug. Use `/admin/content/*` fragment URLs |
 | `new PrismaClient()` in `src/api/`        | **ERROR** | API layer must receive PrismaClient via DI (Fastify `register` opts) from `server.ts`. Routes don't own data-access lifecycle. |
+| `prisma.$MODEL.$METHOD()` in `src/api/`   | **ERROR** | ast-grep rule `.ast-grep/rules/no-raw-prisma-in-api.yml` (`npm run lint:prisma`). Route through repositories/services. |
 | Public `prisma` getter on service classes | **ERROR** | Encapsulate data access behind explicit service methods (discriminated unions for outcomes). Never expose raw PrismaClient. |
 
 **Enforcement**: Biome linter catches `console.log` and `any` at commit time.

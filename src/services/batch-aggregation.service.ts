@@ -22,9 +22,6 @@ export interface Checkpoint {
   emergents?: unknown[];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type PipelineStep<T extends unknown[] = unknown[], R = unknown> = (...args: T) => Promise<R>;
-
 export function shouldSkipStep(
   checkpoint: Checkpoint | null | undefined,
   currentStep: number
@@ -40,17 +37,16 @@ export function createCheckpoint(step: number, data?: Record<string, unknown>): 
   };
 }
 
-export function computeDimensionStats(
-  dimensionTags: Array<
-    Array<{
-      dimensionId: string;
-      label: string;
-      sentiment: string;
-      quotes: string[];
-    }>
-  >,
-  totalInterviews: number
-): DimensionStats {
+type DimensionEntry = {
+  dimensionId: string;
+  label: string;
+  sentiment: string;
+  quotes: string[];
+};
+
+function collectDimensionSentiments(
+  dimensionTags: DimensionEntry[][]
+): Map<string, { label: string; sentiments: string[] }> {
   const dimensionMap = new Map<string, { label: string; sentiments: string[] }>();
 
   for (const tags of dimensionTags) {
@@ -58,36 +54,63 @@ export function computeDimensionStats(
     for (const tag of tags) {
       if (!seenDimensions.has(tag.dimensionId)) {
         seenDimensions.add(tag.dimensionId);
-        const entry = dimensionMap.get(tag.dimensionId) ?? {
-          label: tag.label,
-          sentiments: [],
-        };
         if (!dimensionMap.has(tag.dimensionId)) {
-          dimensionMap.set(tag.dimensionId, entry);
+          dimensionMap.set(tag.dimensionId, {
+            label: tag.label,
+            sentiments: [],
+          });
         }
-        entry.sentiments.push(tag.sentiment);
+        const entry = dimensionMap.get(tag.dimensionId);
+        if (entry) {
+          entry.sentiments.push(tag.sentiment);
+        }
       }
     }
   }
 
+  return dimensionMap;
+}
+
+function countSentiments(sentiments: string[], target: string): number {
+  let count = 0;
+  for (const s of sentiments) {
+    if (s === target) count++;
+  }
+  return count;
+}
+
+function buildDimensionStat(
+  dimensionId: string,
+  data: { label: string; sentiments: string[] },
+  totalInterviews: number
+): DimensionStat {
+  const mentionCount = data.sentiments.length;
+  const positive = countSentiments(data.sentiments, 'positive');
+  const negative = countSentiments(data.sentiments, 'negative');
+  const neutral = countSentiments(data.sentiments, 'neutral');
+
+  return {
+    dimensionId,
+    label: data.label,
+    mentionRate: totalInterviews > 0 ? mentionCount / totalInterviews : 0,
+    sentimentBreakdown: {
+      positive: mentionCount > 0 ? positive / mentionCount : 0,
+      negative: mentionCount > 0 ? negative / mentionCount : 0,
+      neutral: mentionCount > 0 ? neutral / mentionCount : 0,
+    },
+    totalMentions: mentionCount,
+  };
+}
+
+export function computeDimensionStats(
+  dimensionTags: DimensionEntry[][],
+  totalInterviews: number
+): DimensionStats {
+  const dimensionMap = collectDimensionSentiments(dimensionTags);
+
   const dimensions: DimensionStat[] = [];
   for (const [dimensionId, data] of dimensionMap) {
-    const mentionCount = data.sentiments.length;
-    const positive = data.sentiments.filter((s) => s === 'positive').length;
-    const negative = data.sentiments.filter((s) => s === 'negative').length;
-    const neutral = data.sentiments.filter((s) => s === 'neutral').length;
-
-    dimensions.push({
-      dimensionId,
-      label: data.label,
-      mentionRate: totalInterviews > 0 ? mentionCount / totalInterviews : 0,
-      sentimentBreakdown: {
-        positive: mentionCount > 0 ? positive / mentionCount : 0,
-        negative: mentionCount > 0 ? negative / mentionCount : 0,
-        neutral: mentionCount > 0 ? neutral / mentionCount : 0,
-      },
-      totalMentions: mentionCount,
-    });
+    dimensions.push(buildDimensionStat(dimensionId, data, totalInterviews));
   }
 
   dimensions.sort((a, b) => b.mentionRate - a.mentionRate);
