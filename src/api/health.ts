@@ -45,14 +45,14 @@ async function checkLLM(): Promise<{
   }
 
   try {
-    const apiKey = process.env.VOLCENGINE_API_KEY;
+    const apiKey = process.env.LLM_API_KEY || process.env.VOLCENGINE_API_KEY;
     if (!apiKey) {
       return { status: 'degraded', error: 'API key not configured' };
     }
 
     const baseUrl =
-      process.env.VOLCENGINE_BASE_URL || 'https://ark.cn-beijing.volces.com/api/coding';
-    const model = process.env.VOLCENGINE_MODEL || 'deepseek-v3.2';
+      process.env.LLM_BASE_URL || process.env.VOLCENGINE_BASE_URL || 'https://ark.cn-beijing.volces.com/api/coding';
+    const model = process.env.LLM_MODEL || process.env.VOLCENGINE_MODEL || 'deepseek-v3.2';
 
     const start = Date.now();
     const response = await fetch(
