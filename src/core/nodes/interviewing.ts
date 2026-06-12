@@ -3,6 +3,9 @@ import { generateSmartResponse } from '../../services/followup.service.js';
 import { info, warn } from '../../utils/logger.js';
 import type { InterviewState, NodeOutput } from '../types/index.js';
 
+type ResponseEntry = { questionId: string; content: string; isFollowup: boolean };
+type NewResponses = ResponseEntry[];
+
 export interface TemplateContent {
   name: string;
   description?: string;
@@ -12,103 +15,86 @@ export interface TemplateContent {
   llmPromptTemplate?: string;
 }
 
-export async function interviewingNode(
+interface SmartResult {
+  action: string;
+  response: string;
+  shouldEndInterview: boolean;
+}
+
+function buildClosingMessage(closingMessage: string | undefined): string {
+  return closingMessage || '访谈已完成，感谢您的参与！';
+}
+
+function handleSmartResult(
+  smartResult: SmartResult,
   state: InterviewState,
-  input: { content: string }
-): Promise<Partial<InterviewState> & NodeOutput> {
-  const content = await loadTemplateContent(state.templateId);
-  const currentQ = state.currentQuestion;
-  const currentQuestion = content.questions[currentQ] || '请根据用户的回答进行追问或总结。';
-  const hasQuestions = content.questions.length > 0;
-  const isLastQuestion = hasQuestions ? currentQ >= content.questions.length - 1 : true;
+  content: TemplateContent,
+  currentQ: number,
+  newResponses: NewResponses
+): (Partial<InterviewState> & NodeOutput) | null {
+  if (smartResult.shouldEndInterview) {
+    return {
+      responses: newResponses,
+      status: 'COMPLETED',
+      shouldContinue: false,
+      response: smartResult.response,
+    };
+  }
 
-  const newResponses = [
-    ...state.responses,
-    { questionId: `q${currentQ}`, content: input.content, isFollowup: false },
-  ];
+  if (smartResult.action === 'FOLLOWUP') {
+    return {
+      responses: newResponses,
+      followupCount: state.followupCount + 1,
+      shouldContinue: true,
+      response: smartResult.response,
+    };
+  }
 
-  try {
-    const smartResult = await generateSmartResponse(
-      state,
-      input.content,
-      currentQuestion,
-      content.llmPromptTemplate,
-      isLastQuestion
-    );
+  if (smartResult.action === 'STAY') {
+    return { responses: newResponses, shouldContinue: true, response: smartResult.response };
+  }
 
-    info('Smart response generated', {
-      currentQ,
-      action: smartResult.action,
-      response: smartResult.response.substring(0, 50),
+  const nextQuestion = content.questions[currentQ + 1];
+  const isLastQuestion = currentQ >= content.questions.length - 1;
+
+  if (containsMultipleQuestions(smartResult.response)) {
+    warn('LLM response contains multiple questions. Removing extra text.', {
+      text: smartResult.response.substring(0, 80),
     });
-
-    if (smartResult.shouldEndInterview) {
-      return {
-        responses: newResponses,
-        status: 'COMPLETED',
-        shouldContinue: false,
-        response: smartResult.response,
-      };
-    }
-
-    if (smartResult.action === 'FOLLOWUP') {
-      return {
-        responses: newResponses,
-        followupCount: state.followupCount + 1,
-        shouldContinue: true,
-        response: smartResult.response,
-      };
-    }
-
-    if (smartResult.action === 'STAY') {
-      return { responses: newResponses, shouldContinue: true, response: smartResult.response };
-    }
-
-    const nextQuestion = content.questions[currentQ + 1];
-
-    // Guard: ensure one question at a time
-    if (containsMultipleQuestions(smartResult.response)) {
-      warn('LLM response contains multiple questions. Removing extra text.', {
-        text: smartResult.response.substring(0, 80),
-      });
-      // Split on the first question mark and keep the text before it
-      const firstSentence = smartResult.response.split(/[?？]/)[0].trim();
-      return {
-        responses: newResponses,
-        currentQuestion: currentQ + 1,
-        shouldContinue: !!nextQuestion,
-        response: `${firstSentence}\n\n${isLastQuestion ? content.closingMessage || '访谈已完成，感谢您的参与！' : nextQuestion}`,
-      };
-    }
-
-    if (isLastQuestion && smartResult.response) {
-      const closing =
-        content.closingMessage ||
-        '非常感谢您的分享！这些信息对我们非常有价值。访谈到此结束，祝您工作顺利！';
-      return {
-        responses: newResponses,
-        currentQuestion: currentQ + 1,
-        shouldContinue: false,
-        response: `${smartResult.response}\n\n${closing}`,
-      };
-    }
-
+    const firstSentence = smartResult.response.split(/[?？]/)[0].trim();
     return {
       responses: newResponses,
       currentQuestion: currentQ + 1,
       shouldContinue: !!nextQuestion,
-      response: smartResult.response ? `${smartResult.response}\n\n${nextQuestion}` : nextQuestion,
+      response: `${firstSentence}\n\n${isLastQuestion ? content.closingMessage || buildClosingMessage(content.closingMessage) : nextQuestion}`,
     };
-  } catch (e) {
-    info('Smart response generation failed, falling back to next question', {
-      error: e instanceof Error ? e.message : String(e),
-    });
   }
 
+  if (isLastQuestion && smartResult.response) {
+    const closing =
+      content.closingMessage ||
+      '非常感谢您的分享！这些信息对我们非常有价值。访谈到此结束，祝您工作顺利！';
+    return {
+      responses: newResponses,
+      currentQuestion: currentQ + 1,
+      shouldContinue: false,
+      response: `${smartResult.response}\n\n${closing}`,
+    };
+  }
+
+  return null;
+}
+
+function buildFallbackResponse(
+  content: TemplateContent,
+  currentQ: number,
+  newResponses: NewResponses
+): Partial<InterviewState> & NodeOutput {
   const nextQuestion = content.questions[currentQ + 1];
+  const isLastQuestion = currentQ >= content.questions.length - 1;
 
   if (isLastQuestion) {
-    const closing = content.closingMessage || '访谈已完成，感谢您的参与！';
+    const closing = buildClosingMessage(content.closingMessage);
     return {
       responses: newResponses,
       currentQuestion: currentQ + 1,
@@ -123,6 +109,53 @@ export async function interviewingNode(
     shouldContinue: !!nextQuestion,
     response: nextQuestion || '访谈已完成，非常感谢您拨冗参与！',
   };
+}
+
+export async function interviewingNode(
+  state: InterviewState,
+  input: { content: string }
+): Promise<Partial<InterviewState> & NodeOutput> {
+  const content = await loadTemplateContent(state.templateId);
+  const currentQ = state.currentQuestion;
+  const currentQuestion = content.questions[currentQ] || '请根据用户的回答进行追问或总结。';
+
+  const newResponses = [
+    ...state.responses,
+    { questionId: `q${currentQ}`, content: input.content, isFollowup: false },
+  ];
+
+  try {
+    const smartResult = await generateSmartResponse(
+      state,
+      input.content,
+      currentQuestion,
+      content.llmPromptTemplate,
+      currentQ >= content.questions.length - 1
+    );
+
+    info('Smart response generated', {
+      currentQ,
+      action: smartResult.action,
+      response: smartResult.response.substring(0, 50),
+    });
+
+    const handled = handleSmartResult(smartResult, state, content, currentQ, newResponses);
+    if (handled) return handled;
+
+    const nextQuestion = content.questions[currentQ + 1];
+    return {
+      responses: newResponses,
+      currentQuestion: currentQ + 1,
+      shouldContinue: !!nextQuestion,
+      response: smartResult.response ? `${smartResult.response}\n\n${nextQuestion}` : nextQuestion,
+    };
+  } catch (e) {
+    info('Smart response generation failed, falling back to next question', {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+
+  return buildFallbackResponse(content, currentQ, newResponses);
 }
 
 /**

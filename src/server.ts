@@ -14,7 +14,11 @@ import { interviewPlanRoutes } from './api/plans.js';
 import { templateRoutes } from './api/templates.js';
 import { webhookRoutes } from './api/webhook.js';
 import { DingTalkStreamClient } from './integrations/dingtalk/stream-client.js';
+import { InterviewRepository } from './repositories/interview.repository.js';
 import { TemplateRepository } from './repositories/template.repository.js';
+import { AnalysisService } from './services/analysis.service.js';
+import { AnalyticsService } from './services/analytics.service.js';
+import { InterviewPlanService } from './services/interview-plan.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
 import { error, info, warn } from './utils/logger.js';
 import { renderMarkdown } from './utils/markdown.js';
@@ -24,6 +28,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const DB_CHECK_TIMEOUT_MS = 5000;
+const NODE_ENV = process.env.NODE_ENV || 'development';
+const LOG_LEVEL = process.env.LOG_LEVEL || (NODE_ENV === 'production' ? 'info' : 'debug');
 
 async function checkDatabaseConnection(): Promise<boolean> {
   const prisma = new PrismaClient();
@@ -49,16 +55,26 @@ async function checkDatabaseConnection(): Promise<boolean> {
 }
 
 export async function buildApp() {
-  const fastify = Fastify({
-    logger: {
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          translateTime: 'HH:MM:ss Z',
-          ignore: 'pid,hostname',
+  const isProduction = NODE_ENV === 'production';
+
+  const loggerConfig = isProduction
+    ? {
+        level: LOG_LEVEL,
+        transport: undefined,
+      }
+    : {
+        level: LOG_LEVEL,
+        transport: {
+          target: 'pino-pretty',
+          options: {
+            translateTime: 'HH:MM:ss Z',
+            ignore: 'pid,hostname',
+          },
         },
-      },
-    },
+      };
+
+  const fastify = Fastify({
+    logger: loggerConfig,
   });
 
   // Security: limit content-type parsing to known safe types (XML bombs, CSV injection).
@@ -112,6 +128,10 @@ export async function buildApp() {
 
   const prisma = new PrismaClient();
   const templateRepo = new TemplateRepository(prisma);
+  const interviewPlanService = new InterviewPlanService(prisma);
+  const interviewRepo = new InterviewRepository(prisma);
+  const analysisService = new AnalysisService(prisma);
+  const analyticsService = new AnalyticsService(prisma);
 
   await securityMiddleware(fastify, prisma);
 
@@ -120,7 +140,13 @@ export async function buildApp() {
   await fastify.register(interviewPlanRoutes);
   await fastify.register(templateRoutes, { templateRepo, prisma });
   await fastify.register(analysisRoutes, { prisma });
-  await fastify.register(adminTemplatesRoutes, { templateRepo, prisma });
+  await fastify.register(adminTemplatesRoutes, {
+    templateRepo,
+    interviewPlanService,
+    interviewRepo,
+    analysisService,
+    analyticsService,
+  });
 
   return fastify;
 }

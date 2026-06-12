@@ -207,6 +207,39 @@ export class AnalyticsService {
     return `${date.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
   }
 
+  private computeStatusDistribution(
+    interviews: Array<{ status: string }>
+  ): StatusDistribution {
+    const allStatuses = ['PENDING', 'ACTIVE', 'WAITING', 'COMPLETED', 'CANCELLED'] as const;
+    const statusDistribution: StatusDistribution = {};
+    for (const status of allStatuses) {
+      statusDistribution[status] = 0;
+    }
+    for (const interview of interviews) {
+      statusDistribution[interview.status] = (statusDistribution[interview.status] ?? 0) + 1;
+    }
+    return statusDistribution;
+  }
+
+  private computeAverageDuration(
+    interviews: Array<{ status: string; startedAt: Date | null; completedAt: Date | null }>
+  ): number {
+    let totalMinutes = 0;
+    let durationCount = 0;
+    for (const interview of interviews) {
+      if (interview.status === 'COMPLETED' && interview.startedAt && interview.completedAt) {
+        const diffMs = interview.completedAt.getTime() - interview.startedAt.getTime();
+        totalMinutes += diffMs / (1000 * 60);
+        durationCount++;
+      }
+    }
+    return durationCount > 0 ? Math.round(totalMinutes / durationCount) : 0;
+  }
+
+  private computeCompletionRate(total: number, completed: number): number {
+    return total > 0 ? Math.round((completed / total) * 100) : 0;
+  }
+
   async getPlanStats(planId: string): Promise<PlanStats | null> {
     try {
       const plan = await this.prisma.interviewPlan.findUnique({
@@ -228,31 +261,11 @@ export class AnalyticsService {
         return null;
       }
 
-      const allStatuses = ['PENDING', 'ACTIVE', 'WAITING', 'COMPLETED', 'CANCELLED'];
-      const statusDistribution: StatusDistribution = {};
-      for (const status of allStatuses) {
-        statusDistribution[status] = 0;
-      }
-
-      let totalMinutes = 0;
-      let durationCount = 0;
-
-      for (const interview of plan.interviews) {
-        statusDistribution[interview.status] = (statusDistribution[interview.status] ?? 0) + 1;
-
-        if (interview.status === 'COMPLETED' && interview.startedAt && interview.completedAt) {
-          const diffMs = interview.completedAt.getTime() - interview.startedAt.getTime();
-          totalMinutes += diffMs / (1000 * 60);
-          durationCount++;
-        }
-      }
-
+      const statusDistribution = this.computeStatusDistribution(plan.interviews);
+      const averageDurationMinutes = this.computeAverageDuration(plan.interviews);
       const totalInterviews = plan.interviews.length;
       const completedCount = statusDistribution.COMPLETED ?? 0;
-      const completionRate =
-        totalInterviews > 0 ? Math.round((completedCount / totalInterviews) * 100) : 0;
-      const averageDurationMinutes =
-        durationCount > 0 ? Math.round(totalMinutes / durationCount) : 0;
+      const completionRate = this.computeCompletionRate(totalInterviews, completedCount);
 
       return {
         planId: plan.id,
