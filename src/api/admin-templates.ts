@@ -28,9 +28,7 @@ const updateTemplateSchema = z.object({
 });
 const versionSchema = z.object({ version: z.coerce.number().int().positive() });
 
-function extractStructuredQuestions(
-  questionsObj: Record<string, { text: string }>
-): string[] {
+function extractStructuredQuestions(questionsObj: Record<string, { text: string }>): string[] {
   const questions: string[] = [];
   for (const key of Object.keys(questionsObj).sort()) {
     const q = questionsObj[key];
@@ -133,7 +131,8 @@ export async function adminTemplatesRoutes(
   fastify: FastifyInstance,
   opts: AdminTemplatesRoutesOptions
 ) {
-  const { templateRepo, interviewPlanService, interviewRepo, analysisService, analyticsService } = opts;
+  const { templateRepo, interviewPlanService, interviewRepo, analysisService, analyticsService } =
+    opts;
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
 
@@ -443,7 +442,9 @@ export async function adminTemplatesRoutes(
           content: input.content as Record<string, unknown>,
         });
         info('Admin template updated', { templateId: id });
-        return reply.status(200).send('<div class="text-green-600 font-medium">✓ 保存成功，正在返回...</div>');
+        return reply
+          .status(200)
+          .send('<div class="text-green-600 font-medium">✓ 保存成功，正在返回...</div>');
       } catch (e) {
         if (e instanceof z.ZodError)
           return reply.status(422).send(htmlError(e.issues[0]?.message ?? 'Validation failed'));

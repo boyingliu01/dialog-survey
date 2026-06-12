@@ -1,6 +1,11 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { verifySignature } from '../integrations/dingtalk/middleware.js';
+import { processStreamMessage } from '../services/stream-message.service.js';
 import { error, info } from '../utils/logger.js';
+
+// In-memory dedup cache for DingTalk message IDs (prevents replay attacks)
+const seenMessageIds = new Set<string>();
+const MAX_SEEN_IDS = 10_000;
 
 interface DingTalkMessage {
   msgtype: 'text' | 'markdown' | 'voice' | 'image' | 'link' | 'actionCard' | 'feedCard';
@@ -13,6 +18,7 @@ interface DingTalkMessage {
   timestamp?: number;
   signature?: string;
   event?: { msgtype: string };
+  messageId?: string;
 }
 
 function parseDingTalkMessage(body: DingTalkMessage): {
@@ -77,6 +83,18 @@ export async function webhookRoutes(fastify: FastifyInstance) {
     },
     async (request: FastifyRequest<{ Body: DingTalkMessage }>, reply: FastifyReply) => {
       const body = request.body;
+
+      if (body.messageId) {
+        if (seenMessageIds.has(body.messageId)) {
+          return reply.status(200).send({ result: 'duplicate' });
+        }
+        seenMessageIds.add(body.messageId);
+        if (seenMessageIds.size > MAX_SEEN_IDS) {
+          const firstId = seenMessageIds.values().next().value;
+          if (firstId) seenMessageIds.delete(firstId);
+        }
+      }
+
       info('Received DingTalk webhook', {
         msgtype: body.msgtype,
         senderId: body.senderId,
@@ -94,8 +112,28 @@ export async function webhookRoutes(fastify: FastifyInstance) {
         isVoice: parsed.isVoice,
       });
 
+      const streamMsg: import('../services/stream-message-utils.js').StreamMessage = {
+        specVersion: '1.0',
+        type: 'callback',
+        data: JSON.stringify({
+          userId: parsed.userId,
+          content: parsed.content,
+          isVoice: parsed.isVoice,
+        }),
+        headers: {
+          topic: 'chat',
+          messageId: body.messageId || '',
+          time: String(Date.now()),
+        },
+      };
+
+      processStreamMessage(streamMsg).catch((err) => {
+        error('Webhook processStreamMessage failed', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
       return reply.status(200).send({ result: 'success' });
     }
   );
 }
-
