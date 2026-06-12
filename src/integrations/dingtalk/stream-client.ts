@@ -23,12 +23,6 @@ export interface DingTalkMessage {
   data: string;
 }
 
-export interface DingTalkMessageData {
-  senderStaffId: string;
-  content: string;
-  sessionWebhook: string;
-}
-
 export interface AckResponse {
   code: number;
   headers: {

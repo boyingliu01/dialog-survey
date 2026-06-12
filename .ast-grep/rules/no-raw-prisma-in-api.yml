@@ -1,0 +1,17 @@
+id: no-raw-prisma-in-api
+language: typescript
+files:
+  - src/api/**/*.ts
+rule:
+  pattern: prisma.$MODEL.$METHOD($$$ARGS)
+  not:
+    any:
+      - pattern: prisma.$queryRaw($$$)
+      - pattern: prisma.$transaction($$$)
+      - pattern: prisma.$disconnect($$$)
+      - pattern: prisma.$connect($$$)
+severity: error
+message: >
+  Raw Prisma model access in src/api/ violates Clean Architecture.
+  Route through src/repositories/ or src/services/ instead.
+  See AGENTS.md Anti-Patterns and issue #15.

@@ -218,10 +218,17 @@ describe('Admin Templates Integration — save → load → render', () => {
     });
     const { PrismaClient } = await import('@prisma/client');
     const { TemplateRepository } = await import('../src/repositories/template.repository.js');
+    const { InterviewRepository } = await import('../src/repositories/interview.repository.js');
+    const { AnalysisService } = await import('../src/services/analysis.service.js');
+    const { AnalyticsService } = await import('../src/services/analytics.service.js');
+    const { InterviewPlanService } = await import('../src/services/interview-plan.service.js');
     const prisma = new PrismaClient();
     await app.register(adminTemplatesRoutes, {
       templateRepo: new TemplateRepository(prisma),
-      prisma,
+      interviewPlanService: new InterviewPlanService(prisma),
+      interviewRepo: new InterviewRepository(prisma),
+      analysisService: new AnalysisService(prisma),
+      analyticsService: new AnalyticsService(prisma),
     });
     await app.ready();
   }

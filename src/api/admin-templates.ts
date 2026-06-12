@@ -1,20 +1,19 @@
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
-import { InterviewRepository } from '../repositories/interview.repository.js';
+import type { InterviewRepository } from '../repositories/interview.repository.js';
 import type { TemplateRepository } from '../repositories/template.repository.js';
-import { AnalysisService } from '../services/analysis.service.js';
-import { AnalyticsService } from '../services/analytics.service.js';
-import { InterviewPlanService } from '../services/interview-plan.service.js';
+import type { AnalysisService } from '../services/analysis.service.js';
+import type { AnalyticsService } from '../services/analytics.service.js';
+import type { InterviewPlanService } from '../services/interview-plan.service.js';
 import { error, info } from '../utils/logger.js';
 
 export interface AdminTemplatesRoutesOptions {
   templateRepo: TemplateRepository;
-  prisma: PrismaClient;
-  interviewPlanService?: InterviewPlanService;
-  interviewRepo?: InterviewRepository;
-  analysisService?: AnalysisService;
+  interviewPlanService: InterviewPlanService;
+  interviewRepo: InterviewRepository;
+  analysisService: AnalysisService;
+  analyticsService: AnalyticsService;
 }
 
 const createTemplateSchema = z.object({
@@ -29,11 +28,36 @@ const updateTemplateSchema = z.object({
 });
 const versionSchema = z.object({ version: z.coerce.number().int().positive() });
 
-function buildContentFromForm(body: Record<string, unknown>): Record<string, unknown> {
-  if (body.content && typeof body.content === 'object' && !Array.isArray(body.content)) {
-    return body.content as Record<string, unknown>;
+function extractStructuredQuestions(
+  questionsObj: Record<string, { text: string }>
+): string[] {
+  const questions: string[] = [];
+  for (const key of Object.keys(questionsObj).sort()) {
+    const q = questionsObj[key];
+    if (q && typeof q === 'object' && typeof q.text === 'string') {
+      const trimmed = q.text.trim();
+      if (trimmed) questions.push(trimmed);
+    }
   }
+  return questions;
+}
 
+function extractFlatFormQuestions(body: Record<string, unknown>): string[] {
+  const questions: string[] = [];
+  for (const [key, value] of Object.entries(body)) {
+    const match = key.match(/^questions\[(\d+)\]\[text\]$/);
+    if (match && typeof value === 'string') {
+      const index = Number.parseInt(match[1], 10);
+      const trimmed = value.trim();
+      if (trimmed) {
+        questions[index] = trimmed;
+      }
+    }
+  }
+  return questions.filter((q): q is string => q !== undefined);
+}
+
+function buildDefaultContent(body: Record<string, unknown>): Record<string, unknown> {
   const content: Record<string, unknown> = {
     invitationPrompt: String(body.invitationPrompt || ''),
     questions: [],
@@ -44,31 +68,19 @@ function buildContentFromForm(body: Record<string, unknown>): Record<string, unk
 
   const questionsObj = body.questions as Record<string, { text: string }> | undefined;
   if (questionsObj && typeof questionsObj === 'object') {
-    const questions: string[] = [];
-    for (const key of Object.keys(questionsObj).sort()) {
-      const q = questionsObj[key];
-      if (q && typeof q === 'object' && typeof q.text === 'string') {
-        const trimmed = q.text.trim();
-        if (trimmed) questions.push(trimmed);
-      }
-    }
-    content.questions = questions;
+    content.questions = extractStructuredQuestions(questionsObj);
   } else {
-    const questions: string[] = [];
-    for (const [key, value] of Object.entries(body)) {
-      const match = key.match(/^questions\[(\d+)\]\[text\]$/);
-      if (match && typeof value === 'string') {
-        const index = Number.parseInt(match[1], 10);
-        const trimmed = value.trim();
-        if (trimmed) {
-          questions[index] = trimmed;
-        }
-      }
-    }
-    content.questions = questions.filter((q): q is string => q !== undefined);
+    content.questions = extractFlatFormQuestions(body);
   }
 
   return content;
+}
+
+function buildContentFromForm(body: Record<string, unknown>): Record<string, unknown> {
+  if (body.content && typeof body.content === 'object' && !Array.isArray(body.content)) {
+    return body.content as Record<string, unknown>;
+  }
+  return buildDefaultContent(body);
 }
 
 function validateTemplateContent(content: Record<string, unknown>): string | null {
@@ -121,10 +133,7 @@ export async function adminTemplatesRoutes(
   fastify: FastifyInstance,
   opts: AdminTemplatesRoutesOptions
 ) {
-  const { templateRepo, prisma } = opts;
-  const interviewPlanService = opts.interviewPlanService ?? new InterviewPlanService(prisma);
-  const interviewRepo = opts.interviewRepo ?? new InterviewRepository(prisma);
-  const analysisService = opts.analysisService ?? new AnalysisService(prisma);
+  const { templateRepo, interviewPlanService, interviewRepo, analysisService, analyticsService } = opts;
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
 
@@ -242,7 +251,6 @@ export async function adminTemplatesRoutes(
       const plan = await interviewPlanService.findByIdWithInterviewsAndCounts(id);
       if (!plan) return reply.status(404).type('text/html').send('计划不存在');
       const completed = plan.interviews.filter((i) => i.status === 'COMPLETED');
-      const analyticsService = new AnalyticsService(prisma);
       let planStats = null;
       try {
         planStats = await analyticsService.getPlanStats(id);
@@ -435,7 +443,7 @@ export async function adminTemplatesRoutes(
           content: input.content as Record<string, unknown>,
         });
         info('Admin template updated', { templateId: id });
-        return reply.status(200).header('HX-Redirect', '/admin').send('');
+        return reply.status(200).send('<div class="text-green-600 font-medium">✓ 保存成功，正在返回...</div>');
       } catch (e) {
         if (e instanceof z.ZodError)
           return reply.status(422).send(htmlError(e.issues[0]?.message ?? 'Validation failed'));
@@ -636,7 +644,6 @@ export async function adminTemplatesRoutes(
     { preHandler: adminAuth },
     async (_r: FastifyRequest, reply: FastifyReply) => {
       try {
-        const analyticsService = new AnalyticsService(prisma);
         const [kpis, statusDistribution, planCompletionRates, weeklyTrend, templates, plans] =
           await Promise.all([
             analyticsService.getKPIs(),
@@ -669,7 +676,6 @@ export async function adminTemplatesRoutes(
     { preHandler: adminAuth },
     async (_r: FastifyRequest, reply: FastifyReply) => {
       try {
-        const analyticsService = new AnalyticsService(prisma);
         const [kpis, statusDistribution, planCompletionRates, weeklyTrend] = await Promise.all([
           analyticsService.getKPIs(),
           analyticsService.getStatusDistribution(),

@@ -99,10 +99,3 @@ export async function webhookRoutes(fastify: FastifyInstance) {
   );
 }
 
-export interface DingTalkMessageEvent {
-  userId: string;
-  content: string;
-  messageType: string;
-  isVoice: boolean;
-  timestamp: Date;
-}
