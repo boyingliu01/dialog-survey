@@ -6,9 +6,9 @@ import { InterviewStateRepository } from '../repositories/interview-state.reposi
 import { TemplateRepository } from '../repositories/template.repository.js';
 import { error, info } from '../utils/logger.js';
 import {
+  isAllowedWebhookUrl,
   parseStreamMessage,
   sendReply as sendReplyUnsafe,
-  isAllowedWebhookUrl,
 } from './stream-message-utils.js';
 export type { StreamMessage, ParsedStreamMessage, ProcessResult } from './stream-message-utils.js';
 
@@ -33,7 +33,8 @@ export class StreamMessageService {
 
   async processStreamMessage(
     message: { data: string; headers: { messageId: string } },
-    retryCount = 0
+    retryCount = 0,
+    prisma?: PrismaClient
   ): Promise<{ success: boolean; response?: string; error?: string }> {
     const parsed = parseStreamMessage(message as import('./stream-message-utils.js').StreamMessage);
 
@@ -87,8 +88,7 @@ export class StreamMessageService {
       isVoice: false,
     });
 
-    if (!state.userName) {
-      const prisma = new PrismaClient();
+    if (!state.userName && prisma) {
       try {
         const interview = await prisma.interview.findFirst({
           where: { userId: parsed.userId },
@@ -107,8 +107,6 @@ export class StreamMessageService {
         }
       } catch {
         // Silently fail userName resolution
-      } finally {
-        await prisma.$disconnect();
       }
     }
 
@@ -229,5 +227,5 @@ export async function processStreamMessage(
 ): Promise<{ success: boolean; response?: string; error?: string }> {
   const repo = new InterviewStateRepository(prisma);
   const service = new StreamMessageService(repo);
-  return service.processStreamMessage(message);
+  return service.processStreamMessage(message, 0, prisma);
 }
