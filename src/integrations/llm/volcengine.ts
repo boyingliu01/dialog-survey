@@ -83,15 +83,20 @@ export class VolcengineLLM implements LLMService {
   }
 
   static fromEnv(): VolcengineLLM {
-    const apiKey = process.env.LLM_API_KEY || process.env.VOLCENGINE_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || '';
+    const apiKey =
+      process.env.LLM_API_KEY ||
+      process.env.VOLCENGINE_API_KEY ||
+      process.env.ANTHROPIC_AUTH_TOKEN ||
+      '';
     const baseUrl =
-      process.env.LLM_BASE_URL || process.env.VOLCENGINE_BASE_URL || 'https://ark.cn-beijing.volces.com/api/coding';
+      process.env.LLM_BASE_URL ||
+      process.env.VOLCENGINE_BASE_URL ||
+      'https://ark.cn-beijing.volces.com/api/coding';
     const model = process.env.LLM_MODEL || process.env.VOLCENGINE_MODEL || DEFAULT_MODEL;
 
     if (!apiKey) {
       throw new Error('LLM_API_KEY or VOLCENGINE_API_KEY or ANTHROPIC_AUTH_TOKEN not configured');
     }
-
 
     return new VolcengineLLM({
       apiKey,
