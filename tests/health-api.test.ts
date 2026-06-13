@@ -50,13 +50,16 @@ describe('GET /health', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    mockFetch.mockReset();
   });
 
   it('should return healthy when all checks pass', async () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
-    vi.stubEnv('DINGTALK_WEBHOOK_URL', 'https://webhook.example.com');
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('DINGTALK_AGENT_ID', 'test-agent-id');
 
     await app.close();
     app = await rebuildApp();
@@ -77,7 +80,9 @@ describe('GET /health', () => {
   it('should return degraded when DB is ok but LLM is degraded (no API key)', async () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     vi.stubEnv('VOLCENGINE_API_KEY', '');
-    vi.stubEnv('DINGTALK_WEBHOOK_URL', 'https://webhook.example.com');
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('DINGTALK_AGENT_ID', 'test-agent-id');
 
     await app.close();
     app = await rebuildApp();
@@ -97,7 +102,9 @@ describe('GET /health', () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     mockFetch.mockResolvedValueOnce({ ok: false, status: 429 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
-    vi.stubEnv('DINGTALK_WEBHOOK_URL', 'https://webhook.example.com');
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('DINGTALK_AGENT_ID', 'test-agent-id');
 
     await app.close();
     app = await rebuildApp();
@@ -112,10 +119,15 @@ describe('GET /health', () => {
   });
 
   it('should return degraded when DB is ok but LLM times out', async () => {
-    mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
+    mockPrismaClient.mockResolvedValue([{ '1': 1 }]);
+    // LLM fetch times out
     mockFetch.mockRejectedValueOnce(new DOMException('The operation was aborted', 'AbortError'));
+    // DingTalk fetch succeeds (not checking stream mode)
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
-    vi.stubEnv('DINGTALK_WEBHOOK_URL', 'https://webhook.example.com');
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('DINGTALK_AGENT_ID', 'test-agent-id');
 
     await app.close();
     app = await rebuildApp();
@@ -130,10 +142,15 @@ describe('GET /health', () => {
   });
 
   it('should return degraded when DB is ok but LLM has generic error', async () => {
-    mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
+    mockPrismaClient.mockResolvedValue([{ '1': 1 }]);
+    // LLM fetch fails with generic error
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
+    // DingTalk fetch succeeds
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
-    vi.stubEnv('DINGTALK_WEBHOOK_URL', 'https://webhook.example.com');
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('DINGTALK_AGENT_ID', 'test-agent-id');
 
     await app.close();
     app = await rebuildApp();
@@ -147,11 +164,13 @@ describe('GET /health', () => {
     expect(body.checks.llm.error).toBe('Network error');
   });
 
-  it('should return degraded when DB is ok but DingTalk is degraded (no webhook)', async () => {
+  it('should return degraded when DB is ok but DingTalk is degraded (no clientId)', async () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
-    vi.stubEnv('DINGTALK_WEBHOOK_URL', '');
+    vi.stubEnv('DINGTALK_CLIENT_ID', '');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('DINGTALK_AGENT_ID', 'test-agent-id');
 
     await app.close();
     app = await rebuildApp();
@@ -162,14 +181,16 @@ describe('GET /health', () => {
     const body = JSON.parse(response.body);
     expect(body.status).toBe('degraded');
     expect(body.checks.dingtalk.status).toBe('degraded');
-    expect(body.checks.dingtalk.error).toBe('Webhook not configured');
+    expect(body.checks.dingtalk.error).toBe('DingTalk Stream credentials not configured (missing CLIENT_ID, CLIENT_SECRET, or AGENT_ID)');
   });
 
-  it('should return degraded when DingTalk webhook contains placeholder', async () => {
+  it('should return degraded when DingTalk Stream credentials contain placeholder', async () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
-    vi.stubEnv('DINGTALK_WEBHOOK_URL', 'https://webhook.xxx.com');
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'your-dingtalk-client-id-xxx');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('DINGTALK_AGENT_ID', 'test-agent-id');
 
     await app.close();
     app = await rebuildApp();
@@ -180,13 +201,15 @@ describe('GET /health', () => {
     const body = JSON.parse(response.body);
     expect(body.status).toBe('degraded');
     expect(body.checks.dingtalk.status).toBe('degraded');
-    expect(body.checks.dingtalk.error).toBe('Webhook not configured');
+    expect(body.checks.dingtalk.error).toBe('DingTalk Stream credentials contain placeholder values');
   });
 
   it('should return unhealthy when DB fails', async () => {
     mockPrismaClient.mockRejectedValueOnce(new Error('Connection refused'));
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
-    vi.stubEnv('DINGTALK_WEBHOOK_URL', 'https://webhook.example.com');
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('DINGTALK_AGENT_ID', 'test-agent-id');
 
     await app.close();
     app = await rebuildApp();
@@ -204,24 +227,30 @@ describe('GET /health', () => {
     mockPrismaClient.mockResolvedValue([{ '1': 1 }]);
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
-    vi.stubEnv('DINGTALK_WEBHOOK_URL', 'https://webhook.example.com');
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('DINGTALK_AGENT_ID', 'test-agent-id');
 
     await app.close();
     app = await rebuildApp();
 
     const response1 = await app.inject({ method: 'GET', url: '/health' });
     expect(JSON.parse(response1.body).status).toBe('healthy');
+    // First call: 1 LLM fetch + 0 DingTalk fetches (env-check only)
     expect(mockFetch).toHaveBeenCalledTimes(1);
 
     const response2 = await app.inject({ method: 'GET', url: '/health' });
     expect(JSON.parse(response2.body).status).toBe('healthy');
+    // Second call: cached LLM result, no extra fetch
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it('should degrade when placeholder API key is provided (LLM request will fail)', async () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     vi.stubEnv('VOLCENGINE_API_KEY', 'your-dashscope-api-key');
-    vi.stubEnv('DINGTALK_WEBHOOK_URL', 'https://webhook.example.com');
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('DINGTALK_AGENT_ID', 'test-agent-id');
     mockFetch.mockResolvedValueOnce({ ok: false, status: 401 });
 
     await app.close();

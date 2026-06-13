@@ -42,28 +42,28 @@ describe('DingTalk Services', () => {
   describe('DingTalk Service - Send Messages', () => {
     /**
      * @test REQ-002-5-01
-     * @intent 验证钉钉服务文件存在
+     * @intent 验证钉钉消息发送模块文件存在（重构后替代 dingtalk.service.ts）
      */
-    it('should have src/services/dingtalk.service.ts', () => {
-      expect(fs.existsSync('src/services/dingtalk.service.ts')).toBe(true);
+    it('should have src/integrations/dingtalk/message-sender.ts', () => {
+      expect(fs.existsSync('src/integrations/dingtalk/message-sender.ts')).toBe(true);
     });
 
     /**
      * @test REQ-002-5-01
-     * @intent 验证发送文本消息方法实现
+     * @intent 验证发送文本消息方法实现（重构后为 sendTextMessage）
      */
-    it('should implement sendText method', () => {
-      const content = fs.readFileSync('src/services/dingtalk.service.ts', 'utf-8');
-      expect(content.includes('sendText')).toBe(true);
+    it('should implement sendText method via sendTextMessage or sendText', () => {
+      const content = fs.readFileSync('src/integrations/dingtalk/message-sender.ts', 'utf-8');
+      expect(content.includes('sendTextMessage') || content.includes('sendText')).toBe(true);
     });
 
     /**
      * @test REQ-002-5-02
-     * @intent 验证发送富文本消息方法实现
+     * @intent 验证发送富文本/卡片消息方法实现（重构后为 sendActionCard）
      */
-    it('should implement sendRichText method', () => {
-      const content = fs.readFileSync('src/services/dingtalk.service.ts', 'utf-8');
-      expect(content.includes('sendRichText') || content.toLowerCase().includes('markdown')).toBe(
+    it('should implement rich message sending via sendActionCard or markdown', () => {
+      const content = fs.readFileSync('src/integrations/dingtalk/message-sender.ts', 'utf-8');
+      expect(content.includes('sendActionCard') || content.toLowerCase().includes('markdown')).toBe(
         true
       );
     });

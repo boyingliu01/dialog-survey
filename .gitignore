@@ -37,6 +37,9 @@ env/
 # Environment
 .env
 .env.*
+# Plan directories may contain sensitive info
+.omo/
+.sisyphus/
  !.env.example
  !.env.sample
  !.env.production.example
@@ -108,3 +111,4 @@ worktrees/
 .stryker-tmp/
 .sprint-state/
 .omo/run-continuation/
+.worktrees/
