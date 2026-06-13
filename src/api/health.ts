@@ -97,10 +97,25 @@ async function checkDingTalk(): Promise<{
   status: 'ok' | 'error' | 'degraded';
   error?: string;
 }> {
-  const webhookUrl = process.env.DINGTALK_WEBHOOK_URL;
-  if (!webhookUrl || webhookUrl.includes('xxx')) {
-    return { status: 'degraded', error: 'Webhook not configured' };
+  // Check Stream mode configuration (Stream client uses WebSocket, not webhook URL)
+  const clientId = process.env.DINGTALK_CLIENT_ID;
+  const clientSecret = process.env.DINGTALK_CLIENT_SECRET;
+  const agentId = process.env.DINGTALK_AGENT_ID;
+
+  if (!clientId || !clientSecret || !agentId) {
+    return {
+      status: 'degraded',
+      error: 'DingTalk Stream credentials not configured (missing CLIENT_ID, CLIENT_SECRET, or AGENT_ID)',
+    };
   }
+
+  if (clientId.includes('xxx') || clientSecret.includes('xxx')) {
+    return {
+      status: 'degraded',
+      error: 'DingTalk Stream credentials contain placeholder values',
+    };
+  }
+
   return { status: 'ok' };
 }
 
