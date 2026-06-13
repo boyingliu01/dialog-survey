@@ -11,7 +11,8 @@ describe('Admin Tree Routes', () => {
 
   beforeAll(async () => {
     process.env.ADMIN_API_KEY = ADMIN_KEY;
-    app = await buildApp();
+    const result = await buildApp();
+    app = result.fastify;
     await app.ready();
   });
 

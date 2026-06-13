@@ -1,0 +1,60 @@
+# gitleaks configuration for interview-bot
+title = "interview-bot gitleaks config"
+
+# Extend default rules with project-specific rules
+[extend]
+useDefault = true
+
+# Allow list - paths to exclude from scanning
+[allowlist]
+paths = [
+  # Third-party vendor code (minified JS)
+  '''public/js/.*\.min\.js''',
+  # Node modules
+  '''node_modules/''',
+  # Test fixtures and mock data
+  '''tests/.*\.test\.ts''',
+  # Documentation examples (placeholders, not real secrets)
+  '''docs/.*\.md''',
+  # Environment template files (placeholders only)
+  '''\.env\.example''',
+  '''\.env\.production\.example''',
+  # Generated Prisma client
+  '''node_modules/\.prisma/''',
+]
+
+# Custom project-specific rules
+[[rules]]
+id = "dingtalk-client-secret"
+description = "DingTalk Client Secret"
+regex = '''DINGTALK_CLIENT_SECRET=[A-Za-z0-9]+'''
+tags = ["dingtalk", "secret"]
+[rules.allowlist]
+regexTarget = "line"
+regexes = [
+  '''DINGTALK_CLIENT_SECRET=\[REDACTED\]''',
+  '''DINGTALK_CLIENT_SECRET=<.*>''',
+]
+
+[[rules]]
+id = "admin-api-key"
+description = "Admin API Key"
+regex = '''ADMIN_API_KEY=[A-Za-z0-9-]+'''
+tags = ["admin", "api-key"]
+[rules.allowlist]
+regexTarget = "line"
+regexes = [
+  '''ADMIN_API_KEY=<.*>''',
+  '''ADMIN_API_KEY=dev-admin-key-123''',
+]
+
+[[rules]]
+id = "volcengine-api-key"
+description = "Volcengine/Whalecloud API Key"
+regex = '''VOLCENGINE_API_KEY=[A-Za-z0-9_+/-]+'''
+tags = ["llm", "api-key"]
+[rules.allowlist]
+regexTarget = "line"
+regexes = [
+  '''VOLCENGINE_API_KEY=<.*>''',
+]
