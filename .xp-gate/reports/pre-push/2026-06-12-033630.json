@@ -1,0 +1,53 @@
+{
+  "timestamp": "2026-06-12T03:36:30Z",
+  "trigger": "pre-push",
+  "branch": "sprint/2026-06-12-01-deploy",
+  "commit": "a1601d65529984615df993c69a225984e3a96e57",
+  "changed_files": [
+    "a1601d65529984615df993c69a225984e3a96e57",
+    "package-lock.json",
+    "src/api/admin-templates.ts",
+    "src/api/webhook.ts",
+    "src/core/nodes/interviewing.ts",
+    "src/integrations/dingtalk/stream-client.ts",
+    "src/repositories/interview-state-mapper.ts",
+    "src/repositories/interview-state.repository.ts",
+    "src/services/analytics.service.ts",
+    "src/services/batch-aggregation.service.ts",
+    "src/services/interview-plan-base.service.ts",
+    "src/services/interview-plan-members.service.ts",
+    "src/services/interview-plan-send.service.ts",
+    "src/services/interview-plan.service.ts",
+    "src/services/stream-message-utils.ts",
+    "src/services/stream-message.service.ts",
+    "src/views/admin/content/plan-form.njk",
+    "src/views/admin/content/template-edit.njk",
+    "tests/admin-delete.test.ts",
+    "tests/admin-templates-extra.test.ts",
+    "tests/admin-templates-integration.test.ts",
+    "tests/db.test.ts",
+    "tests/markdown.test.ts",
+    "tests/workflow-interview-lifecycle.test.ts"
+  ],
+  "overall": {
+    "score": "0.0/10",
+    "gates_passed": 0,
+    "gates_total": 1,
+    "verdict": "BLOCKED"
+  },
+  "gates": [
+    {
+      "id": "M",
+      "name": "Mutation + Code Walkthrough + UI Gates",
+      "status": "BLOCKED",
+      "details": {
+        "remote": "origin",
+        "url": "https://github.com/boyingliu01/InterviewAgent.git"
+      }
+    }
+  ],
+  "warnings": [],
+  "errors": [
+    "pre-push hook exited with code 1"
+  ]
+}
