@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-06-14
+
+### Fixed
+- Add `postinstall` script for Prisma Client auto-generation - **Fixes #48**
+- Remove deprecated webhook module (replaced by DingTalk Stream mode) - **Fixes #43**
+- Add `await prisma.$disconnect()` to graceful shutdown - **Fixes #41**
+- Add AuditLog TTL (expiresAt + @@index), cleanup service, and daily cron at 2:00 AM - **Fixes #42**
+- Reduce AuditLog verbosity: only log mutations (POST/PUT/DELETE) and admin paths
+- Close false-positive env-config issue (#45): DingTalk Stream mode already handles this
+
+### Quality
+- Pre-commit hook: Score 10.0/10, all 9 gates passed (both commits)
+- TDD: audit-cleanup service had tests written before implementation
+
 ## [1.0.1] - 2026-06-13
 
 ### Fixed
