@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cors from '@fastify/cors';
@@ -7,6 +7,10 @@ import fastifyView from '@fastify/view';
 import { PrismaClient } from '@prisma/client';
 import Fastify from 'fastify';
 import nunjucks from 'nunjucks';
+
+// Load .env early but explicitly (not via side-effect import) so tests can
+// control environment via vi.stubEnv() without interference.
+dotenv.config();
 import { adminTemplatesRoutes } from './api/admin-templates.js';
 import { analysisRoutes } from './api/analysis.js';
 import { healthRoutes } from './api/health.js';
@@ -31,7 +35,7 @@ const DB_CHECK_TIMEOUT_MS = 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const LOG_LEVEL = process.env.LOG_LEVEL || (NODE_ENV === 'production' ? 'info' : 'debug');
 
-async function checkDatabaseConnection(): Promise<boolean> {
+export async function checkDatabaseConnection(): Promise<boolean> {
   const prisma = new PrismaClient();
 
   try {

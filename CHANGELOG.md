@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-06-14
+
+### Security
+- Redact DINGTALK_CLIENT_SECRET from `.omo/` and `.sisyphus/` plan docs
+- Add `.gitleaks.toml` for pre-commit secret scanning (Gate 8)
+- Replace side-effect `import 'dotenv/config'` with explicit `dotenv.config()`
+- Add `.omo/` and `.sisyphus/` to `.gitignore` to prevent future secret leaks
+- Add npm `overrides` for `qs@6.15.2` to resolve moderate vulnerability (GHSA-q8mj-m7cp-5q26)
+
+### Fixed
+- Fix `server-api.test.ts` and `admin-tree.test.ts`: `buildApp()` now returns `{fastify, prisma}` — use `result.fastify.inject` instead of `app.inject`
+- Export `checkDatabaseConnection` from `src/server.ts` for test access
+- Fix `dingtalk-services.test.ts`: update file-existence tests for refactored modules
+- Fix `security.test.ts`: mock `apiKey.findFirst` instead of `auditLog.findFirst`
+- Fix `health-api.test.ts`: align DingTalk env var checks with Stream mode
+
 ## [1.0.1] - 2026-06-13
 
 ### Fixed
