@@ -19,7 +19,9 @@ import { AnalysisService } from './services/analysis.service.js';
 import { AnalyticsService } from './services/analytics.service.js';
 import { InterviewPlanService } from './services/interview-plan.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
+import { AuditCleanupService } from './services/audit-cleanup.service.js';
 import { error, info, warn } from './utils/logger.js';
+import cron from 'node-cron';
 import { renderMarkdown } from './utils/markdown.js';
 import { createVerifyApiKey, securityMiddleware } from './utils/security.js';
 
@@ -133,6 +135,19 @@ export async function buildApp() {
   const analyticsService = new AnalyticsService(prisma);
 
   await securityMiddleware(fastify, prisma);
+
+  // Schedule daily audit log cleanup at 2:00 AM
+  const auditCleanup = new AuditCleanupService(prisma);
+  cron.schedule('0 2 * * *', async () => {
+    try {
+      await auditCleanup.cleanupOldLogs(90);
+    } catch (err) {
+      error('Audit cleanup cron job failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
+  info('Audit cleanup cron scheduled (daily at 2:00 AM)');
 
   const verifyApiKey = createVerifyApiKey(prisma);
 

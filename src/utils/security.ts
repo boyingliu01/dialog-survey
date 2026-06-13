@@ -116,7 +116,16 @@ export async function securityMiddleware(fastify: FastifyInstance, prisma: Prism
   fastify.addHook('onRequest', async (request, _reply) => {
     const path = request.url;
 
-    if (path.startsWith('/health')) {
+    // Skip logging for health checks and static assets
+    if (path.startsWith('/health') || path.startsWith('/public/')) {
+      return;
+    }
+
+    // Only log mutations (POST/PUT/DELETE) and admin paths
+    // GET/HEAD/OPTIONS requests are not logged to reduce audit log volume
+    const isMutation = request.method === 'POST' || request.method === 'PUT' || request.method === 'DELETE';
+    const isAdmin = path.startsWith('/admin/');
+    if (!isMutation && !isAdmin) {
       return;
     }
 
