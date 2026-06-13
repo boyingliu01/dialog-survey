@@ -209,6 +209,7 @@ export async function startServer() {
         info(`Received ${signal}, shutting down gracefully`);
         client.disconnect();
         await app.close();
+        await prisma.$disconnect();
         process.exit(0);
       };
 
