@@ -7,6 +7,23 @@ export class TemplateRepository {
     this.prisma = prisma || new PrismaClient();
   }
 
+  /** Build Prisma update data object from partial template data (DRY) */
+  private _buildUpdateData(
+    data: Partial<{ name: string; content: Record<string, unknown>; description: string; status: TemplateStatus }>,
+    options?: { incrementVersion?: boolean }
+  ): Parameters<typeof this.prisma.template.update>[0]['data'] {
+    const updateData: Parameters<typeof this.prisma.template.update>[0]['data'] = {};
+    if (data.name) updateData.name = data.name;
+    if (data.description) updateData.description = data.description;
+    if (data.content) updateData.content = JSON.stringify(data.content);
+    if (data.status) updateData.status = data.status as TemplateStatus;
+    if (options?.incrementVersion) {
+      updateData.version = { increment: 1 };
+    }
+    updateData.updatedBy = 'admin';
+    return updateData;
+  }
+
   async create(data: {
     name: string;
     content: Record<string, unknown>;
@@ -46,12 +63,7 @@ export class TemplateRepository {
       status: TemplateStatus;
     }>
   ): Promise<Template> {
-    const updateData: Parameters<typeof this.prisma.template.update>[0]['data'] = {};
-    if (data.name) updateData.name = data.name;
-    if (data.description) updateData.description = data.description;
-    if (data.content) updateData.content = JSON.stringify(data.content);
-    if (data.status) updateData.status = data.status;
-    updateData.updatedBy = 'admin';
+    const updateData = this._buildUpdateData(data);
 
     return this.prisma.template.update({
       where: { id },
@@ -114,13 +126,7 @@ export class TemplateRepository {
       status?: string;
     }>
   ): Promise<Template> {
-    const updateData: Parameters<typeof this.prisma.template.update>[0]['data'] = {};
-    if (data.name) updateData.name = data.name;
-    if (data.description) updateData.description = data.description;
-    if (data.content) updateData.content = JSON.stringify(data.content);
-    if (data.status) updateData.status = data.status as TemplateStatus;
-    updateData.version = { increment: 1 };
-    updateData.updatedBy = 'admin';
+    const updateData = this._buildUpdateData(data as any, { incrementVersion: true });
 
     return this.prisma.template.update({
       where: { id, version: expectedVersion },
