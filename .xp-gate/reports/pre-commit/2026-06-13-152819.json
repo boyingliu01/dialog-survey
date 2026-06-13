@@ -1,9 +1,24 @@
 {
-  "reportVersion": "1.1",
-  "generatedAt": "2026-06-13T15:28:19Z",
+  "timestamp": "2026-06-13T15:28:19Z",
+  "trigger": "pre-commit",
   "branch": "master",
   "commit": "37fac73c99f7b9b923b49fa1f6969c7d206303a7",
-  "language": "typescript",
+  "changed_files": [
+    ".quality-history.jsonl",
+    ".xp-gate/quality-status/master.json",
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "VERSION",
+    "src/api/templates.ts",
+    "src/repositories/interview-state.repository.ts",
+    "src/repositories/template.repository.ts",
+    "src/services/interview-plan-send.service.ts",
+    "tests/admin-templates.test.ts",
+    "tests/dingtalk-signature.test.ts",
+    "tests/dingtalk-stream.test.ts",
+    "tests/interviewing-node.test.ts",
+    "tests/state-persistence.test.ts"
+  ],
   "overall": {
     "gatesPassed": 9,
     "gatesTotal": 9,
@@ -36,8 +51,15 @@
     "gate5_tests": {
       "name": "Tests + Coverage",
       "status": "PASS",
-      "thresholds": { "lines": 80, "functions": 80, "branches": 70, "statements": 80 },
-      "actual": { "coverage": "N/A" },
+      "thresholds": {
+        "lines": 80,
+        "functions": 80,
+        "branches": 70,
+        "statements": 80
+      },
+      "actual": {
+        "coverage": "N/A"
+      },
       "failedTests": []
     },
     "gate6_arch_boyscout": {
@@ -61,5 +83,7 @@
       "status": "PASS",
       "tool": "semgrep"
     }
-  }
+  },
+  "warnings": [],
+  "errors": []
 }
