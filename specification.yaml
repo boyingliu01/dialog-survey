@@ -1,8 +1,94 @@
 specification:
-  id: "SPEC-ANALYSIS-001"
-  name: "Cross-Interview Insight Analysis"
+  id: "SPEC-FIX-2026-06-12-02"
+  name: "CRITICAL + HIGH Bug Fixes: API Auth, Webhook Processing, PrismaClient Injection"
   version: "1.0.0"
-  description: "Automatically annotate 1000+ interview results with dimensions, cluster topics, discover emergent issues, and generate structured insight reports"
+  description: "Fix 3 critical/high priority issues: #38 API endpoints unprotected, #37 Webhook drops messages, #39 PrismaClient per-message connection churn"
+
+  requirements:
+    - id: "REQ-1"
+      description: "Eliminate per-message PrismaClient creation in processStreamMessage to prevent connection pool exhaustion"
+      priority: "MUST"
+      issue_ref: "#39"
+      severity: "HIGH"
+      acceptance_criteria:
+        - id: "AC-REQ-1-01"
+          given: "processStreamMessage() is called with an incoming DingTalk message"
+          when: "userName resolution is needed"
+          then: "PrismaClient is used from injected parameter, NOT created locally"
+        - id: "AC-REQ-1-02"
+          given: "processStreamMessage() is called without a PrismaClient parameter"
+          when: "userName resolution is attempted"
+          then: "userName resolution is skipped gracefully (backward compatible)"
+        - id: "AC-REQ-1-03"
+          given: "server.ts message handler"
+          when: "processStreamMessage() is called"
+          then: "Existing prisma instance from buildApp() is passed as parameter"
+      files_to_modify:
+        - src/services/stream-message.service.ts
+        - src/server.ts
+
+    - id: "REQ-2"
+      description: "Wire webhook endpoint to actually process incoming DingTalk messages instead of silently dropping them"
+      priority: "MUST"
+      issue_ref: "#37"
+      severity: "CRITICAL"
+      acceptance_criteria:
+        - id: "AC-REQ-2-01"
+          given: "POST /webhook receives a valid DingTalk text message"
+          when: "Message is successfully parsed"
+          then: "processStreamMessage() is called with the message data"
+        - id: "AC-REQ-2-02"
+          given: "POST /webhook receives a message that fails parsing"
+          when: "parseDingTalkMessage() returns null"
+          then: "Returns {result: 'ignored'} (existing behavior unchanged)"
+        - id: "AC-REQ-2-03"
+          given: "processStreamMessage() is called from webhook handler"
+          when: "Message processing completes"
+          then: "Webhook response reflects processing result (success/error)"
+        - id: "AC-REQ-2-04"
+          given: "Same messageId is received twice"
+          when: "Webhook processes the message"
+          then: "Dedup check prevents double-processing (infinite loop prevention)"
+      files_to_modify:
+        - src/api/webhook.ts
+      dependencies:
+        - REQ-1
+
+    - id: "REQ-3"
+      description: "Register API key authentication middleware on all /api/* write endpoints to prevent unauthorized access"
+      priority: "MUST"
+      issue_ref: "#38"
+      severity: "CRITICAL"
+      acceptance_criteria:
+        - id: "AC-REQ-3-01"
+          given: "Request to POST/PUT/DELETE /api/templates without x-api-key header"
+          when: "Request is received"
+          then: "Returns 401 with {error: 'API key required'}"
+        - id: "AC-REQ-3-02"
+          given: "Request to POST/PUT/DELETE /api/plans without x-api-key header"
+          when: "Request is received"
+          then: "Returns 401 with {error: 'API key required'}"
+        - id: "AC-REQ-3-03"
+          given: "Request to POST /api/analysis without x-api-key header"
+          when: "Request is received"
+          then: "Returns 401 with {error: 'API key required'}"
+        - id: "AC-REQ-3-04"
+          given: "Request to GET /api/templates or /api/plans without x-api-key"
+          when: "Request is received"
+          then: "Returns 200 (GET remains public read-only)"
+        - id: "AC-REQ-3-05"
+          given: "Request to POST /webhook without x-api-key"
+          when: "Request is received"
+          then: "Proceeds normally (webhook has its own signature verification)"
+        - id: "AC-REQ-3-06"
+          given: "Request with valid x-api-key header"
+          when: "Request is received"
+          then: "Proceeds normally with user context attached to request"
+      files_to_modify:
+        - src/middleware/api-auth.ts (NEW)
+        - src/api/plans.ts
+        - src/api/templates.ts
+        - src/api/analysis.ts
 
   requirements:
     - id: "REQ-TEMPLATE-001"

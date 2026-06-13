@@ -22,7 +22,7 @@ import { InterviewPlanService } from './services/interview-plan.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
 import { error, info, warn } from './utils/logger.js';
 import { renderMarkdown } from './utils/markdown.js';
-import { securityMiddleware } from './utils/security.js';
+import { createVerifyApiKey, securityMiddleware } from './utils/security.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -135,11 +135,18 @@ export async function buildApp() {
 
   await securityMiddleware(fastify, prisma);
 
+  const verifyApiKey = createVerifyApiKey(prisma);
+
   await fastify.register(healthRoutes, { prisma });
   await fastify.register(webhookRoutes);
-  await fastify.register(interviewPlanRoutes);
-  await fastify.register(templateRoutes, { templateRepo, prisma });
-  await fastify.register(analysisRoutes, { prisma });
+
+  await fastify.register(async (api) => {
+    api.addHook('preHandler', verifyApiKey);
+    await api.register(interviewPlanRoutes);
+    await api.register(templateRoutes, { templateRepo, prisma });
+    await api.register(analysisRoutes, { prisma });
+  });
+
   await fastify.register(adminTemplatesRoutes, {
     templateRepo,
     interviewPlanService,
@@ -148,7 +155,7 @@ export async function buildApp() {
     analyticsService,
   });
 
-  return fastify;
+  return { fastify, prisma };
 }
 
 export async function startServer() {
@@ -157,7 +164,7 @@ export async function startServer() {
     process.exit(1);
   }
 
-  const app = await buildApp();
+  const { fastify: app, prisma } = await buildApp();
 
   try {
     await app.listen({ port: Number(process.env.PORT) || 3001, host: '0.0.0.0' });
@@ -178,7 +185,7 @@ export async function startServer() {
           topic: (message as StreamMessage)?.headers?.topic,
           messageId: (message as StreamMessage)?.headers?.messageId,
         });
-        processStreamMessage(message as StreamMessage).catch((err) => {
+        processStreamMessage(message as StreamMessage, prisma).catch((err) => {
           const errMsg = err instanceof Error ? err.message : String(err);
           error('Failed to process message', { error: errMsg });
         });

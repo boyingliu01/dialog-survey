@@ -4,30 +4,28 @@ import type { InterviewState } from '../core/types/index.js';
  * Maps a Prisma Interview entity (with included messages/responses) to an InterviewState.
  * Duplicated across loadState, loadFullState, and findActiveInterview — extracted for DRY.
  */
-export function mapInterviewToInterviewState(
-  interview: {
-    userId: string;
-    templateId: string;
-    id: string;
-    status: string;
-    currentQuestion: number | null;
-    followupCount: number;
-    maxFollowups: number;
-    reportPath: string | null;
-    version: number;
-    userName?: string | null;
-    messages: Array<{
-      role: string;
-      content: string;
-      createdAt: Date;
-    }>;
-    responses: Array<{
-      questionId: string;
-      content: string;
-      isFollowup: boolean;
-    }>;
-  }
-): InterviewState {
+export function mapInterviewToInterviewState(interview: {
+  userId: string;
+  templateId: string;
+  id: string;
+  status: string;
+  currentQuestion: number | null;
+  followupCount: number;
+  maxFollowups: number;
+  reportPath: string | null;
+  version: number;
+  userName?: string | null;
+  messages: Array<{
+    role: string;
+    content: string;
+    createdAt: Date;
+  }>;
+  responses: Array<{
+    questionId: string;
+    content: string;
+    isFollowup: boolean;
+  }>;
+}): InterviewState {
   return {
     userId: interview.userId,
     templateId: interview.templateId,

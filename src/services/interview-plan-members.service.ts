@@ -1,8 +1,8 @@
 import { Prisma, SendStatus } from '@prisma/client';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import { error, info } from '../utils/logger.js';
-import { InterviewPlanSendService } from './interview-plan-send.service.js';
 import type { InviteeData } from './interview-plan-base.service.js';
+import { InterviewPlanSendService } from './interview-plan-send.service.js';
 
 export class PlanNotFoundError extends Error {
   readonly code = 'PLAN_NOT_FOUND' as const;
