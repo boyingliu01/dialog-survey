@@ -140,15 +140,12 @@ export async function buildApp() {
   await fastify.register(healthRoutes, { prisma });
   await fastify.register(webhookRoutes);
 
-  await fastify.register(
-    async (api) => {
-      api.addHook('preHandler', verifyApiKey);
-      await api.register(interviewPlanRoutes);
-      await api.register(templateRoutes, { templateRepo, prisma });
-      await api.register(analysisRoutes, { prisma });
-    },
-    { prefix: '/api' }
-  );
+  await fastify.register(async (api) => {
+    api.addHook('preHandler', verifyApiKey);
+    await api.register(interviewPlanRoutes);
+    await api.register(templateRoutes, { templateRepo, prisma });
+    await api.register(analysisRoutes, { prisma });
+  });
 
   await fastify.register(adminTemplatesRoutes, {
     templateRepo,

@@ -35,6 +35,11 @@ function checkRateLimit(ipAddress: string): boolean {
 
 export function createVerifyApiKey(prisma: PrismaClient) {
   return async function verifyApiKey(request: FastifyRequest, reply: FastifyReply) {
+    // Allow GET requests without authentication (public read-only access)
+    if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') {
+      return;
+    }
+
     const apiKey = request.headers['x-api-key'] as string | undefined;
 
     if (!apiKey) {
