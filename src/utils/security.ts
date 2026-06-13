@@ -116,7 +116,7 @@ export async function securityMiddleware(fastify: FastifyInstance, prisma: Prism
   fastify.addHook('onRequest', async (request, _reply) => {
     const path = request.url;
 
-    if (path.startsWith('/health') || path.startsWith('/webhook')) {
+    if (path.startsWith('/health')) {
       return;
     }
 

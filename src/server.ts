@@ -12,7 +12,6 @@ import { analysisRoutes } from './api/analysis.js';
 import { healthRoutes } from './api/health.js';
 import { interviewPlanRoutes } from './api/plans.js';
 import { templateRoutes } from './api/templates.js';
-import { webhookRoutes } from './api/webhook.js';
 import { DingTalkStreamClient } from './integrations/dingtalk/stream-client.js';
 import { InterviewRepository } from './repositories/interview.repository.js';
 import { TemplateRepository } from './repositories/template.repository.js';
@@ -138,7 +137,6 @@ export async function buildApp() {
   const verifyApiKey = createVerifyApiKey(prisma);
 
   await fastify.register(healthRoutes, { prisma });
-  await fastify.register(webhookRoutes);
 
   await fastify.register(async (api) => {
     api.addHook('preHandler', verifyApiKey);
