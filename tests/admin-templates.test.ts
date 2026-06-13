@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { adminAuth } from '../src/middleware/admin-auth.js';
 import { TemplateRepository } from '../src/repositories/template.repository.js';
 
@@ -413,7 +413,7 @@ describe('Admin Auth middleware', () => {
         method: 'GET',
         headers: {},
         url: '/admin/api/templates',
-      } as FastifyRequest;
+      } as unknown as FastifyRequest;
 
       await adminAuth(mockRequest, mockReply);
 
@@ -429,7 +429,7 @@ describe('Admin Auth middleware', () => {
         method: 'HEAD',
         headers: {},
         url: '/admin/api/templates',
-      } as FastifyRequest;
+      } as unknown as FastifyRequest;
 
       await adminAuth(mockRequest, mockReply);
 
@@ -445,7 +445,7 @@ describe('Admin Auth middleware', () => {
         method: 'OPTIONS',
         headers: {},
         url: '/admin/api/templates',
-      } as FastifyRequest;
+      } as unknown as FastifyRequest;
 
       await adminAuth(mockRequest, mockReply);
 
@@ -462,7 +462,7 @@ describe('Admin Auth middleware', () => {
         method: 'POST',
         headers: { 'x-admin-key': 'some-key' },
         url: '/admin/api/templates',
-      } as FastifyRequest;
+      } as unknown as FastifyRequest;
 
       await adminAuth(mockRequest, mockReply);
 
@@ -480,7 +480,7 @@ describe('Admin Auth middleware', () => {
         method: 'DELETE',
         headers: { 'x-admin-key': 'some-key' },
         url: '/admin/api/templates/123',
-      } as FastifyRequest;
+      } as unknown as FastifyRequest;
 
       await adminAuth(mockRequest, mockReply);
 
@@ -512,7 +512,7 @@ describe('Admin Auth middleware', () => {
         method: 'POST',
         headers: { 'x-admin-key': 'wrong-key' },
         url: '/admin/api/templates',
-      } as FastifyRequest;
+      } as unknown as FastifyRequest;
 
       await dynamicAdminAuth(mockRequest, mockReply);
 
@@ -530,7 +530,7 @@ describe('Admin Auth middleware', () => {
         method: 'DELETE',
         headers: { 'x-admin-key': 'wrong-key' },
         url: '/admin/api/templates/123',
-      } as FastifyRequest;
+      } as unknown as FastifyRequest;
 
       await dynamicAdminAuth(mockRequest, mockReply);
 
@@ -547,7 +547,7 @@ describe('Admin Auth middleware', () => {
         method: 'PUT',
         headers: { 'x-admin-key': 'wrong-key' },
         url: '/admin/api/templates/123',
-      } as FastifyRequest;
+      } as unknown as FastifyRequest;
 
       await dynamicAdminAuth(mockRequest, mockReply);
 
@@ -564,7 +564,7 @@ describe('Admin Auth middleware', () => {
         method: 'POST',
         headers: { 'x-admin-key': 'test-secret-key' },
         url: '/admin/api/templates',
-      } as FastifyRequest;
+      } as unknown as FastifyRequest;
 
       await dynamicAdminAuth(mockRequest, mockReply);
 
@@ -581,7 +581,7 @@ describe('Admin Auth middleware', () => {
         method: 'DELETE',
         headers: { 'x-admin-key': 'test-secret-key' },
         url: '/admin/api/templates/123',
-      } as FastifyRequest;
+      } as unknown as FastifyRequest;
 
       await dynamicAdminAuth(mockRequest, mockReply);
 
@@ -598,7 +598,7 @@ describe('Admin Auth middleware', () => {
         method: 'POST',
         headers: {},
         url: '/admin/api/templates',
-      } as FastifyRequest;
+      } as unknown as FastifyRequest;
 
       await dynamicAdminAuth(mockRequest, mockReply);
 

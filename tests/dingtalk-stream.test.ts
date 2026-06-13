@@ -154,7 +154,7 @@ describe('DingTalkStreamClient', () => {
       const client = new DingTalkStreamClient(mockConfig);
       await client.getConnectionToken();
 
-      const callArgs = (global.fetch as jest.Mock).mock.calls[0];
+      const callArgs = (global.fetch as import('vitest').Mock).mock.calls[0];
       const body = JSON.parse(callArgs[1].body);
       expect(body.subscriptions).toContainEqual({
         topic: '/v1.0/im/bot/messages/get',

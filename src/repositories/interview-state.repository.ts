@@ -111,31 +111,19 @@ export class InterviewStateRepository {
 
   async loadState(options: LoadStateOptions): Promise<InterviewState | null> {
     const { interviewId, userId } = options;
-
-    try {
-      const interview = await this.prisma.interview.findUnique({
-        where: { id: interviewId },
-        include: {
-          messages: { orderBy: { createdAt: 'asc' } },
-          responses: { orderBy: { createdAt: 'asc' } },
-        },
-      });
-
-      if (!interview || interview.userId !== userId) {
-        return null;
-      }
-
-      return mapInterviewToInterviewState(interview);
-    } catch (err) {
-      error('Failed to load state', {
-        interviewId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return null;
-    }
+    return this._loadStateWithMessages(interviewId, userId, 'Failed to load state');
   }
 
   async loadFullState(interviewId: string, userId: string): Promise<InterviewState | null> {
+    return this._loadStateWithMessages(interviewId, userId, 'Failed to load full state');
+  }
+
+  /** Shared logic for loading state with messages (DRY) */
+  private async _loadStateWithMessages(
+    interviewId: string,
+    userId: string,
+    errorMsg: string
+  ): Promise<InterviewState | null> {
     try {
       const interview = await this.prisma.interview.findUnique({
         where: { id: interviewId },
@@ -151,7 +139,7 @@ export class InterviewStateRepository {
 
       return mapInterviewToInterviewState(interview);
     } catch (err) {
-      error('Failed to load full state', {
+      error(errorMsg, {
         interviewId,
         error: err instanceof Error ? err.message : String(err),
       });
