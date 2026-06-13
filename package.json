@@ -1,6 +1,10 @@
 {
   "name": "interview-bot",
   "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boyingliu01/InterviewAgent.git"
+  },
   "type": "module",
   "description": "AI-powered interview robot that conducts async multi-turn interviews via DingTalk",
   "engines": {
