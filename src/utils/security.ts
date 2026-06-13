@@ -14,19 +14,46 @@ declare module 'fastify' {
   }
 }
 
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const MAX_FAILED_ATTEMPTS = 5;
+const failedAttempts = new Map<string, { count: number; windowStart: number }>();
+
+export function hashApiKey(apiKey: string): string {
+  return crypto.createHash('sha256').update(apiKey).digest('hex');
+}
+
+function checkRateLimit(ipAddress: string): boolean {
+  const now = Date.now();
+  const entry = failedAttempts.get(ipAddress);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    failedAttempts.set(ipAddress, { count: 1, windowStart: now });
+    return true;
+  }
+  entry.count += 1;
+  return entry.count <= MAX_FAILED_ATTEMPTS;
+}
+
 export function createVerifyApiKey(prisma: PrismaClient) {
   return async function verifyApiKey(request: FastifyRequest, reply: FastifyReply) {
+    // Allow GET requests without authentication (public read-only access)
+    if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') {
+      return;
+    }
+
     const apiKey = request.headers['x-api-key'] as string | undefined;
 
     if (!apiKey) {
       return reply.status(401).send({ error: 'API key required' });
     }
 
-    const keyRecord = await prisma.auditLog.findFirst({
-      where: {
-        action: 'API_KEY_CREATED',
-        details: { contains: apiKey.substring(0, 8) },
-      },
+    const ip = request.ip || 'unknown';
+    if (!checkRateLimit(ip)) {
+      return reply.status(429).send({ error: 'Too many failed attempts' });
+    }
+
+    const keyHash = hashApiKey(apiKey);
+    const keyRecord = await prisma.apiKey.findFirst({
+      where: { keyHash, revoked: false },
     });
 
     if (!keyRecord) {
@@ -35,7 +62,8 @@ export function createVerifyApiKey(prisma: PrismaClient) {
 
     request.user = {
       userId: keyRecord.userId || 'unknown',
-      role: 'user',
+      role: keyRecord.role as 'admin' | 'user',
+      apiKeyId: keyRecord.id,
     };
   };
 }
