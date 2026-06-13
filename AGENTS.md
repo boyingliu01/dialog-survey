@@ -271,15 +271,49 @@ npx vitest --run
 
 ### Quality Gates (Pre-commit Hook)
 
-| Gate                  | Tool           | Threshold           |
-| --------------------- | -------------- | ------------------- |
-| Static Analysis       | `tsc --noEmit` | Must pass           |
-| Linting               | Biome          | Must pass           |
-| Unit Tests            | Vitest         | Must pass           |
-| Coverage              | v8             | ≥80%                |
-| Shell Scripts         | shellcheck     | Must pass           |
-| Clean Code            | Custom         | Must pass           |
-| Cyclomatic Complexity | lizard         | warning=5, error=10 |
+**全量检查定义**（2026-06-13 更新）："全量检查"指执行 pre-commit hook 的全部 9 个质量门禁 Gate，以及 pre-push hook 的额外验证。**标准远高于默认的 type-check + lint + test**。不仅保证代码正确性，还要保证架构健康度、安全性、技术债务等全面达标。
+
+#### Pre-commit Hook (9 Gates)
+
+| Gate | 名称 | 工具 | 阈值/要求 |
+|------|------|------|-----------|
+| **Gate 1** | Code Quality (Static + Lint + Shell) | `tsc`, `biome`, `shellcheck` | Must pass |
+| **Gate 2** | Duplicate Code Detection | `jscpd` (TS), `cpd` (Java), `dupfinder` (C#), `gomod graph` (Go), `radon cpd` (Python) | Similarity ≤5% |
+| **Gate 3** | Cyclomatic Complexity | lizard | warning=5, error=10 |
+| **Gate 4** | Principles Checker (Clean Code + SOLID) | SonarQube / language-specific linters | Must pass |
+| **Gate 5** | Tests & Coverage | Vitest / pytest / go test / jest | Lines≥80%, Functions≥80%, Branches≥70%, Statements≥80% |
+| **Gate 6** | Architecture + Boy Scout Rule | archlint / import-linter / arch-go | Architecture violations = BLOCK; New files: 0 warnings |
+| **Gate 7** | IaC Security Scanning | checkov / hadolint / kube-score / tflint | No CRITICAL/HIGH security issues |
+| **Gate 8** | Secret Scanning | gitleaks | No secrets detected |
+| **Gate 9** | SAST Security Scan | semgrep | No CRITICAL/HIGH vulnerabilities |
+
+#### Pre-push Hook (Additional Gates)
+
+| Gate | 名称 | 工具 | 阈值/要求 |
+|------|------|------|-----------|
+| **Gate M** | Mutation Testing | stryker-mutator | Mutation score ≥ baseline |
+| **Gate M2** | Mock Density Check | Custom script | >50% → BLOCK without justification; >30% → advisory |
+| **Code Walkthrough** | Delphi Review Result | `.code-walkthrough-result.json` | Verdict = APPROVED, commit match, not expired |
+
+**执行方式**：
+```bash
+# Stage changes first, then run pre-commit hook
+git add . && bash .git/hooks/pre-commit
+
+# Or use git commit (hook auto-executes)
+git commit -m "message"
+
+# Pre-push hook runs on push
+git push origin <branch>
+```
+
+### 架构检查排除规则（2026-06-13）
+
+**第三方库告警处理原则**：
+- `public/js/*.min.js`、`node_modules/` 等第三方压缩库的架构告警（Deep Nesting、Long Parameter List 等）**无需修复**
+- 这些是无用功——我们无法控制第三方代码的内部结构
+- 如果需要，可通过升级库版本或添加 archlint 配置排除这些文件
+- **只有项目自有源代码**（`src/`、`tests/`）需要达到 0 告警状态
 
 ### Database Commands
 

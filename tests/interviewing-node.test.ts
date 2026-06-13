@@ -47,17 +47,19 @@ describe('interviewingNode', () => {
    * @test REQ-003-5-01
    * @intent 验证Interviewing节点添加响应并移动到下一问题的功能
    */
-  it('should add response and move to next question', async () => {
-    const result = await interviewingNode(baseState, { content: '我的回答' });
+   it('should add response and move to next question', async () => {
+     const result = await interviewingNode(baseState, { content: '我的回答' });
 
-    expect(result.responses).toHaveLength(1);
-    expect(result.responses[0].questionId).toBe('q0');
-    expect(result.responses[0].content).toBe('我的回答');
-    expect(result.responses[0].isFollowup).toBe(false);
-    expect(result.currentQuestion).toBe(1);
-    expect(result.response).toBe('您在工作中遇到过最大的挑战是什么？');
-    expect(result.shouldContinue).toBe(true);
-  });
+     expect(result.responses).toBeDefined();
+     expect(result.responses).toHaveLength(1);
+     const firstResponse = result.responses?.[0];
+     expect(firstResponse?.questionId).toBe('q0');
+     expect(firstResponse?.content).toBe('我的回答');
+     expect(firstResponse?.isFollowup).toBe(false);
+     expect(result.currentQuestion).toBe(1);
+     expect(result.response).toBe('您在工作中遇到过最大的挑战是什么？');
+     expect(result.shouldContinue).toBe(true);
+   });
 
   /**
    * @test REQ-003-5-01
@@ -92,8 +94,10 @@ describe('interviewingNode', () => {
     });
 
     expect(result.responses).toHaveLength(2);
-    expect(result.responses[0].questionId).toBe('q0');
-    expect(result.responses[1].questionId).toBe('q1');
+    const firstResponse = result.responses?.[0];
+    const secondResponse = result.responses?.[1];
+    expect(firstResponse?.questionId).toBe('q0');
+    expect(secondResponse?.questionId).toBe('q1');
     expect(result.currentQuestion).toBe(2);
   });
 

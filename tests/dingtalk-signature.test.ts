@@ -32,7 +32,7 @@ describe('DingTalk Signature Verification', () => {
    */
   it('should export verifyTimestamp function for replay protection', () => {
     const content = fs.readFileSync('src/integrations/dingtalk/middleware.ts', 'utf-8');
-    expect(content).toContain('verifyTimestamp') || content.toLowerCase().includes('timestamp');
+    expect(content.includes('verifyTimestamp') || content.toLowerCase().includes('timestamp')).toBe(true);
   });
 
   /**
@@ -60,7 +60,7 @@ describe('DingTalk Signature Verification', () => {
    */
   it('should reject timestamp older than 5 minutes', () => {
     const content = fs.readFileSync('src/integrations/dingtalk/middleware.ts', 'utf-8');
-    expect(content).toContain('300000') || content.includes('5 * 60 * 1000');
+    expect(content.includes('300000') || content.includes('5 * 60 * 1000')).toBe(true);
   });
 
   /**
