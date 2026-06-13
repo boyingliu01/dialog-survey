@@ -51,7 +51,9 @@ async function checkLLM(): Promise<{
     }
 
     const baseUrl =
-      process.env.LLM_BASE_URL || process.env.VOLCENGINE_BASE_URL || 'https://ark.cn-beijing.volces.com/api/coding';
+      process.env.LLM_BASE_URL ||
+      process.env.VOLCENGINE_BASE_URL ||
+      'https://ark.cn-beijing.volces.com/api/coding';
     const model = process.env.LLM_MODEL || process.env.VOLCENGINE_MODEL || 'deepseek-v3.2';
 
     const start = Date.now();
@@ -105,7 +107,8 @@ async function checkDingTalk(): Promise<{
   if (!clientId || !clientSecret || !agentId) {
     return {
       status: 'degraded',
-      error: 'DingTalk Stream credentials not configured (missing CLIENT_ID, CLIENT_SECRET, or AGENT_ID)',
+      error:
+        'DingTalk Stream credentials not configured (missing CLIENT_ID, CLIENT_SECRET, or AGENT_ID)',
     };
   }
 
