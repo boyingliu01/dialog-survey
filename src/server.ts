@@ -16,7 +16,6 @@ import { analysisRoutes } from './api/analysis.js';
 import { healthRoutes } from './api/health.js';
 import { interviewPlanRoutes } from './api/plans.js';
 import { templateRoutes } from './api/templates.js';
-import { webhookRoutes } from './api/webhook.js';
 import { DingTalkStreamClient } from './integrations/dingtalk/stream-client.js';
 import { InterviewRepository } from './repositories/interview.repository.js';
 import { TemplateRepository } from './repositories/template.repository.js';
@@ -24,7 +23,9 @@ import { AnalysisService } from './services/analysis.service.js';
 import { AnalyticsService } from './services/analytics.service.js';
 import { InterviewPlanService } from './services/interview-plan.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
+import { AuditCleanupService } from './services/audit-cleanup.service.js';
 import { error, info, warn } from './utils/logger.js';
+import cron from 'node-cron';
 import { renderMarkdown } from './utils/markdown.js';
 import { createVerifyApiKey, securityMiddleware } from './utils/security.js';
 
@@ -139,10 +140,22 @@ export async function buildApp() {
 
   await securityMiddleware(fastify, prisma);
 
+  // Schedule daily audit log cleanup at 2:00 AM
+  const auditCleanup = new AuditCleanupService(prisma);
+  cron.schedule('0 2 * * *', async () => {
+    try {
+      await auditCleanup.cleanupOldLogs(90);
+    } catch (err) {
+      error('Audit cleanup cron job failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
+  info('Audit cleanup cron scheduled (daily at 2:00 AM)');
+
   const verifyApiKey = createVerifyApiKey(prisma);
 
   await fastify.register(healthRoutes, { prisma });
-  await fastify.register(webhookRoutes);
 
   await fastify.register(async (api) => {
     api.addHook('preHandler', verifyApiKey);
@@ -215,6 +228,7 @@ export async function startServer() {
         info(`Received ${signal}, shutting down gracefully`);
         client.disconnect();
         await app.close();
+        await prisma.$disconnect();
         process.exit(0);
       };
 
