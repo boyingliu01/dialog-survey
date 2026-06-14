@@ -81,19 +81,21 @@ describe('buildApp', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await app.fastify.close();
   });
 
   it('should create a Fastify app instance', () => {
     expect(app).toBeDefined();
     expect(typeof app).toBe('object');
-    expect(typeof app.inject).toBe('function');
-    expect(typeof app.listen).toBe('function');
-    expect(typeof app.close).toBe('function');
+    expect(app).toHaveProperty('fastify');
+    expect(app).toHaveProperty('prisma');
+    expect(typeof app.fastify.inject).toBe('function');
+    expect(typeof app.fastify.listen).toBe('function');
+    expect(typeof app.fastify.close).toBe('function');
   });
 
   it('should have health route registered', async () => {
-    const response = await app.inject({
+    const response = await app.fastify.inject({
       method: 'GET',
       url: '/health',
     });
@@ -108,7 +110,7 @@ describe('buildApp', () => {
   });
 
   it('should have interview plan routes registered', async () => {
-    const response = await app.inject({
+    const response = await app.fastify.inject({
       method: 'GET',
       url: '/api/plans',
     });
@@ -116,7 +118,7 @@ describe('buildApp', () => {
   });
 
   it('should have template routes registered', async () => {
-    const response = await app.inject({
+    const response = await app.fastify.inject({
       method: 'GET',
       url: '/api/templates',
     });
@@ -124,7 +126,7 @@ describe('buildApp', () => {
   });
 
   it('should have analysis routes registered', async () => {
-    const response = await app.inject({
+    const response = await app.fastify.inject({
       method: 'POST',
       url: '/api/analysis/single',
       headers: { 'content-type': 'application/json' },
@@ -134,7 +136,7 @@ describe('buildApp', () => {
   });
 
   it('should have admin template routes registered', async () => {
-    const response = await app.inject({
+    const response = await app.fastify.inject({
       method: 'GET',
       url: '/admin/api/templates',
     });
@@ -142,7 +144,7 @@ describe('buildApp', () => {
   });
 
   it('should return 404 for unknown routes', async () => {
-    const response = await app.inject({
+    const response = await app.fastify.inject({
       method: 'GET',
       url: '/nonexistent-route-xyz',
     });
