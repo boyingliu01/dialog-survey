@@ -22,14 +22,19 @@ describe('Environment Configuration', () => {
     expect(env).toContain('DATABASE_URL');
   });
 
-  it('should contain DINGTALK_WEBHOOK_URL', () => {
+  it('should contain DINGTALK_CLIENT_ID', () => {
     const env = fs.readFileSync('.env.example', 'utf-8');
-    expect(env).toContain('DINGTALK_WEBHOOK_URL');
+    expect(env).toContain('DINGTALK_CLIENT_ID');
   });
 
-  it('should contain DINGTALK_SECRET', () => {
+  it('should contain DINGTALK_CLIENT_SECRET', () => {
     const env = fs.readFileSync('.env.example', 'utf-8');
-    expect(env).toContain('DINGTALK_SECRET');
+    expect(env).toContain('DINGTALK_CLIENT_SECRET');
+  });
+
+  it('should contain DINGTALK_AGENT_ID', () => {
+    const env = fs.readFileSync('.env.example', 'utf-8');
+    expect(env).toContain('DINGTALK_AGENT_ID');
   });
 
   it('should contain DASHSCOPE_API_KEY', () => {

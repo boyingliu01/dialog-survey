@@ -107,16 +107,6 @@ describe('buildApp', () => {
     expect(body.checks).toHaveProperty('dingtalk');
   });
 
-  it('should have webhook route registered', async () => {
-    const response = await app.inject({
-      method: 'POST',
-      url: '/webhook',
-      headers: { 'content-type': 'application/json' },
-      payload: {},
-    });
-    expect(response.statusCode).not.toBe(404);
-  });
-
   it('should have interview plan routes registered', async () => {
     const response = await app.inject({
       method: 'GET',

@@ -209,7 +209,10 @@ model AuditLog {
   userId     String?
   details    String?
   ipAddress  String?
+  expiresAt  DateTime? // TTL — set to createdAt + 90 days for cleanup
   createdAt  DateTime @default(now())
+
+  @@index([expiresAt])
 }
 
 model ApiKey {
