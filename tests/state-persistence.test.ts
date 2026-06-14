@@ -227,6 +227,10 @@ describe('InterviewStateRepository', () => {
             maxFollowups: 2,
             responses: [],
             reportGenerated: false,
+            version: 3,
+            originalVersion: 3,
+            pendingMessages: [],
+            pendingResponses: [],
           },
           version: 3,
         })

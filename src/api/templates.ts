@@ -10,6 +10,29 @@ export interface TemplateRoutesOptions {
   prisma: PrismaClient;
 }
 
+/** Helper to format template response object (avoids duplication) */
+function formatTemplateResponse(template: {
+  id: string;
+  name: string;
+  description: string | null;
+  content: string;
+  version: number;
+  status: TemplateStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: template.id,
+    name: template.name,
+    description: template.description,
+    content: JSON.parse(template.content),
+    version: template.version,
+    status: template.status,
+    createdAt: template.createdAt,
+    updatedAt: template.updatedAt,
+  };
+}
+
 const createTemplateSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
@@ -65,16 +88,7 @@ export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRou
     if (!template) {
       return reply.status(404).send({ error: 'Template not found' });
     }
-    return {
-      id: template.id,
-      name: template.name,
-      description: template.description,
-      content: JSON.parse(template.content),
-      version: template.version,
-      status: template.status,
-      createdAt: template.createdAt,
-      updatedAt: template.updatedAt,
-    };
+    return reply.send(formatTemplateResponse(template));
   });
 
   fastify.put('/api/templates/:id', async (request, reply) => {
@@ -93,16 +107,7 @@ export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRou
       status: input.status as TemplateStatus | undefined,
     });
 
-    return {
-      id: template.id,
-      name: template.name,
-      description: template.description,
-      content: JSON.parse(template.content),
-      version: template.version,
-      status: template.status,
-      createdAt: template.createdAt,
-      updatedAt: template.updatedAt,
-    };
+    return reply.send(formatTemplateResponse(template));
   });
 
   fastify.put('/api/templates/:id/dimensions', async (request, reply) => {

@@ -1,6 +1,6 @@
 import { PlanStatus, Prisma, SendStatus } from '@prisma/client';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
-import { error, info } from '../utils/logger.js';
+import { error, info, warn } from '../utils/logger.js';
 import { InterviewPlanServiceBase } from './interview-plan-base.service.js';
 import type {
   CreateAndPublishInput,
@@ -71,7 +71,12 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
       try {
         const content = JSON.parse(plan.template.content) as { invitationPrompt?: string };
         invitationPrompt = content.invitationPrompt || '';
-      } catch {}
+      } catch (err) {
+        warn('Failed to parse template content', {
+          templateId: plan.templateId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
 
     let sent = 0;
@@ -164,7 +169,12 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
       try {
         const content = JSON.parse(template.content) as { invitationPrompt?: string };
         invitationPrompt = content.invitationPrompt || '';
-      } catch {}
+      } catch (err) {
+        warn('Failed to parse template content', {
+          templateId: interview.plan.templateId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
 
     const wasAlreadyCounted =
