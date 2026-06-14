@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix `dingtalk-services.test.ts`: update file-existence tests for refactored modules
 - Fix `security.test.ts`: mock `apiKey.findFirst` instead of `auditLog.findFirst`
 - Fix `health-api.test.ts`: align DingTalk env var checks with Stream mode
+- Add `postinstall` script for Prisma Client auto-generation - **Fixes #48**
+- Remove deprecated webhook module (replaced by DingTalk Stream mode) - **Fixes #43**
+- Add `await prisma.$disconnect()` to graceful shutdown - **Fixes #41**
+- Add AuditLog TTL (expiresAt + @@index), cleanup service, and daily cron at 2:00 AM - **Fixes #42**
+- Reduce AuditLog verbosity: only log mutations (POST/PUT/DELETE) and admin paths
+- Close false-positive env-config issue (#45): DingTalk Stream mode already handles this
+
+### Quality
+- Pre-commit hook: Score 10.0/10, all 9 gates passed
+- TDD: audit-cleanup service had tests written before implementation
 
 ## [1.0.1] - 2026-06-13
 
