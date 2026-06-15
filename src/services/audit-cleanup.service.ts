@@ -4,7 +4,7 @@ import { info } from '../utils/logger.js';
 export class AuditCleanupService {
   constructor(private prisma: PrismaClient) {}
 
-  async cleanupOldLogs(daysToRetain: number = 90): Promise<{ deleted: number }> {
+  async cleanupOldLogs(daysToRetain = 90): Promise<{ deleted: number }> {
     const now = new Date();
     const cutoff = new Date(now.getTime() - daysToRetain * 24 * 60 * 60 * 1000);
 
