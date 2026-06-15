@@ -126,7 +126,7 @@ export class TemplateRepository {
       status?: string;
     }>
   ): Promise<Template> {
-    const updateData = this._buildUpdateData(data as any, { incrementVersion: true });
+    const updateData = this._buildUpdateData(data as Record<string, unknown>, { incrementVersion: true });
 
     return this.prisma.template.update({
       where: { id, version: expectedVersion },
