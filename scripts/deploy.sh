@@ -67,23 +67,32 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 log_info "✓ Using $ENV_FILE"
 
-# ── Phase 2: Install dependencies ──────────────────────────────────────
+# ── Phase 2: Stop existing service (prevent Prisma DLL file lock) ──────
+log_info "Stopping existing service..."
+if command -v pm2 &>/dev/null; then
+  pm2 delete interview-bot 2>/dev/null || true
+fi
+pkill -f "dist/src/server" 2>/dev/null || true
+sleep 2
+log_info "✓ Existing service stopped"
+
+# ── Phase 3: Install dependencies ──────────────────────────────────────
 log_info "Installing dependencies..."
 npm ci --ignore-scripts || npm install
 log_info "✓ Dependencies installed"
 
-# ── Phase 3: Prisma setup ──────────────────────────────────────────────
+# ── Phase 4: Prisma setup ──────────────────────────────────────────────
 log_info "Setting up Prisma..."
 npx prisma generate
 npx prisma db push --accept-data-loss
 log_info "✓ Prisma ready"
 
-# ── Phase 4: Build ─────────────────────────────────────────────────────
+# ── Phase 5: Build ─────────────────────────────────────────────────────
 log_info "Building production bundle..."
 npm run build
 log_info "✓ Build complete"
 
-# ── Phase 5: Quality gates (skip in production, run in staging) ────────
+# ── Phase 6: Quality gates (skip in production, run in staging) ────────
 if [ "$ENV" = "staging" ]; then
   log_info "Running quality gates (staging)..."
   npm run type-check
@@ -94,29 +103,24 @@ else
   log_info "Skipping quality gates for production deploy (run manually before deploy)"
 fi
 
-# ── Phase 6: Start service ─────────────────────────────────────────────
+# ── Phase 7: Start service ─────────────────────────────────────────────
 log_info "Starting Interview Bot..."
 export NODE_ENV="$ENV"
 
 # PM2 mode (if available)
 if command -v pm2 &>/dev/null && [ -f "ecosystem.config.cjs" ]; then
-  pm2 delete interview-bot 2>/dev/null || true
   pm2 start ecosystem.config.cjs --env "$ENV"
   log_info "✓ Started via PM2"
 else
   # Direct node mode
-  if pgrep -f "dist/src/server.ts" &>/dev/null; then
-    log_warn "Stopping existing process..."
-    pkill -f "dist/src/server.ts" || true
-    sleep 2
-  fi
+  mkdir -p logs
   nohup node dist/src/server.ts > logs/server.log 2>&1 &
   log_info "✓ Started directly (PID: $!)"
   log_warn "Consider installing PM2 for production process management:"
   log_warn "  npm install -g pm2 && pm2 start ecosystem.config.cjs"
 fi
 
-# ── Phase 7: Health check ──────────────────────────────────────────────
+# ── Phase 8: Health check ──────────────────────────────────────────────
 log_info "Waiting for service to start..."
 sleep 2
 
