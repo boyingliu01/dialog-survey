@@ -84,4 +84,3 @@ LEARNINGS/
 prisma/seed-*.ts
 
 # Public assets (admin UI)
-public/
