@@ -70,7 +70,7 @@ log_info "✓ Using $ENV_FILE"
 # ── Phase 2: Stop existing service (prevent Prisma DLL file lock) ──────
 log_info "Stopping existing service..."
 if command -v pm2 &>/dev/null; then
-  pm2 delete interview-bot 2>/dev/null || true
+  pm2 delete dialog-survey 2>/dev/null || true
 fi
 pkill -f "dist/src/server" 2>/dev/null || true
 sleep 2
@@ -149,7 +149,7 @@ fi
 if command -v pm2 &>/dev/null; then
   echo ""
   log_error "PM2 logs:"
-  pm2 logs interview-bot --lines 20 --nostream 2>/dev/null || true
+  pm2 logs dialog-survey --lines 20 --nostream 2>/dev/null || true
 fi
 
 exit 1
