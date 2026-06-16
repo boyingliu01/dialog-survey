@@ -30,6 +30,6 @@ describe('Project Structure', () => {
 
   it('should have valid package.json with correct name', () => {
     const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
-    expect(pkg.name).toBe('interview-bot');
+    expect(pkg.name).toBe('dialog-survey');
   });
 });

@@ -112,3 +112,6 @@ worktrees/
 .sprint-state/
 .omo/run-continuation/
 .worktrees/
+
+# Delphi review artifacts (contain colons in filenames, break Windows git)
+.delphi/

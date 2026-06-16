@@ -1,0 +1,794 @@
+#!/usr/bin/env node
+
+/**
+ * dialog-survey CLI — npx-based install and lifecycle management
+ *
+ * Commands: install, uninstall, start, stop, status, help
+ * Zero external dependencies — pure Node.js ESM
+ */
+
+import { execSync } from "node:child_process";
+import { createInterface } from "node:readline";
+import { existsSync } from "node:fs";
+import { mkdir, cp, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import http from "node:http";
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const INSTALL_DIR = join(homedir(), ".dialog-survey");
+const PM2_APP_NAME = "dialog-survey";
+const HEALTH_URL = "http://localhost:3001/health";
+const HEALTH_TIMEOUT_MS = 30_000;
+const HEALTH_POLL_INTERVAL_MS = 1_000;
+const MIN_NODE_MAJOR = 20;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+
+/**
+ * Execute a shell command synchronously, returning stdout.
+ * Throws with stderr on failure.
+ */
+export function exec(cmd, options = {}) {
+  return execSync(cmd, {
+    encoding: "utf-8",
+    stdio: ["pipe", "pipe", "pipe"],
+    ...options,
+  }).trim();
+}
+
+/**
+ * Print a message to stdout.
+ */
+function log(msg) {
+  process.stdout.write(`${msg}\n`);
+}
+
+/**
+ * Print an error message to stderr.
+ */
+function logError(msg) {
+  process.stderr.write(`Error: ${msg}\n`);
+}
+
+// ─── Argument Parsing ────────────────────────────────────────────────────────
+
+/**
+ * Parse CLI arguments into a command name and a flags object.
+ *
+ * @param {string[]} argv - process.argv.slice(2)
+ * @returns {{ command: string, flags: Record<string, string>, positional: string[] }}
+ */
+export function parseArgs(argv) {
+  const command = argv[0] || "help";
+  const flags = {};
+  const positional = [];
+
+  for (let i = 1; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg.startsWith("--")) {
+      const key = arg.slice(2);
+      const next = argv[i + 1];
+      if (next && !next.startsWith("--")) {
+        flags[key] = next;
+        i++;
+      } else {
+        flags[key] = "true";
+      }
+    } else {
+      positional.push(arg);
+    }
+  }
+
+  return { command, flags, positional };
+}
+
+// ─── Config Generation ───────────────────────────────────────────────────────
+
+/**
+ * Generate config object from CLI flags.
+ *
+ * @param {Record<string, string>} flags
+ * @returns {Record<string, string>}
+ */
+export function generateConfigFromFlags(flags) {
+  return {
+    DATABASE_URL: flags["db-url"] || "",
+    DASHSCOPE_API_KEY: flags["dashscope-api-key"] || "",
+    DINGTALK_CLIENT_ID: flags["dingtalk-client-id"] || "",
+    DINGTALK_CLIENT_SECRET: flags["dingtalk-client-secret"] || "",
+    DINGTALK_AGENT_ID: flags["dingtalk-agent-id"] || "",
+  };
+}
+
+/**
+ * Check if all required config values are present.
+ *
+ * @param {Record<string, string>} config
+ * @returns {{ valid: boolean, missing: string[] }}
+ */
+export function validateConfig(config) {
+  const required = [
+    "DATABASE_URL",
+    "DASHSCOPE_API_KEY",
+    "DINGTALK_CLIENT_ID",
+    "DINGTALK_CLIENT_SECRET",
+    "DINGTALK_AGENT_ID",
+  ];
+  const missing = required.filter((key) => !config[key]);
+  return { valid: missing.length === 0, missing };
+}
+
+// ─── Interactive Prompts ─────────────────────────────────────────────────────
+
+/**
+ * Prompt user for a single value via readline.
+ *
+ * @param {string} question
+ * @param {import("node:readline").Interface} rl
+ * @returns {Promise<string>}
+ */
+function prompt(question, rl) {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      resolve(answer.trim());
+    });
+  });
+}
+
+/**
+ * Collect config interactively via readline prompts.
+ *
+ * @returns {Promise<Record<string, string>>}
+ */
+export async function collectConfigInteractive() {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    log("\n📋 dialog-survey configuration\n");
+
+    const config = {
+      DATABASE_URL: await prompt(
+        "Database URL (PostgreSQL connection string): ",
+        rl,
+      ),
+      DASHSCOPE_API_KEY: await prompt("DashScope API Key (LLM): ", rl),
+      DINGTALK_CLIENT_ID: await prompt("DingTalk Client ID: ", rl),
+      DINGTALK_CLIENT_SECRET: await prompt("DingTalk Client Secret: ", rl),
+      DINGTALK_AGENT_ID: await prompt("DingTalk Agent ID: ", rl),
+    };
+
+    return config;
+  } finally {
+    rl.close();
+  }
+}
+
+// ─── Prerequisites ───────────────────────────────────────────────────────────
+
+/**
+ * Check Node.js version >= 20.
+ * @returns {{ ok: boolean, message: string }}
+ */
+export function checkNodeVersion() {
+  const major = Number.parseInt(process.versions.node.split(".")[0], 10);
+  if (major < MIN_NODE_MAJOR) {
+    return {
+      ok: false,
+      message: `Node.js >= ${MIN_NODE_MAJOR} required (current: ${process.versions.node})`,
+    };
+  }
+  return { ok: true, message: `Node.js ${process.versions.node} ✓` };
+}
+
+/**
+ * Check if PostgreSQL is reachable using the given DATABASE_URL.
+ * @param {string} databaseUrl
+ * @returns {{ ok: boolean, message: string }}
+ */
+export function checkPostgres(databaseUrl) {
+  if (!databaseUrl) {
+    return { ok: false, message: "DATABASE_URL not provided" };
+  }
+  try {
+    // Extract host and port from postgresql:// URL
+    const url = new URL(databaseUrl);
+    const host = url.hostname;
+    const port = url.port || "5432";
+    exec(`pg_isready -h ${host} -p ${port} -q`);
+    return { ok: true, message: `PostgreSQL ${host}:${port} ✓` };
+  } catch {
+    return {
+      ok: false,
+      message:
+        "PostgreSQL not reachable. Ensure PostgreSQL is running and DATABASE_URL is correct.",
+    };
+  }
+}
+
+/**
+ * Check if port 3001 is available.
+ * @returns {{ ok: boolean, message: string }}
+ */
+export function checkPort() {
+  return new Promise((resolve) => {
+    const server = http.createServer();
+    server.once("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        resolve({
+          ok: false,
+          message: "Port 3001 is already in use. Stop the existing service first.",
+        });
+      } else {
+        resolve({ ok: false, message: `Port check failed: ${err.message}` });
+      }
+    });
+    server.once("listening", () => {
+      server.close(() => {
+        resolve({ ok: true, message: "Port 3001 available ✓" });
+      });
+    });
+    server.listen(3001, "0.0.0.0");
+  });
+}
+
+/**
+ * Run all prerequisite checks.
+ * @param {string} databaseUrl
+ * @returns {Promise<{ ok: boolean, messages: string[] }>}
+ */
+export async function checkPrerequisites(databaseUrl) {
+  const messages = [];
+  let allOk = true;
+
+  const nodeCheck = checkNodeVersion();
+  messages.push(nodeCheck.message);
+  if (!nodeCheck.ok) allOk = false;
+
+  const pgCheck = checkPostgres(databaseUrl);
+  messages.push(pgCheck.message);
+  if (!pgCheck.ok) allOk = false;
+
+  const portCheck = await checkPort();
+  messages.push(portCheck.message);
+  if (!portCheck.ok) allOk = false;
+
+  return { ok: allOk, messages };
+}
+
+// ─── PM2 Helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Check if PM2 is installed and accessible.
+ * @returns {{ ok: boolean, message: string }}
+ */
+export function checkPm2() {
+  try {
+    exec("pm2 --version");
+    return { ok: true, message: "PM2 found ✓" };
+  } catch {
+    return {
+      ok: false,
+      message:
+        "PM2 is not installed. Install it with: npm install -g pm2",
+    };
+  }
+}
+
+// ─── Health Check ────────────────────────────────────────────────────────────
+
+/**
+ * Poll the health endpoint until it responds or timeout.
+ * @param {string} url
+ * @param {number} timeoutMs
+ * @param {number} intervalMs
+ * @returns {Promise<boolean>}
+ */
+export function waitForHealth(
+  url = HEALTH_URL,
+  timeoutMs = HEALTH_TIMEOUT_MS,
+  intervalMs = HEALTH_POLL_INTERVAL_MS,
+) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+
+    const poll = () => {
+      if (Date.now() - start > timeoutMs) {
+        resolve(false);
+        return;
+      }
+
+      const req = http.get(url, (res) => {
+        if (res.statusCode === 200) {
+          res.resume();
+          resolve(true);
+        } else {
+          res.resume();
+          setTimeout(poll, intervalMs);
+        }
+      });
+
+      req.on("error", () => {
+        setTimeout(poll, intervalMs);
+      });
+
+      req.setTimeout(2000, () => {
+        req.destroy();
+        setTimeout(poll, intervalMs);
+      });
+    };
+
+    poll();
+  });
+}
+
+// ─── .env Generation ─────────────────────────────────────────────────────────
+
+/**
+ * Generate .env file content from config.
+ * @param {Record<string, string>} config
+ * @returns {string}
+ */
+export function generateEnvContent(config) {
+  const lines = [
+    "# Generated by dialog-survey CLI",
+    "NODE_ENV=production",
+    "PORT=3001",
+    "HOST=0.0.0.0",
+    "",
+    `DATABASE_URL="${config.DATABASE_URL}"`,
+    `DASHSCOPE_API_KEY=${config.DASHSCOPE_API_KEY}`,
+    "",
+    `DINGTALK_CLIENT_ID=${config.DINGTALK_CLIENT_ID}`,
+    `DINGTALK_CLIENT_SECRET=${config.DINGTALK_CLIENT_SECRET}`,
+    `DINGTALK_AGENT_ID=${config.DINGTALK_AGENT_ID}`,
+    "",
+    "# Security",
+    `ENCRYPTION_KEY=${exec("node -e \"console.log(require('crypto').randomBytes(16).toString('hex'))\"")}`,
+    `ADMIN_API_KEY=${exec("node -e \"console.log(require('crypto').randomBytes(16).toString('hex'))\"")}`,
+    "",
+    "# Logging",
+    "LOG_LEVEL=info",
+    "",
+  ];
+  return lines.join("\n");
+}
+
+// ─── Commands ────────────────────────────────────────────────────────────────
+
+/**
+ * Install command — interactive or non-interactive installation.
+ * @param {Record<string, string>} flags
+ */
+export async function installCommand(flags) {
+  log("🚀 dialog-survey installer\n");
+
+  // Step 1: Collect config
+  let config;
+  const fromFlags = generateConfigFromFlags(flags);
+  const flagValidation = validateConfig(fromFlags);
+
+  if (flagValidation.valid) {
+    config = fromFlags;
+    log("Using configuration from CLI flags.\n");
+  } else if (flags.help) {
+    printInstallHelp();
+    return;
+  } else {
+    log(
+      `Non-interactive flags detected but missing: ${flagValidation.missing.join(", ")}`,
+    );
+    log("Falling back to interactive mode...\n");
+    config = await collectConfigInteractive();
+    const interactiveValidation = validateConfig(config);
+    if (!interactiveValidation.valid) {
+      logError(
+        `Missing required config: ${interactiveValidation.missing.join(", ")}`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+  }
+
+  // Step 2: Check prerequisites
+  log("Checking prerequisites...");
+  const prereqs = await checkPrerequisites(config.DATABASE_URL);
+  for (const msg of prereqs.messages) {
+    log(`  ${msg}`);
+  }
+  if (!prereqs.ok) {
+    logError("Prerequisites check failed. Fix the issues above and retry.");
+    process.exitCode = 1;
+    return;
+  }
+
+  // Step 3: Check PM2
+  const pm2Check = checkPm2();
+  log(`  ${pm2Check.message}`);
+  if (!pm2Check.ok) {
+    logError(pm2Check.message);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Step 4: Create install directory
+  log("\nSetting up installation directory...");
+  const sourceDir = join(__dirname, "..");
+  await mkdir(INSTALL_DIR, { recursive: true });
+  log(`  Created ${INSTALL_DIR}`);
+
+  // Step 5: Copy package files
+  log("Copying package files...");
+  const filesToCopy = [
+    "package.json",
+    "package-lock.json",
+    "dist",
+    "prisma",
+    "ecosystem.config.cjs",
+  ];
+  for (const file of filesToCopy) {
+    const src = join(sourceDir, file);
+    const dest = join(INSTALL_DIR, file);
+    if (existsSync(src)) {
+      await cp(src, dest, { recursive: true });
+      log(`  Copied ${file}`);
+    }
+  }
+
+  // Step 6: Generate .env
+  log("Generating .env file...");
+  const envContent = generateEnvContent(config);
+  await writeFile(join(INSTALL_DIR, ".env"), envContent, "utf-8");
+  log(`  Created ${INSTALL_DIR}/.env`);
+
+  // Step 7: npm ci
+  log("Installing dependencies (npm ci --omit=dev)...");
+  try {
+    exec("npm ci --omit=dev --ignore-scripts", { cwd: INSTALL_DIR });
+    log("  Dependencies installed ✓");
+  } catch (err) {
+    logError(`npm ci failed: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Step 8: prisma generate
+  log("Generating Prisma client...");
+  try {
+    exec("npx prisma generate", { cwd: INSTALL_DIR });
+    log("  Prisma client generated ✓");
+  } catch (err) {
+    logError(`prisma generate failed: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Step 9: prisma db push
+  log("Pushing schema to database...");
+  try {
+    exec("npx prisma db push", { cwd: INSTALL_DIR });
+    log("  Schema pushed ✓");
+  } catch (err) {
+    logError(`prisma db push failed: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Step 10: build
+  log("Building project...");
+  try {
+    exec("npm run build", { cwd: INSTALL_DIR });
+    log("  Build complete ✓");
+  } catch (err) {
+    logError(`Build failed: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Step 11: PM2 start
+  log("Starting service via PM2...");
+  try {
+    exec(
+      `pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production`,
+      { cwd: INSTALL_DIR },
+    );
+    log("  PM2 process started ✓");
+  } catch (err) {
+    logError(`PM2 start failed: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Step 12: Wait for health
+  log("Waiting for health check...");
+  const healthy = await waitForHealth();
+  if (healthy) {
+    log("  Health check passed ✓");
+    log("\n✅ dialog-survey installed and running successfully!");
+    log(`   Install dir: ${INSTALL_DIR}`);
+    log(`   Health:      ${HEALTH_URL}`);
+    log(`   Logs:        pm2 logs ${PM2_APP_NAME}`);
+    log("   Stop:        npx dialog-survey stop");
+    log("   Status:      npx dialog-survey status");
+  } else {
+    logError("Health check timed out after 30s. Service may still be starting.");
+    log(`   Check logs: pm2 logs ${PM2_APP_NAME}`);
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * Uninstall command — remove installation.
+ * @param {Record<string, string>} flags
+ */
+export async function uninstallCommand(flags) {
+  log("🗑️  dialog-survey uninstaller\n");
+
+  // Step 1: Stop PM2 process
+  const pm2Check = checkPm2();
+  if (pm2Check.ok) {
+    log("Stopping PM2 process...");
+    try {
+      exec(`pm2 delete ${PM2_APP_NAME}`);
+      log("  PM2 process removed ✓");
+    } catch {
+      log("  No PM2 process found (may already be removed)");
+    }
+  }
+
+  // Step 2: Optional DB removal
+  if (flags["remove-db"] === "true") {
+    log("\n⚠️  Database removal requested.");
+    log("To drop the database, run:");
+    log('  psql -c "DROP DATABASE IF EXISTS dialog_survey;"');
+    log("  (adjust connection parameters as needed)\n");
+  }
+
+  // Step 3: Remove install directory
+  if (existsSync(INSTALL_DIR)) {
+    log(`Removing ${INSTALL_DIR}...`);
+    await rm(INSTALL_DIR, { recursive: true, force: true });
+    log("  Installation directory removed ✓");
+  } else {
+    log("  No installation directory found.");
+  }
+
+  log("\n✅ dialog-survey uninstalled successfully.");
+}
+
+/**
+ * Start command — start service via PM2.
+ */
+export async function startCommand() {
+  log("▶️  Starting dialog-survey...\n");
+
+  const pm2Check = checkPm2();
+  if (!pm2Check.ok) {
+    logError(pm2Check.message);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!existsSync(join(INSTALL_DIR, "ecosystem.config.cjs"))) {
+    logError(
+      `No installation found at ${INSTALL_DIR}. Run 'npx dialog-survey install' first.`,
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  try {
+    exec(
+      `pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production`,
+      { cwd: INSTALL_DIR },
+    );
+    log("PM2 process started ✓");
+  } catch (err) {
+    logError(`PM2 start failed: ${err.message}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  log("Waiting for health check...");
+  const healthy = await waitForHealth();
+  if (healthy) {
+    log("✅ dialog-survey is running.");
+    log(`   Health: ${HEALTH_URL}`);
+  } else {
+    logError("Health check timed out. Check logs: pm2 logs dialog-survey");
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * Stop command — stop service via PM2.
+ */
+export async function stopCommand() {
+  log("⏹  Stopping dialog-survey...\n");
+
+  const pm2Check = checkPm2();
+  if (!pm2Check.ok) {
+    logError(pm2Check.message);
+    process.exitCode = 1;
+    return;
+  }
+
+  try {
+    exec(`pm2 stop ${PM2_APP_NAME}`);
+    log("✅ dialog-survey stopped.");
+  } catch (err) {
+    logError(`PM2 stop failed: ${err.message}`);
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * Status command — show service status.
+ */
+export async function statusCommand() {
+  log("📊 dialog-survey status\n");
+
+  // Check PM2 process
+  const pm2Check = checkPm2();
+  if (!pm2Check.ok) {
+    log(`  PM2: ${pm2Check.message}`);
+    log("  Status: unknown\n");
+    return;
+  }
+
+  try {
+    const pm2Status = exec("pm2 jlist");
+    const processes = JSON.parse(pm2Status);
+    const app = processes.find((p) => p.name === PM2_APP_NAME);
+
+    if (!app) {
+      log("  PM2 process: not found");
+      log("  Status: stopped\n");
+      log("  Run 'npx dialog-survey start' to start the service.");
+      return;
+    }
+
+    const pm2StatusText = app.pm2_env?.status || "unknown";
+    log(`  PM2 process: ${pm2StatusText}`);
+    log(`  PID: ${app.pid || "N/A"}`);
+    log(`  Uptime: ${app.pm2_env?.pm_uptime ? new Date(app.pm2_env.pm_uptime).toISOString() : "N/A"}`);
+    log(`  Restarts: ${app.pm2_env?.restart_time ?? "N/A"}`);
+    log(`  Memory: ${app.monit?.memory ? `${Math.round(app.monit.memory / 1024 / 1024)}MB` : "N/A"}`);
+
+    // Check health endpoint
+    const healthy = await waitForHealth(HEALTH_URL, 5000, 500);
+    if (healthy) {
+      log(`  Health: ${HEALTH_URL} ✓`);
+      log("\n  Status: running ✅");
+    } else {
+      log(`  Health: ${HEALTH_URL} ✗`);
+      log("\n  Status: degraded ⚠️");
+    }
+  } catch (err) {
+    logError(`Status check failed: ${err.message}`);
+    log("  Status: unknown\n");
+  }
+}
+
+// ─── Help ────────────────────────────────────────────────────────────────────
+
+function printHelp() {
+  log(`
+dialog-survey CLI — npx-based install and lifecycle management
+
+Usage:
+  npx dialog-survey <command> [options]
+
+Commands:
+  install     Install dialog-survey (interactive or non-interactive)
+  uninstall   Remove dialog-survey installation
+  start       Start the dialog-survey service
+  stop        Stop the dialog-survey service
+  status      Show service status
+  help        Show this help message
+
+Install Options:
+  --db-url <url>                  PostgreSQL connection string
+  --dashscope-api-key <key>       DashScope API key for LLM
+  --dingtalk-client-id <id>       DingTalk client ID
+  --dingtalk-client-secret <sec>  DingTalk client secret
+  --dingtalk-agent-id <id>        DingTalk agent ID
+
+Uninstall Options:
+  --remove-db                     Also print instructions to drop the database
+
+Examples:
+  # Interactive install
+  npx dialog-survey install
+
+  # Non-interactive install
+  npx dialog-survey install \\
+    --db-url "postgresql://user:pass@localhost:5432/db" \\
+    --dashscope-api-key "sk-xxx" \\
+    --dingtalk-client-id "xxx" \\
+    --dingtalk-client-secret "xxx" \\
+    --dingtalk-agent-id "xxx"
+
+  # Lifecycle management
+  npx dialog-survey start
+  npx dialog-survey stop
+  npx dialog-survey status
+  npx dialog-survey uninstall
+`);
+}
+
+function printInstallHelp() {
+  log(`
+dialog-survey install — Install dialog-survey
+
+Usage:
+  npx dialog-survey install [options]
+
+Options:
+  --db-url <url>                  PostgreSQL connection string (required)
+  --dashscope-api-key <key>       DashScope API key for LLM (required)
+  --dingtalk-client-id <id>       DingTalk client ID (required)
+  --dingtalk-client-secret <sec>  DingTalk client secret (required)
+  --dingtalk-agent-id <id>        DingTalk agent ID (required)
+
+If any required option is missing, the installer falls back to interactive mode.
+
+Examples:
+  # Interactive — prompts for each value
+  npx dialog-survey install
+
+  # Non-interactive — all values via flags
+  npx dialog-survey install \\
+    --db-url "postgresql://user:pass@localhost:5432/db" \\
+    --dashscope-api-key "sk-xxx" \\
+    --dingtalk-client-id "xxx" \\
+    --dingtalk-client-secret "xxx" \\
+    --dingtalk-agent-id "xxx"
+`);
+}
+
+// ─── Main ────────────────────────────────────────────────────────────────────
+
+export async function main(argv) {
+  const { command, flags } = parseArgs(argv);
+
+  switch (command) {
+    case "install":
+      await installCommand(flags);
+      break;
+    case "uninstall":
+      await uninstallCommand(flags);
+      break;
+    case "start":
+      await startCommand();
+      break;
+    case "stop":
+      await stopCommand();
+      break;
+    case "status":
+      await statusCommand();
+      break;
+    default:
+      printHelp();
+      break;
+  }
+}
+
+// Run if invoked directly
+const isMain =
+  process.argv[1] &&
+  (fileURLToPath(import.meta.resolve(__filename)) ===
+    fileURLToPath(import.meta.resolve(process.argv[1])) ||
+    process.argv[1].endsWith("cli.mjs"));
+
+if (isMain) {
+  main(process.argv.slice(2));
+}

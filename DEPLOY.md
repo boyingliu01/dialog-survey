@@ -8,7 +8,7 @@ Interview Bot supports **one-click deployment** to any Linux machine with Node.j
 
 ```bash
 # 1. Copy project to target machine
-git clone <repo-url> interview-bot && cd interview-bot
+git clone <repo-url> dialog-survey && cd dialog-survey
 
 # 2. Configure environment
 cp .env.production.example .env.production
@@ -128,11 +128,11 @@ npm run deploy
 
 # Manual PM2 commands:
 pm2 start ecosystem.config.cjs --env production
-pm2 logs interview-bot    # View logs
+pm2 logs dialog-survey    # View logs
 pm2 monit                 # Resource monitoring
-pm2 stop interview-bot    # Stop
-pm2 restart interview-bot # Restart
-pm2 delete interview-bot  # Remove from PM2
+pm2 stop dialog-survey    # Stop
+pm2 restart dialog-survey # Restart
+pm2 delete dialog-survey  # Remove from PM2
 
 # Auto-start on boot:
 pm2 startup
@@ -183,8 +183,8 @@ curl http://localhost:3001/health
 ### PM2 Monitoring
 ```bash
 pm2 monit              # Real-time dashboard
-pm2 logs interview-bot # Log stream
-pm2 info interview-bot # Process details
+pm2 logs dialog-survey # Log stream
+pm2 info dialog-survey # Process details
 ```
 
 ### Log Files
@@ -204,7 +204,7 @@ echo "logs/server.log {
     compress
     missingok
     copytruncate
-}" | sudo tee /etc/logrotate.d/interview-bot
+}" | sudo tee /etc/logrotate.d/dialog-survey
 ```
 
 ## Rollback
@@ -212,14 +212,14 @@ echo "logs/server.log {
 ### Code Rollback
 ```bash
 # Stop current version
-pm2 stop interview-bot
+pm2 stop dialog-survey
 
 # Checkout previous version
 git checkout <previous-commit>
 
 # Rebuild and restart
 npm ci && npx prisma generate && npm run build
-pm2 restart interview-bot
+pm2 restart dialog-survey
 ```
 
 ### Database Rollback

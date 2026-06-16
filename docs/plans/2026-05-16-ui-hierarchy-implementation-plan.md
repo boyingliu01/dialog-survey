@@ -84,7 +84,7 @@ model BatchAnalysisReport {
 **Step 5: 迁移数据库**
 
 ```bash
-cd /home/boyingliu01/projects/interview-bot
+cd /home/boyingliu01/projects/dialog-survey
 npx prisma generate
 npx prisma db push
 ```
@@ -227,7 +227,7 @@ it("should return template detail with plans", async () => {
 **Step 4: 运行测试**
 
 ```bash
-cd /home/boyingliu01/projects/interview-bot
+cd /home/boyingliu01/projects/dialog-survey
 npm run test -- --run tests/admin-templates.test.ts
 ```
 
@@ -951,7 +951,7 @@ git commit -m "feat: add analytics dashboard placeholder page"
 **Step 1: TypeScript 检查**
 
 ```bash
-cd /home/boyingliu01/projects/interview-bot
+cd /home/boyingliu01/projects/dialog-survey
 npm run type-check
 ```
 

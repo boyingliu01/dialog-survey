@@ -1,5 +1,5 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, normalize, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import cors from '@fastify/cors';
 import fastifyFormbody from '@fastify/formbody';
 import fastifyView from '@fastify/view';
@@ -8,9 +8,9 @@ import dotenv from 'dotenv';
 import Fastify from 'fastify';
 import nunjucks from 'nunjucks';
 
-// Load .env early but explicitly (not via side-effect import) so tests can
-// control environment via vi.stubEnv() without interference.
-dotenv.config();
+// Load .env early but explicitly (not via side-effect import).
+// Use override only outside tests so vi.stubEnv() controls env in test runs.
+dotenv.config({ override: process.env.NODE_ENV !== 'test' });
 import cron from 'node-cron';
 import { adminTemplatesRoutes } from './api/admin-templates.js';
 import { analysisRoutes } from './api/analysis.js';
@@ -245,6 +245,7 @@ export async function startServer() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+const normalizedArg = normalize(process.argv[1]);
+if (import.meta.url === pathToFileURL(normalizedArg).href) {
   startServer();
 }

@@ -1,6 +1,6 @@
 # Test-Specification Alignment Plan (Scheme B)
 
-## Project: interview-bot
+## Project: dialog-survey
 
 ## Current State: 149 tests, 88.39% coverage, 0 TypeScript errors
 
@@ -8,7 +8,7 @@
 
 ## Objective
 
-为 interview-bot 项目的 149 个测试添加完整的 `@test` / `@intent` / `@covers` 注解，实现测试与 specification.yaml 的完全可追溯。
+为 dialog-survey 项目的 149 个测试添加完整的 `@test` / `@intent` / `@covers` 注解，实现测试与 specification.yaml 的完全可追溯。
 
 ---
 
