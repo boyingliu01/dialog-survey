@@ -5,9 +5,11 @@ import { adminAuth } from '../middleware/admin-auth.js';
 import {
   InterviewNotFoundError,
   InterviewPlanService,
+  InvalidMemberInputError,
   InvalidStateError,
   type InviteeData,
   MemberConflictError,
+  MemberNotFoundError,
   PlanNotFoundError,
   parseInviteeText,
 } from '../services/interview-plan.service.js';
@@ -34,10 +36,19 @@ const importInviteesSchema = z.object({
   ),
 });
 
-const addMemberSchema = z.object({
-  userId: z.string().min(1),
-  name: z.string().min(1),
-});
+const addMemberSchema = z
+  .object({
+    userId: z.string().min(1).optional(),
+    phone: z
+      .string()
+      .regex(/^1[3-9]\d{9}$/, 'Invalid phone format')
+      .optional(),
+    name: z.string().min(1).optional(),
+  })
+  .refine((data) => data.userId !== undefined || data.phone !== undefined, {
+    message: 'Either userId or phone is required',
+    path: ['userId', 'phone'],
+  });
 
 const remindSchema = z.object({
   interviewId: z.string().min(1).optional(),
@@ -47,14 +58,20 @@ function mapServiceErrorToStatus(err: unknown): { status: number; message: strin
   if (err instanceof PlanNotFoundError || err instanceof InterviewNotFoundError) {
     return { status: 404, message: err.message };
   }
+  if (err instanceof MemberNotFoundError) {
+    return { status: 404, message: err.message };
+  }
   if (err instanceof MemberConflictError) {
     return { status: 409, message: err.message };
   }
   if (err instanceof InvalidStateError) {
     return { status: 400, message: err.message };
   }
+  if (err instanceof InvalidMemberInputError) {
+    return { status: 400, message: err.message };
+  }
   const message = err instanceof Error ? err.message : 'Unexpected error';
-  return { status: 500, message };
+  return { status: 502, message };
 }
 
 export async function interviewPlanRoutes(fastify: FastifyInstance) {
@@ -166,9 +183,13 @@ export async function interviewPlanRoutes(fastify: FastifyInstance) {
 
   fastify.post('/api/plans/:id/members', { preHandler: adminAuth }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { userId, name } = addMemberSchema.parse(request.body);
+    const input = addMemberSchema.parse(request.body);
     try {
-      const result = await planService.addMember(id, userId, name);
+      const result = await planService.addMember(id, {
+        userId: input.userId,
+        phone: input.phone,
+        name: input.name,
+      });
       return result;
     } catch (e) {
       const { status, message } = mapServiceErrorToStatus(e);

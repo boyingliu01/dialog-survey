@@ -148,7 +148,11 @@ describe('verifyApiKey', () => {
 
   it('should set request.user when valid API key is found', async () => {
     const { createVerifyApiKey } = await import('../src/utils/security.js');
-    mockPrisma.apiKey.findFirst.mockResolvedValue({ userId: 'user-123', id: 'key-456', role: 'user' });
+    mockPrisma.apiKey.findFirst.mockResolvedValue({
+      userId: 'user-123',
+      id: 'key-456',
+      role: 'user',
+    });
 
     const verifyApiKey = createVerifyApiKey(mockPrisma);
     const request = { headers: { 'x-api-key': 'ib_abcdef1234567890' } } as any;
