@@ -1,0 +1,87 @@
+# Dependencies
+node_modules/
+
+# Source TypeScript (keep dist/)
+src/
+*.tsbuildinfo
+
+# Test files
+tests/
+coverage/
+.nyc_output/
+*.test.ts
+vitest.config.ts
+
+# Documentation (keep README.md and CHANGELOG.md)
+docs/
+*.md
+!README.md
+!CHANGELOG.md
+
+# IDE
+.idea/
+.vscode/
+
+# Git
+.git/
+.gitignore
+
+# CI/CD (exclude workflows)
+.github/
+
+# Development tools
+githooks/
+.stryker-tmp/
+.sprint-state/
+.omo/
+.sisyphus/
+.delphi/
+.xp-gate/
+.speckit/
+.ast-grep/
+.worktrees/
+
+# Config files
+biome.json
+tsconfig.json
+vitest.config.ts
+.eslintrc*
+.prettierrc*
+stryker.config.mjs
+jscpd.conf.json
+opencode.json
+architecture.yaml
+
+# Scripts (keep cli.mjs, exclude others)
+scripts/deploy.sh
+scripts/dev.sh
+
+# Misc
+.claimed
+.point
+*.log
+.env.example
+.env.production.example
+docker-compose.yml
+ecosystem.config.cjs
+Dockerfile
+.dockerignore
+.gitleaks.toml
+.code-walkthrough-result.json
+.quality-history.jsonl
+architecture-report.sarif.json
+learnings.jsonl
+specification.yaml
+alignment-report.md
+test-specification-alignment-report.md
+specification-validation.md
+
+# Reports and analytics
+reports/
+LEARNINGS/
+
+# Prisma seeds (keep schema)
+prisma/seed-*.ts
+
+# Public assets (admin UI)
+public/
