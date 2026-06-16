@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: interview-bot-db
+    container_name: dialog-survey-db
     environment:
       POSTGRES_USER: interview_bot
       POSTGRES_PASSWORD: interview_bot_secret
@@ -23,7 +23,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: interview-bot-app
+    container_name: dialog-survey-app
     depends_on:
       postgres:
         condition: service_healthy

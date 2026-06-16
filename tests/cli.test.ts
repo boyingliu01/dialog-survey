@@ -1,0 +1,287 @@
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import {
+  parseArgs,
+  generateConfigFromFlags,
+  validateConfig,
+  checkNodeVersion,
+  checkPostgres,
+  checkPm2,
+  generateEnvContent,
+  main,
+  exec,
+} from "../scripts/cli.mjs";
+
+describe("CLI", () => {
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "test");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  describe("parseArgs", () => {
+    it("should parse command with no flags", () => {
+      const result = parseArgs(["install"]);
+      expect(result.command).toBe("install");
+      expect(result.flags).toEqual({});
+      expect(result.positional).toEqual([]);
+    });
+
+    it("should parse command with flags", () => {
+      const result = parseArgs([
+        "install",
+        "--db-url",
+        "postgresql://localhost/db",
+        "--dashscope-api-key",
+        "sk-xxx",
+      ]);
+      expect(result.command).toBe("install");
+      expect(result.flags).toEqual({
+        "db-url": "postgresql://localhost/db",
+        "dashscope-api-key": "sk-xxx",
+      });
+    });
+
+    it("should parse boolean flags (no value)", () => {
+      const result = parseArgs(["uninstall", "--remove-db"]);
+      expect(result.command).toBe("uninstall");
+      expect(result.flags).toEqual({ "remove-db": "true" });
+    });
+
+    it("should default to help when no command given", () => {
+      const result = parseArgs([]);
+      expect(result.command).toBe("help");
+    });
+
+    it("should collect positional arguments", () => {
+      const result = parseArgs(["install", "extra1", "--flag", "val", "extra2"]);
+      expect(result.positional).toEqual(["extra1", "extra2"]);
+      expect(result.flags).toEqual({ flag: "val" });
+    });
+
+    it("should handle mixed flags and positional args", () => {
+      // --verbose consumes "arg1" as its value (next non-flag token)
+      const result = parseArgs([
+        "status",
+        "--verbose",
+        "arg1",
+        "--key",
+        "value",
+      ]);
+      expect(result.command).toBe("status");
+      expect(result.flags).toEqual({ verbose: "arg1", key: "value" });
+      expect(result.positional).toEqual([]);
+    });
+
+    it("should treat positional args after all flags correctly", () => {
+      const result = parseArgs(["status", "--verbose", "--key", "value"]);
+      expect(result.command).toBe("status");
+      expect(result.flags).toEqual({ verbose: "true", key: "value" });
+      expect(result.positional).toEqual([]);
+    });
+  });
+
+  describe("generateConfigFromFlags", () => {
+    it("should map flag names to config keys", () => {
+      const flags = {
+        "db-url": "postgresql://localhost/db",
+        "dashscope-api-key": "sk-xxx",
+        "dingtalk-client-id": "dt-id",
+        "dingtalk-client-secret": "dt-secret",
+        "dingtalk-agent-id": "dt-agent",
+      };
+      const config = generateConfigFromFlags(flags);
+      expect(config.DATABASE_URL).toBe("postgresql://localhost/db");
+      expect(config.DASHSCOPE_API_KEY).toBe("sk-xxx");
+      expect(config.DINGTALK_CLIENT_ID).toBe("dt-id");
+      expect(config.DINGTALK_CLIENT_SECRET).toBe("dt-secret");
+      expect(config.DINGTALK_AGENT_ID).toBe("dt-agent");
+    });
+
+    it("should return empty strings for missing flags", () => {
+      const config = generateConfigFromFlags({});
+      expect(config.DATABASE_URL).toBe("");
+      expect(config.DASHSCOPE_API_KEY).toBe("");
+      expect(config.DINGTALK_CLIENT_ID).toBe("");
+      expect(config.DINGTALK_CLIENT_SECRET).toBe("");
+      expect(config.DINGTALK_AGENT_ID).toBe("");
+    });
+
+    it("should handle partial flags", () => {
+      const config = generateConfigFromFlags({
+        "db-url": "postgresql://localhost/db",
+      });
+      expect(config.DATABASE_URL).toBe("postgresql://localhost/db");
+      expect(config.DASHSCOPE_API_KEY).toBe("");
+    });
+  });
+
+  describe("validateConfig", () => {
+    it("should return valid when all fields present", () => {
+      const config = {
+        DATABASE_URL: "postgresql://localhost/db",
+        DASHSCOPE_API_KEY: "sk-xxx",
+        DINGTALK_CLIENT_ID: "dt-id",
+        DINGTALK_CLIENT_SECRET: "dt-secret",
+        DINGTALK_AGENT_ID: "dt-agent",
+      };
+      const result = validateConfig(config);
+      expect(result.valid).toBe(true);
+      expect(result.missing).toEqual([]);
+    });
+
+    it("should return missing fields when empty", () => {
+      const config = {
+        DATABASE_URL: "",
+        DASHSCOPE_API_KEY: "",
+        DINGTALK_CLIENT_ID: "",
+        DINGTALK_CLIENT_SECRET: "",
+        DINGTALK_AGENT_ID: "",
+      };
+      const result = validateConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.missing).toHaveLength(5);
+    });
+
+    it("should identify specific missing fields", () => {
+      const config = {
+        DATABASE_URL: "postgresql://localhost/db",
+        DASHSCOPE_API_KEY: "",
+        DINGTALK_CLIENT_ID: "dt-id",
+        DINGTALK_CLIENT_SECRET: "",
+        DINGTALK_AGENT_ID: "dt-agent",
+      };
+      const result = validateConfig(config);
+      expect(result.valid).toBe(false);
+      expect(result.missing).toEqual([
+        "DASHSCOPE_API_KEY",
+        "DINGTALK_CLIENT_SECRET",
+      ]);
+    });
+  });
+
+  describe("checkNodeVersion", () => {
+    it("should pass when Node.js >= 20", () => {
+      const result = checkNodeVersion();
+      // Current Node.js in this project is >= 20
+      expect(result.ok).toBe(true);
+      expect(result.message).toContain("✓");
+    });
+  });
+
+  describe("checkPostgres", () => {
+    it("should fail when DATABASE_URL is empty", () => {
+      const result = checkPostgres("");
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain("DATABASE_URL not provided");
+    });
+
+    it("should fail when pg_isready command fails", () => {
+      const result = checkPostgres("postgresql://user:pass@localhost:59999/db");
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain("PostgreSQL not reachable");
+    });
+  });
+
+  describe("checkPm2", () => {
+    it("should return ok or error based on PM2 availability", () => {
+      const result = checkPm2();
+      // PM2 may or may not be installed — just verify the shape
+      expect(typeof result.ok).toBe("boolean");
+      expect(typeof result.message).toBe("string");
+    });
+  });
+
+  describe("generateEnvContent", () => {
+    it("should generate valid .env content from config", () => {
+      const config = {
+        DATABASE_URL: "postgresql://localhost/db",
+        DASHSCOPE_API_KEY: "sk-test",
+        DINGTALK_CLIENT_ID: "dt-id",
+        DINGTALK_CLIENT_SECRET: "dt-secret",
+        DINGTALK_AGENT_ID: "dt-agent",
+      };
+      const content = generateEnvContent(config);
+      expect(content).toContain('DATABASE_URL="postgresql://localhost/db"');
+      expect(content).toContain("DASHSCOPE_API_KEY=sk-test");
+      expect(content).toContain("DINGTALK_CLIENT_ID=dt-id");
+      expect(content).toContain("DINGTALK_CLIENT_SECRET=dt-secret");
+      expect(content).toContain("DINGTALK_AGENT_ID=dt-agent");
+      expect(content).toContain("NODE_ENV=production");
+      expect(content).toContain("PORT=3001");
+      expect(content).toContain("ENCRYPTION_KEY=");
+      expect(content).toContain("ADMIN_API_KEY=");
+    });
+
+    it("should include auto-generated security keys", () => {
+      const config = {
+        DATABASE_URL: "postgresql://localhost/db",
+        DASHSCOPE_API_KEY: "sk-test",
+        DINGTALK_CLIENT_ID: "dt-id",
+        DINGTALK_CLIENT_SECRET: "dt-secret",
+        DINGTALK_AGENT_ID: "dt-agent",
+      };
+      const content = generateEnvContent(config);
+      // ENCRYPTION_KEY and ADMIN_API_KEY should be hex strings
+      const encMatch = content.match(/ENCRYPTION_KEY=(\w+)/);
+      const adminMatch = content.match(/ADMIN_API_KEY=(\w+)/);
+      expect(encMatch).not.toBeNull();
+      expect(adminMatch).not.toBeNull();
+      expect(encMatch?.[1]).toHaveLength(32); // 16 bytes = 32 hex chars
+      expect(adminMatch?.[1]).toHaveLength(32);
+    });
+  });
+
+  describe("exec", () => {
+    it("should execute a command and return trimmed stdout", () => {
+      const result = exec("echo hello");
+      expect(result).toBe("hello");
+    });
+
+    it("should throw on command failure", () => {
+      expect(() => exec("false")).toThrow();
+    });
+  });
+
+  describe("main (command routing)", () => {
+    it("should call printHelp for unknown commands", async () => {
+      // Capture stdout
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      await main(["unknown-command"]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("dialog-survey CLI");
+      writeSpy.mockRestore();
+    });
+
+    it("should call printHelp for help command", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      await main(["help"]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("dialog-survey CLI");
+      expect(output).toContain("install");
+      expect(output).toContain("uninstall");
+      expect(output).toContain("start");
+      expect(output).toContain("stop");
+      expect(output).toContain("status");
+      writeSpy.mockRestore();
+    });
+
+    it("should call printHelp for empty args", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      await main([]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("dialog-survey CLI");
+      writeSpy.mockRestore();
+    });
+
+    it("should handle install --help flag", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      await main(["install", "--help", "true"]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("dialog-survey install");
+      writeSpy.mockRestore();
+    });
+  });
+});

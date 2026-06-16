@@ -116,7 +116,7 @@
 
 ### two-server-instances
 **文件**: 开发环境
-**笔记**: 开发时可能同时运行两个 Node 服务（golembot gateway :3000 + interview-bot :3001）。
+**笔记**: 开发时可能同时运行两个 Node 服务（golembot gateway :3000 + dialog-survey :3001）。
 使用 `lsof -i :PORT` 确认实际进程。
 
 ### fastify-formbody-limitation
@@ -218,7 +218,7 @@ if (newId) { htmx.ajax('GET', '/admin/content/plans/' + newId, {target: '#main-c
 
 ### fragment-vs-shell-url-naming (architecture)
 **文件**: `src/api/admin-templates.ts`
-**约定**: interview-bot 项目的 URL 分两类：
+**约定**: dialog-survey 项目的 URL 分两类：
 - **Shell URL**（完整页面，含 layout）：`/admin`、`/admin/templates`、`/admin/plans`、`/admin/analytics`
 - **Fragment URL**（仅内容区，用于 HTMX swap）：`/admin/content/templates/:id`、`/admin/content/plans/:id`
 

@@ -212,7 +212,7 @@ export class DingTalkStreamClient {
           subscriptions: [
             { topic: "/v1.0/im/bot/messages/get", type: "CALLBACK" },
           ],
-          ua: "interview-bot/1.0",
+          ua: "dialog-survey/1.0",
         }),
       },
     );

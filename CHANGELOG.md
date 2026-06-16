@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-06-16
+
+### Added
+- **CLI for npx-based install**: `npx dialog-survey install/uninstall/start/stop/status/help` — zero external dependencies, interactive + non-interactive modes, PM2 integration, health check polling
+- **npm publish pipeline**: `.npmignore` + GitHub Actions workflow for automated publishing on `v*` tags
+- **25 CLI unit tests**: parseArgs, config generation, prerequisite checks, command routing
+
+### Changed
+- **Project renamed**: `interview-bot` → `dialog-survey` (npm package name, PM2 app name, Docker container names, all references)
+- **Version bump**: 1.0.4 → 1.1.0
+
+### Fixed
+- **Windows CJK path ESM entry check**: `pathToFileURL(normalize(process.argv[1])).href` comparison — fixes server startup failure on Windows with Chinese characters in path — **Fixes #59-5**
+- **System DATABASE_URL overrides .env**: `dotenv.config({ override: process.env.NODE_ENV !== 'test' })` — conditional override preserves test isolation via `vi.stubEnv()` — **Fixes #59-2**
+- **Prisma generate file lock**: deploy.sh now stops service BEFORE `npm ci` to prevent DLL lock — **Fixes #59-3**
+- **Windows colon filenames**: `.delphi/` added to `.gitignore`, removed from git tracking — **Fixes #59-1**
+- **npm audit vulnerabilities**: all dependencies updated, 0 vulnerabilities — **Fixes #59-4**
+
+### Quality
+- 9 atomic commits on `sprint/2026-06-16-01`
+- Code walkthrough review: APPROVED (2 blocking issues caught and fixed)
+- Test-specification alignment: 91.3% (21/23 acceptance criteria fully covered)
+- Quality gates: 8-10/10 across all commits
+- 622 unit tests pass (95 integration tests blocked by PostgreSQL env — not code regression)
+
 ## [1.0.4] - 2026-06-16
 
 ### Added

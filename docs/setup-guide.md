@@ -48,7 +48,7 @@
 ```powershell
 # 安装 Docker Desktop 后，运行:
 docker run -d `
-  --name interview-bot-db `
+  --name dialog-survey-db `
   -e POSTGRES_PASSWORD=your_password `
   -e POSTGRES_DB=interview_bot `
   -p 5432:5432 `
@@ -113,8 +113,8 @@ jq --version
 
 ```powershell
 cd C:\projects   # 或你选择的目录
-git clone <repo-url> interview-bot
-cd interview-bot
+git clone <repo-url> dialog-survey
+cd dialog-survey
 ```
 
 ### 方式 B: 拷贝项目目录
@@ -238,7 +238,7 @@ node dist\src\server.ts
 
 # 或使用 PM2 管理（推荐）
 npm install -g pm2
-pm2 start dist/src/server.ts --name interview-bot
+pm2 start dist/src/server.ts --name dialog-survey
 pm2 save
 pm2 startup   # 设置 Windows 开机自启
 ```

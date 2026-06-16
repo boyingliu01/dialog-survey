@@ -8,13 +8,13 @@
  *
  * Monitoring:
  *   pm2 monit
- *   pm2 logs interview-bot
+ *   pm2 logs dialog-survey
  */
 
 module.exports = {
   apps: [
     {
-      name: 'interview-bot',
+      name: 'dialog-survey',
       script: 'dist/src/server.js',
       instances: 1,
       exec_mode: 'fork',
