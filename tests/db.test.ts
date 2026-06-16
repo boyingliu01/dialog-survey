@@ -1,15 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '@prisma/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Must use function constructor for vi.mock so it can be called with `new`
-vi.mock('@prisma/client', () => ({
-  PrismaClient: vi.fn().mockImplementation(function() {
-    return {
-      $disconnect: vi.fn(),
-      $connect: vi.fn(),
-    };
-  }),
-}));
+// Use a callable-constructible class so the hoisted mock factory supports `new`
+vi.mock('@prisma/client', () => {
+  class MockPrismaClient {
+    $disconnect = vi.fn();
+    $connect = vi.fn();
+  }
+  return { PrismaClient: MockPrismaClient };
+});
 
 describe('getDb', () => {
   beforeEach(() => {
@@ -56,7 +55,7 @@ describe('shutdownDb', () => {
   });
 
   it('should safely do nothing when no instance exists', async () => {
-    const { getDb, shutdownDb } = await import('../src/utils/db.js');
+    const { shutdownDb } = await import('../src/utils/db.js');
     // After resetModules, _prisma is null
     // Call shutdown without ever calling getDb
     await expect(shutdownDb()).resolves.toBeUndefined();
