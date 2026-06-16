@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { afterAll, afterEach, beforeEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { adminAuth } from '../src/middleware/admin-auth.js';
 import { TemplateRepository } from '../src/repositories/template.repository.js';
 
