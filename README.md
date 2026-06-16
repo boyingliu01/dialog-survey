@@ -184,6 +184,57 @@ node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
 curl http://localhost:3001/health
 ```
 
+### Docker 部署 (推荐)
+
+使用 Docker Compose 一键部署应用和 PostgreSQL 数据库。
+
+#### 1. 配置环境变量
+
+```bash
+cp .env.example .env
+# 编辑 .env，填入 DingTalk、LLM、ASR 等实际配置值
+```
+
+#### 2. 启动服务
+
+```bash
+# 构建并启动所有服务
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f app
+
+# 查看所有服务状态
+docker-compose ps
+```
+
+#### 3. 验证部署
+
+服务启动后，访问健康检查端点：
+```bash
+curl http://localhost:3001/health
+```
+
+#### 常用 Docker 命令
+
+```bash
+# 停止服务
+docker-compose down
+
+# 重启服务
+docker-compose restart
+
+# 查看数据库日志
+docker-compose logs -f postgres
+
+# 进入数据库 shell
+docker-compose exec postgres psql -U interview_bot -d interview_bot
+
+# 重新构建应用镜像
+docker-compose build --no-cache app
+docker-compose up -d app
+```
+
 ### 预提交检查 (开发时)
 
 ```bash
