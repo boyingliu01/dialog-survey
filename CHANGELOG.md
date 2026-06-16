@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-06-16
+
+### Added
+- Phone member support: add members via phone number, auto-resolve to DingTalk userId — **Closes #54**
+- DingTalk `getUserIdByMobile()` API client with token caching and PII masking (`138****1234`)
+- Docker deployment: multi-stage Dockerfile + docker-compose.yml (PG16 + app) — **Closes #53**
+- 12 phone-specific tests + 7 dingtalk mobile lookup tests
+
+### Quality
+- Pre-commit hook: Score 10.0/10, all 9 gates passed
+- Full regression: 73 files / 750 tests pass, `tsc --noEmit` clean
+
 ## [1.0.3] - 2026-06-15
 
 ### Fixed
