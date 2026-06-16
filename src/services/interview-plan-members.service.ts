@@ -1,4 +1,6 @@
-import { Prisma, SendStatus } from '@prisma/client';
+import { SendStatus } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
+import { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import { error, info } from '../utils/logger.js';
 import type { InviteeData } from './interview-plan-base.service.js';
@@ -28,6 +30,22 @@ export class MemberConflictError extends Error {
   }
 }
 
+export class MemberNotFoundError extends Error {
+  readonly code = 'MEMBER_NOT_FOUND' as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'MemberNotFoundError';
+  }
+}
+
+export class InvalidMemberInputError extends Error {
+  readonly code = 'INVALID_MEMBER_INPUT' as const;
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidMemberInputError';
+  }
+}
+
 export class InvalidStateError extends Error {
   readonly code = 'INVALID_STATE' as const;
   constructor(message: string) {
@@ -36,19 +54,88 @@ export class InvalidStateError extends Error {
   }
 }
 
+function maskPhone(phone: string): string {
+  if (phone.length < 7) return '****';
+  return `${phone.slice(0, 3)}****${phone.slice(-4)}`;
+}
+
+function normalizePhone(phone: string): string {
+  return phone.replace(/\s+/g, '').replace(/^\+86/, '');
+}
+
+export interface AddMemberInput {
+  userId?: string;
+  phone?: string;
+  name?: string;
+}
+
 export class InterviewPlanService extends InterviewPlanSendService {
-  async addMember(planId: string, userId: string, name: string): Promise<{ interviewId: string }> {
+  private dingTalkClient: DingTalkClient;
+
+  constructor(prisma?: PrismaClient, dingTalkClient?: DingTalkClient) {
+    super(prisma);
+    this.dingTalkClient = dingTalkClient ?? DingTalkClient.fromEnv();
+  }
+
+  async addMember(planId: string, input: AddMemberInput): Promise<{ interviewId: string }> {
+    let { userId, name } = input;
+    const { phone } = input;
+
+    // Validate: at least one of userId or phone must be provided
+    if (!userId && !phone) {
+      throw new InvalidMemberInputError('Either userId or phone is required');
+    }
+
+    // If userId provided, ignore phone entirely - skip DingTalk call
+    if (!userId && phone) {
+      // Resolve userId from phone via DingTalk API
+      const normalizedPhone = normalizePhone(phone);
+      const lookupResult = await this.dingTalkClient.getUserIdByMobile(normalizedPhone);
+
+      if (!lookupResult.found) {
+        throw new MemberNotFoundError(`Phone number ${maskPhone(phone)} not found in DingTalk`);
+      }
+
+      userId = lookupResult.userId;
+      // If name not provided by client, use name from DingTalk API response
+      if (!name) {
+        name = lookupResult.name;
+      }
+    }
+
+    if (!userId) {
+      throw new InvalidMemberInputError('userId is required after phone resolution');
+    }
+
     const newInterviewId = await this.prisma.$transaction(async (tx) => {
       const plan = await tx.interviewPlan.findUnique({ where: { id: planId } });
       if (!plan) {
         throw new PlanNotFoundError(planId);
       }
 
-      const existing = await tx.interview.findFirst({
+      // Check userId conflict first
+      const existingByUserId = await tx.interview.findFirst({
         where: { planId, userId },
       });
-      if (existing) {
+      if (existingByUserId) {
         throw new MemberConflictError(`Member already exists in plan: ${userId}`);
+      }
+
+      // Phone mode: check phone conflict in inviteeData JSON
+      if (phone) {
+        const normalizedPhone = normalizePhone(phone);
+        const existingInvitees = Array.isArray(plan.inviteeData)
+          ? (plan.inviteeData as unknown as InviteeData[])
+          : [];
+
+        const existingByPhone = existingInvitees.find(
+          (inv) => inv.phone && normalizePhone(inv.phone) === normalizedPhone
+        );
+        if (existingByPhone) {
+          throw new MemberConflictError(
+            `Member with phone ${maskPhone(phone)} already exists in plan`
+          );
+        }
       }
 
       const interview = await tx.interview.create({
@@ -63,7 +150,11 @@ export class InterviewPlanService extends InterviewPlanSendService {
       const existingInvitees = Array.isArray(plan.inviteeData)
         ? (plan.inviteeData as unknown as InviteeData[])
         : [];
-      const updatedInvitees = [...existingInvitees, { userId, name }];
+
+      // Only save phone to inviteeData if we're in phone mode (not userId-only mode)
+      const updatedInvitees = phone
+        ? [...existingInvitees, { userId, name, phone: normalizePhone(phone) }]
+        : [...existingInvitees, { userId, name }];
 
       await tx.interviewPlan.update({
         where: { id: planId },

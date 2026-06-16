@@ -123,7 +123,8 @@ export async function securityMiddleware(fastify: FastifyInstance, prisma: Prism
 
     // Only log mutations (POST/PUT/DELETE) and admin paths
     // GET/HEAD/OPTIONS requests are not logged to reduce audit log volume
-    const isMutation = request.method === 'POST' || request.method === 'PUT' || request.method === 'DELETE';
+    const isMutation =
+      request.method === 'POST' || request.method === 'PUT' || request.method === 'DELETE';
     const isAdmin = path.startsWith('/admin/');
     if (!isMutation && !isAdmin) {
       return;

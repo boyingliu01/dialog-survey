@@ -9,7 +9,12 @@ export class TemplateRepository {
 
   /** Build Prisma update data object from partial template data (DRY) */
   private _buildUpdateData(
-    data: Partial<{ name: string; content: Record<string, unknown>; description: string; status: TemplateStatus }>,
+    data: Partial<{
+      name: string;
+      content: Record<string, unknown>;
+      description: string;
+      status: TemplateStatus;
+    }>,
     options?: { incrementVersion?: boolean }
   ): Parameters<typeof this.prisma.template.update>[0]['data'] {
     const updateData: Parameters<typeof this.prisma.template.update>[0]['data'] = {};
@@ -126,7 +131,9 @@ export class TemplateRepository {
       status?: string;
     }>
   ): Promise<Template> {
-    const updateData = this._buildUpdateData(data as Record<string, unknown>, { incrementVersion: true });
+    const updateData = this._buildUpdateData(data as Record<string, unknown>, {
+      incrementVersion: true,
+    });
 
     return this.prisma.template.update({
       where: { id, version: expectedVersion },

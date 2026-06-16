@@ -18,5 +18,9 @@ export {
   PlanNotFoundError,
   InterviewNotFoundError,
   MemberConflictError,
+  MemberNotFoundError,
+  InvalidMemberInputError,
   InvalidStateError,
 } from './interview-plan-members.service.js';
+
+export type { AddMemberInput } from './interview-plan-members.service.js';

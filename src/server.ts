@@ -1,16 +1,17 @@
-import dotenv from 'dotenv';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cors from '@fastify/cors';
 import fastifyFormbody from '@fastify/formbody';
 import fastifyView from '@fastify/view';
 import { PrismaClient } from '@prisma/client';
+import dotenv from 'dotenv';
 import Fastify from 'fastify';
 import nunjucks from 'nunjucks';
 
 // Load .env early but explicitly (not via side-effect import) so tests can
 // control environment via vi.stubEnv() without interference.
 dotenv.config();
+import cron from 'node-cron';
 import { adminTemplatesRoutes } from './api/admin-templates.js';
 import { analysisRoutes } from './api/analysis.js';
 import { healthRoutes } from './api/health.js';
@@ -21,11 +22,10 @@ import { InterviewRepository } from './repositories/interview.repository.js';
 import { TemplateRepository } from './repositories/template.repository.js';
 import { AnalysisService } from './services/analysis.service.js';
 import { AnalyticsService } from './services/analytics.service.js';
+import { AuditCleanupService } from './services/audit-cleanup.service.js';
 import { InterviewPlanService } from './services/interview-plan.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
-import { AuditCleanupService } from './services/audit-cleanup.service.js';
 import { error, info, warn } from './utils/logger.js';
-import cron from 'node-cron';
 import { renderMarkdown } from './utils/markdown.js';
 import { createVerifyApiKey, securityMiddleware } from './utils/security.js';
 

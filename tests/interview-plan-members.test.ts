@@ -48,9 +48,9 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
     it('should throw when plan not found', async () => {
       mockPrisma.interviewPlan.findUnique.mockResolvedValue(null);
 
-      await expect(service.addMember('missing', 'user-1', 'Alice')).rejects.toThrow(
-        'Plan not found'
-      );
+      await expect(
+        service.addMember('missing', { userId: 'user-1', name: 'Alice' })
+      ).rejects.toThrow('Plan not found');
     });
 
     it('should throw when member already exists in plan', async () => {
@@ -61,9 +61,9 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
       });
       mockPrisma.interview.findFirst.mockResolvedValue({ id: 'int-1', userId: 'user-1' });
 
-      await expect(service.addMember('plan-1', 'user-1', 'Alice')).rejects.toThrow(
-        'Member already exists'
-      );
+      await expect(
+        service.addMember('plan-1', { userId: 'user-1', name: 'Alice' })
+      ).rejects.toThrow('Member already exists');
     });
 
     it('should create interview and append to inviteeData', async () => {
@@ -80,7 +80,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
       });
       mockPrisma.interviewPlan.update.mockResolvedValue({});
 
-      const result = await service.addMember('plan-1', 'user-2', 'Bob');
+      const result = await service.addMember('plan-1', { userId: 'user-2', name: 'Bob' });
 
       expect(result.interviewId).toBe('int-new');
       expect(mockPrisma.interview.create).toHaveBeenCalledWith({
@@ -112,7 +112,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
       mockPrisma.interview.create.mockResolvedValue({ id: 'int-new', userId: 'user-1' });
       mockPrisma.interviewPlan.update.mockResolvedValue({});
 
-      await service.addMember('plan-1', 'user-1', 'Alice');
+      await service.addMember('plan-1', { userId: 'user-1', name: 'Alice' });
 
       expect(mockPrisma.interviewPlan.update).toHaveBeenCalledWith({
         where: { id: 'plan-1' },
@@ -350,7 +350,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
     it('addMember should throw PlanNotFoundError for missing plan', async () => {
       const { PlanNotFoundError } = await import('../src/services/interview-plan.service.js');
       mockPrisma.interviewPlan.findUnique.mockResolvedValue(null);
-      await expect(service.addMember('missing', 'u', 'n')).rejects.toBeInstanceOf(
+      await expect(service.addMember('missing', { userId: 'u', name: 'n' })).rejects.toBeInstanceOf(
         PlanNotFoundError
       );
     });
@@ -363,9 +363,9 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
         inviteeData: [],
       });
       mockPrisma.interview.findFirst.mockResolvedValue({ id: 'int-1', userId: 'user-1' });
-      await expect(service.addMember('plan-1', 'user-1', 'Alice')).rejects.toBeInstanceOf(
-        MemberConflictError
-      );
+      await expect(
+        service.addMember('plan-1', { userId: 'user-1', name: 'Alice' })
+      ).rejects.toBeInstanceOf(MemberConflictError);
     });
 
     it('removeMember should throw InterviewNotFoundError when missing', async () => {
