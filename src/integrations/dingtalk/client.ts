@@ -14,10 +14,32 @@ interface RequestOptions {
   query?: Record<string, string>;
 }
 
+interface AccessTokenResponse {
+  errcode: number;
+  errmsg: string;
+  access_token: string;
+  expires_in: number;
+}
+
+interface GetUserByMobileResponse {
+  errcode: number;
+  errmsg: string;
+  userid?: string;
+  name?: string;
+}
+
+export type DingTalkUserLookupResult =
+  | { found: true; userId: string; name: string }
+  | { found: false };
+
 export class DingTalkClient {
+  private appKey: string;
   private appSecret: string;
+  private cachedToken: string | null = null;
+  private tokenExpiresAt = 0;
 
   constructor(options: DingTalkClientOptions) {
+    this.appKey = options.appKey;
     this.appSecret = options.appSecret;
   }
 
@@ -52,6 +74,60 @@ export class DingTalkClient {
   generateSignature(timestamp: number): string {
     const stringToSign = `${timestamp}\n${this.appSecret}`;
     return crypto.createHmac('sha256', this.appSecret).update(stringToSign).digest('base64');
+  }
+
+  private async getAccessToken(): Promise<string> {
+    const now = Date.now();
+    if (this.cachedToken && now < this.tokenExpiresAt) {
+      return this.cachedToken;
+    }
+
+    const response = await this.request<AccessTokenResponse>('/gettoken', {
+      query: {
+        appkey: this.appKey,
+        appsecret: this.appSecret,
+      },
+    });
+
+    if (response.errcode !== 0) {
+      throw new Error(
+        `DingTalk gettoken failed: ${response.errmsg} (errcode: ${response.errcode})`
+      );
+    }
+
+    this.cachedToken = response.access_token;
+    this.tokenExpiresAt = now + response.expires_in * 1000 - 60000;
+    return this.cachedToken;
+  }
+
+  async getUserIdByMobile(mobile: string): Promise<DingTalkUserLookupResult> {
+    const accessToken = await this.getAccessToken();
+    const response = await this.request<GetUserByMobileResponse>('/contact/user/get_by_mobile', {
+      query: {
+        access_token: accessToken,
+        mobile,
+      },
+    });
+
+    if (response.errcode === 60121) {
+      return { found: false };
+    }
+
+    if (response.errcode !== 0) {
+      throw new Error(
+        `DingTalk get_by_mobile failed: ${response.errmsg} (errcode: ${response.errcode})`
+      );
+    }
+
+    if (!response.userid) {
+      return { found: false };
+    }
+
+    return {
+      found: true,
+      userId: response.userid,
+      name: response.name || '',
+    };
   }
 
   static fromEnv() {

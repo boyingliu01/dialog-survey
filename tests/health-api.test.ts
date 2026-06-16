@@ -194,7 +194,9 @@ describe('GET /health', () => {
     const body = JSON.parse(response.body);
     expect(body.status).toBe('degraded');
     expect(body.checks.dingtalk.status).toBe('degraded');
-    expect(body.checks.dingtalk.error).toBe('DingTalk Stream credentials contain placeholder values');
+    expect(body.checks.dingtalk.error).toBe(
+      'DingTalk Stream credentials contain placeholder values'
+    );
   });
 
   it('should return unhealthy when DB fails', async () => {
