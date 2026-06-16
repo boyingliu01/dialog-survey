@@ -1,5 +1,5 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, normalize, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import cors from '@fastify/cors';
 import fastifyFormbody from '@fastify/formbody';
 import fastifyView from '@fastify/view';
@@ -245,6 +245,7 @@ export async function startServer() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+const normalizedArg = normalize(process.argv[1]);
+if (import.meta.url === pathToFileURL(normalizedArg).href) {
   startServer();
 }
