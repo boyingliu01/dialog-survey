@@ -26,7 +26,7 @@ AI-powered interview robot with intelligent follow-up questions, multi-turn cont
 ### 1. 安装依赖
 
 ```bash
-cd interview-bot
+cd dialog-survey
 npm install
 ```
 
@@ -53,7 +53,7 @@ npm run dev
 ## 项目结构
 
 ```
-interview-bot/
+dialog-survey/
 ├── src/
 │   ├── api/          # API层 (Fastify routes)
 │   ├── core/         # 核心逻辑 (LangGraph StateGraph)
@@ -105,8 +105,8 @@ npm run build
 
 ```bash
 # 推荐: 从 Git 仓库克隆
-git clone <repo-url> interview-bot
-cd interview-bot
+git clone <repo-url> dialog-survey
+cd dialog-survey
 
 # 或: 直接拷贝项目目录到目标机器
 ```
@@ -148,7 +148,7 @@ node dist/src/server.ts
 或使用 PM2 管理进程:
 ```bash
 npm install -g pm2
-pm2 start dist/src/server.ts --name interview-bot
+pm2 start dist/src/server.ts --name dialog-survey
 pm2 save
 pm2 startup  # 设置开机自启
 ```
