@@ -8,9 +8,9 @@ import dotenv from 'dotenv';
 import Fastify from 'fastify';
 import nunjucks from 'nunjucks';
 
-// Load .env early but explicitly (not via side-effect import) so tests can
-// control environment via vi.stubEnv() without interference.
-dotenv.config();
+// Load .env early but explicitly (not via side-effect import).
+// Use override only outside tests so vi.stubEnv() controls env in test runs.
+dotenv.config({ override: process.env.NODE_ENV !== 'test' });
 import cron from 'node-cron';
 import { adminTemplatesRoutes } from './api/admin-templates.js';
 import { analysisRoutes } from './api/analysis.js';
