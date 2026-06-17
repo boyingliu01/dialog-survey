@@ -1,390 +1,90 @@
 specification:
-  id: "SPEC-FIX-2026-06-12-02"
-  name: "CRITICAL + HIGH Bug Fixes: API Auth, Webhook Processing, PrismaClient Injection"
+  title: "访谈计划支持手机号添加受访者"
   version: "1.0.0"
-  description: "Fix 3 critical/high priority issues: #38 API endpoints unprotected, #37 Webhook drops messages, #39 PrismaClient per-message connection churn"
+  issue: "#68"
+  created_at: "2026-06-17T22:55:00Z"
 
-  requirements:
-    - id: "REQ-1"
-      description: "Eliminate per-message PrismaClient creation in processStreamMessage to prevent connection pool exhaustion"
-      priority: "MUST"
-      issue_ref: "#39"
-      severity: "HIGH"
-      acceptance_criteria:
-        - id: "AC-REQ-1-01"
-          given: "processStreamMessage() is called with an incoming DingTalk message"
-          when: "userName resolution is needed"
-          then: "PrismaClient is used from injected parameter, NOT created locally"
-        - id: "AC-REQ-1-02"
-          given: "processStreamMessage() is called without a PrismaClient parameter"
-          when: "userName resolution is attempted"
-          then: "userName resolution is skipped gracefully (backward compatible)"
-        - id: "AC-REQ-1-03"
-          given: "server.ts message handler"
-          when: "processStreamMessage() is called"
-          then: "Existing prisma instance from buildApp() is passed as parameter"
-      files_to_modify:
-        - src/services/stream-message.service.ts
-        - src/server.ts
+requirements:
+  - id: "REQ-001"
+    title: "parseInviteeText 支持手机号格式"
+    description: |
+      parseInviteeText() 函数需要识别手机号格式（1开头11位数字），
+      并返回带有 phone 字段的 InviteeData。
+    priority: "high"
+    acceptance_criteria:
+      - "输入 '13800138000 张三' 返回 { phone: '13800138000', name: '张三' }"
+      - "输入 'user123 李四' 返回 { userId: 'user123', name: '李四' }"
+      - "手机号自动去空格、去+86前缀"
 
-    - id: "REQ-2"
-      description: "Wire webhook endpoint to actually process incoming DingTalk messages instead of silently dropping them"
-      priority: "MUST"
-      issue_ref: "#37"
-      severity: "CRITICAL"
-      acceptance_criteria:
-        - id: "AC-REQ-2-01"
-          given: "POST /webhook receives a valid DingTalk text message"
-          when: "Message is successfully parsed"
-          then: "processStreamMessage() is called with the message data"
-        - id: "AC-REQ-2-02"
-          given: "POST /webhook receives a message that fails parsing"
-          when: "parseDingTalkMessage() returns null"
-          then: "Returns {result: 'ignored'} (existing behavior unchanged)"
-        - id: "AC-REQ-2-03"
-          given: "processStreamMessage() is called from webhook handler"
-          when: "Message processing completes"
-          then: "Webhook response reflects processing result (success/error)"
-        - id: "AC-REQ-2-04"
-          given: "Same messageId is received twice"
-          when: "Webhook processes the message"
-          then: "Dedup check prevents double-processing (infinite loop prevention)"
-      files_to_modify:
-        - src/api/webhook.ts
-      dependencies:
-        - REQ-1
+  - id: "REQ-002"
+    title: "importInvitees 解析手机号为 userId"
+    description: |
+      importInvitees() 函数对 phone 类型的 invitee 调用 DingTalk API
+      getUserIdByMobile() 解析 userId，失败则记录错误跳过。
+    priority: "high"
+    acceptance_criteria:
+      - "phone 类型 invitee 调用 DingTalkClient.getUserIdByMobile()"
+      - "成功：使用返回的 userId 和 name 创建 interview"
+      - "失败：记录错误到 result.errors，不阻断其他 invitee"
+      - "并发控制：批量导入时限制并发数（复用现有 concurrency=10）"
 
-    - id: "REQ-3"
-      description: "Register API key authentication middleware on all /api/* write endpoints to prevent unauthorized access"
-      priority: "MUST"
-      issue_ref: "#38"
-      severity: "CRITICAL"
-      acceptance_criteria:
-        - id: "AC-REQ-3-01"
-          given: "Request to POST/PUT/DELETE /api/templates without x-api-key header"
-          when: "Request is received"
-          then: "Returns 401 with {error: 'API key required'}"
-        - id: "AC-REQ-3-02"
-          given: "Request to POST/PUT/DELETE /api/plans without x-api-key header"
-          when: "Request is received"
-          then: "Returns 401 with {error: 'API key required'}"
-        - id: "AC-REQ-3-03"
-          given: "Request to POST /api/analysis without x-api-key header"
-          when: "Request is received"
-          then: "Returns 401 with {error: 'API key required'}"
-        - id: "AC-REQ-3-04"
-          given: "Request to GET /api/templates or /api/plans without x-api-key"
-          when: "Request is received"
-          then: "Returns 200 (GET remains public read-only)"
-        - id: "AC-REQ-3-05"
-          given: "Request to POST /webhook without x-api-key"
-          when: "Request is received"
-          then: "Proceeds normally (webhook has its own signature verification)"
-        - id: "AC-REQ-3-06"
-          given: "Request with valid x-api-key header"
-          when: "Request is received"
-          then: "Proceeds normally with user context attached to request"
-      files_to_modify:
-        - src/middleware/api-auth.ts (NEW)
-        - src/api/plans.ts
-        - src/api/templates.ts
-        - src/api/analysis.ts
+  - id: "REQ-003"
+    title: "updatePlan 处理手机号格式"
+    description: |
+      updatePlan() 函数在处理 invitees 文本时，需要对手机号格式的 invitee
+      调用 DingTalk API 解析 userId。
+    priority: "high"
+    acceptance_criteria:
+      - "invitees 文本中的手机号格式被正确识别"
+      - "手机号通过 DingTalk API 解析为 userId"
+      - "解析失败的 invitee 记录错误但不阻断"
 
-  requirements:
-    - id: "REQ-TEMPLATE-001"
-      description: "Templates support analysis dimensions (dimensions) and analysis config (analysisConfig) for guiding single and batch analysis"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-TEMPLATE-001-01"
-          given: "A template exists with empty dimensions"
-          when: "User updates the template dimensions via PUT /api/templates/:id/dimensions with a valid dimensions array"
-          then: "API returns 200 and the complete Template object including the new dimensions"
-        - id: "AC-TEMPLATE-001-02"
-          given: "User submits a dimensions array with missing required fields (no label)"
-          when: "PUT /api/templates/:id/dimensions is called"
-          then: "API returns 400 with validation error details"
-        - id: "AC-TEMPLATE-001-03"
-          given: "A newly created template"
-          when: "User creates a template via POST /api/templates without dimensions field"
-          then: "Template is created successfully with dimensions set to null (zero-config mode)"
+  - id: "REQ-004"
+    title: "plan-form.njk UI 提示更新"
+    description: |
+      更新访谈计划表单的受访人员输入框提示文本，说明支持手机号格式。
+    priority: "medium"
+    acceptance_criteria:
+      - "提示文本包含「手机号 姓名」格式说明"
+      - "已编辑模式下正确显示手机号格式的 invitee"
 
-    - id: "REQ-TEMPLATE-002"
-      description: "Pre-built example templates (quality satisfaction, standard group feedback, employee satisfaction) are seeded out-of-the-box"
-      priority: "SHOULD"
-      acceptance_criteria:
-        - id: "AC-TEMPLATE-002-01"
-          given: "No seed templates exist in database"
-          when: "System initialization or seed script is triggered"
-          then: "At least 3 example templates are created (quality satisfaction, standard group feedback, employee satisfaction), each with complete dimensions"
+  - id: "REQ-005"
+    title: "plan-detail.njk 成员添加支持手机号"
+    description: |
+      计划详情页的成员添加表单新增手机号输入框，支持按手机号添加成员。
+    priority: "medium"
+    acceptance_criteria:
+      - "添加成员表单包含手机号输入框"
+      - "手机号输入框与 userId 输入框并列显示"
+      - "提交时传递 phone 参数到 API"
+      - "成功添加后刷新成员列表"
 
-    - id: "REQ-SINGLE-001"
-      description: "After a single interview completes, automatic dimension-tag analysis runs asynchronously including sentiment, representative quotes, emergent tags, and overall rating"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-SINGLE-001-01"
-          given: "An interview is marked COMPLETED with complete messages"
-          when: "The analyzing node triggers async analysis"
-          then: "An AnalysisReport is created with dimensionTags array, each containing dimensionId, label, sentiment, and quotes"
-        - id: "AC-SINGLE-001-02"
-          given: "The interview template has no dimensions defined"
-          when: "Analyzing node triggers analysis"
-          then: "AnalysisReport is created with empty dimensionTags (does not block interview), emergentTags extracted from conversation"
-        - id: "AC-SINGLE-001-03"
-          given: "LLM analysis service times out or returns error"
-          when: "Single analysis LLM call fails"
-          then: "Error is recorded in dead-letter table, AnalysisReport content and keyFindings are still generated normally"
+constraints:
+  - "复用现有 DingTalkClient.getUserIdByMobile() 实现"
+  - "复用现有 addMember() 的 phone → userId 解析逻辑"
+  - "保持向后兼容：userId 格式仍被支持"
+  - "错误处理：DingTalk API 失败不阻断批量导入"
+  - "并发控制：复用现有 concurrency=10 设置"
 
-    - id: "REQ-SINGLE-002"
-      description: "Single analysis uses prompt.service.ts to manage analyzeWithDimensions prompt, not hardcoded"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-SINGLE-002-01"
-          given: "prompt.service.ts has analyzeWithDimensions template registered"
-          when: "report.service.ts calls analyzeWithDimensions"
-          then: "Prompt correctly renders with dimensions injected via render method"
+dependencies:
+  - "DingTalkClient.getUserIdByMobile() 已实现"
+  - "addMember() 已支持 phone 参数"
+  - "addMemberSchema 已支持 phone 字段验证"
 
-    - id: "REQ-BATCH-001"
-      description: "POST /api/analysis/aggregate/:planId triggers batch aggregate analysis, asynchronously processing all COMPLETED interviews dimensionTags"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-BATCH-001-01"
-          given: "A planId has multiple COMPLETED interviews with dimensionTags"
-          when: "User posts POST /api/analysis/aggregate/:planId"
-          then: "Returns 201 with batchReportId and status PENDING, background pipeline starts"
-        - id: "AC-BATCH-001-02"
-          given: "Same planId already has a RUNNING BatchAnalysisReport"
-          when: "User posts again to same planId"
-          then: "Returns 409 with existing report ID, no duplicate analysis starts"
-        - id: "AC-BATCH-001-03"
-          given: "Plan has no COMPLETED interviews"
-          when: "User posts POST /api/analysis/aggregate/:planId"
-          then: "Returns 400 with error message indicating no analyzable interviews"
+testing:
+  unit_tests:
+    - "parseInviteeText() 识别手机号格式"
+    - "parseInviteeText() 混合格式处理"
+  integration_tests:
+    - "importInvitees() 解析手机号 → userId"
+    - "updatePlan() 处理手机号格式 invitees"
+    - "POST /api/plans/:id/members 支持 phone 参数"
+  ui_tests:
+    - "plan-form.njk 提示文本更新"
+    - "plan-detail.njk 成员添加表单"
 
-    - id: "REQ-BATCH-002"
-      description: "Pipeline Step 1: Pure computation dimension statistics with no LLM calls, calculating mention rates and sentiment distributions"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-BATCH-002-01"
-          given: "100 reports where 62 contain stability dimension and 48 are negative"
-          when: "Step 1 computes dimension statistics"
-          then: "Output shows 62 percent mention rate and 77.4 percent negative rate, results saved to checkpoint"
-        - id: "AC-BATCH-002-02"
-          given: "Cursor-based batch reading at 100 records per batch"
-          when: "Reading 1000+ interview reports"
-          then: "Memory stays stable with no OOM, statistics match full-load results"
-
-    - id: "REQ-BATCH-003"
-      description: "Pipeline Step 2: LLM topic clustering for high-mention dimensions, identifying 3 to 8 sub-themes per dimension"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-BATCH-003-01"
-          given: "Stability dimension has 150 quotes"
-          when: "Step 2 calls LLM clustering"
-          then: "Returns 3 to 8 sub-theme objects each with subTopicName, mentionCount, quotes array, and overallSentiment"
-        - id: "AC-BATCH-003-02"
-          given: "Step 2 is called twice with identical input"
-          when: "Second call is made"
-          then: "Cached result is returned with zero LLM calls"
-
-    - id: "REQ-BATCH-004"
-      description: "Pipeline Step 3: LLM emergent discovery finding top 5 emergent issues across all interviews"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-BATCH-004-01"
-          given: "1000 interview emergentTags collected"
-          when: "Step 3 calls LLM emergent discovery"
-          then: "Returns up to 5 emergent issue objects each with name, mentionCount, up to 3 representativeQuotes, and urgency"
-
-    - id: "REQ-BATCH-005"
-      description: "LLM concurrency control limits concurrent LLM calls to 3 or fewer using p-limit"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-BATCH-005-01"
-          given: "5 dimensions simultaneously need LLM clustering"
-          when: "Parallel LLM calls are initiated"
-          then: "At most 3 LLM calls run concurrently, remaining queued"
-
-    - id: "REQ-BATCH-006"
-      description: "Pipeline resumes from last completed checkpoint step after interruption or failure"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-BATCH-006-01"
-          given: "Pipeline fails during Step 2 due to LLM timeout"
-          when: "User re-posts aggregate for same planId"
-          then: "System skips completed Step 1 and resumes from Step 2"
-
-    - id: "REQ-BATCH-007"
-      description: "Pipeline has a 5-minute global timeout that marks report as FAILED with error details"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-BATCH-007-01"
-          given: "Pipeline runs for 5 minutes without completing"
-          when: "Pipeline timer fires"
-          then: "BatchAnalysisReport status set to FAILED with timeout error message"
-
-    - id: "REQ-REPORT-001"
-      description: "GET /api/analysis/aggregate/:batchReportId retrieves aggregate analysis results"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-REPORT-001-01"
-          given: "batchReportId exists with COMPLETED status"
-          when: "User GETs /api/analysis/aggregate/:batchReportId"
-          then: "Returns full JSON including content, metrics, topics, and emergents"
-
-    - id: "REQ-REPORT-002"
-      description: "GET /api/analysis/dimensions/:planId retrieves lightweight dimension statistics without triggering full aggregation"
-      priority: "SHOULD"
-      acceptance_criteria:
-        - id: "AC-REPORT-002-01"
-          given: "Plan has 100 COMPLETED reports"
-          when: "User GETs /api/analysis/dimensions/:planId"
-          then: "Returns dimension mention rates and sentiment breakdown without sub-theme clustering or emergent issues"
-
-    - id: "REQ-REPORT-003"
-      description: "GET /api/analysis/aggregate/:batchReportId/export?format=md exports Markdown report"
-      priority: "SHOULD"
-      acceptance_criteria:
-        - id: "AC-REPORT-003-01"
-          given: "batchReportId exists with COMPLETED status"
-          when: "User GETs export endpoint with format=md query parameter"
-          then: "Returns text/markdown content type with raw Markdown body"
-
-    - id: "REQ-SAFETY-001"
-      description: "Dimensions JSONB validated using Zod schema before writing, invalid data rejected with 400"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-SAFETY-001-01"
-          given: "Dimensions array contains invalid objects missing id or label"
-          when: "PUT /api/templates/:id/dimensions is called"
-          then: "Zod validation fails with 400 response and specific error message indicating missing field"
-
-    - id: "REQ-SAFETY-002"
-      description: "PII in quotes (names, phones, emails) is anonymized in aggregate reports"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-SAFETY-002-01"
-          given: "Quotes contain Chinese names and phone numbers"
-          when: "Aggregate report is generated"
-          then: "Names replaced with username placeholder, phone numbers masked with asterisks"
-
-    - id: "REQ-SAFETY-003"
-      description: "Analysis APIs protected by existing securityMiddleware X-API-Key authentication"
-      priority: "MUST"
-      acceptance_criteria:
-        - id: "AC-SAFETY-003-01"
-          given: "Request without valid X-API-Key header"
-          when: "User calls POST /api/analysis/aggregate/:planId"
-          then: "API returns 401 Unauthorized"
-
-    - id: "REQ-RELIABILITY-001"
-      description: "Single analysis failures recorded in dead-letter table for later batch retry"
-      priority: "SHOULD"
-      acceptance_criteria:
-        - id: "AC-RELIABILITY-001-01"
-          given: "Single LLM analysis request times out"
-          when: "Analyzing node async analysis catches the error"
-          then: "New row added to dead-letter table with interviewId, error type, and createdAt timestamp"
-
-    - id: "REQ-RELIABILITY-002"
-      description: "Exact-duplicate quotes within same dimension are hash-deduplicated before aggregation"
-      priority: "SHOULD"
-      acceptance_criteria:
-        - id: "AC-RELIABILITY-002-01"
-          given: "Two interviews have identical quote text in same dimension"
-          when: "Pipeline processes quotes for sub-theme clustering"
-          then: "mentionCount counts as 2 people but quote appears only once in sub-theme output"
-
-  design_decisions:
-    - id: "DD-ANALYSIS-001"
-      description: "Dimensions defined at Template level not Plan level"
-      rationale: "Same template used across plans, dimensions should stay with template"
-      alternatives_considered:
-        - "Plan-level dimensions"
-        - "Global default dimensions"
-    - id: "DD-ANALYSIS-002"
-      description: "Single analysis runs async (setImmediate) without blocking interview completion"
-      rationale: "Interview response speed is priority. Consistent with existing analyzing.ts pattern"
-      alternatives_considered:
-        - "Synchronous analysis before interview completes"
-    - id: "DD-ANALYSIS-003"
-      description: "Batch aggregation async with batchReportId for polling"
-      rationale: "Prevents long request timeouts. PENDING immediately returned"
-      alternatives_considered:
-        - "Synchronous long-polling endpoint"
-    - id: "DD-ANALYSIS-004"
-      description: "Zero-config fallback: auto-clustering when no dimensions defined"
-      rationale: "Lowers barrier to entry. Users can analyze without defining dimensions first"
-      alternatives_considered:
-        - "Require dimensions before any analysis"
-    - id: "DD-ANALYSIS-005"
-      description: "LLM clustering uses temperature 0.1 for reproducibility"
-      rationale: "Same input produces similar output for report stability"
-      alternatives_considered:
-        - "Deterministic clustering algorithms (K-means)"
-    - id: "DD-ANALYSIS-006"
-      description: "Prisma migration uses Json? for dimensions (nullable)"
-      rationale: "Existing template records will not fail migration with new column"
-      alternatives_considered:
-        - "Non-null Json with default empty array"
-    - id: "DD-ANALYSIS-007"
-      description: "BatchAnalysisReport status and type use Prisma enums"
-      rationale: "Type safety prevents dirty data from breaking polling"
-      alternatives_considered:
-        - "Bare strings with application-level validation"
-    - id: "DD-ANALYSIS-008"
-      description: "Cursor-based pagination at 100 records per batch"
-      rationale: "Prevents OOM at 1000+ interviews"
-      alternatives_considered:
-        - "Full in-memory load with offset/limit"
-    - id: "DD-ANALYSIS-009"
-      description: "LLM concurrency limited to 3 using p-limit"
-      rationale: "Prevents API rate limiting"
-      alternatives_considered:
-        - "Sequential LLM calls"
-    - id: "DD-ANALYSIS-010"
-      description: "Each pipeline step checkpoint saved to BatchAnalysisReport.checkpoint"
-      rationale: "Failure recovery without re-burning LLM tokens"
-      alternatives_considered:
-        - "Full restart on failure"
-
-  api_contracts:
-    - endpoint: "PUT /api/templates/:id/dimensions"
-      method: "PUT"
-      description: "Update template dimensions configuration"
-      request_body:
-        dimensions: "Array of dimension objects with id, label, description, keywords"
-        analysisConfig: "Optional object with emergentThreshold and customSentimentWords"
-      response_200: "Template object with updated dimensions"
-      response_400: "Validation error with details"
-
-    - endpoint: "POST /api/analysis/aggregate/:planId"
-      method: "POST"
-      description: "Trigger batch aggregate analysis"
-      response_201:
-        batchReportId: "string"
-        status: "PENDING"
-      response_409: "Existing running report ID"
-      response_400: "No analyzable interviews"
-
-    - endpoint: "GET /api/analysis/aggregate/:batchReportId"
-      method: "GET"
-      description: "Retrieve aggregate analysis results"
-      response_200:
-        id: "string"
-        planId: "string"
-        templateId: "string"
-        type: "SUMMARY"
-        status: "COMPLETED"
-        content: "Markdown report string"
-        metrics: "Object with dimension mention rates and sentiment breakdowns"
-        topics: "Object with per-dimension sub-theme clusters"
-        emergents: "Array of emergent issue objects"
-      response_404: "Report not found"
-
-    - endpoint: "GET /api/analysis/dimensions/:planId"
-      method: "GET"
-      description: "Lightweight dimension statistics without full aggregation"
-      response_200:
-        totalInterviews: "number"
-        completedInterviews: "number"
-        dimensions: "Array with dimensionId, label, mentionRate, sentimentBreakdown"
+success_metrics:
+  - "手机号格式 invitee 能被正确识别和解析"
+  - "DingTalk API 解析失败时记录错误但不阻断"
+  - "UI 提示清晰，用户能理解新格式"
+  - "所有现有测试通过"
