@@ -1,10 +1,20 @@
-# Deployment Guide — Interview Bot
+# Deployment Guide — Dialog Survey
 
 ## Overview
 
-Interview Bot supports **one-click deployment** to any Linux machine with Node.js 20+ and PostgreSQL 14+.
+Dialog Survey supports **one-click deployment** to any Linux machine with Node.js 20+ and PostgreSQL 14+.
 
 ## Quick Deploy
+
+### Method 1: npx CLI (Recommended for Quick Setup)
+
+```bash
+# One-command install and run
+npx dialog-survey install
+npx dialog-survey start
+```
+
+### Method 2: Git Clone (Traditional)
 
 ```bash
 # 1. Copy project to target machine
