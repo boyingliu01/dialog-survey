@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-06-17
+
+### Added
+- **X-Admin-Key header authentication**: admin UI HTMX requests now authenticate via `X-Admin-Key` header (matching `ADMIN_API_KEY` env var) without requiring a database API key lookup — **Closes #69**
+
+### Changed
+- **VolcengineLLM → OpenAICompatibleLLM**: renamed class and file (`volcengine.ts` → `openai-compatible.ts`) to accurately reflect that it works with any OpenAI-compatible service, not just Volcengine — **Closes #71**
+- **LLM baseUrl is now the full endpoint URL**: `LLM_BASE_URL`/`VOLCENGINE_BASE_URL` must be the complete `/v1/chat/completions` URL (e.g. `https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions`). The hardcoded `/v1/chat/completions` path suffix has been removed from the LLM service and health check — **Closes #72**
+- **`.env.example`**: updated with full endpoint URL format documentation
+
+### Fixed
+- **followup-branches test mock**: updated `vi.mock()` path from `volcengine.js` → `openai-compatible.js` after module rename — 5 silent test failures fixed
+- **analysis.service.ts indentation**: Biome format fix for renamed import alignment
+
+### Quality
+- 806 tests pass (74 test files), `tsc --noEmit` clean, Biome lint clean
+- QA: end-to-end acceptance tested — health endpoint, auth, LLM integration all verified
+
 ## [1.2.0] - 2026-06-17
 
 ### Added
