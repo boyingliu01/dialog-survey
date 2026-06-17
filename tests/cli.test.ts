@@ -34,13 +34,13 @@ describe("CLI", () => {
         "install",
         "--db-url",
         "postgresql://localhost/db",
-        "--dashscope-api-key",
+        "--llm-api-key",
         "sk-xxx",
       ]);
       expect(result.command).toBe("install");
       expect(result.flags).toEqual({
         "db-url": "postgresql://localhost/db",
-        "dashscope-api-key": "sk-xxx",
+        "llm-api-key": "sk-xxx",
       });
     });
 
@@ -87,14 +87,18 @@ describe("CLI", () => {
     it("should map flag names to config keys", () => {
       const flags = {
         "db-url": "postgresql://localhost/db",
-        "dashscope-api-key": "sk-xxx",
+        "llm-api-key": "sk-llm",
+        "llm-base-url": "http://localhost:11434/v1",
+        "llm-model": "qwen2.5",
         "dingtalk-client-id": "dt-id",
         "dingtalk-client-secret": "dt-secret",
         "dingtalk-agent-id": "dt-agent",
       };
       const config = generateConfigFromFlags(flags);
       expect(config.DATABASE_URL).toBe("postgresql://localhost/db");
-      expect(config.DASHSCOPE_API_KEY).toBe("sk-xxx");
+      expect(config.LLM_API_KEY).toBe("sk-llm");
+      expect(config.LLM_BASE_URL).toBe("http://localhost:11434/v1");
+      expect(config.LLM_MODEL).toBe("qwen2.5");
       expect(config.DINGTALK_CLIENT_ID).toBe("dt-id");
       expect(config.DINGTALK_CLIENT_SECRET).toBe("dt-secret");
       expect(config.DINGTALK_AGENT_ID).toBe("dt-agent");
@@ -103,7 +107,9 @@ describe("CLI", () => {
     it("should return empty strings for missing flags", () => {
       const config = generateConfigFromFlags({});
       expect(config.DATABASE_URL).toBe("");
-      expect(config.DASHSCOPE_API_KEY).toBe("");
+      expect(config.LLM_API_KEY).toBe("");
+      expect(config.LLM_BASE_URL).toBe("");
+      expect(config.LLM_MODEL).toBe("");
       expect(config.DINGTALK_CLIENT_ID).toBe("");
       expect(config.DINGTALK_CLIENT_SECRET).toBe("");
       expect(config.DINGTALK_AGENT_ID).toBe("");
@@ -114,15 +120,14 @@ describe("CLI", () => {
         "db-url": "postgresql://localhost/db",
       });
       expect(config.DATABASE_URL).toBe("postgresql://localhost/db");
-      expect(config.DASHSCOPE_API_KEY).toBe("");
+      expect(config.LLM_API_KEY).toBe("");
     });
   });
 
   describe("validateConfig", () => {
-    it("should return valid when all fields present", () => {
+    it("should return valid when all required fields present", () => {
       const config = {
         DATABASE_URL: "postgresql://localhost/db",
-        DASHSCOPE_API_KEY: "sk-xxx",
         DINGTALK_CLIENT_ID: "dt-id",
         DINGTALK_CLIENT_SECRET: "dt-secret",
         DINGTALK_AGENT_ID: "dt-agent",
@@ -132,23 +137,32 @@ describe("CLI", () => {
       expect(result.missing).toEqual([]);
     });
 
+    it("should return valid when LLM config is omitted (local LLM)", () => {
+      const config = {
+        DATABASE_URL: "postgresql://localhost/db",
+        DINGTALK_CLIENT_ID: "dt-id",
+        DINGTALK_CLIENT_SECRET: "dt-secret",
+        DINGTALK_AGENT_ID: "dt-agent",
+      };
+      const result = validateConfig(config);
+      expect(result.valid).toBe(true);
+    });
+
     it("should return missing fields when empty", () => {
       const config = {
         DATABASE_URL: "",
-        DASHSCOPE_API_KEY: "",
         DINGTALK_CLIENT_ID: "",
         DINGTALK_CLIENT_SECRET: "",
         DINGTALK_AGENT_ID: "",
       };
       const result = validateConfig(config);
       expect(result.valid).toBe(false);
-      expect(result.missing).toHaveLength(5);
+      expect(result.missing).toHaveLength(4);
     });
 
     it("should identify specific missing fields", () => {
       const config = {
         DATABASE_URL: "postgresql://localhost/db",
-        DASHSCOPE_API_KEY: "",
         DINGTALK_CLIENT_ID: "dt-id",
         DINGTALK_CLIENT_SECRET: "",
         DINGTALK_AGENT_ID: "dt-agent",
@@ -156,7 +170,6 @@ describe("CLI", () => {
       const result = validateConfig(config);
       expect(result.valid).toBe(false);
       expect(result.missing).toEqual([
-        "DASHSCOPE_API_KEY",
         "DINGTALK_CLIENT_SECRET",
       ]);
     });
@@ -168,6 +181,12 @@ describe("CLI", () => {
       // Current Node.js in this project is >= 20
       expect(result.ok).toBe(true);
       expect(result.message).toContain("✓");
+    });
+
+    it("should fail when Node.js < 20", () => {
+      const result = checkNodeVersion("18.0.0");
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain(">= 20");
     });
   });
 
@@ -195,17 +214,21 @@ describe("CLI", () => {
   });
 
   describe("generateEnvContent", () => {
-    it("should generate valid .env content from config", () => {
+    it("should generate valid .env content from config with LLM keys", () => {
       const config = {
         DATABASE_URL: "postgresql://localhost/db",
-        DASHSCOPE_API_KEY: "sk-test",
+        LLM_API_KEY: "sk-llm",
+        LLM_BASE_URL: "http://localhost:11434/v1",
+        LLM_MODEL: "qwen2.5",
         DINGTALK_CLIENT_ID: "dt-id",
         DINGTALK_CLIENT_SECRET: "dt-secret",
         DINGTALK_AGENT_ID: "dt-agent",
       };
       const content = generateEnvContent(config);
       expect(content).toContain('DATABASE_URL="postgresql://localhost/db"');
-      expect(content).toContain("DASHSCOPE_API_KEY=sk-test");
+      expect(content).toContain("LLM_API_KEY=sk-llm");
+      expect(content).toContain("LLM_BASE_URL=http://localhost:11434/v1");
+      expect(content).toContain("LLM_MODEL=qwen2.5");
       expect(content).toContain("DINGTALK_CLIENT_ID=dt-id");
       expect(content).toContain("DINGTALK_CLIENT_SECRET=dt-secret");
       expect(content).toContain("DINGTALK_AGENT_ID=dt-agent");
@@ -215,10 +238,24 @@ describe("CLI", () => {
       expect(content).toContain("ADMIN_API_KEY=");
     });
 
+    it("should not include LLM_BASE_URL/LLM_MODEL when not provided", () => {
+      const config = {
+        DATABASE_URL: "postgresql://localhost/db",
+        LLM_API_KEY: "sk-llm",
+        DINGTALK_CLIENT_ID: "dt-id",
+        DINGTALK_CLIENT_SECRET: "dt-secret",
+        DINGTALK_AGENT_ID: "dt-agent",
+      };
+      const content = generateEnvContent(config);
+      expect(content).toContain("LLM_API_KEY=sk-llm");
+      expect(content).not.toContain("LLM_BASE_URL");
+      expect(content).not.toContain("LLM_MODEL");
+    });
+
     it("should include auto-generated security keys", () => {
       const config = {
         DATABASE_URL: "postgresql://localhost/db",
-        DASHSCOPE_API_KEY: "sk-test",
+        LLM_API_KEY: "sk-llm",
         DINGTALK_CLIENT_ID: "dt-id",
         DINGTALK_CLIENT_SECRET: "dt-secret",
         DINGTALK_AGENT_ID: "dt-agent",
@@ -231,6 +268,18 @@ describe("CLI", () => {
       expect(adminMatch).not.toBeNull();
       expect(encMatch?.[1]).toHaveLength(32); // 16 bytes = 32 hex chars
       expect(adminMatch?.[1]).toHaveLength(32);
+    });
+
+    it("should handle empty LLM_API_KEY gracefully", () => {
+      const config = {
+        DATABASE_URL: "postgresql://localhost/db",
+        LLM_API_KEY: "",
+        DINGTALK_CLIENT_ID: "dt-id",
+        DINGTALK_CLIENT_SECRET: "dt-secret",
+        DINGTALK_AGENT_ID: "dt-agent",
+      };
+      const content = generateEnvContent(config);
+      expect(content).toContain("LLM_API_KEY=");
     });
   });
 
@@ -281,6 +330,38 @@ describe("CLI", () => {
       await main(["install", "--help", "true"]);
       const output = writeSpy.mock.calls.map((c) => c[0]).join("");
       expect(output).toContain("dialog-survey install");
+      writeSpy.mockRestore();
+    });
+
+    it("should route to stop command", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      await main(["stop"]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("Stopping");
+      writeSpy.mockRestore();
+    });
+
+    it("should route to start command", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      await main(["start"]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("Starting");
+      writeSpy.mockRestore();
+    });
+
+    it("should route to status command", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      await main(["status"]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("status");
+      writeSpy.mockRestore();
+    });
+
+    it("should route to uninstall command", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      await main(["uninstall"]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("uninstaller");
       writeSpy.mockRestore();
     });
   });

@@ -20,6 +20,23 @@ async function createApp(): Promise<FastifyInstance> {
   return app;
 }
 
+async function createAppWithMockService(
+  method: string,
+  resultOrError: unknown,
+  shouldReject: boolean,
+): Promise<FastifyInstance> {
+  const { AnalysisService } = await import('../src/services/analysis.service.js');
+  const fn = shouldReject
+    ? vi.fn().mockRejectedValue(resultOrError)
+    : vi.fn().mockResolvedValue(resultOrError);
+  (AnalysisService.prototype as any)[method] = fn;
+  const app = Fastify({ logger: false });
+  const { analysisRoutes } = await import('../src/api/analysis.js');
+  await app.register(analysisRoutes, { prisma });
+  await app.ready();
+  return app;
+}
+
 describe('Analysis API Endpoints', () => {
   let app: FastifyInstance;
 
@@ -60,8 +77,6 @@ describe('Analysis API Endpoints', () => {
 
   describe('GET /api/analysis/report/:interviewId', () => {
     it('should return 404 when report does not exist', async () => {
-      const prisma = new PrismaClient();
-
       const res = await app.inject({
         method: 'GET',
         url: '/api/analysis/report/00000000-0000-0000-0000-000000000000',
@@ -70,15 +85,11 @@ describe('Analysis API Endpoints', () => {
       expect(res.statusCode).toBe(404);
       const body = JSON.parse(res.body);
       expect(body.error).toBe('Report not found');
-
-      await prisma.$disconnect();
     });
   });
 
   describe('GET /api/analysis/aggregate/:batchReportId', () => {
     it('should return 404 when aggregate report does not exist', async () => {
-      const prisma = new PrismaClient();
-
       const res = await app.inject({
         method: 'GET',
         url: '/api/analysis/aggregate/00000000-0000-0000-0000-000000000000',
@@ -94,8 +105,6 @@ describe('Analysis API Endpoints', () => {
 
   describe('POST /api/analysis/aggregate/:planId', () => {
     it('should return 400 when plan does not exist (completed interviews check runs first)', async () => {
-      const prisma = new PrismaClient();
-
       const res = await app.inject({
         method: 'POST',
         url: '/api/analysis/aggregate/00000000-0000-0000-0000-000000000000',
@@ -104,8 +113,6 @@ describe('Analysis API Endpoints', () => {
       expect(res.statusCode).toBe(400);
       const body = JSON.parse(res.body);
       expect(body.error).toBe('No COMPLETED interviews found in this plan');
-
-      await prisma.$disconnect();
     });
   });
 
@@ -221,5 +228,164 @@ describe('Analysis API Endpoints', () => {
         await tx.template.delete({ where: { id: template.id } });
       });
     });
+  });
+
+  describe('GET /api/analysis/cluster/:planId', () => {
+    it('should return 200 for non-existent planId (returns empty clusters)', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/analysis/cluster/00000000-0000-0000-0000-000000000000',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.clusters).toBeDefined();
+    });
+  });
+
+  describe('POST /api/analysis/single error handling', () => {
+    it('should throw 500 for non-existent interviewId (valid UUID, no interview)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/analysis/single',
+        payload: { interviewId: '00000000-0000-0000-0000-000000000000' },
+      });
+      expect(res.statusCode).toBe(500);
+    });
+  });
+
+  describe('GET /api/analysis/aggregate/:batchReportId error handling', () => {
+    it('should return 404 for invalid batchReportId format (not found path)', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/analysis/aggregate/not-a-uuid',
+      });
+      expect(res.statusCode).toBe(404);
+    });
+  });
+
+  describe('POST /api/analysis/batch error handling', () => {
+    it('should return 200 for valid planId with no interviews (empty batch results)', async () => {
+      const template = await prisma.template.create({
+        data: { name: 'BatchTest Template', content: '{}', status: 'DRAFT' },
+      });
+      const plan = await prisma.interviewPlan.create({
+        data: { name: 'BatchTest Plan', templateId: template.id, status: 'PENDING' },
+      });
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/analysis/batch',
+        payload: { planId: plan.id },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.total).toBe(0);
+
+      await prisma.interviewPlan.delete({ where: { id: plan.id } });
+      await prisma.template.delete({ where: { id: template.id } });
+    });
+  });
+});
+
+describe('Analysis API error paths via mock service', () => {
+  let app: FastifyInstance;
+
+  afterAll(async () => {
+    vi.restoreAllMocks();
+  });
+
+  it('should return 500 when batchAnalyze throws', async () => {
+    const { AnalysisService } = await import('../src/services/analysis.service.js');
+    const orig = AnalysisService.prototype.batchAnalyze;
+    AnalysisService.prototype.batchAnalyze = vi.fn().mockRejectedValue(new Error('DB error'));
+    app = Fastify({ logger: false });
+    const { analysisRoutes } = await import('../src/api/analysis.js');
+    await app.register(analysisRoutes, { prisma });
+    await app.ready();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/analysis/batch',
+      payload: { planId: '00000000-0000-0000-0000-000000000000' },
+    });
+    expect(res.statusCode).toBe(500);
+    const body = JSON.parse(res.body);
+    expect(body.error).toBe('DB error');
+    await app.close();
+    AnalysisService.prototype.batchAnalyze = orig;
+  });
+
+  it('should return 500 when compareClusters throws', async () => {
+    const { AnalysisService } = await import('../src/services/analysis.service.js');
+    const orig = AnalysisService.prototype.compareClusters;
+    AnalysisService.prototype.compareClusters = vi.fn().mockRejectedValue(new Error('Cluster error'));
+    app = Fastify({ logger: false });
+    const { analysisRoutes } = await import('../src/api/analysis.js');
+    await app.register(analysisRoutes, { prisma });
+    await app.ready();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/analysis/cluster/00000000-0000-0000-0000-000000000000',
+    });
+    expect(res.statusCode).toBe(500);
+    const body = JSON.parse(res.body);
+    expect(body.error).toBe('Cluster error');
+    await app.close();
+    AnalysisService.prototype.compareClusters = orig;
+  });
+
+  it('should return 500 when createBatchReportIfEligible throws', async () => {
+    const { AnalysisService } = await import('../src/services/analysis.service.js');
+    const orig = AnalysisService.prototype.createBatchReportIfEligible;
+    AnalysisService.prototype.createBatchReportIfEligible = vi.fn().mockRejectedValue(new Error('Aggregate error'));
+    app = Fastify({ logger: false });
+    const { analysisRoutes } = await import('../src/api/analysis.js');
+    await app.register(analysisRoutes, { prisma });
+    await app.ready();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/analysis/aggregate/00000000-0000-0000-0000-000000000000',
+    });
+    expect(res.statusCode).toBe(500);
+    const body = JSON.parse(res.body);
+    expect(body.error).toBe('Aggregate error');
+    await app.close();
+    AnalysisService.prototype.createBatchReportIfEligible = orig;
+  });
+
+  it('should return 404 when plan is not found explicitly', async () => {
+    const { AnalysisService } = await import('../src/services/analysis.service.js');
+    const orig = AnalysisService.prototype.createBatchReportIfEligible;
+    AnalysisService.prototype.createBatchReportIfEligible = vi.fn().mockResolvedValue({ kind: 'plan-not-found' });
+    app = Fastify({ logger: false });
+    const { analysisRoutes } = await import('../src/api/analysis.js');
+    await app.register(analysisRoutes, { prisma });
+    await app.ready();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/analysis/aggregate/00000000-0000-0000-0000-000000000000',
+    });
+    expect(res.statusCode).toBe(404);
+    const body = JSON.parse(res.body);
+    expect(body.error).toBe('Plan not found');
+    await app.close();
+    AnalysisService.prototype.createBatchReportIfEligible = orig;
+  });
+
+  it('should return 500 when getBatchReportById throws', async () => {
+    const { AnalysisService } = await import('../src/services/analysis.service.js');
+    const orig = AnalysisService.prototype.getBatchReportById;
+    AnalysisService.prototype.getBatchReportById = vi.fn().mockRejectedValue(new Error('Fetch error'));
+    app = Fastify({ logger: false });
+    const { analysisRoutes } = await import('../src/api/analysis.js');
+    await app.register(analysisRoutes, { prisma });
+    await app.ready();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/analysis/aggregate/00000000-0000-0000-0000-000000000000',
+    });
+    expect(res.statusCode).toBe(500);
+    const body = JSON.parse(res.body);
+    expect(body.error).toBe('Fetch error');
+    await app.close();
+    AnalysisService.prototype.getBatchReportById = orig;
   });
 });

@@ -15,6 +15,8 @@ describe('DingTalkTokenManager', () => {
     process.env.DINGTALK_CLIENT_ID = 'test_client_id';
     process.env.DINGTALK_CLIENT_SECRET = 'test_client_secret';
     vi.clearAllMocks();
+    // Replace the real delay (2s/4s exponential backoff) with 1ms for tests
+    (tokenManager as any).delay = vi.fn().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -123,5 +125,68 @@ describe('DingTalkTokenManager', () => {
     await expect(tokenManager.getAccessToken()).rejects.toThrow(
       'DINGTALK_CLIENT_ID and DINGTALK_CLIENT_SECRET must be set in environment variables'
     );
+  });
+
+  it('should throw on HTTP failure with retry (token request level)', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+    // The fetchWithRetry + delay(2000) + delay(4000) will timeout via vitest's default 10s
+    await expect(tokenManager.getAccessToken()).rejects.toThrow('Failed to get DingTalk access token');
+    expect(fetch).toHaveBeenCalled();
+  });
+
+  it('should throw on non-zero errcode', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        errcode: 400,
+        errmsg: 'invalid appkey',
+        access_token: '',
+        expires_in: 7200,
+      }),
+    });
+
+    await expect(tokenManager.getAccessToken()).rejects.toThrow('Failed to get DingTalk access token');
+  });
+
+  it('should throw on missing access_token in response', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        errcode: 0,
+        errmsg: 'ok',
+        access_token: '',
+        expires_in: 7200,
+      }),
+    });
+
+    await expect(tokenManager.getAccessToken()).rejects.toThrow('Failed to get DingTalk access token');
+  });
+
+  it('should refresh token when cached token is expired', async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          errcode: 0,
+          access_token: 'first_token',
+          expires_in: 0, // expired immediately
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: vi.fn().mockResolvedValue({
+          errcode: 0,
+          access_token: 'refreshed_token',
+          expires_in: 7200,
+        }),
+      });
+
+    const firstToken = await tokenManager.getAccessToken();
+    expect(firstToken).toBe('first_token');
+
+    const secondToken = await tokenManager.getAccessToken();
+    expect(secondToken).toBe('refreshed_token');
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 });

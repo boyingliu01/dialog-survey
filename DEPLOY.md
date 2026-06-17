@@ -6,37 +6,24 @@ Dialog Survey supports **one-click deployment** to any Linux machine with Node.j
 
 ## Quick Deploy
 
-### Method 1: npx CLI (Recommended for Quick Setup)
-
 ```bash
 # One-command install and run
 npx dialog-survey install
 npx dialog-survey start
 ```
 
-### Method 2: Git Clone (Traditional)
-
-```bash
-# 1. Copy project to target machine
-git clone <repo-url> dialog-survey && cd dialog-survey
-
-# 2. Configure environment
-cp .env.production.example .env.production
-# Edit .env.production with actual values (see Configuration section below)
-
-# 3. Deploy
-bash scripts/deploy.sh
-# or: npm run deploy
-```
-
-The deploy script will:
-1. ✓ Check Node.js version (>= 20.0.0)
+The installer will:
+1. ✓ Check Node.js version
 2. ✓ Verify PostgreSQL connectivity
-3. ✓ Install dependencies (`npm ci`)
-4. ✓ Generate Prisma client + sync schema
-5. ✓ Build production bundle (`tsc`)
-6. ✓ Start the service (PM2 if available, otherwise direct)
-7. ✓ Verify health endpoint
+3. ✓ Check port availability (3001)
+4. ✓ Install PM2 process manager
+5. ✓ Copy application files to `~/.dialog-survey/`
+6. ✓ Generate `.env` from your configuration
+7. ✓ Install production dependencies
+8. ✓ Generate Prisma client and sync schema
+9. ✓ Build the production bundle
+10. ✓ Start the service via PM2
+11. ✓ Verify health endpoint
 
 ## Prerequisites
 
@@ -51,9 +38,12 @@ The deploy script will:
 ### Install Prerequisites (Ubuntu/Debian)
 
 ```bash
-# Node.js 20
+# Node.js 20 (or 22/24 with --node-major=22)
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
 sudo apt-get install -y nodejs
+
+# PM2 process manager
+sudo npm install -g pm2
 
 # PostgreSQL
 sudo apt-get install -y postgresql postgresql-contrib
