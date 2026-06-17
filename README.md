@@ -160,7 +160,7 @@ pm2 startup  # 设置开机自启
 | `NODE_ENV` | 运行环境 | `production` |
 | `PORT` | 服务端口 | `3001` |
 | `HOST` | 监听地址 | `0.0.0.0` |
-| `DATABASE_URL` | PostgreSQL 连接串 | `postgresql://user:pass@localhost:5432/interview_bot?schema=public` |
+| `DATABASE_URL` | PostgreSQL 连接串 | `postgresql://user:pass@localhost:5432/dialog_survey?schema=public` |
 | `DASHSCOPE_API_KEY` | 阿里云通义千问 API Key | `sk-xxx` |
 | `DINGTALK_APP_KEY` | 钉钉 AppKey | 开放平台获取 |
 | `DINGTALK_APP_SECRET` | 钉钉 AppSecret | 开放平台获取 |
@@ -228,7 +228,7 @@ docker-compose restart
 docker-compose logs -f postgres
 
 # 进入数据库 shell
-docker-compose exec postgres psql -U interview_bot -d interview_bot
+docker-compose exec postgres psql -U dialog_survey -d dialog_survey
 
 # 重新构建应用镜像
 docker-compose build --no-cache app
