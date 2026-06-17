@@ -14,7 +14,7 @@ AI-powered interview robot that conducts async multi-turn interviews via DingTal
 ## Tech Stack
 
 - **对话引擎**: Custom LangGraph-inspired workflow (not StateGraph API)
-- **LLM 服务**: Volcengine Ark (deepseek-v3.2) / Alibaba DashScope
+- **LLM**: OpenAI-compatible API（支持本地部署：如 ollama / vLLM / LocalAI；也可对接云服务）
 - **语音识别**: 阿里云 Fun-ASR
 - **消息平台**: DingTalk Stream Mode (WebSocket)
 - **数据存储**: PostgreSQL (Prisma ORM)
@@ -33,7 +33,7 @@ npx dialog-survey install
 # Non-interactive installation (all flags required)
 npx dialog-survey install \
   --db-url "postgresql://user:pass@localhost:5432/dialog_survey" \
-  --dashscope-api-key "sk-xxx" \
+  --llm-api-key "sk-xxx" \
   --dingtalk-client-id "xxx" \
   --dingtalk-client-secret "xxx" \
   --dingtalk-agent-id "xxx"
@@ -236,10 +236,9 @@ pm2 startup  # 设置开机自启
 | `PORT` | 服务端口 | `3001` |
 | `HOST` | 监听地址 | `0.0.0.0` |
 | `DATABASE_URL` | PostgreSQL 连接串 | `postgresql://user:pass@localhost:5432/dialog_survey?schema=public` |
-| `VOLCENGINE_API_KEY` | 火山引擎 Ark API Key | `sk-xxx` |
-| `LLM_API_KEY` | LLM API Key (优先于 VOLCENGINE_ 前缀) | `sk-xxx` |
-| `LLM_MODEL` | LLM 模型名称 | `deepseek-v3.2` |
-| `DASHSCOPE_API_KEY` | 阿里云通义千问 API Key | `sk-xxx` |
+| `LLM_BASE_URL` | LLM 服务地址（OpenAI-compatible），指向本地或云服务 | `http://localhost:11434/v1` |
+| `LLM_API_KEY` | LLM API Key | `sk-xxx` |
+| `LLM_MODEL` | LLM 模型名称 | `qwen2.5` |
 | `DINGTALK_CLIENT_ID` | 钉钉 Client ID | 开放平台获取 |
 | `DINGTALK_CLIENT_SECRET` | 钉钉 Client Secret | 开放平台获取 |
 | `DINGTALK_AGENT_ID` | 钉钉 Agent ID | 开放平台获取 |
