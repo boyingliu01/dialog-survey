@@ -3,6 +3,10 @@
   "version": "1.1.0",
   "type": "module",
   "description": "AI-powered interview robot that conducts async multi-turn interviews via DingTalk",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/boyingliu01/InterviewAgent"
+  },
   "bin": {
     "dialog-survey": "scripts/cli.mjs"
   },
