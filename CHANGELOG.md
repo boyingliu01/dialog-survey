@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-06-17
+
+### Changed
+- **Complete project rename cleanup**: Finalize rename from `interview-bot` to `dialog-survey` across all configuration files
+  - Database names: `interview_bot` → `dialog_survey` in `.env.example`, `.env.production.example`, `docker-compose.yml`
+  - CI/CD: Update test database name in `.github/workflows/publish.yml`
+  - Documentation: Update all references in `README.md`, `DEPLOY.md`, `docs/setup-guide.md`
+  - Config files: Update `.gitleaks.toml` title, GitHub URLs in `package.json` and `vitest.config.ts`
+
+### Quality
+- All 775 tests pass after rename
+- TypeScript type-check and Biome lint pass
+- Pre-commit quality gates: 8.0/10 score
+
 ## [1.1.0] - 2026-06-16
 
 ### Added
