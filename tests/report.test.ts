@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { generateReport } from '../src/services/report.service.js';
 
-vi.mock('../src/integrations/llm/volcengine.js', () => ({
-  VolcengineLLM: {
+vi.mock('../src/integrations/llm/openai-compatible.js', () => ({
+  OpenAICompatibleLLM: {
     fromEnv: () => ({
       chat: vi.fn(),
     }),
@@ -36,7 +36,7 @@ describe('Report Service', () => {
       };
 
       const chatMock = vi.fn().mockResolvedValue(mockLLMResponse);
-      vi.mocked(await import('../src/integrations/llm/volcengine.js')).VolcengineLLM.fromEnv = () =>
+      vi.mocked(await import('../src/integrations/llm/openai-compatible.js')).OpenAICompatibleLLM.fromEnv = () =>
         ({ chat: chatMock }) as any;
 
       const result = await generateReport('interview-123', '工作经历', [
@@ -56,7 +56,7 @@ describe('Report Service', () => {
      */
     it('should create fallback report when LLM fails', async () => {
       const chatMock = vi.fn().mockRejectedValue(new Error('LLM error'));
-      vi.mocked(await import('../src/integrations/llm/volcengine.js')).VolcengineLLM.fromEnv = () =>
+      vi.mocked(await import('../src/integrations/llm/openai-compatible.js')).OpenAICompatibleLLM.fromEnv = () =>
         ({ chat: chatMock }) as any;
 
       const result = await generateReport('interview-123', '工作经历', [
@@ -79,7 +79,7 @@ describe('Report Service', () => {
       };
 
       const chatMock = vi.fn().mockResolvedValue(mockLLMResponse);
-      vi.mocked(await import('../src/integrations/llm/volcengine.js')).VolcengineLLM.fromEnv = () =>
+      vi.mocked(await import('../src/integrations/llm/openai-compatible.js')).OpenAICompatibleLLM.fromEnv = () =>
         ({ chat: chatMock }) as any;
 
       const result = await generateReport('interview-123', 'test', [
@@ -99,7 +99,7 @@ describe('Report Service', () => {
       };
 
       const chatMock = vi.fn().mockResolvedValue(mockLLMResponse);
-      vi.mocked(await import('../src/integrations/llm/volcengine.js')).VolcengineLLM.fromEnv = () =>
+      vi.mocked(await import('../src/integrations/llm/openai-compatible.js')).OpenAICompatibleLLM.fromEnv = () =>
         ({ chat: chatMock }) as any;
 
       const result = await generateReport('interview-123', 'test', []);
@@ -118,7 +118,7 @@ describe('Report Service', () => {
       };
 
       const chatMock = vi.fn().mockResolvedValue(mockLLMResponse);
-      vi.mocked(await import('../src/integrations/llm/volcengine.js')).VolcengineLLM.fromEnv = () =>
+      vi.mocked(await import('../src/integrations/llm/openai-compatible.js')).OpenAICompatibleLLM.fromEnv = () =>
         ({ chat: chatMock }) as any;
 
       const result = await generateReport('interview-123', 'test', [
@@ -138,7 +138,7 @@ describe('Report Service', () => {
       };
 
       const chatMock = vi.fn().mockResolvedValue(mockLLMResponse);
-      vi.mocked(await import('../src/integrations/llm/volcengine.js')).VolcengineLLM.fromEnv = () =>
+      vi.mocked(await import('../src/integrations/llm/openai-compatible.js')).OpenAICompatibleLLM.fromEnv = () =>
         ({ chat: chatMock }) as any;
 
       const beforeTime = new Date();

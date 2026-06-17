@@ -1,5 +1,5 @@
 import type { InterviewState } from '../core/types/index.js';
-import { DEFAULT_MODEL, VolcengineLLM } from '../integrations/llm/volcengine.js';
+import { DEFAULT_MODEL, OpenAICompatibleLLM } from '../integrations/llm/openai-compatible.js';
 import { info, warn } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
@@ -65,7 +65,7 @@ export async function generateSmartResponse(
   customPrompt?: string,
   isLastQuestion?: boolean
 ): Promise<SmartResponseResult> {
-  const llm = VolcengineLLM.fromEnv();
+  const llm = OpenAICompatibleLLM.fromEnv();
 
   const conversationHistory = state.messages
     .slice(-6)

@@ -249,8 +249,8 @@ describe('Smart Response System', () => {
         pendingResponses: [],
       };
 
-      vi.mock('../src/integrations/llm/volcengine.js', () => ({
-        VolcengineLLM: {
+      vi.mock('../src/integrations/llm/openai-compatible.js', () => ({
+        OpenAICompatibleLLM: {
           fromEnv: () => ({
             chat: vi.fn().mockResolvedValue({
               content:
