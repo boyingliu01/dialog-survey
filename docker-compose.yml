@@ -5,15 +5,15 @@ services:
     image: postgres:16-alpine
     container_name: dialog-survey-db
     environment:
-      POSTGRES_USER: interview_bot
-      POSTGRES_PASSWORD: interview_bot_secret
-      POSTGRES_DB: interview_bot
+      POSTGRES_USER: dialog_survey
+      POSTGRES_PASSWORD: dialog_survey_secret
+      POSTGRES_DB: dialog_survey
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U interview_bot -d interview_bot"]
+      test: ["CMD-SHELL", "pg_isready -U dialog_survey -d dialog_survey"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -28,7 +28,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://interview_bot:interview_bot_secret@postgres:5432/interview_bot
+      DATABASE_URL: postgresql://dialog_survey:dialog_survey_secret@postgres:5432/dialog_survey
       PORT: 3001
       HOST: 0.0.0.0
     env_file:

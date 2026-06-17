@@ -19,5 +19,5 @@ sudo systemctl start postgresql
 ```bash
 pg_isready
 # 或
-psql -h localhost -U investigator -d interview_bot -c "SELECT 1"
+psql -h localhost -U investigator -d dialog_survey -c "SELECT 1"
 ```
