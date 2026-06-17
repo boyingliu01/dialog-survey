@@ -55,6 +55,7 @@
                value="{{ template.name | default('') }}"
                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
                placeholder="请输入模板名称" />
+        <p class="mt-1 text-xs text-gray-500">模板名称，用于在管理后台区分不同的访谈模板（如"Q3 满意度调研"）</p>
       </div>
 
       <div>
@@ -64,6 +65,7 @@
         <textarea id="description" name="description" rows="2"
                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
                   placeholder="模板用途说明（可选）">{{ template.description | default('') }}</textarea>
+        <p class="mt-1 text-xs text-gray-500">模板用途说明，帮助其他管理员理解该模板的适用场景</p>
       </div>
 
       <div>
@@ -73,6 +75,7 @@
         <textarea id="invitationPrompt" name="invitationPrompt" required rows="3"
                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
                   placeholder="输入用于邀约候选人的AI提示词">{{ template.invitationPrompt | default('') }}</textarea>
+        <p class="mt-1 text-xs text-gray-500">用途：AI 邀约时使用的提示词，用于生成发给受访者的邀约消息。应包含访谈目的、时长说明等关键信息。</p>
       </div>
 
       <div>
@@ -113,6 +116,7 @@
         <textarea id="closingMessage" name="closingMessage" rows="2"
                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border"
                   placeholder="访谈结束时的结束语（可选）">{{ template.closingMessage | default('') }}</textarea>
+        <p class="mt-1 text-xs text-gray-500">受访者完成所有问题后 AI 主持人发送的结束语。例如：感谢您的参与，祝您工作顺利！留空则不发送。</p>
       </div>
 
       <div>
@@ -123,6 +127,9 @@
         <textarea id="llmPromptTemplate" name="llmPromptTemplate" rows="8"
                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2 border font-mono text-sm"
                   placeholder="自定义 AI 主持人的提示词模板">{{ template.llmPromptTemplate | default('') }}</textarea>
+        <p class="mt-1 text-xs text-gray-500">
+          <strong class="text-gray-600">用途：</strong>控制 AI 主持人如何根据受访者的回答进行追问。<strong class="text-gray-600">留空则使用系统默认模板（推荐）。</strong>修改此模板可能影响访谈质量。
+        </p>
         <p class="mt-1 text-xs text-gray-500">
           可用变量：<code class="bg-gray-100 px-1 rounded">conversationHistory</code>
           <code class="bg-gray-100 px-1 rounded">currentQuestion</code>
