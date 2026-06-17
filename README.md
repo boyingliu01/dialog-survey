@@ -24,16 +24,13 @@ AI-powered interview robot that conducts async multi-turn interviews via DingTal
 
 ## Installation
 
-### Option 1: npx CLI (Recommended for Quick Setup)
-
 ```bash
-# Interactive installation
+# Interactive installation — prompts for each value
 npx dialog-survey install
 
-# Non-interactive installation (all flags required)
+# Non-interactive installation (all required flags)
 npx dialog-survey install \
   --db-url "postgresql://user:pass@localhost:5432/dialog_survey" \
-  --llm-api-key "sk-xxx" \
   --dingtalk-client-id "xxx" \
   --dingtalk-client-secret "xxx" \
   --dingtalk-agent-id "xxx"
@@ -48,27 +45,11 @@ npx dialog-survey uninstall
 npx dialog-survey help
 ```
 
-### Option 2: Git Clone + Manual Setup
+**Prerequisites**: Node.js >=20, PostgreSQL 14+, and [PM2](https://pm2.keymetrics.io/) (`npm install -g pm2`).
 
-```bash
-# Clone repository
-git clone <repo-url> dialog-survey
-cd dialog-survey
-
-# Install dependencies
-npm install
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your configuration values
-
-# Initialize database
-npx prisma generate
-npx prisma db push
-
-# Start service
-npm run dev
-```
+> For local LLM deployment, leave `--llm-api-key` empty during install;
+> the service will connect to an OpenAI-compatible endpoint at `http://localhost:11434/v1`
+> by default. Set `LLM_BASE_URL` and `LLM_MODEL` in the generated `.env` file if needed.
 
 ## Usage
 

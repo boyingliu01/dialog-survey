@@ -137,9 +137,9 @@ describe('Batch Aggregation: Timeout', () => {
     const { runWithTimeout } = await import('../src/services/batch-aggregation.service.js');
     await expect(
       runWithTimeout(async () => {
-        await new Promise((r) => setTimeout(r, 100));
+        await new Promise((r) => setTimeout(r, 5));
         return 'done';
-      }, 10)
+      }, 2)
     ).rejects.toThrow();
   });
 

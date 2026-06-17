@@ -1,12 +1,20 @@
 {
   "name": "dialog-survey",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "type": "module",
   "description": "AI-powered interview robot that conducts async multi-turn interviews via DingTalk",
   "repository": {
     "type": "git",
     "url": "https://github.com/boyingliu01/dialog-survey"
   },
+  "files": [
+    "dist/",
+    "scripts/",
+    "src/views/",
+    "public/",
+    "prisma/",
+    "ecosystem.config.cjs"
+  ],
   "bin": {
     "dialog-survey": "scripts/cli.mjs"
   },
