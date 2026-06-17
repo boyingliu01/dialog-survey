@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_MODEL, VolcengineLLM } from '../integrations/llm/volcengine.js';
+import { DEFAULT_MODEL, OpenAICompatibleLLM } from '../integrations/llm/openai-compatible.js';
 import { info } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
@@ -38,7 +38,7 @@ export async function generateReport(
     qaPairs: qaText,
   });
 
-  const llm = VolcengineLLM.fromEnv();
+  const llm = OpenAICompatibleLLM.fromEnv();
 
   try {
     const response = await withRetry(() =>
@@ -166,7 +166,7 @@ export async function generateReportWithDimensions(
   _topic: string,
   qaPairs: Array<{ question: string; answer: string }>,
   dimensionsJson: string | null,
-  llm: VolcengineLLM
+  llm: OpenAICompatibleLLM
 ): Promise<ReportWithDimensions> {
   const qaText = qaPairs.map((qa) => `Q: ${qa.question}\nA: ${qa.answer}`).join('\n\n');
 
