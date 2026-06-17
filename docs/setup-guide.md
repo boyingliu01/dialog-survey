@@ -50,7 +50,7 @@
 docker run -d `
   --name dialog-survey-db `
   -e POSTGRES_PASSWORD=your_password `
-  -e POSTGRES_DB=interview_bot `
+  -e POSTGRES_DB=dialog_survey `
   -p 5432:5432 `
   postgres:16
 ```
@@ -59,7 +59,7 @@ docker run -d `
 
 ```powershell
 # 使用 psql 测试 (EDB 安装包自带)
-psql -U postgres -d interview_bot
+psql -U postgres -d dialog_survey
 ```
 
 ---
@@ -149,7 +149,7 @@ PORT=3001
 HOST=0.0.0.0
 
 # Database
-DATABASE_URL="postgresql://postgres:your_password@localhost:5432/interview_bot?schema=public"
+DATABASE_URL="postgresql://postgres:your_password@localhost:5432/dialog_survey?schema=public"
 
 # LLM Configuration
 DASHSCOPE_API_KEY=sk-your-dashscope-api-key
@@ -310,7 +310,7 @@ npm ci --ignore-scripts
 **A**: 检查：
 1. PostgreSQL 服务是否在运行（Windows 服务管理器 → PostgreSQL）
 2. `DATABASE_URL` 中的用户名/密码是否正确
-3. 数据库 `interview_bot` 是否已存在（`npx prisma db push` 会自动创建）
+3. 数据库 `dialog_survey` 是否已存在（`npx prisma db push` 会自动创建）
 
 ### Q: `npm run dev` 启动后钉钉 Stream 连接失败？
 

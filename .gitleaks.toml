@@ -1,5 +1,5 @@
-# gitleaks configuration for interview-bot
-title = "interview-bot gitleaks config"
+# gitleaks configuration for dialog-survey
+title = "dialog-survey gitleaks config"
 
 # Extend default rules with project-specific rules
 [extend]
