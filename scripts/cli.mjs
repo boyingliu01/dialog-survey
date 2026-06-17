@@ -99,7 +99,9 @@ export function parseArgs(argv) {
 export function generateConfigFromFlags(flags) {
   return {
     DATABASE_URL: flags["db-url"] || "",
-    DASHSCOPE_API_KEY: flags["dashscope-api-key"] || "",
+    LLM_API_KEY: flags["llm-api-key"] || "",
+    LLM_BASE_URL: flags["llm-base-url"] || "",
+    LLM_MODEL: flags["llm-model"] || "",
     DINGTALK_CLIENT_ID: flags["dingtalk-client-id"] || "",
     DINGTALK_CLIENT_SECRET: flags["dingtalk-client-secret"] || "",
     DINGTALK_AGENT_ID: flags["dingtalk-agent-id"] || "",
@@ -115,7 +117,6 @@ export function generateConfigFromFlags(flags) {
 export function validateConfig(config) {
   const required = [
     "DATABASE_URL",
-    "DASHSCOPE_API_KEY",
     "DINGTALK_CLIENT_ID",
     "DINGTALK_CLIENT_SECRET",
     "DINGTALK_AGENT_ID",
@@ -160,7 +161,12 @@ export async function collectConfigInteractive() {
         "Database URL (PostgreSQL connection string): ",
         rl,
       ),
-      DASHSCOPE_API_KEY: await prompt("DashScope API Key (LLM): ", rl),
+      LLM_API_KEY: await prompt("LLM API Key (leave empty for local LLM): ", rl),
+      LLM_BASE_URL: await prompt(
+        "LLM Base URL (optional, e.g. http://localhost:11434/v1): ",
+        rl,
+      ),
+      LLM_MODEL: await prompt("LLM Model (optional, e.g. qwen2.5): ", rl),
       DINGTALK_CLIENT_ID: await prompt("DingTalk Client ID: ", rl),
       DINGTALK_CLIENT_SECRET: await prompt("DingTalk Client Secret: ", rl),
       DINGTALK_AGENT_ID: await prompt("DingTalk Agent ID: ", rl),
@@ -178,8 +184,8 @@ export async function collectConfigInteractive() {
  * Check Node.js version >= 20.
  * @returns {{ ok: boolean, message: string }}
  */
-export function checkNodeVersion() {
-  const major = Number.parseInt(process.versions.node.split(".")[0], 10);
+export function checkNodeVersion(version = process.versions.node) {
+  const major = Number.parseInt(version.split(".")[0], 10);
   if (major < MIN_NODE_MAJOR) {
     return {
       ok: false,
@@ -345,7 +351,17 @@ export function generateEnvContent(config) {
     "HOST=0.0.0.0",
     "",
     `DATABASE_URL="${config.DATABASE_URL}"`,
-    `DASHSCOPE_API_KEY=${config.DASHSCOPE_API_KEY}`,
+    "",
+    "# LLM Configuration (OpenAI-compatible — local or cloud)",
+    `LLM_API_KEY=${config.LLM_API_KEY || ""}`,
+  ];
+  if (config.LLM_BASE_URL) {
+    lines.push(`LLM_BASE_URL=${config.LLM_BASE_URL}`);
+  }
+  if (config.LLM_MODEL) {
+    lines.push(`LLM_MODEL=${config.LLM_MODEL}`);
+  }
+  lines.push(
     "",
     `DINGTALK_CLIENT_ID=${config.DINGTALK_CLIENT_ID}`,
     `DINGTALK_CLIENT_SECRET=${config.DINGTALK_CLIENT_SECRET}`,
@@ -358,7 +374,7 @@ export function generateEnvContent(config) {
     "# Logging",
     "LOG_LEVEL=info",
     "",
-  ];
+  );
   return lines.join("\n");
 }
 
@@ -432,6 +448,8 @@ export async function installCommand(flags) {
     "package-lock.json",
     "dist",
     "prisma",
+    "src/views",
+    "public",
     "ecosystem.config.cjs",
   ];
   for (const file of filesToCopy) {
@@ -696,11 +714,13 @@ Commands:
   help        Show this help message
 
 Install Options:
-  --db-url <url>                  PostgreSQL connection string
-  --dashscope-api-key <key>       DashScope API key for LLM
-  --dingtalk-client-id <id>       DingTalk client ID
-  --dingtalk-client-secret <sec>  DingTalk client secret
-  --dingtalk-agent-id <id>        DingTalk agent ID
+  --db-url <url>                  PostgreSQL connection string (required)
+  --llm-api-key <key>             LLM API key (required, or leave empty for local setup)
+  --llm-base-url <url>            LLM base URL (optional, e.g. http://localhost:11434/v1)
+  --llm-model <name>              LLM model name (optional, e.g. qwen2.5)
+  --dingtalk-client-id <id>       DingTalk client ID (required)
+  --dingtalk-client-secret <sec>  DingTalk client secret (required)
+  --dingtalk-agent-id <id>        DingTalk agent ID (required)
 
 Uninstall Options:
   --remove-db                     Also print instructions to drop the database
@@ -712,7 +732,7 @@ Examples:
   # Non-interactive install
   npx dialog-survey install \\
     --db-url "postgresql://user:pass@localhost:5432/db" \\
-    --dashscope-api-key "sk-xxx" \\
+    --llm-api-key "sk-xxx" \\
     --dingtalk-client-id "xxx" \\
     --dingtalk-client-secret "xxx" \\
     --dingtalk-agent-id "xxx"
@@ -734,7 +754,9 @@ Usage:
 
 Options:
   --db-url <url>                  PostgreSQL connection string (required)
-  --dashscope-api-key <key>       DashScope API key for LLM (required)
+  --llm-api-key <key>             LLM API key (optional for local LLM)
+  --llm-base-url <url>            LLM base URL (optional, e.g. http://localhost:11434/v1)
+  --llm-model <name>              LLM model name (optional, e.g. qwen2.5)
   --dingtalk-client-id <id>       DingTalk client ID (required)
   --dingtalk-client-secret <sec>  DingTalk client secret (required)
   --dingtalk-agent-id <id>        DingTalk agent ID (required)
@@ -748,7 +770,7 @@ Examples:
   # Non-interactive — all values via flags
   npx dialog-survey install \\
     --db-url "postgresql://user:pass@localhost:5432/db" \\
-    --dashscope-api-key "sk-xxx" \\
+    --llm-api-key "sk-xxx" \\
     --dingtalk-client-id "xxx" \\
     --dingtalk-client-secret "xxx" \\
     --dingtalk-agent-id "xxx"

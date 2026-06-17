@@ -73,14 +73,14 @@ describe('Retry Utility', () => {
       const startTime = Date.now();
       await withRetry(fn, {
         maxRetries: 2,
-        initialDelayMs: 100,
+        initialDelayMs: 5,
         backoffMultiplier: 2,
-        maxDelayMs: 1000,
+        maxDelayMs: 100,
       });
       const elapsed = Date.now() - startTime;
 
-      // Should wait at least 100ms + 200ms = 300ms
-      expect(elapsed).toBeGreaterThanOrEqual(250);
+      // Should wait at least 5ms + 10ms = 15ms
+      expect(elapsed).toBeGreaterThanOrEqual(12);
     });
 
     /**
@@ -97,13 +97,13 @@ describe('Retry Utility', () => {
       const startTime = Date.now();
       await withRetry(fn, {
         maxRetries: 2,
-        initialDelayMs: 1000,
+        initialDelayMs: 20,
         backoffMultiplier: 10,
-        maxDelayMs: 500,
+        maxDelayMs: 10,
       });
       const elapsed = Date.now() - startTime;
 
-      expect(elapsed).toBeLessThanOrEqual(1700);
+      expect(elapsed).toBeLessThanOrEqual(80);
     });
 
     /**

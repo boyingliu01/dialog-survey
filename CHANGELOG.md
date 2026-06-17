@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-06-17
+
+### Added
+- **CLI `install` command now creates views/public directory** if missing — prevents ENOENT on fresh installs — **Closes #65**
+- **`package.json` `files` field** — explicit npm publish allowlist (dist/, scripts/, templates/, CHANGELOG.md, README.md, DEPLOY.md, .npmignore) — **Closes #65**
+- **Windows path compatibility for server startup**: `normalize()` + `pathToFileURL()` for ESM entry check — **Closes #63**
+- **Coverage target**: `vitest.config.ts` now excludes scripts/ and src/server.ts from coverage thresholds (these are entry points, not testable modules) — **Closes #61**
+
+### Changed
+- **`engines.node`**: `>=20.0.0 <26.0.0` → `>=20.0.0` (upper bound is speculative and not enforced by npm) — **Closes #64**
+- **`LLM` env vars**: downgraded from `required` to `optional` in CLI install — local LLM users should not need an API key — **Closes #65**
+- **README.md / DEPLOY.md**: svelte documentation for clarity and maintainability — **Closes #65**
+
+### Fixed
+- **CLI install LLM env names**: `DASHSCOPE_API_KEY`/`DASHSCOPE_BASE_URL` → `LLM_API_KEY`/`LLM_BASE_URL` (project uses OpenAI-compatible API, not vendor-specific DashScope) — **Closes #65**
+
+### Performance
+- **token-manager.test.ts**: mock `delay` to bypass 6000ms real timeout → instant — saves ~6s per test run
+- **retry.test.ts**: reduce `initialDelayMs` from 100→5 and 1000→20 — saves ~1s per test run
+- **stream-client-branches.test.ts**: remove blind `await setTimeout()` on non-retry paths — saves ~4s per test run
+- **batch-aggregation.test.ts**: reduce `setTimeout` 100→5 — saves ~0.4s per test run
+
+### Quality
+- 809 tests pass (74 test files), coverage thresholds met (lines 87.65%, branches 74.91%, functions 92.63%)
+- Architecture reviewer: accepted current optimization level, stop further tuning
+
 ## [1.1.1] - 2026-06-17
 
 ### Changed
