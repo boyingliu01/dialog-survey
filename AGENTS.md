@@ -11,7 +11,7 @@
 | Component          | Technology                     |
 | ------------------ | ------------------------------ |
 | Dialog Engine      | Custom LangGraph-inspired workflow (not StateGraph API) |
-| LLM Service        | Volcengine Ark (deepseek-v3.2) / Alibaba DashScope |
+| LLM Service        | OpenAI-compatible API (supports locally-deployed ollama / vLLM / LocalAI) |
 | Speech Recognition | Alibaba Fun-ASR                |
 | Message Platform   | DingTalk Stream Mode (WebSocket) |
 | Database           | PostgreSQL (Prisma ORM)        |
@@ -60,7 +60,7 @@
                               │
 ┌─────────────────────────────▼───────────────────────────────┐
 │               Integrations Layer                             │
-│  DingTalk Client (REST + Stream), LLM (Volcengine/DashScope) │
+│  DingTalk Client (REST + Stream), LLM (OpenAI-compatible) │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -122,8 +122,8 @@ src/
 │   │   └── middleware.ts   # Signature verification
 │   └── llm/
 │       ├── base.ts         # LLM interface
-│       ├── volcengine.ts   # Volcengine Ark implementation
-│       └── alibaba.ts      # Alibaba/DashScope implementation
+│       ├── volcengine.ts   # Volcengine Ark implementation (default)
+│       └── alibaba.ts      # Alibaba/DashScope implementation (alternative)
 │
 ├── domains/                # Domain entities (DDD)
 │   └── interview/
@@ -202,9 +202,10 @@ src/
 Required env vars (see `.env.example`):
 
 - `DATABASE_URL` - PostgreSQL connection
-- `VOLCENGINE_API_KEY` / `LLM_API_KEY` - LLM API key (LLM_ prefix takes priority)
-- `DASHSCOPE_API_KEY` - Alibaba DashScope API key (alternative to Volcengine)
-- `VOLCENGINE_MODEL` / `LLM_MODEL` - Model name (default: deepseek-v3.2)
+- `LLM_API_KEY` - LLM API key
+- `LLM_BASE_URL` - LLM service URL (OpenAI-compatible; local or cloud)
+- `LLM_MODEL` - Model name (default: deepseek-v3.2)
+- `VOLCENGINE_API_KEY` / `VOLCENGINE_BASE_URL` / `VOLCENGINE_MODEL` - Fallback env vars (if LLM_ prefix not set)
 - `DINGTALK_CLIENT_ID`, `DINGTALK_CLIENT_SECRET` - DingTalk Stream
 - `FUN_ASR_API_KEY` - Speech recognition
 - `ENCRYPTION_KEY` - AES-256 encryption
@@ -343,10 +344,10 @@ docker compose logs -f app    # 查看日志
 
 ### LLM Integration
 - **Interface**: `src/integrations/llm/base.ts`
-- **Volcengine Ark**: `src/integrations/llm/volcengine.ts` (primary, deepseek-v3.2)
+- **Volcengine Ark**: `src/integrations/llm/volcengine.ts` (default, deepseek-v3.2)
 - **DashScope**: `src/integrations/llm/alibaba.ts`
 - **Env prefix**: `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` takes priority over `VOLCENGINE_` prefix
-- **Models**: doubao-seed-2.0-code/pro/lite, minimax-m2.5, glm-4.7, deepseek-v3.2, kimi-k2.5
+- **Deployment flexibility**: Any OpenAI-compatible service works — local (ollama, vLLM, LocalAI) or cloud
 
 ### ASR Integration
 - **Service**: `src/services/asr.service.ts`
