@@ -41,6 +41,14 @@ export function createVerifyApiKey(prisma: PrismaClient) {
     }
 
     const apiKey = request.headers['x-api-key'] as string | undefined;
+    const adminKey = request.headers['x-admin-key'] as string | undefined;
+
+    // Allow admin UI requests authenticated via X-Admin-Key header
+    const expectedAdminKey = process.env.ADMIN_API_KEY;
+    if (adminKey && expectedAdminKey && adminKey === expectedAdminKey) {
+      request.user = { userId: 'admin', role: 'admin' };
+      return;
+    }
 
     if (!apiKey) {
       return reply.status(401).send({ error: 'API key required' });
