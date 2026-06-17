@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-06-17
+
+### Added
+- **手机号添加访谈成员**: 支持手机号格式导入和添加访谈计划成员，通过钉钉 API 自动解析手机号为 userId。导入文本、更新计划、添加成员表单均支持手机号输入 — **Closes #68**
+
+### Quality
+- 91 tests pass across 4 related test files, Biome lint clean, `tsc --noEmit` clean
+- New tests: 10 unit tests (parseInviteeText phone detection, importInvitees resolution, updatePlan resolution)
+
 ## [1.4.0] - 2026-06-17
 
 ### Added
