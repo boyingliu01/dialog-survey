@@ -57,9 +57,7 @@ async function checkLLM(): Promise<{
     const model = process.env.LLM_MODEL || process.env.VOLCENGINE_MODEL || 'deepseek-v3.2';
 
     const start = Date.now();
-    const response = await fetch(
-      `${baseUrl}${baseUrl.endsWith('/') ? '' : '/'}v1/chat/completions`,
-      {
+    const response = await fetch(baseUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiKey}`,
