@@ -1,50 +1,120 @@
-# Interview Bot
+# Dialog Survey
 
-AI-powered interview robot with intelligent follow-up questions, multi-turn context memory, and voice input support.
+AI-powered interview robot that conducts async multi-turn interviews via DingTalk with intelligent follow-up questions, multi-turn context memory, and voice input support.
 
 ## Features
 
-- **AI智能追问**: 基于LLM的完全智能型追问能力
+- **AI 智能追问**: 基于 LLM 的完全智能型追问能力
 - **多轮上下文记忆**: 支持跨多天、多条消息的对话连贯性
 - **语音输入**: 支持语音消息回答
 - **异步消息式访谈**: 被访谈者可以在碎片时间回答
-- **自动生成报告**: 访谈结束后自动生成Markdown报告
+- **自动生成报告**: 访谈结束后自动生成 Markdown 报告
 - **私有部署**: 数据全留存，确保安全性
 
 ## Tech Stack
 
-- **对话引擎**: LangGraph.js
-- **LLM服务**: 阿里云通义千问 (DashScope)
-- **语音识别**: 阿里云Fun-ASR
-- **消息平台**: 钉钉
+- **对话引擎**: Custom LangGraph-inspired workflow (not StateGraph API)
+- **LLM 服务**: Volcengine Ark (deepseek-v3.2) / Alibaba DashScope
+- **语音识别**: 阿里云 Fun-ASR
+- **消息平台**: DingTalk Stream Mode (WebSocket)
 - **数据存储**: PostgreSQL (Prisma ORM)
-- **Web框架**: Fastify
-- **语言**: TypeScript (strict mode)
+- **Web 框架**: Fastify 5.x
+- **模板引擎**: Nunjucks (server-side views)
+- **语言**: TypeScript (strict mode, ESM)
 
-## Quick Start
+## Installation
 
-### 1. 安装依赖
+### Option 1: npx CLI (Recommended for Quick Setup)
+
+```bash
+# Interactive installation
+npx dialog-survey install
+
+# Non-interactive installation (all flags required)
+npx dialog-survey install \
+  --db-url "postgresql://user:pass@localhost:5432/dialog_survey" \
+  --dashscope-api-key "sk-xxx" \
+  --dingtalk-client-id "xxx" \
+  --dingtalk-client-secret "xxx" \
+  --dingtalk-agent-id "xxx"
+
+# Lifecycle management
+npx dialog-survey start
+npx dialog-survey stop
+npx dialog-survey status
+npx dialog-survey uninstall
+
+# View help
+npx dialog-survey help
+```
+
+### Option 2: Git Clone + Manual Setup
+
+```bash
+# Clone repository
+git clone <repo-url> dialog-survey
+cd dialog-survey
+
+# Install dependencies
+npm install
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your configuration values
+
+# Initialize database
+npx prisma generate
+npx prisma db push
+
+# Start service
+npm run dev
+```
+
+## Usage
+
+After installation, use the CLI commands for lifecycle management:
+
+```bash
+# Start the service
+npx dialog-survey start
+
+# Stop the service
+npx dialog-survey stop
+
+# Check service status
+npx dialog-survey status
+
+# Uninstall completely
+npx dialog-survey uninstall
+
+# View help
+npx dialog-survey help
+```
+
+## Quick Start (Development)
+
+### 1. Install Dependencies
 
 ```bash
 cd dialog-survey
 npm install
 ```
 
-### 2. 配置环境变量
+### 2. Configure Environment
 
 ```bash
 cp .env.example .env
-# 编辑 .env 填入你的配置
+# Edit .env with your configuration
 ```
 
-### 3. 初始化数据库
+### 3. Initialize Database
 
 ```bash
 npx prisma generate
 npx prisma db push
 ```
 
-### 4. 启动服务
+### 4. Start Service
 
 ```bash
 npm run dev
@@ -55,15 +125,20 @@ npm run dev
 ```
 dialog-survey/
 ├── src/
-│   ├── api/          # API层 (Fastify routes)
+│   ├── api/          # API 层 (Fastify routes)
 │   ├── core/         # 核心逻辑 (LangGraph StateGraph)
-│   ├── services/    # 服务层 (LLM, ASR, 钉钉)
+│   ├── services/     # 服务层 (LLM, ASR, 钉钉)
 │   ├── repositories/ # 数据访问层 (Prisma)
-│   └── utils/       # 工具函数
-├── tests/           # 测试 (Vitest)
-├── prisma/          # Prisma schema
-├── templates/       # 访谈模板
-├── reports/         # 生成的报告
+│   ├── integrations/ # 外部服务集成
+│   ├── domains/      # 领域实体
+│   ├── middleware/   # Fastify 中间件
+│   ├── views/        # Nunjucks 模板
+│   └── utils/        # 工具函数
+├── tests/            # 测试 (Vitest)
+├── scripts/          # CLI 脚本和部署脚本
+├── prisma/           # Prisma schema 和迁移
+├── templates/        # 访谈模板
+├── reports/          # 生成的报告
 ├── package.json
 ├── tsconfig.json
 └── vitest.config.ts
@@ -104,11 +179,11 @@ npm run build
 #### 1. 克隆或复制项目
 
 ```bash
-# 推荐: 从 Git 仓库克隆
+# 推荐：从 Git 仓库克隆
 git clone <repo-url> dialog-survey
 cd dialog-survey
 
-# 或: 直接拷贝项目目录到目标机器
+# 或：直接拷贝项目目录到目标机器
 ```
 
 #### 2. 安装依赖
@@ -161,10 +236,15 @@ pm2 startup  # 设置开机自启
 | `PORT` | 服务端口 | `3001` |
 | `HOST` | 监听地址 | `0.0.0.0` |
 | `DATABASE_URL` | PostgreSQL 连接串 | `postgresql://user:pass@localhost:5432/dialog_survey?schema=public` |
+| `VOLCENGINE_API_KEY` | 火山引擎 Ark API Key | `sk-xxx` |
+| `LLM_API_KEY` | LLM API Key (优先于 VOLCENGINE_ 前缀) | `sk-xxx` |
+| `LLM_MODEL` | LLM 模型名称 | `deepseek-v3.2` |
 | `DASHSCOPE_API_KEY` | 阿里云通义千问 API Key | `sk-xxx` |
+| `DINGTALK_CLIENT_ID` | 钉钉 Client ID | 开放平台获取 |
+| `DINGTALK_CLIENT_SECRET` | 钉钉 Client Secret | 开放平台获取 |
+| `DINGTALK_AGENT_ID` | 钉钉 Agent ID | 开放平台获取 |
 | `DINGTALK_APP_KEY` | 钉钉 AppKey | 开放平台获取 |
 | `DINGTALK_APP_SECRET` | 钉钉 AppSecret | 开放平台获取 |
-| `DINGTALK_AGENT_ID` | 钉钉 AgentId | 开放平台获取 |
 | `PUBLIC_URL` | 公网回调地址 | `https://your-domain.com` |
 | `FUN_ASR_API_KEY` | 阿里云 Fun-ASR API Key | 语音识别用 |
 | `ENCRYPTION_KEY` | AES 加密密钥 | 32 字节 hex 字符串 |
