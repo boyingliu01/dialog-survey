@@ -85,8 +85,8 @@ export class AnalysisService {
       const dimsJson = template?.dimensions ? JSON.stringify(template.dimensions) : null;
 
       if (dimsJson) {
-        const { VolcengineLLM } = await import('../integrations/llm/volcengine.js');
-        const llm = VolcengineLLM.fromEnv();
+const { OpenAICompatibleLLM } = await import('../integrations/llm/openai-compatible.js');
+    const llm = OpenAICompatibleLLM.fromEnv();
         dimResult = await generateReportWithDimensions(interviewId, topic, qaPairs, dimsJson, llm);
         dimResult.dimensionTags = dimResult.dimensionTags?.map((tag) => ({
           ...tag,
