@@ -1,4 +1,5 @@
 import { PlanStatus, Prisma, SendStatus } from '@prisma/client';
+import type { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import { error, info, warn } from '../utils/logger.js';
 import { InterviewPlanServiceBase } from './interview-plan-base.service.js';
@@ -10,7 +11,11 @@ import type {
 import { parseInviteeText } from './interview-plan-base.service.js';
 
 export class InterviewPlanSendService extends InterviewPlanServiceBase {
-  async importInvitees(planId: string, invitees: InviteeData[]): Promise<ImportResult> {
+  async importInvitees(
+    planId: string,
+    invitees: InviteeData[],
+    dingtalkClient?: DingTalkClient
+  ): Promise<ImportResult> {
     const result: ImportResult = { success: 0, failed: 0, errors: [] };
     const plan = await this.prisma.interviewPlan.findUnique({ where: { id: planId } });
     if (!plan) throw new Error(`Plan not found: ${planId}`);
@@ -19,13 +24,46 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
         (i) => i.userId
       )
     );
+
+    // Resolve phone entries to userId via DingTalk API
+    const resolvedInvitees: InviteeData[] = [];
+    for (const inv of invitees) {
+      if (inv.phone && !inv.userId) {
+        if (!dingtalkClient) {
+          result.failed++;
+          result.errors.push(`Phone ${inv.phone} requires DingTalk client for resolution`);
+          continue;
+        }
+        try {
+          const lookup = await dingtalkClient.getUserIdByMobile(inv.phone);
+          if (!lookup.found) {
+            result.failed++;
+            result.errors.push(`Phone ${inv.phone} not found in DingTalk`);
+            continue;
+          }
+          resolvedInvitees.push({ userId: lookup.userId, name: inv.name || lookup.name });
+        } catch (err) {
+          result.failed++;
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          result.errors.push(`Failed to resolve phone ${inv.phone}: ${errorMsg}`);
+        }
+      } else {
+        resolvedInvitees.push(inv);
+      }
+    }
+
     const uniqueInvitees = new Map<string, InviteeData>();
-    for (const inv of invitees) uniqueInvitees.set(inv.userId, inv);
+    for (const inv of resolvedInvitees) {
+      const key = inv.userId ?? 'unknown';
+      uniqueInvitees.set(key, inv);
+    }
     const interviews = [];
     for (const invitee of uniqueInvitees.values()) {
-      if (existingUserIds.has(invitee.userId)) {
-        result.failed++;
-        result.errors.push(`User ${invitee.userId} already exists in plan`);
+      if (!invitee.userId || existingUserIds.has(invitee.userId)) {
+        if (invitee.userId) {
+          result.failed++;
+          result.errors.push(`User ${invitee.userId} already exists in plan`);
+        }
         continue;
       }
       interviews.push({
