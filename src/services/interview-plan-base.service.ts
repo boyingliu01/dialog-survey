@@ -1,4 +1,5 @@
 import { PlanStatus, Prisma, PrismaClient } from '@prisma/client';
+import type { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { info } from '../utils/logger.js';
 
 export interface CreatePlanInput {
@@ -20,7 +21,7 @@ export interface CreateAndPublishInput {
 }
 
 export interface InviteeData {
-  userId: string;
+  userId?: string;
   name: string;
   email?: string;
   phone?: string;
@@ -35,7 +36,8 @@ export interface ImportResult {
 
 /**
  * Parse invitee text input into InviteeData array.
- * Format: one user per line, "userId [name]"
+ * Format: one user per line, "userId [name]" or "phone [name]"
+ * Phone format: 11-digit starting with 1 (e.g. "13800138000 张三")
  * Lines starting with '#' are comments (ignored).
  */
 export function parseInviteeText(text: string): InviteeData[] {
@@ -45,9 +47,17 @@ export function parseInviteeText(text: string): InviteeData[] {
     .filter((line) => line.length > 0 && !line.startsWith('#'))
     .map((line) => {
       const parts = line.split(/\s+/);
-      const userId = parts[0];
+      const first = parts[0];
       const name = parts.length > 1 ? parts.slice(1).join(' ') : '';
-      return { userId, name };
+
+      // Phone format: strip +86 prefix, then check 11-digit pattern
+      const stripped = first.startsWith('+86') ? first.slice(3) : first;
+      const isPhone = /^1[3-9]\d{9}$/.test(stripped);
+
+      if (isPhone) {
+        return { phone: stripped, name };
+      }
+      return { userId: first, name };
     });
 }
 
@@ -121,7 +131,8 @@ export class InterviewPlanServiceBase {
       targetDate?: string;
       schedule?: string;
       invitees?: string;
-    }
+    },
+    dingtalkClient?: DingTalkClient
   ): Promise<void> {
     const updateData: Record<string, unknown> = { updatedBy: 'admin' };
     if (input.name !== undefined) updateData.name = input.name;
@@ -133,9 +144,29 @@ export class InterviewPlanServiceBase {
     if (input.invitees !== undefined) {
       const rawInvitees = parseInviteeText(input.invitees);
 
-      const uniqueInvitees = new Map<string, InviteeData>();
+      // Resolve phone entries to userId via DingTalk API
+      const resolvedInvitees: InviteeData[] = [];
       for (const inv of rawInvitees) {
-        uniqueInvitees.set(inv.userId, inv);
+        if (inv.phone && !inv.userId && dingtalkClient) {
+          try {
+            const lookup = await dingtalkClient.getUserIdByMobile(inv.phone);
+            if (lookup.found) {
+              resolvedInvitees.push({ userId: lookup.userId, name: inv.name || lookup.name });
+            } else {
+              resolvedInvitees.push(inv);
+            }
+          } catch {
+            resolvedInvitees.push(inv);
+          }
+        } else {
+          resolvedInvitees.push(inv);
+        }
+      }
+
+      const uniqueInvitees = new Map<string, InviteeData>();
+      for (const inv of resolvedInvitees) {
+        const key = inv.userId ?? inv.phone ?? 'unknown';
+        uniqueInvitees.set(key, inv);
       }
       const newInvitees = Array.from(uniqueInvitees.values());
       const newIds = new Set(uniqueInvitees.keys());
@@ -148,7 +179,10 @@ export class InterviewPlanServiceBase {
       const toRemove = existing.filter((inv) => !newIds.has(inv.userId));
 
       const existingIds = new Set(existing.map((inv) => inv.userId));
-      const toAdd = newInvitees.filter((inv) => !existingIds.has(inv.userId));
+      const toAdd = newInvitees.filter(
+        (inv): inv is InviteeData & { userId: string } =>
+          inv.userId !== undefined && !existingIds.has(inv.userId)
+      );
 
       if (toRemove.length > 0) {
         await this.prisma.interview.deleteMany({
