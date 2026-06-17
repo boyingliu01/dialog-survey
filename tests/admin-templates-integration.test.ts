@@ -422,6 +422,58 @@ describe('Admin Templates Integration — save → load → render', () => {
   });
 
   // --- Test 7: Questions with special characters → survive round-trip ---
+  // --- Test 8: Create template with closingMessage and llmPromptTemplate → stored correctly ---
+  it('should store closingMessage and llmPromptTemplate on create', async () => {
+    await createApp();
+
+    const params: Record<string, string> = {
+      name: '完整模板',
+      invitationPrompt: '邀约提示',
+      'questions[0][text]': '测试问题',
+      closingMessage: '感谢您接受本次访谈，祝您工作顺利！',
+      llmPromptTemplate: '你是AI主持人，基于以下信息进行追问：\n对话：{{ conversationHistory }}\n问题：{{ currentQuestion }}',
+    };
+
+    const resp = await app.inject({
+      method: 'POST',
+      url: '/admin/api/templates',
+      headers: { ...authHeader(), 'content-type': 'application/x-www-form-urlencoded' },
+      payload: formPayload(params),
+    });
+
+    expect(resp.statusCode).toBe(201);
+
+    const created = mockTemplateCreate.mock.calls[0][0];
+    const content = JSON.parse(created.data.content);
+    expect(content.closingMessage).toBe('感谢您接受本次访谈，祝您工作顺利！');
+    expect(content.llmPromptTemplate).toContain('{{ conversationHistory }}');
+    expect(content.llmPromptTemplate).toContain('{{ currentQuestion }}');
+  });
+
+  // --- Test 9: Edit page renders closingMessage and llmPromptTemplate values ---
+  it('should load closingMessage and llmPromptTemplate from stored content on edit page', async () => {
+    await createApp();
+    const content = JSON.stringify({
+      invitationPrompt: '邀约',
+      questions: ['Q1'],
+      closingMessage: '谢谢参与',
+      llmPromptTemplate: '自定义prompt模板内容',
+    });
+    const tpl = seedTemplate('字段渲染测试', ['Q1'], 1);
+    const stored = mockStore.get(tpl.id) as Template;
+    mockStore.set(tpl.id, { ...stored, content });
+
+    const resp = await app.inject({
+      method: 'GET',
+      url: `/admin/content/templates/${tpl.id}/edit`,
+      headers: authHeader(),
+    });
+
+    expect(resp.statusCode).toBe(200);
+    expect(resp.body).toContain('谢谢参与');
+    expect(resp.body).toContain('自定义prompt模板内容');
+  });
+
   it('should preserve special characters (quotes, newlines, CJK) through save → load', async () => {
     await createApp();
 

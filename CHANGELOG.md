@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-06-17
+
+### Added
+- **新建模板表单补充 closingMessage 和 llmPromptTemplate 字段**: 新建模板界面现在与编辑界面字段一致，包含「结束语」和「智能提示词模板」两个字段 — **Closes #66**
+- **模板表单字段帮助说明**: 新建/编辑模板界面中，为名称、描述、邀约提示词、结束语、智能提示词模板等字段添加用途说明和使用示例 — **Closes #67**
+
+### Quality
+- 808 tests pass (74 test files), Biome lint clean, `tsc --noEmit` clean
+- New tests: 2 integration tests for closingMessage/llmPromptTemplate field store and render
+
 ## [1.3.0] - 2026-06-17
 
 ### Added
