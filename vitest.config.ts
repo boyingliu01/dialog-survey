@@ -20,7 +20,7 @@ export default defineConfig({
         '**/*.config.ts',
         '**/*.test.ts',
         '**/*.spec.ts',
-        // TODO: 补充集成测试后移除此排除 - https://github.com/boyingliu01/InterviewAgent/issues/61
+        // TODO: 补充集成测试后移除此排除 - https://github.com/boyingliu01/dialog-survey/issues/61
         'scripts/cli.mjs',
         'src/server.ts',
         'src/index.ts',

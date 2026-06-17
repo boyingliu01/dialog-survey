@@ -54,9 +54,9 @@ sudo -u postgres psql
 ```
 
 ```sql
-CREATE USER interview_bot WITH PASSWORD 'your-secure-password';
-CREATE DATABASE interview_bot OWNER interview_bot;
-GRANT ALL PRIVILEGES ON DATABASE interview_bot TO interview_bot;
+CREATE USER dialog_survey WITH PASSWORD 'your-secure-password';
+CREATE DATABASE dialog_survey OWNER dialog_survey;
+GRANT ALL PRIVILEGES ON DATABASE dialog_survey TO dialog_survey;
 \q
 ```
 
@@ -226,10 +226,10 @@ pm2 restart dialog-survey
 ```bash
 # Prisma supports data migrations for schema changes
 # Before any schema change, create a backup:
-pg_dump -U interview_bot interview_bot > backup-$(date +%Y%m%d).sql
+pg_dump -U dialog_survey dialog_survey > backup-$(date +%Y%m%d).sql
 
 # Restore if needed:
-psql -U interview_bot interview_bot < backup-20260612.sql
+psql -U dialog_survey dialog_survey < backup-20260612.sql
 ```
 
 ## Multi-Environment
