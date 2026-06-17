@@ -8,9 +8,9 @@ import {
 
 const mockChat = vi.fn();
 
-// Mock volcengine so generateSmartResponse doesn't make real HTTP calls
-vi.mock('../src/integrations/llm/volcengine.js', () => ({
-  VolcengineLLM: {
+// Mock LLM so generateSmartResponse doesn't make real HTTP calls
+vi.mock('../src/integrations/llm/openai-compatible.js', () => ({
+  OpenAICompatibleLLM: {
     fromEnv: () => ({ chat: mockChat }),
   },
   DEFAULT_MODEL: 'test-model',
