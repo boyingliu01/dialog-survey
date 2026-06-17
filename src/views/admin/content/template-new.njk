@@ -64,6 +64,36 @@
       <textarea id="description" name="description" rows="2"
                 class="block w-full text-sm rounded-md border border-gray-300 px-2 py-1.5 focus:border-indigo-500 focus:ring-indigo-500 resize-none"
                 placeholder="可选"></textarea>
+      <p class="text-xs text-gray-400 mt-1">模板用途说明，帮助其他管理员理解该模板的适用场景</p>
+    </div>
+    <div>
+      <label for="closingMessage" class="block text-xs font-medium text-gray-600 mb-1">结束语</label>
+      <textarea id="closingMessage" name="closingMessage" rows="2"
+                class="block w-full text-sm rounded-md border border-gray-300 px-2 py-1.5 focus:border-indigo-500 focus:ring-indigo-500 resize-none"
+                placeholder="访谈结束时的结束语（可选）"></textarea>
+      <p class="text-xs text-gray-400 mt-1">受访者完成所有问题后 AI 主持人发送的结束语。留空则不发送。</p>
+    </div>
+    <div>
+      <label for="llmPromptTemplate" class="block text-xs font-medium text-gray-600 mb-1">
+        <span>智能提示词模板</span>
+        <span class="text-gray-400 font-normal">（可选，留空则使用系统默认值）</span>
+      </label>
+      <textarea id="llmPromptTemplate" name="llmPromptTemplate" rows="4"
+                class="block w-full text-sm rounded-md border border-gray-300 px-2 py-1.5 focus:border-indigo-500 focus:ring-indigo-500 resize-none font-mono"
+                placeholder="自定义 AI 主持人的提示词模板"></textarea>
+      <p class="text-xs text-gray-400 mt-1">
+        <strong class="text-gray-500">用途：</strong>控制 AI 主持人如何根据受访者的回答进行追问。<strong class="text-gray-500">留空则使用系统默认模板（推荐）。</strong>修改此模板可能影响访谈质量。
+      </p>
+      <p class="text-xs text-gray-400 mt-1">
+        可用变量：
+        <code class="bg-gray-100 px-1 rounded">conversationHistory</code>
+        <code class="bg-gray-100 px-1 rounded">currentQuestion</code>
+        <code class="bg-gray-100 px-1 rounded">followupCount</code>
+        <code class="bg-gray-100 px-1 rounded">maxFollowups</code>
+        <code class="bg-gray-100 px-1 rounded">userAnswer</code>
+        <code class="bg-gray-100 px-1 rounded">userName</code>
+        <code class="bg-gray-100 px-1 rounded">lastQuestionFlag</code>
+      </p>
     </div>
     <div class="flex justify-end gap-2 pt-1">
       <button type="submit" id="submit-btn"
