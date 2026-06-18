@@ -45,7 +45,9 @@ npx dialog-survey uninstall
 npx dialog-survey help
 ```
 
-**Prerequisites**: Node.js >=20, PostgreSQL 14+, and [PM2](https://pm2.keymetrics.io/) (`npm install -g pm2`).
+**Prerequisites**: Node.js >=20, PostgreSQL 14+.
+- **Linux**: [PM2](https://pm2.keymetrics.io/) (`npm install -g pm2`) recommended for production process management
+- **Windows**: PM2 在 Windows 上的稳定性存在问题，CLI 会自动使用直接 `node` 启动（TypeScript 编译必须可用）
 
 > For local LLM deployment, leave `--llm-api-key` empty during install;
 > the service will connect to an OpenAI-compatible endpoint at `http://localhost:11434/v1`
