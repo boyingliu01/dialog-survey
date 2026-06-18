@@ -519,18 +519,8 @@ export async function installCommand(flags) {
     return;
   }
 
-  // Step 10: build
-  log("Building project...");
-  try {
-    exec("npm run build", { cwd: INSTALL_DIR });
-    log("  Build complete ✓");
-  } catch (err) {
-    logError(`Build failed: ${err.message}`);
-    process.exitCode = 1;
-    return;
-  }
-
-  // Step 11: PM2 start
+  // Step 10: PM2 start
+  // Note: No build step needed — dist/ is pre-compiled in the npm package.
   log("Starting service via PM2...");
   try {
     exec(
