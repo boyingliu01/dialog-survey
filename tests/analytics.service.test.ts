@@ -381,6 +381,104 @@ describe('AnalyticsService', () => {
     });
   });
 
+  describe('getDashboardPlanProgress', () => {
+    it('should return dashboard progress for plans with interviews', async () => {
+      const mockPlans = [
+        {
+          id: 'plan-1',
+          name: '计划A',
+          template: { name: '模板X' },
+          interviews: [
+            { status: 'COMPLETED' },
+            { status: 'COMPLETED' },
+            { status: 'ACTIVE' },
+            { status: 'WAITING' },
+            { status: 'CANCELLED' },
+          ],
+        },
+        {
+          id: 'plan-2',
+          name: '计划B',
+          template: { name: '模板Y' },
+          interviews: [
+            { status: 'COMPLETED' },
+            { status: 'ACTIVE' },
+            { status: 'ACTIVE' },
+          ],
+        },
+      ];
+      mockPrisma.interviewPlan.findMany.mockResolvedValue(mockPlans);
+
+      const result = await service.getDashboardPlanProgress();
+
+      expect(result).toHaveLength(2);
+      // Plan A: 5 total, 2 completed, 1 active, 1 pending, 1 cancelled
+      expect(result[0]).toMatchObject({
+        planId: 'plan-1',
+        planName: '计划A',
+        templateName: '模板X',
+        total: 5,
+        completed: 2,
+        inProgress: 1,
+        waiting: 1,
+        notStarted: 0,
+        cancelled: 1,
+        progressPercentage: 40,
+      });
+      // Plan B: 3 total, 1 completed, 2 active
+      expect(result[1]).toMatchObject({
+        planId: 'plan-2',
+        planName: '计划B',
+        templateName: '模板Y',
+        total: 3,
+        completed: 1,
+        inProgress: 2,
+        waiting: 0,
+        notStarted: 0,
+        cancelled: 0,
+        progressPercentage: 33,
+      });
+    });
+
+    it('should handle plans with no interviews', async () => {
+      mockPrisma.interviewPlan.findMany.mockResolvedValue([
+        { id: 'plan-empty', name: '空计划', template: null, interviews: [] },
+      ]);
+
+      const result = await service.getDashboardPlanProgress();
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        planId: 'plan-empty',
+        planName: '空计划',
+        templateName: '-',
+        total: 0,
+        completed: 0,
+        inProgress: 0,
+        waiting: 0,
+        notStarted: 0,
+        cancelled: 0,
+        progressPercentage: 0,
+      });
+    });
+
+    it('should handle plan without template', async () => {
+      mockPrisma.interviewPlan.findMany.mockResolvedValue([
+        { id: 'plan-3', name: '无模板计划', template: null, interviews: [{ status: 'COMPLETED' }] },
+      ]);
+
+      const result = await service.getDashboardPlanProgress();
+
+      expect(result[0].templateName).toBe('-');
+    });
+
+    it('should handle error gracefully', async () => {
+      mockPrisma.interviewPlan.findMany.mockRejectedValue(new Error('DB error'));
+
+      await expect(service.getDashboardPlanProgress()).rejects.toThrow('DB error');
+    });
+  });
+
   describe('error handling', () => {
     it('should throw and log error when getKPIs fails', async () => {
       mockPrisma.interview.count.mockRejectedValue(new Error('DB connection failed'));

@@ -25,6 +25,19 @@ export interface WeeklyTrendEntry {
   count: number;
 }
 
+export interface DashboardPlanProgress {
+  planId: string;
+  planName: string;
+  templateName: string;
+  total: number;
+  completed: number;
+  inProgress: number;
+  waiting: number;
+  notStarted: number;
+  cancelled: number;
+  progressPercentage: number;
+}
+
 export interface PlanStats {
   planId: string;
   planName: string;
@@ -148,6 +161,51 @@ export class AnalyticsService {
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : 'Failed to compute plan completion rates';
       error('Failed to compute plan completion rates', { error: errMsg });
+      throw e;
+    }
+  }
+
+  async getDashboardPlanProgress(): Promise<DashboardPlanProgress[]> {
+    try {
+      const plans = await this.prisma.interviewPlan.findMany({
+        select: {
+          id: true,
+          name: true,
+          template: {
+            select: { name: true },
+          },
+          interviews: {
+            select: { status: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return plans.map((plan) => {
+        const total = plan.interviews.length;
+        const completed = plan.interviews.filter((i) => i.status === 'COMPLETED').length;
+        const inProgress = plan.interviews.filter((i) => i.status === 'ACTIVE').length;
+        const waiting = plan.interviews.filter((i) => i.status === 'WAITING').length;
+        const notStarted = plan.interviews.filter((i) => i.status === 'PENDING').length;
+        const cancelled = plan.interviews.filter((i) => i.status === 'CANCELLED').length;
+        const progressPercentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+        return {
+          planId: plan.id,
+          planName: plan.name,
+          templateName: plan.template?.name ?? '-',
+          total,
+          completed,
+          inProgress,
+          waiting,
+          notStarted,
+          cancelled,
+          progressPercentage,
+        };
+      });
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : 'Failed to get dashboard plan progress';
+      error('Failed to get dashboard plan progress', { error: errMsg });
       throw e;
     }
   }
