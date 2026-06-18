@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.4] - 2026-06-18
+
+### Fixed
+- **npm 包缺少 package-lock.json**: `package.json` 的 `files` 字段新增 `package-lock.json`，修复 `npm ci` 安装失败 — **Closes #85**
+
+### Quality
+- 828 tests pass (75 test files), Biome lint clean, `tsc --noEmit` clean
+
 ## [1.6.3] - 2026-06-18
 
 ### Fixed
