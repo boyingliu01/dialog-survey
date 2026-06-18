@@ -1,6 +1,6 @@
 {
   "name": "dialog-survey",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "type": "module",
   "description": "AI-powered interview robot that conducts async multi-turn interviews via DingTalk",
   "repository": {
@@ -13,8 +13,7 @@
     "src/views/",
     "public/",
     "prisma/",
-    "ecosystem.config.cjs",
-    "package-lock.json"
+    "ecosystem.config.cjs"
   ],
   "bin": {
     "dialog-survey": "scripts/cli.mjs"
