@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3] - 2026-06-18
+
+### Fixed
+- **CLI 安装崩溃最终修复**: `isMain` 检测完全移除 `import.meta.resolve() + fileURLToPath()` 链，改用纯 path-based 后缀匹配，彻底解决 Node.js v26 上的 `ERR_INVALID_URL_SCHEME` 崩溃 — **Closes #84**
+- **Windows `checkPostgres` TCP 修复**: `net.Socket` 连接未清理 socket 句柄的潜在泄漏
+
+### Quality
+- 828 tests pass (75 test files), Biome lint clean, `tsc --noEmit` clean
+
 ## [1.6.2] - 2026-06-18
 
 ### Fixed
