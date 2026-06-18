@@ -41,7 +41,7 @@ const addMemberSchema = z
     userId: z.string().min(1).optional(),
     phone: z
       .string()
-      .regex(/^1[3-9]\d{9}$/, 'Invalid phone format')
+      .regex(/^[\d\s+\-()]+$/, 'Invalid phone format')
       .optional(),
     name: z.string().min(1).optional(),
   })
