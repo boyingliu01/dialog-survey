@@ -2,11 +2,23 @@
   <div class="flex items-start justify-between mb-2">
     <h2 class="text-lg font-semibold text-gray-800">访谈报告 — {{ interview.userId }}</h2>
     {% if report %}
-    <a
-      href="/admin/api/reports/{{ interview.id }}/download"
-      class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-      download
-    >下载报告 (.md)</a>
+    <div class="flex gap-2">
+      <a
+        href="/admin/api/reports/{{ interview.id }}/export/pdf"
+        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
+        download
+      >导出 PDF</a>
+      <a
+        href="/admin/api/reports/{{ interview.id }}/export/excel"
+        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
+        download
+      >导出 Excel</a>
+      <a
+        href="/admin/api/reports/{{ interview.id }}/download"
+        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+        download
+      >下载报告 (.md)</a>
+    </div>
     {% endif %}
   </div>
   <div class="text-sm space-y-2 mb-4">

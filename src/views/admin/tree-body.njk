@@ -1,5 +1,18 @@
 <!-- tree-body.njk -- Server-rendered hierarchical tree -->
 <div x-data="{ selectedId: null }" class="font-sans">
+  <div class="px-2 py-1.5 mb-1 border-b border-gray-100">
+    <button
+      hx-get="/admin/content/dashboard"
+      hx-target="#main-content"
+      hx-swap="innerHTML"
+      class="w-full flex items-center gap-2 px-2 py-1.5 text-[13px] font-medium text-indigo-600 bg-indigo-50 rounded-md hover:bg-indigo-100 transition-colors"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+      </svg>
+      进度仪表板
+    </button>
+  </div>
   <div class="flex items-center justify-between px-2 py-1">
     <span class="font-semibold text-[11px] text-gray-400 uppercase tracking-wider">访谈模板</span>
     <button
