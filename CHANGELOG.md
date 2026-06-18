@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-06-18
+
+### Fixed
+- **Node.js v26 `import.meta.resolve` 崩溃修复**: `isMain` 检测改用 `process.argv[1]`，兼容 Node.js 26 — **Closes #84**
+- **Windows `pg_isready` 不可用修复**: CLI 和部署脚本中的 `pg_isready` 检查替换为 `net.Socket` TCP 端口检测 — **Closes #84**
+
+### Quality
+- 828 tests pass (75 test files), Biome lint clean, `tsc --noEmit` clean
+
 ## [1.6.1] - 2026-06-18
 
 ### Fixed
