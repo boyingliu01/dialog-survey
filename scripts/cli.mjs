@@ -693,13 +693,6 @@ export async function uninstallCommand(flags) {
 export async function startCommand() {
   log("▶️  Starting dialog-survey...\n");
 
-  const pm2Check = checkPm2();
-  if (!pm2Check.ok) {
-    logError(pm2Check.message);
-    process.exitCode = 1;
-    return;
-  }
-
   if (!existsSync(join(INSTALL_DIR, "ecosystem.config.cjs"))) {
     logError(
       `No installation found at ${INSTALL_DIR}. Run 'npx dialog-survey install' first.`,
@@ -708,16 +701,30 @@ export async function startCommand() {
     return;
   }
 
-  try {
-    exec(
-      `pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production`,
-      { cwd: INSTALL_DIR },
-    );
-    log("PM2 process started ✓");
-  } catch (err) {
-    logError(`PM2 start failed: ${err.message}`);
-    process.exitCode = 1;
-    return;
+  const platformCheck = checkPlatformDeps();
+
+  if (platformCheck.serviceManager === "pm2") {
+    try {
+      exec(
+        `pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production`,
+        { cwd: INSTALL_DIR },
+      );
+      log("PM2 process started ✓");
+    } catch (err) {
+      logError(`PM2 start failed: ${err.message}`);
+      process.exitCode = 1;
+      return;
+    }
+  } else {
+    log("Starting service directly (PM2 is unstable on Windows, using direct node)...");
+    try {
+      startViaNode(INSTALL_DIR);
+      log("Direct process started ✓");
+    } catch (err) {
+      logError(`Direct start failed: ${err.message}`);
+      process.exitCode = 1;
+      return;
+    }
   }
 
   log("Waiting for health check...");
@@ -726,7 +733,7 @@ export async function startCommand() {
     log("✅ dialog-survey is running.");
     log(`   Health: ${HEALTH_URL}`);
   } else {
-    logError("Health check timed out. Check logs: pm2 logs dialog-survey");
+    logError("Health check timed out. Check logs for details.");
     process.exitCode = 1;
   }
 }
@@ -737,19 +744,23 @@ export async function startCommand() {
 export async function stopCommand() {
   log("⏹  Stopping dialog-survey...\n");
 
-  const pm2Check = checkPm2();
-  if (!pm2Check.ok) {
-    logError(pm2Check.message);
-    process.exitCode = 1;
-    return;
-  }
+  const platformCheck = checkPlatformDeps();
 
-  try {
-    exec(`pm2 stop ${PM2_APP_NAME}`);
-    log("✅ dialog-survey stopped.");
-  } catch (err) {
-    logError(`PM2 stop failed: ${err.message}`);
-    process.exitCode = 1;
+  if (platformCheck.serviceManager === "pm2") {
+    try {
+      exec(`pm2 stop ${PM2_APP_NAME}`);
+      log("✅ dialog-survey stopped.");
+    } catch (err) {
+      logError(`PM2 stop failed: ${err.message}`);
+      process.exitCode = 1;
+    }
+  } else {
+    const stopped = stopDirectService();
+    if (stopped) {
+      log("✅ dialog-survey stopped.");
+    } else {
+      log("No running dialog-survey process found.");
+    }
   }
 }
 
@@ -759,45 +770,50 @@ export async function stopCommand() {
 export async function statusCommand() {
   log("📊 dialog-survey status\n");
 
-  // Check PM2 process
-  const pm2Check = checkPm2();
-  if (!pm2Check.ok) {
-    log(`  PM2: ${pm2Check.message}`);
-    log("  Status: unknown\n");
-    return;
-  }
+  const platformCheck = checkPlatformDeps();
 
-  try {
-    const pm2Status = exec("pm2 jlist");
-    const processes = JSON.parse(pm2Status);
-    const app = processes.find((p) => p.name === PM2_APP_NAME);
+  if (platformCheck.serviceManager === "pm2") {
+    try {
+      const pm2Status = exec("pm2 jlist");
+      const processes = JSON.parse(pm2Status);
+      const app = processes.find((p) => p.name === PM2_APP_NAME);
 
-    if (!app) {
-      log("  PM2 process: not found");
+      if (!app) {
+        log("  PM2 process: not found");
+        log("  Status: stopped\n");
+        log("  Run 'npx dialog-survey start' to start the service.");
+        return;
+      }
+
+      const pm2StatusText = app.pm2_env?.status || "unknown";
+      log(`  PM2 process: ${pm2StatusText}`);
+      log(`  PID: ${app.pid || "N/A"}`);
+      log(`  Uptime: ${app.pm2_env?.pm_uptime ? new Date(app.pm2_env.pm_uptime).toISOString() : "N/A"}`);
+      log(`  Restarts: ${app.pm2_env?.restart_time ?? "N/A"}`);
+      log(`  Memory: ${app.monit?.memory ? `${Math.round(app.monit.memory / 1024 / 1024)}MB` : "N/A"}`);
+    } catch (err) {
+      logError(`PM2 status check failed: ${err.message}`);
+    }
+  } else {
+    const running = isDirectServiceRunning();
+    if (running) {
+      log("  Direct process: running");
+    } else {
+      log("  Direct process: not found");
       log("  Status: stopped\n");
       log("  Run 'npx dialog-survey start' to start the service.");
       return;
     }
+  }
 
-    const pm2StatusText = app.pm2_env?.status || "unknown";
-    log(`  PM2 process: ${pm2StatusText}`);
-    log(`  PID: ${app.pid || "N/A"}`);
-    log(`  Uptime: ${app.pm2_env?.pm_uptime ? new Date(app.pm2_env.pm_uptime).toISOString() : "N/A"}`);
-    log(`  Restarts: ${app.pm2_env?.restart_time ?? "N/A"}`);
-    log(`  Memory: ${app.monit?.memory ? `${Math.round(app.monit.memory / 1024 / 1024)}MB` : "N/A"}`);
-
-    // Check health endpoint
-    const healthy = await waitForHealth(HEALTH_URL, 5000, 500);
-    if (healthy) {
-      log(`  Health: ${HEALTH_URL} ✓`);
-      log("\n  Status: running ✅");
-    } else {
-      log(`  Health: ${HEALTH_URL} ✗`);
-      log("\n  Status: degraded ⚠️");
-    }
-  } catch (err) {
-    logError(`Status check failed: ${err.message}`);
-    log("  Status: unknown\n");
+  // Check health endpoint (shared by both platforms)
+  const healthy = await waitForHealth(HEALTH_URL, 5000, 500);
+  if (healthy) {
+    log(`  Health: ${HEALTH_URL} ✓`);
+    log("\n  Status: running ✅");
+  } else {
+    log(`  Health: ${HEALTH_URL} ✗`);
+    log("\n  Status: degraded ⚠️");
   }
 }
 

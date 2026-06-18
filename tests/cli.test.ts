@@ -356,6 +356,43 @@ describe("CLI", () => {
     });
   });
 
+  describe("start/stop/status command platform awareness", () => {
+    it("start should check platform deps and show Starting message", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      await main(["start"]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("Starting");
+      writeSpy.mockRestore();
+    });
+
+    it("stop should check platform deps and show Stopping message", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      await main(["stop"]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("Stopping");
+      writeSpy.mockRestore();
+    });
+
+    it("status should show dialog-survey prefix", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      await main(["status"]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      expect(output).toContain("dialog-survey");
+      writeSpy.mockRestore();
+    });
+
+    it("start should show no installation found error when INSTALL_DIR missing", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      const stderrSpy = vi.spyOn(process.stderr, "write");
+      await main(["start"]);
+      const stderr = stderrSpy.mock.calls.map((c) => c[0]).join("");
+      // No install dir exists in test context
+      expect(stderr).toContain("No installation found");
+      writeSpy.mockRestore();
+      stderrSpy.mockRestore();
+    });
+  });
+
   describe("main (command routing)", () => {
     it("should call printHelp for unknown commands", async () => {
       // Capture stdout
