@@ -14,6 +14,13 @@ ENV="${1:-production}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 HEALTH_URL="http://localhost:${PORT:-3001}/health"
+
+# Detect platform
+IS_WINDOWS=false
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+  IS_WINDOWS=true
+  log_warn "Windows detected - PM2 is unstable, using direct node mode"
+fi
 HEALTH_RETRIES=10
 HEALTH_INTERVAL=3
 
@@ -69,10 +76,10 @@ log_info "✓ Using $ENV_FILE"
 
 # ── Phase 2: Stop existing service (prevent Prisma DLL file lock) ──────
 log_info "Stopping existing service..."
-if command -v pm2 &>/dev/null; then
+if [ "$IS_WINDOWS" = false ] && command -v pm2 &>/dev/null; then
   pm2 delete dialog-survey 2>/dev/null || true
 fi
-pkill -f "dist/src/server" 2>/dev/null || true
+pkill -f "node dist/server" 2>/dev/null || true
 sleep 2
 log_info "✓ Existing service stopped"
 
@@ -107,14 +114,19 @@ fi
 log_info "Starting Interview Bot..."
 export NODE_ENV="$ENV"
 
-# PM2 mode (if available)
-if command -v pm2 &>/dev/null && [ -f "ecosystem.config.cjs" ]; then
+if [ "$IS_WINDOWS" = true ]; then
+  # Windows: direct node (PM2 is unstable)
+  mkdir -p logs
+  nohup node dist/server.js > logs/server.log 2>&1 &
+  log_info "✓ Started directly (PID: $!, Windows mode)"
+elif command -v pm2 &>/dev/null && [ -f "ecosystem.config.cjs" ]; then
+  # Linux: PM2 mode
   pm2 start ecosystem.config.cjs --env "$ENV"
   log_info "✓ Started via PM2"
 else
-  # Direct node mode
+  # Fallback: direct node mode
   mkdir -p logs
-  nohup node dist/src/server.ts > logs/server.log 2>&1 &
+  nohup node dist/server.js > logs/server.log 2>&1 &
   log_info "✓ Started directly (PID: $!)"
   log_warn "Consider installing PM2 for production process management:"
   log_warn "  npm install -g pm2 && pm2 start ecosystem.config.cjs"
