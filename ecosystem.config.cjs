@@ -15,7 +15,7 @@ module.exports = {
   apps: [
     {
       name: 'dialog-survey',
-      script: 'dist/src/server.js',
+      script: 'dist/server.js',
       instances: 1,
       exec_mode: 'fork',
 

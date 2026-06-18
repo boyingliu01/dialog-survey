@@ -15,6 +15,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import http from "node:http";
+import crypto from "node:crypto";
 import net from "node:net";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -385,8 +386,8 @@ export function generateEnvContent(config) {
     `DINGTALK_AGENT_ID=${config.DINGTALK_AGENT_ID}`,
     "",
     "# Security",
-    `ENCRYPTION_KEY=${exec("node -e \"console.log(require('crypto').randomBytes(16).toString('hex'))\"")}`,
-    `ADMIN_API_KEY=${exec("node -e \"console.log(require('crypto').randomBytes(16).toString('hex'))\"")}`,
+    `ENCRYPTION_KEY=${crypto.randomBytes(16).toString("hex")}`,
+    `ADMIN_API_KEY=${crypto.randomBytes(16).toString("hex")}`,
     "",
     "# Logging",
     "LOG_LEVEL=info",
