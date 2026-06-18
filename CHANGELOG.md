@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.8] - 2026-06-18
+
+### Added
+- **跨平台进程管理**: CLI 安装/启动/停止/状态检测根据操作系统自动选择 PM2 (Linux) 或直接 `node` (Windows) — **Closes #88, #89**
+- **`checkPlatformDeps()`**: 平台感知的依赖检查 — Linux 检查 pm2，Windows 检查 tsc (TypeScript compiler)
+- **Windows 直接启动支持**: 新增 `startViaNode()` / `stopDirectService()` / `isDirectServiceRunning()` 辅助函数
+- **`deploy.sh` 平台感知**: 增加 Windows 检测和对应启动路径
+
+### Quality
+- 828 tests pass (75 test files), Biome lint clean, `tsc --noEmit` clean
+
 ## [1.6.7] - 2026-06-18
 
 ### Fixed

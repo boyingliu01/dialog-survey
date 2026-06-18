@@ -1,6 +1,6 @@
 {
   "name": "dialog-survey",
-  "version": "1.6.7",
+  "version": "1.6.8",
   "type": "module",
   "description": "AI-powered interview robot that conducts async multi-turn interviews via DingTalk",
   "repository": {
