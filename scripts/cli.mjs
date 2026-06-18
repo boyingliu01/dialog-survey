@@ -512,11 +512,11 @@ export async function installCommand(flags) {
     return;
   }
 
-  // Step 3: Check PM2
-  const pm2Check = checkPm2();
-  log(`  ${pm2Check.message}`);
-  if (!pm2Check.ok) {
-    logError(pm2Check.message);
+  // Step 3: Check platform-specific deps
+  const platformCheck = checkPlatformDeps();
+  log(`  ${platformCheck.message}`);
+  if (!platformCheck.ok) {
+    logError(platformCheck.message);
     process.exitCode = 1;
     return;
   }
@@ -599,19 +599,31 @@ export async function installCommand(flags) {
     return;
   }
 
-  // Step 10: PM2 start
+  // Step 10: Start service (platform-aware)
   // Note: No build step needed — dist/ is pre-compiled in the npm package.
-  log("Starting service via PM2...");
-  try {
-    exec(
-      `pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production`,
-      { cwd: INSTALL_DIR },
-    );
-    log("  PM2 process started ✓");
-  } catch (err) {
-    logError(`PM2 start failed: ${err.message}`);
-    process.exitCode = 1;
-    return;
+  if (platformCheck.serviceManager === "pm2") {
+    log("Starting service via PM2...");
+    try {
+      exec(
+        `pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production`,
+        { cwd: INSTALL_DIR },
+      );
+      log("  PM2 process started ✓");
+    } catch (err) {
+      logError(`PM2 start failed: ${err.message}`);
+      process.exitCode = 1;
+      return;
+    }
+  } else {
+    log("Starting service directly (PM2 is unstable on Windows, using direct node)...");
+    try {
+      startViaNode(INSTALL_DIR);
+      log("  Direct process started ✓");
+    } catch (err) {
+      logError(`Direct start failed: ${err.message}`);
+      process.exitCode = 1;
+      return;
+    }
   }
 
   // Step 12: Wait for health
@@ -622,12 +634,16 @@ export async function installCommand(flags) {
     log("\n✅ dialog-survey installed and running successfully!");
     log(`   Install dir: ${INSTALL_DIR}`);
     log(`   Health:      ${HEALTH_URL}`);
-    log(`   Logs:        pm2 logs ${PM2_APP_NAME}`);
+    if (platformCheck.serviceManager === "pm2") {
+      log(`   Logs:        pm2 logs ${PM2_APP_NAME}`);
+    }
     log("   Stop:        npx dialog-survey stop");
     log("   Status:      npx dialog-survey status");
   } else {
     logError("Health check timed out after 30s. Service may still be starting.");
-    log(`   Check logs: pm2 logs ${PM2_APP_NAME}`);
+    if (platformCheck.serviceManager === "pm2") {
+      log(`   Check logs: pm2 logs ${PM2_APP_NAME}`);
+    }
     process.exitCode = 1;
   }
 }
