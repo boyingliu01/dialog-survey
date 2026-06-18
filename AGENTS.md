@@ -303,14 +303,9 @@ docker compose logs -f app    # 查看日志
 
 ## Code Quality Warnings (MEDIUM)
 
-**Unused utilities** (never imported):
-- `src/utils/validation.ts` (email/phone/URL validators)
-- `src/utils/encryption.ts` (AES-256-GCM)
-- `src/utils/rate-limiter.ts` (token bucket)
-
 **Magic numbers**: Encryption IV=16, retry=3, timestamp window=300000ms, health timeout=5000ms, ASR timeout=30000ms, rate limit window=1000ms, default temperature=0.7, default max tokens=2000.
 
-**TODO Comments**: `tests/template-crud.test.ts:19` — `// TODO: Implement with real Prisma`
+**TODO Comments**: `tests/template-crud.test.ts:30` — `// TODO: Implement with real Prisma` (intentional - mock class uses in-memory Map)
 
 ---
 
