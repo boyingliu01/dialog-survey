@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.6] - 2026-06-18
+
+### Fixed
+- **CLI 安装 build 失败（Windows）**: `npm install --omit=dev` 跳过 devDependencies，但后续 `npm run build` 需要 `typescript`（在 devDependencies 中）。`dist/` 已预编译在 npm 包中，删除多余的 build 步骤 — **Closes #86**
+
+### Quality
+- 828 tests pass (75 test files), Biome lint clean, `tsc --noEmit` clean
+
 ## [1.6.5] - 2026-06-18
 
 ### Fixed
