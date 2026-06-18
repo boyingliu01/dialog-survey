@@ -15,6 +15,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import http from "node:http";
+import net from "node:net";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -197,19 +198,35 @@ export function checkNodeVersion(version = process.versions.node) {
 
 /**
  * Check if PostgreSQL is reachable using the given DATABASE_URL.
+ * Uses a TCP socket connect instead of pg_isready for cross-platform
+ * support (pg_isready is unavailable on Windows by default).
  * @param {string} databaseUrl
- * @returns {{ ok: boolean, message: string }}
+ * @param {number} [timeoutMs=3000]
+ * @returns {Promise<{ ok: boolean, message: string }>}
  */
-export function checkPostgres(databaseUrl) {
+export async function checkPostgres(databaseUrl, timeoutMs = 3000) {
   if (!databaseUrl) {
     return { ok: false, message: "DATABASE_URL not provided" };
   }
   try {
-    // Extract host and port from postgresql:// URL
     const url = new URL(databaseUrl);
     const host = url.hostname;
     const port = url.port || "5432";
-    exec(`pg_isready -h ${host} -p ${port} -q`);
+
+    await new Promise((resolve, reject) => {
+      const socket = new net.Socket();
+      let settled = false;
+      const cleanup = () => {
+        settled = true;
+        socket.destroy();
+      };
+      socket.setTimeout(timeoutMs);
+      socket.on("connect", () => { cleanup(); resolve(); });
+      socket.on("error", (err) => { cleanup(); reject(err); });
+      socket.on("timeout", () => { cleanup(); reject(new Error("timeout")); });
+      socket.connect(Number(port), host);
+    });
+
     return { ok: true, message: `PostgreSQL ${host}:${port} ✓` };
   } catch {
     return {
@@ -259,7 +276,7 @@ export async function checkPrerequisites(databaseUrl) {
   messages.push(nodeCheck.message);
   if (!nodeCheck.ok) allOk = false;
 
-  const pgCheck = checkPostgres(databaseUrl);
+  const pgCheck = await checkPostgres(databaseUrl);
   messages.push(pgCheck.message);
   if (!pgCheck.ok) allOk = false;
 
@@ -805,11 +822,14 @@ export async function main(argv) {
 }
 
 // Run if invoked directly
+// Use path-based check instead of import.meta.resolve() which may return
+// non-file URLs on Node.js >= 26, causing ERR_INVALID_URL_SCHEME.
 const isMain =
-  process.argv[1] &&
-  (fileURLToPath(import.meta.resolve(__filename)) ===
-    fileURLToPath(import.meta.resolve(process.argv[1])) ||
-    process.argv[1].endsWith("cli.mjs"));
+  process.argv[1] && (
+    process.argv[1].endsWith("cli.mjs") ||
+    process.argv[1].endsWith("dialog-survey") ||
+    process.argv[1].endsWith(`dialog-survey${process.platform === "win32" ? ".cmd" : ""}`)
+  );
 
 if (isMain) {
   main(process.argv.slice(2));

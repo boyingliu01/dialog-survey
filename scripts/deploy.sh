@@ -44,7 +44,7 @@ log_info "✓ Node.js $(node -v)"
 if ! command -v psql &>/dev/null; then
   log_warn "psql not found — skipping database check"
 elif [ -n "${DATABASE_URL:-}" ]; then
-  if ! pg_isready -d "$DATABASE_URL" 2>/dev/null; then
+  if ! psql "$DATABASE_URL" -c "SELECT 1" 2>/dev/null; then
     log_error "PostgreSQL not reachable at DATABASE_URL"
     exit 1
   fi

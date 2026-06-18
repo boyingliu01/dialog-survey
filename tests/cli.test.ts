@@ -191,14 +191,16 @@ describe("CLI", () => {
   });
 
   describe("checkPostgres", () => {
-    it("should fail when DATABASE_URL is empty", () => {
-      const result = checkPostgres("");
+    it("should fail when DATABASE_URL is empty", async () => {
+      const result = await checkPostgres("");
       expect(result.ok).toBe(false);
       expect(result.message).toContain("DATABASE_URL not provided");
     });
 
-    it("should fail when pg_isready command fails", () => {
-      const result = checkPostgres("postgresql://user:pass@localhost:59999/db");
+    it("should fail when PostgreSQL is not reachable (no listener)", async () => {
+      // Port 59999 should not have a Postgres listener — net.Socket will
+      // error out quickly.
+      const result = await checkPostgres("postgresql://user:pass@localhost:59999/db", 1000);
       expect(result.ok).toBe(false);
       expect(result.message).toContain("PostgreSQL not reachable");
     });
