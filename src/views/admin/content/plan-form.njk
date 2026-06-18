@@ -68,7 +68,7 @@
       <textarea id="invitees" name="invitees" rows="5" {% if isEdit %}{% else %}required{% endif %}
                 class="block w-full text-sm rounded-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500">{% if isEdit %}{% for invitee in (plan.inviteeData or []) %}{{ invitee.userId or invitee.phone }}{% if invitee.name %} {{ invitee.name }}{% endif %}
 {% endfor %}{% endif %}</textarea>
-      <p class="text-xs text-gray-400 mt-1">每行一个受访者，格式为「钉钉UserId 姓名」或「手机号 姓名」，姓名可选。{% if not isEdit %}保存后可前往计划详情页手动发送邀约。{% endif %}</p>
+      <p class="text-xs text-gray-400 mt-1">每行一个受访者，格式为「钉钉UserId 姓名」或「手机号 姓名」，姓名可选。手机号支持多种格式：13800138000、+86-13800138000、+8613800138000 等。{% if not isEdit %}保存后可前往计划详情页手动发送邀约。{% endif %}</p>
     </div>
 
     <div class="flex justify-end gap-2 pt-2">
