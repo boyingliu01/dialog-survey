@@ -498,6 +498,17 @@ export async function installCommand(flags) {
     return;
   }
 
+  // Step 7.5: Install Playwright browser for PDF export
+  // This is non-fatal — PDF export is an optional feature.
+  log("Installing Playwright browser for PDF export...");
+  try {
+    exec("npx playwright install chromium", { cwd: INSTALL_DIR });
+    log("  Playwright browser installed ✓");
+  } catch {
+    log("  ⚠ Playwright browser installation failed (PDF export unavailable)");
+    log("    Run 'npx playwright install chromium' manually if PDF export is needed.");
+  }
+
   // Step 8: prisma generate
   log("Generating Prisma client...");
   try {
