@@ -23,6 +23,7 @@ import { TemplateRepository } from './repositories/template.repository.js';
 import { AnalysisService } from './services/analysis.service.js';
 import { AnalyticsService } from './services/analytics.service.js';
 import { AuditCleanupService } from './services/audit-cleanup.service.js';
+import { ExportService } from './services/export.service.js';
 import { InterviewPlanService } from './services/interview-plan.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
 import { error, info, warn } from './utils/logger.js';
@@ -137,6 +138,7 @@ export async function buildApp() {
   const interviewRepo = new InterviewRepository(prisma);
   const analysisService = new AnalysisService(prisma);
   const analyticsService = new AnalyticsService(prisma);
+  const exportService = new ExportService(prisma);
 
   await securityMiddleware(fastify, prisma);
 
@@ -170,6 +172,7 @@ export async function buildApp() {
     interviewRepo,
     analysisService,
     analyticsService,
+    exportService,
   });
 
   return { fastify, prisma };

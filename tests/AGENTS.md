@@ -76,6 +76,6 @@ afterEach(() => {
 
 ## ANTI-PATTERNS (THIS MODULE)
 - `mockPrisma: any` cast to PrismaClient (biome: `noExplicitAny` warn)
-- `template-crud.test.ts` line 19: `// TODO: Implement with real Prisma`
+- `template-crud.test.ts` line 30: `// TODO: Implement with real Prisma` (intentional - mock class uses in-memory Map)
 - Test files excluded from coverage (`**/*.test.ts` in vitest.config.ts exclude)
 - Some tests mock entire modules instead of injecting testable interfaces

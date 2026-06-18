@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
@@ -5,6 +6,7 @@ import type { InterviewRepository } from '../repositories/interview.repository.j
 import type { TemplateRepository } from '../repositories/template.repository.js';
 import type { AnalysisService } from '../services/analysis.service.js';
 import type { AnalyticsService } from '../services/analytics.service.js';
+import { ExportService } from '../services/export.service.js';
 import type { InterviewPlanService } from '../services/interview-plan.service.js';
 import { error, info } from '../utils/logger.js';
 
@@ -14,6 +16,7 @@ export interface AdminTemplatesRoutesOptions {
   interviewRepo: InterviewRepository;
   analysisService: AnalysisService;
   analyticsService: AnalyticsService;
+  exportService?: ExportService;
 }
 
 const createTemplateSchema = z.object({
@@ -131,7 +134,7 @@ export async function adminTemplatesRoutes(
   fastify: FastifyInstance,
   opts: AdminTemplatesRoutesOptions
 ) {
-  const { templateRepo, interviewPlanService, interviewRepo, analysisService, analyticsService } =
+  const { templateRepo, interviewPlanService, interviewRepo, analysisService, analyticsService, exportService } =
     opts;
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
@@ -163,6 +166,25 @@ export async function adminTemplatesRoutes(
         const errMsg = e instanceof Error ? e.message : 'Failed to load admin tree';
         error('Failed to load admin tree', { error: errMsg });
         return reply.status(500).view('error.njk', { message: errMsg });
+      }
+    }
+  );
+
+  // GET /admin/content/dashboard — Plan Progress Dashboard (HTMX fragment)
+  fastify.get(
+    `${BASE_PATH}/content/dashboard`,
+    { preHandler: adminAuth },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const plans = await analyticsService.getDashboardPlanProgress();
+        return reply.view('admin/content/dashboard.njk', {
+          adminApiKey: ADMIN_API_KEY,
+          plans,
+        });
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Failed to load dashboard';
+        error('Failed to load dashboard', { error: errMsg });
+        return reply.status(500).send(`<div class="text-red-600">${htmlEscape(errMsg)}</div>`);
       }
     }
   );
@@ -327,6 +349,56 @@ export async function adminTemplatesRoutes(
         .header('Content-Type', 'text/markdown; charset=utf-8')
         .header('Content-Disposition', `attachment; filename="${filename}"`)
         .send(report.content ?? '');
+    }
+  );
+
+  // GET /admin/api/reports/:interviewId/export/pdf — download report as PDF
+  fastify.get(
+    '/admin/api/reports/:interviewId/export/pdf',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { interviewId } = request.params as { interviewId: string };
+      if (!exportService) {
+        return reply.status(500).type('text/plain').send('PDF export not available');
+      }
+      try {
+        const pdfPath = await exportService.exportInterviewToPdf(interviewId);
+        const pdfBuffer = readFileSync(pdfPath);
+        const filename = `interview-report-${interviewId}.pdf`;
+        return reply
+          .header('Content-Type', 'application/pdf')
+          .header('Content-Disposition', `attachment; filename="${filename}"`)
+          .send(pdfBuffer);
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'PDF export failed';
+        error('PDF export failed', { interviewId, error: errMsg });
+        return reply.status(500).type('text/plain').send(errMsg);
+      }
+    }
+  );
+
+  // GET /admin/api/reports/:interviewId/export/excel — download report as Excel
+  fastify.get(
+    '/admin/api/reports/:interviewId/export/excel',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { interviewId } = request.params as { interviewId: string };
+      if (!exportService) {
+        return reply.status(500).type('text/plain').send('Excel export not available');
+      }
+      try {
+        const xlsxPath = await exportService.exportInterviewToExcel(interviewId);
+        const xlsxBuffer = readFileSync(xlsxPath);
+        const filename = `interview-report-${interviewId}.xlsx`;
+        return reply
+          .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+          .header('Content-Disposition', `attachment; filename="${filename}"`)
+          .send(xlsxBuffer);
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Excel export failed';
+        error('Excel export failed', { interviewId, error: errMsg });
+        return reply.status(500).type('text/plain').send(errMsg);
+      }
     }
   );
 

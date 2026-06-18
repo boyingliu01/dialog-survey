@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-06-18
+
+### Added
+- **计划进度看板**: 新增 Dashboard 页面，按计划状态分栏（进行中、待发送、已完成、已取消），实时查看各计划进度 — **Closes #76**
+- **PDF/Excel 报告导出**: Interview 报告详情页支持一键导出 PDF（Playwright 渲染）和 Excel（xlsx 库） — **Closes #75**
+
+### Changed
+- **AGENTS.md 清理**: 修复 TODO 行号引用，更新项目文档到 v1.1.1 — **Closes #77**
+- VERSION bumped to 1.6.0
+
+### Quality
+- 670 tests pass (59 test files, 100 pre-existing DB test failures, 58 skipped), Biome lint clean, `tsc --noEmit` clean
+
 ## [1.5.2] - 2026-06-18
 
 ### Fixed
