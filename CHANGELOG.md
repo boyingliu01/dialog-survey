@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.2] - 2026-06-18
+
+### Fixed
+- **CI 测试修复**: `tests/plans-api.test.ts` 添加 `vi.stubEnv('ADMIN_API_KEY')`，解决 CI 环境中因缺少 `.env` 文件导致 adminAuth 中间件返回 500 而非 401 的问题 — **Closes #71**
+- 移除 `debug-tests.yml` 调试工作流
+
+### Quality
+- 818 tests pass (74 test files), Biome lint clean, `tsc --noEmit` clean
+
 ## [1.5.1] - 2026-06-18
 
 ### Fixed
