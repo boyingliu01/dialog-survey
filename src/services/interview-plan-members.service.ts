@@ -60,7 +60,13 @@ function maskPhone(phone: string): string {
 }
 
 function normalizePhone(phone: string): string {
-  return phone.replace(/\s+/g, '').replace(/^\+86/, '');
+  // Strip all non-digit characters
+  const digits = phone.replace(/\D/g, '');
+  // If starts with 86 and has 13 digits (86 + 11-digit mobile), strip country code
+  if (digits.startsWith('86') && digits.length === 13) {
+    return digits.slice(2);
+  }
+  return digits;
 }
 
 export interface AddMemberInput {
@@ -90,6 +96,14 @@ export class InterviewPlanService extends InterviewPlanSendService {
     if (!userId && phone) {
       // Resolve userId from phone via DingTalk API
       const normalizedPhone = normalizePhone(phone);
+      
+      // Validate normalized phone is 11-digit Chinese mobile
+      if (!/^1[3-9]\d{9}$/.test(normalizedPhone)) {
+        throw new InvalidMemberInputError(
+          `Invalid phone number format. After normalization, got: ${normalizedPhone}. Expected: 11-digit Chinese mobile (e.g., 13800138000)`
+        );
+      }
+      
       let lookupResult: Awaited<ReturnType<DingTalkClient['getUserIdByMobile']>>;
       try {
         lookupResult = await this.dingTalkClient.getUserIdByMobile(normalizedPhone);
