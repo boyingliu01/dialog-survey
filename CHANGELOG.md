@@ -5,10 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.5] - 2026-06-18
+
+### Fixed
+- **CLI 安装 `npm ci` 失败**: `npm ci` 需要 `package-lock.json`，但 npm 设计上从不将 lock 文件包含在发布的包中。改用 `npm install --omit=dev`，自动从 `package.json` 生成 lock 文件 — **Closes #85**
+
+### Quality
+- 828 tests pass (75 test files), Biome lint clean, `tsc --noEmit` clean
+
 ## [1.6.4] - 2026-06-18
 
 ### Fixed
-- **npm 包缺少 package-lock.json**: `package.json` 的 `files` 字段新增 `package-lock.json`，修复 `npm ci` 安装失败 — **Closes #85**
+- **npm 包缺少 package-lock.json**: `package.json` 的 `files` 字段新增 `package-lock.json`（无效修复，npm 设计上不包含 lock 文件）
 
 ### Quality
 - 828 tests pass (75 test files), Biome lint clean, `tsc --noEmit` clean

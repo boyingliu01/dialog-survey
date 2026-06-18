@@ -462,7 +462,6 @@ export async function installCommand(flags) {
   log("Copying package files...");
   const filesToCopy = [
     "package.json",
-    "package-lock.json",
     "dist",
     "prisma",
     "src/views",
@@ -484,13 +483,16 @@ export async function installCommand(flags) {
   await writeFile(join(INSTALL_DIR, ".env"), envContent, "utf-8");
   log(`  Created ${INSTALL_DIR}/.env`);
 
-  // Step 7: npm ci
-  log("Installing dependencies (npm ci --omit=dev)...");
+  // Step 7: npm install
+  // Use npm install instead of npm ci because package-lock.json is never
+  // included in npm published packages by design. npm install generates
+  // its own lock file from package.json.
+  log("Installing dependencies (npm install --omit=dev)...");
   try {
-    exec("npm ci --omit=dev --ignore-scripts", { cwd: INSTALL_DIR });
+    exec("npm install --omit=dev --ignore-scripts", { cwd: INSTALL_DIR });
     log("  Dependencies installed ✓");
   } catch (err) {
-    logError(`npm ci failed: ${err.message}`);
+    logError(`npm install failed: ${err.message}`);
     process.exitCode = 1;
     return;
   }
