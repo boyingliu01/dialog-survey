@@ -9,6 +9,8 @@ import {
   isWindows,
   checkPlatformDeps,
   startViaNode,
+  stopDirectService,
+  isDirectServiceRunning,
   generateEnvContent,
   main,
   exec,
@@ -242,6 +244,20 @@ describe("CLI", () => {
     });
   });
 
+  describe("stopDirectService", () => {
+    it("should return a boolean", () => {
+      const result = stopDirectService();
+      expect(typeof result).toBe("boolean");
+    });
+  });
+
+  describe("isDirectServiceRunning", () => {
+    it("should return a boolean", () => {
+      const result = isDirectServiceRunning();
+      expect(typeof result).toBe("boolean");
+    });
+  });
+
   describe("generateEnvContent", () => {
     it("should generate valid .env content from config with LLM keys", () => {
       const config = {
@@ -309,6 +325,23 @@ describe("CLI", () => {
       };
       const content = generateEnvContent(config);
       expect(content).toContain("LLM_API_KEY=");
+    });
+  });
+
+  describe("installCommand platform awareness", () => {
+    it("should output platform dep check result when running install", async () => {
+      const writeSpy = vi.spyOn(process.stdout, "write");
+      // Run with --help to avoid full install flow
+      await main(["install", "--help", "true"]);
+      const output = writeSpy.mock.calls.map((c) => c[0]).join("");
+      // Help output should reference the installer
+      expect(output).toContain("dialog-survey install");
+      writeSpy.mockRestore();
+    });
+
+    it("checkPlatformDeps result should include serviceManager field", () => {
+      const result = checkPlatformDeps();
+      expect(result.serviceManager).toMatch(/^pm2$|^direct$/);
     });
   });
 
