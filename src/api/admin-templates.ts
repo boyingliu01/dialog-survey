@@ -128,7 +128,7 @@ function buildInviteeNameMap(inviteeData: unknown): Record<string, string> {
   return map;
 }
 
-const ADMIN_API_KEY = process.env.ADMIN_API_KEY || '';
+const getAdminApiKey = () => process.env.ADMIN_API_KEY || '';
 
 export async function adminTemplatesRoutes(
   fastify: FastifyInstance,
@@ -159,7 +159,7 @@ export async function adminTemplatesRoutes(
           interviewPlans: undefined,
         }));
         return reply.view('layouts/admin-tree.njk', {
-          adminApiKey: ADMIN_API_KEY,
+          adminApiKey: getAdminApiKey(),
           templates: templatesWithPlans,
         });
       } catch (e) {
@@ -194,7 +194,7 @@ export async function adminTemplatesRoutes(
     { preHandler: adminAuth },
     async (_request: FastifyRequest, reply: FastifyReply) => {
       return reply.view('admin/content/template-new.njk', {
-        adminApiKey: ADMIN_API_KEY,
+        adminApiKey: getAdminApiKey(),
       });
     }
   );
@@ -207,7 +207,7 @@ export async function adminTemplatesRoutes(
       const { templateId } = (request.query as Record<string, string | undefined>) || {};
       const templates = await templateRepo.findAllForSelect();
       return reply.view('admin/content/plan-form.njk', {
-        adminApiKey: ADMIN_API_KEY,
+        adminApiKey: getAdminApiKey(),
         templates,
         selectedTemplateId: templateId || null,
       });
@@ -224,7 +224,7 @@ export async function adminTemplatesRoutes(
       if (!plan) return reply.status(404).type('text/html').send('计划不存在');
       const templates = await templateRepo.findAllForSelect();
       return reply.view('admin/content/plan-form.njk', {
-        adminApiKey: ADMIN_API_KEY,
+        adminApiKey: getAdminApiKey(),
         templates,
         plan,
         selectedTemplateId: plan.templateId,
@@ -254,7 +254,7 @@ export async function adminTemplatesRoutes(
         _interviewCount: template._count.interviews,
       };
       return reply.view('admin/content/template-info.njk', {
-        adminApiKey: ADMIN_API_KEY,
+        adminApiKey: getAdminApiKey(),
         template: tpl,
         questions,
         invitationPrompt: parsedContent.invitationPrompt as string | undefined,
@@ -281,7 +281,7 @@ export async function adminTemplatesRoutes(
       }
       const inviteeMap = buildInviteeNameMap(plan.inviteeData);
       return reply.view('admin/content/plan-detail.njk', {
-        adminApiKey: ADMIN_API_KEY,
+        adminApiKey: getAdminApiKey(),
         plan,
         template: plan.template,
         interviews: plan.interviews,
@@ -306,7 +306,7 @@ export async function adminTemplatesRoutes(
       if (!plan) return reply.status(404).type('text/html').send('计划不存在');
       const completed = interviews.filter((i) => i.status === 'COMPLETED');
       return reply.view('admin/content/plan-detail.njk', {
-        adminApiKey: ADMIN_API_KEY,
+        adminApiKey: getAdminApiKey(),
         plan: { ...plan, sentCount: 0 },
         template: plan.template,
         interviews,
@@ -327,7 +327,7 @@ export async function adminTemplatesRoutes(
       if (!interview) return reply.status(404).type('text/html').send('访谈不存在');
       const report = await analysisService.getReportByInterviewId(interviewId);
       return reply.view('admin/content/report-detail.njk', {
-        adminApiKey: ADMIN_API_KEY,
+        adminApiKey: getAdminApiKey(),
         interview,
         report,
       });
@@ -419,7 +419,7 @@ export async function adminTemplatesRoutes(
         }
         const questions = (parsedContent.questions as string[]) || [];
         return reply.view('admin/content/template-edit.njk', {
-          adminApiKey: ADMIN_API_KEY,
+          adminApiKey: getAdminApiKey(),
           isEdit: true,
           template: { ...template, ...parsedContent },
           existingQuestions: questions.map((q, i) => ({ text: q, order: i, uid: `uid_${i}` })),
@@ -727,7 +727,7 @@ export async function adminTemplatesRoutes(
             interviewPlanService.findAllForSelect(),
           ]);
         return reply.view('analytics/index.njk', {
-          adminApiKey: ADMIN_API_KEY,
+          adminApiKey: getAdminApiKey(),
           kpis,
           statusDistribution,
           planCompletionRates,
@@ -774,7 +774,7 @@ export async function adminTemplatesRoutes(
       try {
         const reports = await analysisService.findRecentReports(100);
         return reply.view('reports/index.njk', {
-          adminApiKey: ADMIN_API_KEY,
+          adminApiKey: getAdminApiKey(),
           reports: reports.map((r) => ({
             interviewId: r.interviewId,
             userId: r.interview?.userId ?? '-',
@@ -802,7 +802,7 @@ export async function adminTemplatesRoutes(
         if (!interview)
           return reply.status(404).view('error.njk', { message: 'Interview not found' });
         return reply.view('reports/detail.njk', {
-          adminApiKey: ADMIN_API_KEY,
+          adminApiKey: getAdminApiKey(),
           interview: { ...interview, createdAtFormatted: fmtDate(interview.createdAt) },
           report: report
             ? { ...report, createdAtFormatted: fmtDate((report as { createdAt?: Date }).createdAt) }
