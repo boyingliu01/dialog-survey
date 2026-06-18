@@ -178,7 +178,7 @@ export async function adminTemplatesRoutes(
       try {
         const plans = await analyticsService.getDashboardPlanProgress();
         return reply.view('admin/content/dashboard.njk', {
-          adminApiKey: ADMIN_API_KEY,
+          adminApiKey: getAdminApiKey(),
           plans,
         });
       } catch (e) {
