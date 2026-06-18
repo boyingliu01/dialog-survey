@@ -27,12 +27,14 @@ describe('Interview Plan API Endpoints', () => {
   let fastify: FastifyInstance;
 
   beforeAll(async () => {
+    vi.stubEnv('ADMIN_API_KEY', 'test-admin-key');
     fastify = Fastify({ logger: false });
     await interviewPlanRoutes(fastify);
     await fastify.ready();
   });
 
   afterAll(async () => {
+    vi.unstubAllEnvs();
     await fastify.close();
     await prisma.$disconnect();
   });
