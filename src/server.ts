@@ -184,7 +184,7 @@ export async function startServer() {
   const { fastify: app, prisma } = await buildApp();
 
   try {
-    await app.listen({ port: Number(process.env.PORT) || 3001, host: '0.0.0.0' });
+    await app.listen({ port: Number(process.env.PORT) || 3001, host: process.env.HOST || '0.0.0.0' });
 
     const clientId = process.env.DINGTALK_CLIENT_ID;
     const clientSecret = process.env.DINGTALK_CLIENT_SECRET;

@@ -90,7 +90,14 @@ export class InterviewPlanService extends InterviewPlanSendService {
     if (!userId && phone) {
       // Resolve userId from phone via DingTalk API
       const normalizedPhone = normalizePhone(phone);
-      const lookupResult = await this.dingTalkClient.getUserIdByMobile(normalizedPhone);
+      let lookupResult: Awaited<ReturnType<DingTalkClient['getUserIdByMobile']>>;
+      try {
+        lookupResult = await this.dingTalkClient.getUserIdByMobile(normalizedPhone);
+      } catch {
+        throw new MemberNotFoundError(
+          `Phone number ${maskPhone(phone)} could not be resolved — DingTalk service unavailable`
+        );
+      }
 
       if (!lookupResult.found) {
         throw new MemberNotFoundError(`Phone number ${maskPhone(phone)} not found in DingTalk`);

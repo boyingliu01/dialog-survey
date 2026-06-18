@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.1] - 2026-06-18
+
+### Fixed
+- **DingTalk 报错信息屏蔽**: `addMember()` 中 DingTalk 原始错误码不再暴露给用户，替换为友好的 `MemberNotFoundError` 提示 — **Closes #71**
+- **手机号输入优化**: 添加成员表单手机号输入框增加 `inputmode="tel"` 和 `maxlength="11"`，移动端键盘优化 — **Closes #71**
+- **自定义 host 绑定**: `server.ts` 支持 `HOST` 环境变量，解决 WSL2 环境下 localhost 端口被 Windows 进程占用的问题 — **Closes #71**
+
+### Quality
+- 818 tests pass (74 test files), Biome lint clean, `tsc --noEmit` clean
+
 ## [1.5.0] - 2026-06-17
 
 ### Added
