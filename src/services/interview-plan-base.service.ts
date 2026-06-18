@@ -51,7 +51,9 @@ export function parseInviteeText(text: string): InviteeData[] {
       const name = parts.length > 1 ? parts.slice(1).join(' ') : '';
 
       // Phone format: strip +86 prefix, then check 11-digit pattern
-      const stripped = first.startsWith('+86') ? first.slice(3) : first;
+      // First strip all non-digit characters, then handle country code
+      const digits = first.replace(/\D/g, '');
+      const stripped = (digits.startsWith('86') && digits.length === 13) ? digits.slice(2) : digits;
       const isPhone = /^1[3-9]\d{9}$/.test(stripped);
 
       if (isPhone) {
