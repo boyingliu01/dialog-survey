@@ -11,7 +11,7 @@ import { execSync } from "node:child_process";
 import { createInterface } from "node:readline";
 import { existsSync } from "node:fs";
 import { mkdir, cp, rm, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { homedir, tmpdir, platform } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import http from "node:http";
@@ -304,6 +304,74 @@ export function checkPm2() {
       message:
         "PM2 is not installed. Install it with: npm install -g pm2",
     };
+  }
+}
+
+// ─── Cross-platform helpers ──────────────────────────────────────────────────
+
+/**
+ * Check if current platform is Windows.
+ * @returns {boolean}
+ */
+export function isWindows() {
+  return platform() === "win32";
+}
+
+/**
+ * Platform-aware dependency check.
+ * - Linux: check PM2
+ * - Windows: check tsc (TypeScript compiler)
+ * @returns {{ ok: boolean, message: string, serviceManager: 'pm2' | 'direct' }}
+ */
+export function checkPlatformDeps() {
+  if (isWindows()) {
+    try {
+      exec("npx -y tsc --version");
+      return { ok: true, message: "tsc found ✓ (Windows: will start via direct node)", serviceManager: "direct" };
+    } catch {
+      return { ok: false, message: "tsc not found. Ensure TypeScript is installed: npm install", serviceManager: "direct" };
+    }
+  } else {
+    const pm2Check = checkPm2();
+    return {
+      ok: pm2Check.ok,
+      message: pm2Check.message,
+      serviceManager: pm2Check.ok ? "pm2" : "direct",
+    };
+  }
+}
+
+/**
+ * Start service directly via node (no PM2, used on Windows).
+ * @param {string} cwd
+ */
+export function startViaNode(cwd) {
+  exec("node dist/server.js &", { cwd });
+}
+
+/**
+ * Stop service started directly (no PM2).
+ * @returns {boolean}
+ */
+export function stopDirectService() {
+  try {
+    exec("pkill -f \"node dist/server\"");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a direct node service is running.
+ * @returns {boolean}
+ */
+export function isDirectServiceRunning() {
+  try {
+    const result = exec("pgrep -f \"node dist/server\"");
+    return result.length > 0;
+  } catch {
+    return false;
   }
 }
 
