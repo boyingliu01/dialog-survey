@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.7] - 2026-06-18
+
+### Fixed
+- **PM2 启动失败（Windows）**: `ecosystem.config.cjs` 引用 `dist/src/server.js`，但 tsconfig 编译输出为 `dist/server.js`（无 `src/` 子目录） — **Closes #87**
+- **加密密钥生成跨平台兼容**: 移除 `node -e` shell 子命令，改用 `node:crypto` 直接生成 `ENCRYPTION_KEY` 和 `ADMIN_API_KEY`，避免 Windows `cmd.exe` 嵌套引号转义问题
+
+### Quality
+- 828 tests pass (75 test files), Biome lint clean, `tsc --noEmit` clean
+
 ## [1.6.6] - 2026-06-18
 
 ### Fixed
