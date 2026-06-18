@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-06-18
+
+### Fixed
+- **Admin API Key 认证修复**: 模块级 `ADMIN_API_KEY` 常量改为函数调用，解决 ESM import 时序导致认证失败的问题 — **Closes #78**
+- **手机号格式修复**: `normalizePhone()` 增强，支持 `+86-xxx`、`86-xxx`、带空格等变体格式；移除前端 `maxlength="11"` 限制；添加格式提示和规范化后校验 — **Closes #80**
+
+### Quality
+- 验证：TypeScript 编译干净，Biome lint 干净
+
 ## [1.6.0] - 2026-06-18
 
 ### Added
