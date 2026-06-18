@@ -6,6 +6,9 @@ import {
   checkNodeVersion,
   checkPostgres,
   checkPm2,
+  isWindows,
+  checkPlatformDeps,
+  startViaNode,
   generateEnvContent,
   main,
   exec,
@@ -212,6 +215,30 @@ describe("CLI", () => {
       // PM2 may or may not be installed — just verify the shape
       expect(typeof result.ok).toBe("boolean");
       expect(typeof result.message).toBe("string");
+    });
+  });
+
+  describe("isWindows", () => {
+    it("should return a boolean based on current platform", () => {
+      const result = isWindows();
+      expect(typeof result).toBe("boolean");
+    });
+  });
+
+  describe("checkPlatformDeps", () => {
+    it("should return an object with ok, message, and serviceManager", () => {
+      const result = checkPlatformDeps();
+      expect(result).toHaveProperty("ok");
+      expect(typeof result.ok).toBe("boolean");
+      expect(typeof result.message).toBe("string");
+      expect(["pm2", "direct"]).toContain(result.serviceManager);
+    });
+  });
+
+  describe("startViaNode", () => {
+    it("should be a function that takes a cwd argument", () => {
+      expect(typeof startViaNode).toBe("function");
+      expect(startViaNode.length).toBe(1);
     });
   });
 
