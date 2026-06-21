@@ -80,7 +80,7 @@ describe('DingTalkStreamClient Branch Coverage', () => {
     const wsMock = getWsMock();
     expect(wsMock).toBeTruthy();
     const msgCb = wsMock._callbacks.get('message');
-    if (msgCb)     msgCb('invalid json text');
+    if (msgCb) msgCb('invalid json text');
 
     expect(errorHandler).toHaveBeenCalledWith(expect.any(Error));
     spyParse.mockRestore();
@@ -110,7 +110,7 @@ describe('DingTalkStreamClient Branch Coverage', () => {
     });
 
     const msgCb = wsMock._callbacks.get('message');
-    if (msgCb)     msgCb(Buffer.from(validMsg));
+    if (msgCb) msgCb(Buffer.from(validMsg));
 
     expect(wsMock.send).toHaveBeenCalledTimes(0);
   });

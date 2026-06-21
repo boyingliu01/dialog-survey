@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InterviewState } from '../src/core/types/index.js';
 import {
   generateSmartResponse,
@@ -148,7 +148,12 @@ describe('Branch Coverage: followup.service.ts', () => {
         content: JSON.stringify({ thinking: 'ok', action: 'NEXT', response: 'Good answer' }),
       });
       const state = makeState();
-      const result = await generateSmartResponse(state, 'my answer', 'What?', 'custom {{userAnswer}}');
+      const result = await generateSmartResponse(
+        state,
+        'my answer',
+        'What?',
+        'custom {{userAnswer}}'
+      );
       expect(result.response).toBe('Good answer');
       expect(result.action).toBe('NEXT');
       expect(result.shouldProceedToNext).toBe(true);
@@ -156,7 +161,11 @@ describe('Branch Coverage: followup.service.ts', () => {
 
     it('should return FOLLOWUP and track limit in custom prompt path', async () => {
       mockChat.mockResolvedValue({
-        content: JSON.stringify({ thinking: 'need more', action: 'FOLLOWUP', response: 'Tell me more?' }),
+        content: JSON.stringify({
+          thinking: 'need more',
+          action: 'FOLLOWUP',
+          response: 'Tell me more?',
+        }),
       });
       const state = makeState({ followupCount: 1 });
       const result = await generateSmartResponse(state, 'my answer', 'What?', 'custom');

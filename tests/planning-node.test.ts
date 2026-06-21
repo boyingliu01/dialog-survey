@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { planningNode } from '../src/core/nodes/planning.js';
 import type { InterviewState } from '../src/core/types/index.js';
@@ -14,6 +15,8 @@ vi.mock('../src/repositories/template.repository.js', () => {
     },
   };
 });
+
+const mockPrisma = {} as PrismaClient;
 
 describe('planningNode', () => {
   const baseState: InterviewState = {
@@ -34,7 +37,7 @@ describe('planningNode', () => {
   };
 
   it('should return invitation prompt as response', async () => {
-    const result = await planningNode(baseState);
+    const result = await planningNode(baseState, mockPrisma);
 
     expect(result.response).toBe(
       '您好！欢迎参与本次访谈。您的回答对我们非常重要，请根据提示回答问题即可。\n\n请简单介绍一下您的工作经历？'
@@ -48,7 +51,7 @@ describe('planningNode', () => {
    * @intent 验证Planning节点将开场问题添加到消息数组中
    */
   it('should add first question message to messages array', async () => {
-    const result = await planningNode(baseState);
+    const result = await planningNode(baseState, mockPrisma);
 
     expect(result.messages).toHaveLength(1);
     expect(result.messages[0].role).toBe('assistant');
@@ -68,7 +71,7 @@ describe('planningNode', () => {
       messages: [{ role: 'user', content: 'Hello', timestamp: new Date() }],
     };
 
-    const result = await planningNode(stateWithMessages);
+    const result = await planningNode(stateWithMessages, mockPrisma);
 
     expect(result.messages).toHaveLength(2);
     expect(result.messages[0].role).toBe('user');
@@ -81,7 +84,7 @@ describe('planningNode', () => {
    */
   it('should use default template when templateId is undefined', async () => {
     const stateWithoutTemplate = { ...baseState, templateId: undefined };
-    const result = await planningNode(stateWithoutTemplate);
+    const result = await planningNode(stateWithoutTemplate, mockPrisma);
 
     expect(result.response).toBe(
       '您好！欢迎参与本次访谈。您的回答对我们非常重要，请根据提示回答问题即可。\n\n请简单介绍一下您的工作经历？'
@@ -95,7 +98,7 @@ describe('planningNode', () => {
    */
   it('should set currentQuestion to 0', async () => {
     const state = { ...baseState, currentQuestion: 5 };
-    const result = await planningNode(state);
+    const result = await planningNode(state, mockPrisma);
 
     expect(result.currentQuestion).toBe(0);
   });
@@ -111,7 +114,7 @@ describe('planningNode', () => {
     });
 
     const state = { ...baseState, templateId: 'template-empty' };
-    const result = await planningNode(state);
+    const result = await planningNode(state, mockPrisma);
 
     expect(result.response).toContain('欢迎！');
     expect(result.response).not.toContain('undefined');

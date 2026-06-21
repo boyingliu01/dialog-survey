@@ -431,7 +431,8 @@ describe('Admin Templates Integration — save → load → render', () => {
       invitationPrompt: '邀约提示',
       'questions[0][text]': '测试问题',
       closingMessage: '感谢您接受本次访谈，祝您工作顺利！',
-      llmPromptTemplate: '你是AI主持人，基于以下信息进行追问：\n对话：{{ conversationHistory }}\n问题：{{ currentQuestion }}',
+      llmPromptTemplate:
+        '你是AI主持人，基于以下信息进行追问：\n对话：{{ conversationHistory }}\n问题：{{ currentQuestion }}',
     };
 
     const resp = await app.inject({
