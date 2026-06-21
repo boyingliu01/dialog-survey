@@ -161,7 +161,7 @@ export async function buildApp() {
 
   await fastify.register(async (api) => {
     api.addHook('preHandler', verifyApiKey);
-    await api.register(interviewPlanRoutes);
+    await api.register(interviewPlanRoutes, { prisma });
     await api.register(templateRoutes, { templateRepo, prisma });
     await api.register(analysisRoutes, { prisma });
   });
@@ -187,7 +187,10 @@ export async function startServer() {
   const { fastify: app, prisma } = await buildApp();
 
   try {
-    await app.listen({ port: Number(process.env.PORT) || 3001, host: process.env.HOST || '0.0.0.0' });
+    await app.listen({
+      port: Number(process.env.PORT) || 3001,
+      host: process.env.HOST || '0.0.0.0',
+    });
 
     const clientId = process.env.DINGTALK_CLIENT_ID;
     const clientSecret = process.env.DINGTALK_CLIENT_SECRET;

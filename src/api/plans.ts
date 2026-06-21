@@ -1,4 +1,4 @@
-import { PlanStatus } from '@prisma/client';
+import { PlanStatus, type PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
@@ -74,8 +74,11 @@ function mapServiceErrorToStatus(err: unknown): { status: number; message: strin
   return { status: 502, message };
 }
 
-export async function interviewPlanRoutes(fastify: FastifyInstance) {
-  const planService = new InterviewPlanService();
+export async function interviewPlanRoutes(
+  fastify: FastifyInstance,
+  opts: { prisma: PrismaClient }
+) {
+  const planService = new InterviewPlanService(opts.prisma);
 
   fastify.post('/api/plans', async (request, _reply) => {
     const input = createPlanSchema.parse(request.body);

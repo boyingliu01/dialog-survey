@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/client';
 import { TemplateRepository } from '../../repositories/template.repository.js';
 import { InterviewState, NodeOutput } from '../types/index.js';
 
@@ -15,9 +16,10 @@ export interface TemplateContent {
 }
 
 export async function planningNode(
-  state: InterviewState
+  state: InterviewState,
+  prisma?: PrismaClient
 ): Promise<Partial<InterviewState> & NodeOutput> {
-  const content = await loadTemplateContent(state.templateId);
+  const content = await loadTemplateContent(state.templateId, prisma);
   const firstQuestion = content.questions[0] || '请开始回答，我会根据您的回答进行追问。';
   const greeting = content.invitationPrompt;
 
@@ -37,10 +39,12 @@ export async function planningNode(
   };
 }
 
-async function loadTemplateContent(templateId?: string): Promise<TemplateContent> {
-  const repo = new TemplateRepository();
-
-  if (templateId) {
+async function loadTemplateContent(
+  templateId?: string,
+  prisma?: PrismaClient
+): Promise<TemplateContent> {
+  if (templateId && prisma) {
+    const repo = new TemplateRepository(prisma);
     const template = await repo.findById(templateId);
     if (template) {
       return JSON.parse(template.content) as TemplateContent;
