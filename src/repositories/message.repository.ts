@@ -3,8 +3,11 @@ import { Message, PrismaClient } from '@prisma/client';
 export class MessageRepository {
   private prisma: PrismaClient;
 
-  constructor(prisma?: PrismaClient) {
-    this.prisma = prisma || new PrismaClient();
+  constructor(prisma: PrismaClient) {
+    if (!prisma) {
+      throw new Error('PrismaClient is required for MessageRepository');
+    }
+    this.prisma = prisma;
   }
 
   async create(data: {
