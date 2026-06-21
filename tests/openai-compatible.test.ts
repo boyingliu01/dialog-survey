@@ -295,9 +295,7 @@ describe('OpenAICompatibleLLM', () => {
         baseUrl: mockBaseUrl,
       });
 
-      await expect(llm.embeddings('test text')).rejects.toThrow(
-        'Embeddings API not implemented'
-      );
+      await expect(llm.embeddings('test text')).rejects.toThrow('Embeddings API not implemented');
     });
   });
 });

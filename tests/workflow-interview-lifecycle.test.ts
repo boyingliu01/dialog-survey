@@ -115,7 +115,7 @@ async function createPlansApp() {
   });
 
   const { interviewPlanRoutes } = await import('../src/api/plans.js');
-  await app.register(interviewPlanRoutes);
+  await app.register(interviewPlanRoutes, { prisma });
 
   return app;
 }

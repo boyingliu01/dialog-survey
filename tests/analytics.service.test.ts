@@ -400,11 +400,7 @@ describe('AnalyticsService', () => {
           id: 'plan-2',
           name: '计划B',
           template: { name: '模板Y' },
-          interviews: [
-            { status: 'COMPLETED' },
-            { status: 'ACTIVE' },
-            { status: 'ACTIVE' },
-          ],
+          interviews: [{ status: 'COMPLETED' }, { status: 'ACTIVE' }, { status: 'ACTIVE' }],
         },
       ];
       mockPrisma.interviewPlan.findMany.mockResolvedValue(mockPlans);
