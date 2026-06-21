@@ -449,11 +449,7 @@ describe('InterviewPlanService', () => {
         }),
       };
 
-      await service.updatePlan(
-        'plan-1',
-        { invitees: '13800138000 张三' },
-        mockDingtalkClient
-      );
+      await service.updatePlan('plan-1', { invitees: '13800138000 张三' }, mockDingtalkClient);
 
       expect(mockDingtalkClient.getUserIdByMobile).toHaveBeenCalledWith('13800138000');
       expect(mockPrisma.interview.createMany).toHaveBeenCalledWith({
@@ -481,11 +477,7 @@ describe('InterviewPlanService', () => {
         getUserIdByMobile: vi.fn().mockResolvedValue({ found: false }),
       };
 
-      await service.updatePlan(
-        'plan-1',
-        { invitees: '13800138000 张三' },
-        mockDingtalkClient
-      );
+      await service.updatePlan('plan-1', { invitees: '13800138000 张三' }, mockDingtalkClient);
 
       expect(mockPrisma.interview.createMany).not.toHaveBeenCalled();
       const updateCall = mockPrisma.interviewPlan.update.mock.calls[0][0];

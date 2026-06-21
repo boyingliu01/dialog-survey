@@ -6,6 +6,14 @@ vi.mock('../src/services/followup.service.js', () => ({
   generateSmartResponse: vi.fn(),
 }));
 
+vi.mock('../src/repositories/template.repository.js', () => {
+  const MockTemplateRepository = class {
+    findById = vi.fn().mockResolvedValue(null);
+    findAll = vi.fn().mockResolvedValue([]);
+  };
+  return { TemplateRepository: MockTemplateRepository };
+});
+
 describe('interviewingNode - Smart Response Branches', () => {
   beforeEach(() => {
     vi.clearAllMocks();

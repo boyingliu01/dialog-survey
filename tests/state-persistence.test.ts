@@ -22,6 +22,11 @@ describe('InterviewStateRepository', () => {
     repository = new InterviewStateRepository(mockPrisma as unknown as PrismaClient);
   });
 
+  it('should throw if no PrismaClient is provided', () => {
+    expect(() => new (InterviewStateRepository as any)(undefined)).toThrow();
+    expect(() => new (InterviewStateRepository as any)()).toThrow();
+  });
+
   describe('loadState', () => {
     /**
      * @test REQ-003-9-04

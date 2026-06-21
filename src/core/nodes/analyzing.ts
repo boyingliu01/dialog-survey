@@ -1,10 +1,12 @@
+import type { PrismaClient } from '@prisma/client';
 import { AnalysisService } from '../../services/analysis.service.js';
 import { getDb } from '../../utils/db.js';
 import { error, info } from '../../utils/logger.js';
 import { InterviewState, NodeOutput } from '../types/index.js';
 
 export async function analyzingNode(
-  state: InterviewState
+  state: InterviewState,
+  prisma?: PrismaClient
 ): Promise<Partial<InterviewState> & NodeOutput> {
   if (!state.interviewId) {
     return {
@@ -21,7 +23,7 @@ export async function analyzingNode(
     try {
       info('Starting async analysis', { interviewId });
 
-      const analysisService = new AnalysisService(getDb());
+      const analysisService = new AnalysisService(prisma || getDb());
       const result = await analysisService.analyzeInterview(interviewId);
 
       info('Async analysis completed', {

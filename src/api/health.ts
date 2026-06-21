@@ -58,19 +58,18 @@ async function checkLLM(): Promise<{
 
     const start = Date.now();
     const response = await fetch(baseUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content: 'health check' }],
-          max_tokens: 10,
-        }),
-        signal: AbortSignal.timeout(30000),
-      }
-    );
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'health check' }],
+        max_tokens: 10,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
 
     const latencyMs = Date.now() - start;
 

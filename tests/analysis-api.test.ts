@@ -23,7 +23,7 @@ async function createApp(): Promise<FastifyInstance> {
 async function createAppWithMockService(
   method: string,
   resultOrError: unknown,
-  shouldReject: boolean,
+  shouldReject: boolean
 ): Promise<FastifyInstance> {
   const { AnalysisService } = await import('../src/services/analysis.service.js');
   const fn = shouldReject
@@ -316,7 +316,9 @@ describe('Analysis API error paths via mock service', () => {
   it('should return 500 when compareClusters throws', async () => {
     const { AnalysisService } = await import('../src/services/analysis.service.js');
     const orig = AnalysisService.prototype.compareClusters;
-    AnalysisService.prototype.compareClusters = vi.fn().mockRejectedValue(new Error('Cluster error'));
+    AnalysisService.prototype.compareClusters = vi
+      .fn()
+      .mockRejectedValue(new Error('Cluster error'));
     app = Fastify({ logger: false });
     const { analysisRoutes } = await import('../src/api/analysis.js');
     await app.register(analysisRoutes, { prisma });
@@ -335,7 +337,9 @@ describe('Analysis API error paths via mock service', () => {
   it('should return 500 when createBatchReportIfEligible throws', async () => {
     const { AnalysisService } = await import('../src/services/analysis.service.js');
     const orig = AnalysisService.prototype.createBatchReportIfEligible;
-    AnalysisService.prototype.createBatchReportIfEligible = vi.fn().mockRejectedValue(new Error('Aggregate error'));
+    AnalysisService.prototype.createBatchReportIfEligible = vi
+      .fn()
+      .mockRejectedValue(new Error('Aggregate error'));
     app = Fastify({ logger: false });
     const { analysisRoutes } = await import('../src/api/analysis.js');
     await app.register(analysisRoutes, { prisma });
@@ -354,7 +358,9 @@ describe('Analysis API error paths via mock service', () => {
   it('should return 404 when plan is not found explicitly', async () => {
     const { AnalysisService } = await import('../src/services/analysis.service.js');
     const orig = AnalysisService.prototype.createBatchReportIfEligible;
-    AnalysisService.prototype.createBatchReportIfEligible = vi.fn().mockResolvedValue({ kind: 'plan-not-found' });
+    AnalysisService.prototype.createBatchReportIfEligible = vi
+      .fn()
+      .mockResolvedValue({ kind: 'plan-not-found' });
     app = Fastify({ logger: false });
     const { analysisRoutes } = await import('../src/api/analysis.js');
     await app.register(analysisRoutes, { prisma });
@@ -373,7 +379,9 @@ describe('Analysis API error paths via mock service', () => {
   it('should return 500 when getBatchReportById throws', async () => {
     const { AnalysisService } = await import('../src/services/analysis.service.js');
     const orig = AnalysisService.prototype.getBatchReportById;
-    AnalysisService.prototype.getBatchReportById = vi.fn().mockRejectedValue(new Error('Fetch error'));
+    AnalysisService.prototype.getBatchReportById = vi
+      .fn()
+      .mockRejectedValue(new Error('Fetch error'));
     app = Fastify({ logger: false });
     const { analysisRoutes } = await import('../src/api/analysis.js');
     await app.register(analysisRoutes, { prisma });
