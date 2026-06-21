@@ -217,7 +217,7 @@ describe('buildApp robustness', () => {
     // contains the branch for DingTalk-not-configured
     const fs = await import('node:fs');
     const source = fs.readFileSync('src/server.ts', 'utf-8');
-    expect(source).toContain("DingTalk Stream mode not configured, skipping");
+    expect(source).toContain('DingTalk Stream mode not configured, skipping');
   });
 });
 
@@ -229,7 +229,7 @@ describe('server.ts entry point (Windows path compatibility, Issue #63)', () => 
     // a plain string comparison that would fail on Windows (backslash vs /)
     expect(source).toContain('normalize(process.argv[1])');
     expect(source).toContain('pathToFileURL(normalizedArg).href');
-    expect(source).not.toContain("import.meta.url === `file://${process.argv[1]}`");
+    expect(source).not.toContain('import.meta.url === `file://${process.argv[1]}`');
   });
 
   it('should still work on Unix paths with the same pattern', async () => {

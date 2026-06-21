@@ -130,7 +130,9 @@ describe('DingTalkTokenManager', () => {
   it('should throw on HTTP failure with retry (token request level)', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
     // The fetchWithRetry + delay(2000) + delay(4000) will timeout via vitest's default 10s
-    await expect(tokenManager.getAccessToken()).rejects.toThrow('Failed to get DingTalk access token');
+    await expect(tokenManager.getAccessToken()).rejects.toThrow(
+      'Failed to get DingTalk access token'
+    );
     expect(fetch).toHaveBeenCalled();
   });
 
@@ -145,7 +147,9 @@ describe('DingTalkTokenManager', () => {
       }),
     });
 
-    await expect(tokenManager.getAccessToken()).rejects.toThrow('Failed to get DingTalk access token');
+    await expect(tokenManager.getAccessToken()).rejects.toThrow(
+      'Failed to get DingTalk access token'
+    );
   });
 
   it('should throw on missing access_token in response', async () => {
@@ -159,7 +163,9 @@ describe('DingTalkTokenManager', () => {
       }),
     });
 
-    await expect(tokenManager.getAccessToken()).rejects.toThrow('Failed to get DingTalk access token');
+    await expect(tokenManager.getAccessToken()).rejects.toThrow(
+      'Failed to get DingTalk access token'
+    );
   });
 
   it('should refresh token when cached token is expired', async () => {
