@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { chromium } from 'playwright';
 import type { PrismaClient } from '@prisma/client';
+import { chromium } from 'playwright';
 import * as XLSX from 'xlsx';
 import { info } from '../utils/logger.js';
 
@@ -52,7 +52,11 @@ export class ExportService {
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'networkidle' });
       const pdfPath = join(this.reportsDir, `interview-${interviewId}.pdf`);
-      await page.pdf({ path: pdfPath, format: 'A4', margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' } });
+      await page.pdf({
+        path: pdfPath,
+        format: 'A4',
+        margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' },
+      });
       info('PDF exported', { interviewId, path: pdfPath });
       return pdfPath;
     } finally {
@@ -121,9 +125,19 @@ export class ExportService {
     interview: {
       userId: string;
       status: string;
-      responses: Array<{ questionId: string; content: string; isFollowup: boolean; followupDepth: number }>;
+      responses: Array<{
+        questionId: string;
+        content: string;
+        isFollowup: boolean;
+        followupDepth: number;
+      }>;
     },
-    report: { content: string; keyFindings: string[]; sentiment: string | null; recommendations: string[] } | null
+    report: {
+      content: string;
+      keyFindings: string[];
+      sentiment: string | null;
+      recommendations: string[];
+    } | null
   ): string {
     const responseRows = interview.responses
       .map(
