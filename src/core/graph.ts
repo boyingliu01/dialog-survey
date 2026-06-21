@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/client';
 import { analyzingNode } from './nodes/analyzing.js';
 import { completedNode } from './nodes/completed.js';
 import { interviewingNode } from './nodes/interviewing.js';
@@ -11,25 +12,26 @@ export interface GraphResult {
 
 export async function runInterviewGraph(
   initialState: InterviewState,
-  input: NodeInput
+  input: NodeInput,
+  prisma?: PrismaClient
 ): Promise<GraphResult> {
   let state: InterviewState = { ...initialState };
   let output: NodeOutput = {};
 
   if (state.status === 'PENDING') {
-    const result = await planningNode(state);
+    const result = await planningNode(state, prisma);
     state = { ...state, ...result } as InterviewState;
     output = { ...output, ...result };
   }
 
   if (input.content) {
-    const result = await interviewingNode(state, { content: input.content });
+    const result = await interviewingNode(state, { content: input.content, prisma });
     state = { ...state, ...result } as InterviewState;
     output = { ...output, ...result };
   }
 
   if (!output.shouldContinue) {
-    const result = await analyzingNode(state);
+    const result = await analyzingNode(state, prisma);
     state = { ...state, ...result } as InterviewState;
     output = { ...output, ...result };
 

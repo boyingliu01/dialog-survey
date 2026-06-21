@@ -134,8 +134,14 @@ export async function adminTemplatesRoutes(
   fastify: FastifyInstance,
   opts: AdminTemplatesRoutesOptions
 ) {
-  const { templateRepo, interviewPlanService, interviewRepo, analysisService, analyticsService, exportService } =
-    opts;
+  const {
+    templateRepo,
+    interviewPlanService,
+    interviewRepo,
+    analysisService,
+    analyticsService,
+    exportService,
+  } = opts;
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
 
@@ -391,7 +397,10 @@ export async function adminTemplatesRoutes(
         const xlsxBuffer = readFileSync(xlsxPath);
         const filename = `interview-report-${interviewId}.xlsx`;
         return reply
-          .header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+          .header(
+            'Content-Type',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          )
           .header('Content-Disposition', `attachment; filename="${filename}"`)
           .send(xlsxBuffer);
       } catch (e) {

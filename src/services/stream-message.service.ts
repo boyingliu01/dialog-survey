@@ -17,8 +17,8 @@ const MAX_RETRIES = 3;
 export class StreamMessageService {
   private repo: InterviewStateRepository;
 
-  constructor(repo?: InterviewStateRepository) {
-    this.repo = repo || new InterviewStateRepository();
+  constructor(repo: InterviewStateRepository) {
+    this.repo = repo;
   }
 
   parseStreamMessage = parseStreamMessage;
@@ -62,7 +62,7 @@ export class StreamMessageService {
     let state = await this.repo.findActiveInterview(parsed.userId);
 
     if (!state) {
-      const templateId = await this.resolveDefaultTemplateId();
+      const templateId = await this.resolveDefaultTemplateId(prisma);
       const interviewId = await this.repo.createInterview(parsed.userId, templateId);
       state = {
         userId: parsed.userId,
@@ -110,11 +110,15 @@ export class StreamMessageService {
       }
     }
 
-    const graphResult: GraphResult = await runInterviewGraph(state, {
-      userId: parsed.userId,
-      content: parsed.content,
-      isVoice: false,
-    });
+    const graphResult: GraphResult = await runInterviewGraph(
+      state,
+      {
+        userId: parsed.userId,
+        content: parsed.content,
+        isVoice: false,
+      },
+      prisma
+    );
 
     const nextState = graphResult.nextState;
     const existingCount = state.responses.length;
@@ -143,11 +147,15 @@ export class StreamMessageService {
         );
         if (freshState) {
           freshState.pendingMessages = [{ role: 'user', content: parsed.content, isVoice: false }];
-          const retryGraphResult = await runInterviewGraph(freshState, {
-            userId: parsed.userId,
-            content: parsed.content,
-            isVoice: false,
-          });
+          const retryGraphResult = await runInterviewGraph(
+            freshState,
+            {
+              userId: parsed.userId,
+              content: parsed.content,
+              isVoice: false,
+            },
+            prisma
+          );
           const retryExistingCount = freshState.responses.length;
           const retryNewResponses = retryGraphResult.nextState.responses.slice(retryExistingCount);
           if (retryNewResponses.length > 0) {
@@ -209,8 +217,11 @@ export class StreamMessageService {
     return { success: true, response: graphResult.response };
   }
 
-  private async resolveDefaultTemplateId(): Promise<string> {
-    const repo = new TemplateRepository();
+  private async resolveDefaultTemplateId(prisma?: PrismaClient): Promise<string> {
+    if (!prisma) {
+      return 'test-template';
+    }
+    const repo = new TemplateRepository(prisma);
     const templates = await repo.findAll();
     const published = templates.find((t) => t.status === 'PUBLISHED');
     if (published) return published.id;
@@ -223,7 +234,7 @@ export { parseStreamMessage, sendReply, isAllowedWebhookUrl } from './stream-mes
 
 export async function processStreamMessage(
   message: import('./stream-message-utils.js').StreamMessage,
-  prisma?: PrismaClient
+  prisma: PrismaClient
 ): Promise<{ success: boolean; response?: string; error?: string }> {
   const repo = new InterviewStateRepository(prisma);
   const service = new StreamMessageService(repo);
