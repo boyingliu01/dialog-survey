@@ -30,8 +30,11 @@ const MAX_RETRIES = 3;
 export class InterviewStateRepository {
   private prisma: PrismaClient;
 
-  constructor(prisma?: PrismaClient) {
-    this.prisma = prisma || new PrismaClient();
+  constructor(prisma: PrismaClient) {
+    if (!prisma) {
+      throw new Error('PrismaClient is required for InterviewStateRepository');
+    }
+    this.prisma = prisma;
   }
 
   async saveState(options: SaveStateOptions, retryCount = 0): Promise<void> {

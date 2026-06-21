@@ -1,7 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { MessageRepository } from '../src/repositories/message.repository.js';
 
 const prisma = new PrismaClient();
+const repo = new MessageRepository(prisma);
 
 describe('MessageRepository', () => {
   let interviewId: string;
@@ -32,11 +34,7 @@ describe('MessageRepository', () => {
 
   afterEach(async () => {
     // Clean up any test messages after each test
-    await prisma.message.deleteMany({
-      where: {
-        interviewId,
-      },
-    });
+    await repo.deleteByInterview(interviewId);
   });
 
   afterAll(async () => {
@@ -56,12 +54,10 @@ describe('MessageRepository', () => {
      * @intent 验证创建消息的基本功能，包含必须字段
      */
     it('should create a message with required fields', async () => {
-      const message = await prisma.message.create({
-        data: {
-          interviewId,
-          role: 'user',
-          content: 'Hello, this is a test message',
-        },
+      const message = await repo.create({
+        interviewId,
+        role: 'user',
+        content: 'Hello, this is a test message',
       });
 
       expect(message).toBeDefined();
@@ -80,15 +76,13 @@ describe('MessageRepository', () => {
     it('should create a message with optional fields', async () => {
       const testMessageId = 'test-message-id-123';
 
-      const message = await prisma.message.create({
-        data: {
-          interviewId,
-          role: 'assistant',
-          content: 'This is an assistant message',
-          messageId: testMessageId,
-          isVoice: true,
-          voiceText: 'Spoken form of the message',
-        },
+      const message = await repo.create({
+        interviewId,
+        role: 'assistant',
+        content: 'This is an assistant message',
+        messageId: testMessageId,
+        isVoice: true,
+        voiceText: 'Spoken form of the message',
       });
 
       expect(message).toBeDefined();
@@ -102,12 +96,10 @@ describe('MessageRepository', () => {
      * @intent 验证创建消息时省略isVoice字段使用默认值false的功能
      */
     it('should create a message with isVoice defaulting to false', async () => {
-      const message = await prisma.message.create({
-        data: {
-          interviewId,
-          role: 'system',
-          content: 'System message',
-        },
+      const message = await repo.create({
+        interviewId,
+        role: 'system',
+        content: 'System message',
       });
 
       expect(message.isVoice).toBe(false);
@@ -121,20 +113,16 @@ describe('MessageRepository', () => {
      */
     it('should find messages by interview ID', async () => {
       // Create multiple messages for the same interview
-      const createdMessage1 = await prisma.message.create({
-        data: {
-          interviewId,
-          role: 'user',
-          content: 'First message',
-        },
+      const createdMessage1 = await repo.create({
+        interviewId,
+        role: 'user',
+        content: 'First message',
       });
 
-      const createdMessage2 = await prisma.message.create({
-        data: {
-          interviewId,
-          role: 'assistant',
-          content: 'Second message',
-        },
+      const createdMessage2 = await repo.create({
+        interviewId,
+        role: 'assistant',
+        content: 'Second message',
       });
 
       // Create another message in a different interview to validate filtering
@@ -146,18 +134,13 @@ describe('MessageRepository', () => {
         },
       });
 
-      const otherMessage = await prisma.message.create({
-        data: {
-          interviewId: otherInterview.id,
-          role: 'user',
-          content: 'Message in other interview',
-        },
+      const otherMessage = await repo.create({
+        interviewId: otherInterview.id,
+        role: 'user',
+        content: 'Message in other interview',
       });
 
-      const messages = await prisma.message.findMany({
-        where: { interviewId },
-        orderBy: { createdAt: 'asc' },
-      });
+      const messages = await repo.findByInterview(interviewId);
 
       expect(messages).toHaveLength(2);
       const messageIds = messages.map((m) => m.id);
@@ -174,9 +157,7 @@ describe('MessageRepository', () => {
      * @intent 验证查找非存在访谈的消息返回空数组
      */
     it('should return empty array for non-existent interview ID', async () => {
-      const messages = await prisma.message.findMany({
-        where: { interviewId: 'non-existent-id' },
-      });
+      const messages = await repo.findByInterview('non-existent-id');
 
       expect(messages).toHaveLength(0);
     });
@@ -188,17 +169,13 @@ describe('MessageRepository', () => {
      * @intent 验证通过ID查找存在的消息的功能
      */
     it('should find message by ID', async () => {
-      const createdMessage = await prisma.message.create({
-        data: {
-          interviewId,
-          role: 'user',
-          content: 'Specific message for ID lookup',
-        },
+      const createdMessage = await repo.create({
+        interviewId,
+        role: 'user',
+        content: 'Specific message for ID lookup',
       });
 
-      const foundMessage = await prisma.message.findUnique({
-        where: { id: createdMessage.id },
-      });
+      const foundMessage = await repo.findById(createdMessage.id);
 
       expect(foundMessage).not.toBeNull();
       if (foundMessage) {
@@ -213,9 +190,7 @@ describe('MessageRepository', () => {
      */
     it('should return null for non-existent message ID', async () => {
       const missingMessageId = 'non-existent-message-id';
-      const foundMessage = await prisma.message.findUnique({
-        where: { id: missingMessageId },
-      });
+      const foundMessage = await repo.findById(missingMessageId);
 
       expect(foundMessage).toBeNull();
     });
@@ -228,39 +203,29 @@ describe('MessageRepository', () => {
      */
     it('should delete messages for given interview ID', async () => {
       // Create multiple messages to delete
-      await prisma.message.create({
-        data: {
-          interviewId,
-          role: 'user',
-          content: 'Message to be deleted 1',
-        },
+      await repo.create({
+        interviewId,
+        role: 'user',
+        content: 'Message to be deleted 1',
       });
 
-      await prisma.message.create({
-        data: {
-          interviewId,
-          role: 'assistant',
-          content: 'Message to be deleted 2',
-        },
+      await repo.create({
+        interviewId,
+        role: 'assistant',
+        content: 'Message to be deleted 2',
       });
 
       // Verify messages exist initially
-      const initialMessages = await prisma.message.findMany({
-        where: { interviewId },
-      });
+      const initialMessages = await repo.findByInterview(interviewId);
       expect(initialMessages).toHaveLength(2);
 
       // Delete messages and check the count returned
-      const result = await prisma.message.deleteMany({
-        where: { interviewId },
-      });
+      const count = await repo.deleteByInterview(interviewId);
 
-      expect(result.count).toBe(2);
+      expect(count).toBe(2);
 
       // Verify messages were deleted
-      const remainingMessages = await prisma.message.findMany({
-        where: { interviewId },
-      });
+      const remainingMessages = await repo.findByInterview(interviewId);
       expect(remainingMessages).toHaveLength(0);
     });
 
@@ -269,11 +234,9 @@ describe('MessageRepository', () => {
      * @intent 验证删除不存在访谈的记录返回0
      */
     it('should return 0 when deleting by non-existent interview ID', async () => {
-      const result = await prisma.message.deleteMany({
-        where: { interviewId: 'non-existent-interview-id' },
-      });
+      const count = await repo.deleteByInterview('non-existent-interview-id');
 
-      expect(result.count).toBe(0);
+      expect(count).toBe(0);
     });
   });
 });

@@ -78,7 +78,7 @@ export interface AddMemberInput {
 export class InterviewPlanService extends InterviewPlanSendService {
   private dingTalkClient: DingTalkClient;
 
-  constructor(prisma?: PrismaClient, dingTalkClient?: DingTalkClient) {
+  constructor(prisma: PrismaClient, dingTalkClient?: DingTalkClient) {
     super(prisma);
     this.dingTalkClient = dingTalkClient ?? DingTalkClient.fromEnv();
   }
@@ -96,14 +96,14 @@ export class InterviewPlanService extends InterviewPlanSendService {
     if (!userId && phone) {
       // Resolve userId from phone via DingTalk API
       const normalizedPhone = normalizePhone(phone);
-      
+
       // Validate normalized phone is 11-digit Chinese mobile
       if (!/^1[3-9]\d{9}$/.test(normalizedPhone)) {
         throw new InvalidMemberInputError(
           `Invalid phone number format. After normalization, got: ${normalizedPhone}. Expected: 11-digit Chinese mobile (e.g., 13800138000)`
         );
       }
-      
+
       let lookupResult: Awaited<ReturnType<DingTalkClient['getUserIdByMobile']>>;
       try {
         lookupResult = await this.dingTalkClient.getUserIdByMobile(normalizedPhone);

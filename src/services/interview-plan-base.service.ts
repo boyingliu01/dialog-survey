@@ -53,7 +53,7 @@ export function parseInviteeText(text: string): InviteeData[] {
       // Phone format: strip +86 prefix, then check 11-digit pattern
       // First strip all non-digit characters, then handle country code
       const digits = first.replace(/\D/g, '');
-      const stripped = (digits.startsWith('86') && digits.length === 13) ? digits.slice(2) : digits;
+      const stripped = digits.startsWith('86') && digits.length === 13 ? digits.slice(2) : digits;
       const isPhone = /^1[3-9]\d{9}$/.test(stripped);
 
       if (isPhone) {
@@ -66,8 +66,11 @@ export function parseInviteeText(text: string): InviteeData[] {
 export class InterviewPlanServiceBase {
   protected prisma: PrismaClient;
 
-  constructor(prisma?: PrismaClient) {
-    this.prisma = prisma || new PrismaClient();
+  constructor(prisma: PrismaClient) {
+    if (!prisma) {
+      throw new Error('PrismaClient is required for InterviewPlanServiceBase');
+    }
+    this.prisma = prisma;
   }
 
   async createPlan(input: CreatePlanInput): Promise<string> {

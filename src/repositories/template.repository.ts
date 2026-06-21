@@ -3,8 +3,11 @@ import { PrismaClient, Template, TemplateStatus } from '@prisma/client';
 export class TemplateRepository {
   private readonly prisma: PrismaClient;
 
-  constructor(prisma?: PrismaClient) {
-    this.prisma = prisma || new PrismaClient();
+  constructor(prisma: PrismaClient) {
+    if (!prisma) {
+      throw new Error('PrismaClient is required for TemplateRepository');
+    }
+    this.prisma = prisma;
   }
 
   /** Build Prisma update data object from partial template data (DRY) */

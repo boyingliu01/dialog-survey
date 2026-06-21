@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/client';
 import { TemplateRepository } from '../../repositories/template.repository.js';
 import { generateSmartResponse } from '../../services/followup.service.js';
 import { info, warn } from '../../utils/logger.js';
@@ -113,9 +114,9 @@ function buildFallbackResponse(
 
 export async function interviewingNode(
   state: InterviewState,
-  input: { content: string }
+  input: { content: string; prisma?: PrismaClient }
 ): Promise<Partial<InterviewState> & NodeOutput> {
-  const content = await loadTemplateContent(state.templateId);
+  const content = await loadTemplateContent(state.templateId, input.prisma);
   const currentQ = state.currentQuestion;
   const currentQuestion = content.questions[currentQ] || '请根据用户的回答进行追问或总结。';
 
@@ -166,9 +167,12 @@ function containsMultipleQuestions(text: string): boolean {
   return matches ? matches.length > 1 : false;
 }
 
-async function loadTemplateContent(templateId?: string): Promise<TemplateContent> {
-  const repo = new TemplateRepository();
-  if (templateId) {
+async function loadTemplateContent(
+  templateId?: string,
+  prisma?: PrismaClient
+): Promise<TemplateContent> {
+  if (templateId && prisma) {
+    const repo = new TemplateRepository(prisma);
     const template = await repo.findById(templateId);
     if (template) return JSON.parse(template.content) as TemplateContent;
   }

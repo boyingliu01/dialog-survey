@@ -12,7 +12,8 @@ export class OpenAICompatibleLLM implements LLMService {
 
   constructor(options: LLMOptions) {
     this.apiKey = options.apiKey;
-    this.baseUrl = options.baseUrl || 'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions';
+    this.baseUrl =
+      options.baseUrl || 'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions';
     this.model = options.model || DEFAULT_MODEL;
   }
 
