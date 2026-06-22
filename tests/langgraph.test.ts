@@ -21,37 +21,13 @@ describe('LangGraph State Machine', () => {
     });
   });
 
-  describe('Domain Entities', () => {
+  describe('Domain Layer (Removed)', () => {
     /**
-     * @test REQ-003-2-01
-     * @intent 验证领域实体Interview存在
+     * @test REFACTOR-001
+     * @intent Verify DDD domain layer removed (src/domains/ does not exist)
      */
-    it('should have interview.entity.ts', () => {
-      expect(fs.existsSync('src/domains/interview/entities/interview.entity.ts')).toBe(true);
-    });
-
-    /**
-     * @test REQ-003-2-02
-     * @intent 验证领域实体Message存在
-     */
-    it('should have message.entity.ts', () => {
-      expect(fs.existsSync('src/domains/interview/entities/message.entity.ts')).toBe(true);
-    });
-
-    /**
-     * @test REQ-003-2-03
-     * @intent 验证领域实体Response存在
-     */
-    it('should have response.entity.ts', () => {
-      expect(fs.existsSync('src/domains/interview/entities/response.entity.ts')).toBe(true);
-    });
-
-    /**
-     * @test REQ-003-2-04
-     * @intent 验证InterviewDomain服务存在
-     */
-    it('should have interview.domain.ts', () => {
-      expect(fs.existsSync('src/domains/interview/services/interview.domain.ts')).toBe(true);
+    it('should have removed src/domains/ directory', () => {
+      expect(fs.existsSync('src/domains/')).toBe(false);
     });
   });
 
