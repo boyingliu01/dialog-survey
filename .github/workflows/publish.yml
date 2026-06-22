@@ -17,7 +17,7 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: dialog_survey_test
         ports:
           - 5432:5432
@@ -28,6 +28,7 @@ jobs:
           --health-retries 5
 
     steps:
+
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -43,7 +44,7 @@ jobs:
       - name: Setup database
         run: npx prisma db push
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dialog_survey_test
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Install Playwright for PDF export tests
         run: npx playwright install --with-deps chromium
@@ -51,8 +52,7 @@ jobs:
       - name: Run tests
         run: npm run test:coverage
         env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dialog_survey_test
-
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - name: Build
         run: npm run build
 
