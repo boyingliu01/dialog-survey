@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.13] - 2026-06-23
+
+### Fixed
+- **#100: DingTalk API v2 升级**: `getUserIdByMobile()` 从已废弃的 `/contact/user/get_by_mobile` (GET) 迁移到 `/contact/v2/user/getbymobile` (POST with body)
+- **#101: 管理后台 plan-detail 缺少 auth headers**: 删除计划、添加成员、提醒成员请求新增 `Content-Type: application/json` 和 `X-Admin-Key` header 发送，修复 Windows 部署后的 401 错误
+- **#102: 管理后台 plan-detail UI 修复**: 取消添加成员时清除表单字段；删除计划成功后通过 htmx.ajax 刷新而非替换为响应 HTML
+- **#103: updatePlan() 不传 DingTalkClient**: `InterviewPlanService.updatePlan()` 重载基类方法，自动注入 `this.dingTalkClient`；`importInvitees()` 增加 `DingTalkClient.fromEnv()` 回退
+
 ## [1.6.12] - 2026-06-23
 
 ### Fixed

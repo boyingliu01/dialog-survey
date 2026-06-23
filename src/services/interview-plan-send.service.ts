@@ -1,5 +1,5 @@
 import { PlanStatus, Prisma, SendStatus } from '@prisma/client';
-import type { DingTalkClient } from '../integrations/dingtalk/client.js';
+import { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import { error, info, warn } from '../utils/logger.js';
 import { InterviewPlanServiceBase } from './interview-plan-base.service.js';
@@ -29,13 +29,19 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
     const resolvedInvitees: InviteeData[] = [];
     for (const inv of invitees) {
       if (inv.phone && !inv.userId) {
-        if (!dingtalkClient) {
-          result.failed++;
-          result.errors.push(`Phone ${inv.phone} requires DingTalk client for resolution`);
-          continue;
+        let client = dingtalkClient;
+        if (!client) {
+          // Fallback: create DingTalkClient from env when not injected
+          try {
+            client = DingTalkClient.fromEnv();
+          } catch {
+            result.failed++;
+            result.errors.push(`Phone ${inv.phone} requires DingTalk client for resolution`);
+            continue;
+          }
         }
         try {
-          const lookup = await dingtalkClient.getUserIdByMobile(inv.phone);
+          const lookup = await client.getUserIdByMobile(inv.phone);
           if (!lookup.found) {
             result.failed++;
             result.errors.push(`Phone ${inv.phone} not found in DingTalk`);

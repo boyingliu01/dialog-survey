@@ -309,4 +309,18 @@ export class InterviewPlanService extends InterviewPlanSendService {
     info('Reminders sent', { planId, reminded, failed });
     return { reminded, failed };
   }
+
+  async updatePlan(
+    planId: string,
+    input: {
+      name?: string;
+      description?: string;
+      targetDate?: string;
+      schedule?: string;
+      invitees?: string;
+    },
+    dingtalkClient?: DingTalkClient
+  ): Promise<void> {
+    return super.updatePlan(planId, input, dingtalkClient ?? this.dingTalkClient);
+  }
 }

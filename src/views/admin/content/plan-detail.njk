@@ -11,11 +11,16 @@
     const adminKey = document.getElementById('admin-api-key')?.dataset.key || '';
     fetch('/admin/api/plans/' + planId + '?force=true', {
       method: 'DELETE',
-      headers: { 'X-Admin-Key': adminKey, 'HX-Request': 'true' },
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Key': adminKey, 'HX-Request': 'true' },
     })
-    .then(r => r.text())
-    .then(html => {
-      document.getElementById('main-content').innerHTML = html;
+    .then(r => {
+      if (!r.ok) {
+        return r.text().then(msg => { throw new Error(msg || 'Delete failed'); });
+      }
+      return r.text();
+    })
+    .then(() => {
+      htmx.ajax('GET', '/admin/content/plans/' + planId, '#main-content');
       this.showDeleteDialog = false;
       this.deleteStep = 1;
       this.deleteConfirmText = '';
@@ -223,7 +228,7 @@
         hx-post="/api/plans/{{ plan.id }}/remind"
         hx-swap="none"
         hx-confirm="确认向所有未完成成员发送提醒？"
-        hx-headers='{"Content-Type": "application/json"}'
+        hx-headers='{"Content-Type": "application/json", "X-Admin-Key": "{{ adminApiKey | default('') }}"}'
         hx-vals='{}'
         hx-on::after-request="if(event.detail.successful){htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content')}"
         class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700"
@@ -270,7 +275,7 @@
           htmx.ajax('POST', '/api/plans/{{ plan.id }}/members', {
             swap: 'none',
             values: values,
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '{{ adminApiKey | default('') }}' }
           }).then(function(xhr) {
             if (xhr.xhr && xhr.xhr.status >= 200 && xhr.xhr.status < 300) {
               htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', '#main-content');
@@ -286,6 +291,8 @@
         @click="showAdd = false; newUserId = ''; newPhone = ''; newName = ''"
         class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
       >取消</button>
+    </div>
+    <div x-show="showAdd" @click.away="showAdd = false; newUserId = ''; newPhone = ''; newName = ''" x-cloak>
     </div>
     <table class="w-full">
       <thead><tr class="border-b">
@@ -330,16 +337,14 @@
             {% if interview.status != 'COMPLETED' and interview.status != 'CANCELLED' and (interview.sendStatus == 'SENT' or interview.sendStatus == 'DELIVERED') %}
             <button
               type="button"
-              onclick="htmx.ajax('POST', '/api/plans/{{ plan.id }}/remind', { swap: 'none', values: { interviewId: '{{ interview.id }}' }, headers: { 'Content-Type': 'application/json' } }).then(function(xhr){ if(xhr.xhr && xhr.xhr.status>=200 && xhr.xhr.status<300){ htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content'); } else { alert('提醒发送失败'); } })"
+              onclick="htmx.ajax('POST', '/api/plans/{{ plan.id }}/remind', { swap: 'none', values: { interviewId: '{{ interview.id }}' }, headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '{{ adminApiKey | default('') }}' } }).then(function(xhr){ if(xhr.xhr && xhr.xhr.status>=200 && xhr.xhr.status<300){ htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content'); } else { alert('提醒发送失败'); } })"
               class="text-xs text-amber-600 hover:underline"
             >提醒</button>
             {% endif %}
             {% if interview.status != 'COMPLETED' %}
             <button
-              hx-delete="/api/plans/{{ plan.id }}/members/{{ interview.id }}"
-              hx-swap="none"
-              hx-confirm="确认删除成员 {{ interview.userId }}？"
-              hx-on::after-request="if(event.detail.successful){htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content')}"
+              type="button"
+              onclick="if(confirm('确认删除成员 {{ interview.userId }}？')){ htmx.ajax('DELETE', '/api/plans/{{ plan.id }}/members/{{ interview.id }}', { swap: 'none', headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '{{ adminApiKey | default('') }}' } }).then(function(xhr){ if(xhr.xhr && xhr.xhr.status>=200 && xhr.xhr.status<300){ htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content'); } else { alert('删除失败'); } }) }"
               class="text-xs text-red-600 hover:underline"
             >删除</button>
             {% endif %}
