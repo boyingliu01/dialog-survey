@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.10] - 2026-06-22
+
+### Maintenance
+- **删除 ESLint/Prettier 冗余依赖**: 移除 7 个已由 Biome 覆盖的 devDependencies (eslint, prettier, eslint-config-prettier, eslint-plugin-prettier, @typescript-eslint/eslint-plugin, @typescript-eslint/parser, eslint-plugin-unused-imports) — 删除 `.eslintrc.json`
+- **修复 `.env.example` 文档**: 去重 3 处重复变量，新增 `LLM_BASE_URL`/`FUN_ASR_API_KEY`/`REPORTS_DIR`，删除 4 个废弃变量 (`PUBLIC_URL`/`OAUTH_APP_KEY`/`OAUTH_APP_SECRET`/`API_KEY`)
+- **修复 HTMX shell URL 违规**: `template-new.njk` 的 `hx-get="/admin"` 改为 `/admin/content/dashboard`
+- **删除未使用的 DDD 层**: 移除 `src/domains/` 下 4 个文件 (interview.entity.ts, message.entity.ts, response.entity.ts, interview.domain.ts) — 项目已迁移至 Repository 模式
+- **CI 安全加固**: `publish.yml` 硬编码密码替换为 GitHub Secrets (`${{ secrets.POSTGRES_PASSWORD }}`, `${{ secrets.DATABASE_URL }}`)
+- **AGENTS.md 更新**: 删除已移除的 `src/domains/index.ts` 引用，同步测试统计至 887 tests / 76 files
+
+### Quality
+- 887 tests pass (76 test files), Biome lint clean, `tsc --noEmit` clean
+- 版本: 1.6.10
+
 ## [1.6.8] - 2026-06-18
 
 ### Added
