@@ -12,7 +12,7 @@ export class ExportService {
     private prisma: PrismaClient,
     reportsDir?: string
   ) {
-    this.reportsDir = reportsDir ?? process.env.REPORTS_DIR ?? './reports';
+    this.reportsDir = reportsDir ?? process.env['REPORTS_DIR'] ?? './reports';
     mkdirSync(this.reportsDir, { recursive: true });
   }
 
@@ -42,7 +42,7 @@ export class ExportService {
     });
 
     const html = this.renderPdfHtml(interview, report);
-    const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH || undefined;
+    const executablePath = process.env['PLAYWRIGHT_EXECUTABLE_PATH'] || undefined;
     let launchOpts: Record<string, unknown> = {};
     if (executablePath) {
       launchOpts = { executablePath };

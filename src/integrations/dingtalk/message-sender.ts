@@ -61,7 +61,7 @@ export class DingTalkMessageSender {
     userIds: string[],
     msg: Record<string, unknown>
   ): Promise<Partial<SendResult>> {
-    const agentId = process.env.DINGTALK_AGENT_ID;
+    const agentId = process.env['DINGTALK_AGENT_ID'];
     if (!agentId) {
       return {
         taskId: '',

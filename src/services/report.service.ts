@@ -150,7 +150,7 @@ function createFallbackReport(
 }
 
 async function saveReport(report: Report): Promise<string> {
-  const reportsDir = process.env.REPORTS_DIR || './reports';
+  const reportsDir = process.env['REPORTS_DIR'] || './reports';
   const filename = `${report.interviewId}_${Date.now()}.md`;
   const filepath = path.join(reportsDir, filename);
 
@@ -227,11 +227,11 @@ function parseDimensionAnalysis(
       return { dimensionTags: [], emergentTags: [] };
     }
     const jsonStr = jsonRaw as Record<string, unknown>;
+    const rating = typeof jsonStr['interviewerRating'] === 'number' ? jsonStr['interviewerRating'] : undefined;
     return {
-      dimensionTags: Array.isArray(jsonStr.dimensionTags) ? jsonStr.dimensionTags : [],
-      emergentTags: Array.isArray(jsonStr.emergentTags) ? jsonStr.emergentTags : [],
-      interviewerRating:
-        typeof jsonStr.interviewerRating === 'number' ? jsonStr.interviewerRating : undefined,
+      dimensionTags: Array.isArray(jsonStr['dimensionTags']) ? jsonStr['dimensionTags'] : [],
+      emergentTags: Array.isArray(jsonStr['emergentTags']) ? jsonStr['emergentTags'] : [],
+      ...(rating != null ? { interviewerRating: rating } : {}),
     };
   } catch {
     return { dimensionTags: [], emergentTags: [] };

@@ -40,7 +40,7 @@ export class TemplateRepository {
     return this.prisma.template.create({
       data: {
         name: data.name,
-        description: data.description,
+        ...(data.description != null ? { description: data.description } : {}),
         content: JSON.stringify(data.content),
         version: 1,
         status: TemplateStatus.DRAFT,
