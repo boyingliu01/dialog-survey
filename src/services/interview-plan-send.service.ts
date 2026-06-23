@@ -160,7 +160,7 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
       updatedBy: 'admin',
     };
     if (planSendStatus !== undefined) {
-      planUpdateData.sendStatus = planSendStatus;
+      planUpdateData['sendStatus'] = planSendStatus;
     }
 
     await this.prisma.interviewPlan.update({
@@ -268,7 +268,7 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
   async updatePlanStatus(planId: string, status: PlanStatus): Promise<void> {
     const updateData: Record<string, unknown> = { status, updatedBy: 'admin' };
     if (status === PlanStatus.COMPLETED) {
-      updateData.completedAt = new Date();
+      updateData['completedAt'] = new Date();
     }
 
     await this.prisma.interviewPlan.update({
@@ -298,10 +298,10 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
   }> {
     const planId = await this.createPlan({
       name: input.name,
-      description: input.description,
+      ...(input.description != null ? { description: input.description } : {}),
       templateId: input.templateId,
-      targetDate: input.targetDate ? new Date(input.targetDate) : undefined,
-      schedule: input.schedule,
+      ...(input.targetDate != null ? { targetDate: new Date(input.targetDate) } : {}),
+      ...(input.schedule != null ? { schedule: input.schedule } : {}),
     });
 
     const invitees = parseInviteeText(input.invitees);

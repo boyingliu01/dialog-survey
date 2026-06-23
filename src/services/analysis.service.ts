@@ -88,10 +88,12 @@ export class AnalysisService {
         const { OpenAICompatibleLLM } = await import('../integrations/llm/openai-compatible.js');
         const llm = OpenAICompatibleLLM.fromEnv();
         dimResult = await generateReportWithDimensions(interviewId, topic, qaPairs, dimsJson, llm);
-        dimResult.dimensionTags = dimResult.dimensionTags?.map((tag) => ({
-          ...tag,
-          quotes: tag.quotes.map((q: string) => anonymizePII(q)),
-        }));
+        if (dimResult.dimensionTags) {
+          dimResult.dimensionTags = dimResult.dimensionTags.map((tag) => ({
+            ...tag,
+            quotes: tag.quotes.map((q: string) => anonymizePII(q)),
+          }));
+        }
       }
     } catch (e) {
       error('Dimension analysis failed', {
@@ -113,9 +115,11 @@ export class AnalysisService {
         keyFindings: report.keyFindings,
         sentiment: report.sentiment,
         recommendations: report.recommendations,
-        dimensionTags: dimResult.dimensionTags?.length ? dimResult.dimensionTags : undefined,
-        emergentTags: dimResult.emergentTags?.length ? dimResult.emergentTags : undefined,
-        interviewerRating: dimResult.interviewerRating ?? undefined,
+        ...(dimResult.dimensionTags?.length ? { dimensionTags: dimResult.dimensionTags } : {}),
+        ...(dimResult.emergentTags?.length ? { emergentTags: dimResult.emergentTags } : {}),
+        ...(dimResult.interviewerRating != null
+          ? { interviewerRating: dimResult.interviewerRating }
+          : {}),
       },
     });
 

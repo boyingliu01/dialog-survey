@@ -45,13 +45,16 @@ export class DingTalkClient {
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const url = this.buildUrl(path, options.query);
-    const response = await fetch(url, {
+    const init: Record<string, unknown> = {
       method: options.method || 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
+    };
+    if (options.body) {
+      init['body'] = JSON.stringify(options.body);
+    }
+    const response = await fetch(url, init as RequestInit);
 
     if (!response.ok) {
       throw new Error(`DingTalk API error: ${response.status}`);
@@ -131,10 +134,11 @@ export class DingTalkClient {
   }
 
   static fromEnv() {
+    const agentId: string | undefined = process.env['DINGTALK_AGENT_ID'];
     return new DingTalkClient({
-      appKey: process.env.DINGTALK_APP_KEY || '',
-      appSecret: process.env.DINGTALK_APP_SECRET || '',
-      agentId: process.env.DINGTALK_AGENT_ID,
+      appKey: process.env['DINGTALK_APP_KEY'] || '',
+      appSecret: process.env['DINGTALK_APP_SECRET'] || '',
+      ...(agentId != null ? { agentId } : {}),
     });
   }
 }

@@ -8,7 +8,7 @@ export async function adminAuth(request: FastifyRequest, reply: FastifyReply): P
     return;
   }
 
-  const adminApiKey = process.env.ADMIN_API_KEY;
+  const adminApiKey = process.env['ADMIN_API_KEY'];
   const providedKey = request.headers['x-admin-key'];
 
   if (!adminApiKey) {

@@ -77,10 +77,10 @@ export class InterviewPlanServiceBase {
     const plan = await this.prisma.interviewPlan.create({
       data: {
         name: input.name,
-        description: input.description,
+        ...(input.description != null ? { description: input.description } : {}),
         templateId: input.templateId,
-        targetDate: input.targetDate,
-        schedule: input.schedule,
+        ...(input.targetDate != null ? { targetDate: input.targetDate } : {}),
+        ...(input.schedule != null ? { schedule: input.schedule } : {}),
         status: PlanStatus.PENDING,
         createdBy: 'admin',
         updatedBy: 'admin',
@@ -140,11 +140,11 @@ export class InterviewPlanServiceBase {
     dingtalkClient?: DingTalkClient
   ): Promise<void> {
     const updateData: Record<string, unknown> = { updatedBy: 'admin' };
-    if (input.name !== undefined) updateData.name = input.name;
-    if (input.description !== undefined) updateData.description = input.description;
+    if (input.name !== undefined) updateData['name'] = input.name;
+    if (input.description !== undefined) updateData['description'] = input.description;
     if (input.targetDate !== undefined)
-      updateData.targetDate = input.targetDate ? new Date(input.targetDate) : null;
-    if (input.schedule !== undefined) updateData.schedule = input.schedule;
+      updateData['targetDate'] = input.targetDate ? new Date(input.targetDate) : null;
+    if (input.schedule !== undefined) updateData['schedule'] = input.schedule;
 
     if (input.invitees !== undefined) {
       const rawInvitees = parseInviteeText(input.invitees);
@@ -212,7 +212,7 @@ export class InterviewPlanServiceBase {
         });
       }
 
-      updateData.inviteeData = newInvitees as unknown as Prisma.InputJsonValue;
+      updateData['inviteeData'] = newInvitees as unknown as Prisma.InputJsonValue;
     }
 
     await this.prisma.interviewPlan.update({

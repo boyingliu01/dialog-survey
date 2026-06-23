@@ -320,7 +320,7 @@ export class AnalyticsService {
       const statusDistribution = this.computeStatusDistribution(plan.interviews);
       const averageDurationMinutes = this.computeAverageDuration(plan.interviews);
       const totalInterviews = plan.interviews.length;
-      const completedCount = statusDistribution.COMPLETED ?? 0;
+      const completedCount = statusDistribution['COMPLETED'] ?? 0;
       const completionRate = this.computeCompletionRate(totalInterviews, completedCount);
 
       return {

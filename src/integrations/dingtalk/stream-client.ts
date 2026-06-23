@@ -72,11 +72,15 @@ export class DingTalkStreamClient {
    * Create client from environment variables
    */
   static fromEnv(): DingTalkStreamClient {
-    const clientId = process.env.DINGTALK_CLIENT_ID || '';
-    const clientSecret = process.env.DINGTALK_CLIENT_SECRET || '';
-    const agentId = process.env.DINGTALK_AGENT_ID;
+    const clientId = process.env['DINGTALK_CLIENT_ID'] || '';
+    const clientSecret = process.env['DINGTALK_CLIENT_SECRET'] || '';
+    const agentId: string | undefined = process.env['DINGTALK_AGENT_ID'];
 
-    return new DingTalkStreamClient({ clientId, clientSecret, agentId });
+    return new DingTalkStreamClient({
+      clientId,
+      clientSecret,
+      ...(agentId != null ? { agentId } : {}),
+    });
   }
 
   /**

@@ -60,36 +60,36 @@ function extractFlatFormQuestions(body: Record<string, unknown>): string[] {
 
 function buildDefaultContent(body: Record<string, unknown>): Record<string, unknown> {
   const content: Record<string, unknown> = {
-    invitationPrompt: String(body.invitationPrompt || ''),
+    invitationPrompt: String(body['invitationPrompt'] || ''),
     questions: [],
   };
 
-  if (body.closingMessage) content.closingMessage = body.closingMessage;
-  if (body.llmPromptTemplate) content.llmPromptTemplate = body.llmPromptTemplate;
+  if (body['closingMessage']) content['closingMessage'] = body['closingMessage'];
+  if (body['llmPromptTemplate']) content['llmPromptTemplate'] = body['llmPromptTemplate'];
 
-  const questionsObj = body.questions as Record<string, { text: string }> | undefined;
+  const questionsObj = body['questions'] as Record<string, { text: string }> | undefined;
   if (questionsObj && typeof questionsObj === 'object') {
-    content.questions = extractStructuredQuestions(questionsObj);
+    content['questions'] = extractStructuredQuestions(questionsObj);
   } else {
-    content.questions = extractFlatFormQuestions(body);
+    content['questions'] = extractFlatFormQuestions(body);
   }
 
   return content;
 }
 
 function buildContentFromForm(body: Record<string, unknown>): Record<string, unknown> {
-  if (body.content && typeof body.content === 'object' && !Array.isArray(body.content)) {
-    return body.content as Record<string, unknown>;
+  if (body['content'] && typeof body['content'] === 'object' && !Array.isArray(body['content'])) {
+    return body['content'] as Record<string, unknown>;
   }
   return buildDefaultContent(body);
 }
 
 function validateTemplateContent(content: Record<string, unknown>): string | null {
-  const questions = content.questions as string[] | undefined;
+  const questions = content['questions'] as string[] | undefined;
   if (!questions || questions.length === 0) {
     return '请至少添加一个问题';
   }
-  const invitationPrompt = content.invitationPrompt as string | undefined;
+  const invitationPrompt = content['invitationPrompt'] as string | undefined;
   if (!invitationPrompt || !invitationPrompt.trim()) {
     return '请填写邀约提示词';
   }
@@ -118,8 +118,8 @@ function buildInviteeNameMap(inviteeData: unknown): Record<string, string> {
   for (const entry of inviteeData) {
     if (entry && typeof entry === 'object') {
       const obj = entry as Record<string, unknown>;
-      const userId = typeof obj.userId === 'string' ? obj.userId : undefined;
-      const name = typeof obj.name === 'string' ? obj.name : undefined;
+      const userId = typeof obj['userId'] === 'string' ? obj['userId'] : undefined;
+      const name = typeof obj['name'] === 'string' ? obj['name'] : undefined;
       if (userId && name) {
         map[userId] = name;
       }
@@ -128,7 +128,7 @@ function buildInviteeNameMap(inviteeData: unknown): Record<string, string> {
   return map;
 }
 
-const getAdminApiKey = () => process.env.ADMIN_API_KEY || '';
+const getAdminApiKey = () => process.env['ADMIN_API_KEY'] || '';
 
 export async function adminTemplatesRoutes(
   fastify: FastifyInstance,
@@ -253,7 +253,7 @@ export async function adminTemplatesRoutes(
       } catch {
         parsedContent = {};
       }
-      const questions = (parsedContent.questions as string[]) || [];
+      const questions = (parsedContent['questions'] as string[]) || [];
       const tpl = {
         ...template,
         _planCount: template._count.interviewPlans,
@@ -263,8 +263,8 @@ export async function adminTemplatesRoutes(
         adminApiKey: getAdminApiKey(),
         template: tpl,
         questions,
-        invitationPrompt: parsedContent.invitationPrompt as string | undefined,
-        closingMessage: parsedContent.closingMessage as string | undefined,
+        invitationPrompt: parsedContent['invitationPrompt'] as string | undefined,
+        closingMessage: parsedContent['closingMessage'] as string | undefined,
       });
     }
   );
@@ -426,7 +426,7 @@ export async function adminTemplatesRoutes(
         } catch {
           parsedContent = {};
         }
-        const questions = (parsedContent.questions as string[]) || [];
+        const questions = (parsedContent['questions'] as string[]) || [];
         return reply.view('admin/content/template-edit.njk', {
           adminApiKey: getAdminApiKey(),
           isEdit: true,
@@ -476,13 +476,13 @@ export async function adminTemplatesRoutes(
         const validationError = validateTemplateContent(content);
         if (validationError) return reply.status(422).send(htmlError(validationError));
         const input = createTemplateSchema.parse({
-          name: rawBody.name,
-          description: rawBody.description,
+          name: rawBody['name'],
+          description: rawBody['description'],
           content,
         });
         await templateRepo.create({
           name: input.name,
-          description: input.description,
+          ...(input.description != null ? { description: input.description } : {}),
           content: input.content as Record<string, unknown>,
         });
         info('Admin template created', { name: input.name });
@@ -505,7 +505,7 @@ export async function adminTemplatesRoutes(
       try {
         const qp = request.query as Record<string, string | undefined>;
         const body = request.body as Record<string, unknown>;
-        const versionRaw = (qp.version ?? body.version) as string | number | undefined;
+        const versionRaw = (qp['version'] ?? body['version']) as string | number | undefined;
         const versionParsed = versionSchema.safeParse({ version: versionRaw });
         if (!versionParsed.success)
           return reply.status(422).send(htmlError('Version number is required'));
@@ -513,13 +513,13 @@ export async function adminTemplatesRoutes(
         const validationError = validateTemplateContent(content);
         if (validationError) return reply.status(422).send(htmlError(validationError));
         const input = updateTemplateSchema.parse({
-          name: body.name,
-          description: body.description,
+          name: body['name'],
+          description: body['description'],
           content,
         });
         await templateRepo.updateWithVersion(id, versionParsed.data.version, {
           name: input.name,
-          description: input.description,
+          ...(input.description != null ? { description: input.description } : {}),
           content: input.content as Record<string, unknown>,
         });
         info('Admin template updated', { templateId: id });
@@ -639,7 +639,7 @@ export async function adminTemplatesRoutes(
     { preHandler: adminAuth },
     async (_r: FastifyRequest, reply: FastifyReply) => {
       try {
-        const qp = (_r.query as Record<string, string | undefined>).page;
+        const qp = (_r.query as Record<string, string | undefined>)['page'];
         const page = qp ? Math.max(1, Number.parseInt(qp, 10)) : 1;
         const result = await templateRepo.findAllPaginated(page, 20);
         const rows = result.items

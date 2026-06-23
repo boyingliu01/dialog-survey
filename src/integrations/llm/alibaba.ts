@@ -69,7 +69,7 @@ export class AlibabaLLM implements LLMService {
 
   static fromEnv(): AlibabaLLM {
     return new AlibabaLLM({
-      apiKey: process.env.DASHSCOPE_API_KEY || '',
+      apiKey: process.env['DASHSCOPE_API_KEY'] || '',
       model: 'qwen-turbo',
     });
   }

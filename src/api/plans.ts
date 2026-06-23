@@ -86,10 +86,10 @@ export async function interviewPlanRoutes(
     // Always create the plan first
     const planId = await planService.createPlan({
       name: input.name,
-      description: input.description,
+      ...(input.description != null ? { description: input.description } : {}),
       templateId: input.templateId,
-      targetDate: input.targetDate ? new Date(input.targetDate) : undefined,
-      schedule: input.schedule,
+      ...(input.targetDate != null ? { targetDate: new Date(input.targetDate) } : {}),
+      ...(input.schedule != null ? { schedule: input.schedule } : {}),
     });
 
     if (input.invitees) {
@@ -122,7 +122,11 @@ export async function interviewPlanRoutes(
       limit?: number;
       offset?: number;
     };
-    return planService.listPlans({ status, limit, offset });
+    return planService.listPlans({
+      ...(status != null ? { status } : {}),
+      ...(limit != null ? { limit } : {}),
+      ...(offset != null ? { offset } : {}),
+    });
   });
 
   fastify.get('/api/plans/:id', async (request, reply) => {
@@ -139,10 +143,10 @@ export async function interviewPlanRoutes(
     const input = createPlanSchema.parse(request.body);
     await planService.updatePlan(id, {
       name: input.name,
-      description: input.description,
-      targetDate: input.targetDate,
-      schedule: input.schedule,
-      invitees: input.invitees,
+      ...(input.description != null ? { description: input.description } : {}),
+      ...(input.targetDate != null ? { targetDate: input.targetDate } : {}),
+      ...(input.schedule != null ? { schedule: input.schedule } : {}),
+      ...(input.invitees != null ? { invitees: input.invitees } : {}),
     });
     return { id };
   });
@@ -189,9 +193,9 @@ export async function interviewPlanRoutes(
     const input = addMemberSchema.parse(request.body);
     try {
       const result = await planService.addMember(id, {
-        userId: input.userId,
-        phone: input.phone,
-        name: input.name,
+        ...(input.userId != null ? { userId: input.userId } : {}),
+        ...(input.phone != null ? { phone: input.phone } : {}),
+        ...(input.name != null ? { name: input.name } : {}),
       });
       return result;
     } catch (e) {

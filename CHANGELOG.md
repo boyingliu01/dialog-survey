@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.11] - 2026-06-23
+
+### Added
+- **Repository 集成测试**: 新增 `tests/interview-repository.test.ts` (8 测试)，覆盖 InterviewRepository 全部 4 个方法 (countByStatusForTemplate, findByPlanId, findByIdForReport, findByIdForReportPage)
+- **安全加固**: 安装 `@fastify/rate-limit` v11.0.0 (100 req/min，测试环境跳过) + CSP 响应头 (script-src/style-src/img-src/font-src/connect-src)
+- **Core 测试深度**: 新增 14 个测试用例覆盖 interviewingNode (handleSmartResult 4 分支，错误 fallback，闭场消息)、graph (PENDING/CANCELLED 路由，空内容) 和 analyzingNode (状态字段保留)
+
+### Changed
+- **TypeScript strict 增强**: 启用 `exactOptionalPropertyTypes` + `noPropertyAccessFromIndexSignature` (修复 119 处类型错误：95 处 bracket notation + 24 处 spread 守卫)
+
 ## [1.6.10] - 2026-06-22
 
 ### Maintenance
