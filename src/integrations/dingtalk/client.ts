@@ -105,10 +105,11 @@ export class DingTalkClient {
 
   async getUserIdByMobile(mobile: string): Promise<DingTalkUserLookupResult> {
     const accessToken = await this.getAccessToken();
-    const response = await this.request<GetUserByMobileResponse>('/contact/user/get_by_mobile', {
+    const response = await this.request<GetUserByMobileResponse>('/contact/v2/user/getbymobile', {
+      method: 'POST',
+      body: { mobile },
       query: {
         access_token: accessToken,
-        mobile,
       },
     });
 
@@ -118,7 +119,7 @@ export class DingTalkClient {
 
     if (response.errcode !== 0) {
       throw new Error(
-        `DingTalk get_by_mobile failed: ${response.errmsg} (errcode: ${response.errcode})`
+        `DingTalk getbymobile failed: ${response.errmsg} (errcode: ${response.errcode})`
       );
     }
 
