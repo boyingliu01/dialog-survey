@@ -9,7 +9,7 @@ interface ASRResult {
 }
 
 export async function transcribeAudio(audioUrl: string): Promise<ASRResult> {
-  const apiKey = process.env.FUN_ASR_API_KEY;
+  const apiKey = process.env['FUN_ASR_API_KEY'];
 
   if (!apiKey || apiKey === 'your-fun-asr-api-key') {
     return { text: '', success: false, error: 'API key not configured' };
@@ -50,6 +50,6 @@ export async function transcribeAudio(audioUrl: string): Promise<ASRResult> {
 }
 
 export function isASRConfigured(): boolean {
-  const apiKey = process.env.FUN_ASR_API_KEY;
+  const apiKey = process.env['FUN_ASR_API_KEY'];
   return !!apiKey && apiKey !== 'your-fun-asr-api-key';
 }

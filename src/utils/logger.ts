@@ -1,12 +1,12 @@
 import pino from 'pino';
 
-const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-  transport:
-    process.env.NODE_ENV === 'development'
-      ? { target: 'pino-pretty', options: { colorize: true } }
-      : undefined,
-});
+const loggerConfig: Record<string, unknown> = {
+  level: process.env['LOG_LEVEL'] || 'info',
+};
+if (process.env['NODE_ENV'] === 'development') {
+  loggerConfig['transport'] = { target: 'pino-pretty', options: { colorize: true } };
+}
+const logger = pino(loggerConfig);
 
 export function info(message: string, meta?: Record<string, unknown>) {
   logger.info(meta, message);

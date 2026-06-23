@@ -188,4 +188,90 @@ describe('runInterviewGraph', () => {
     expect(completedNode).not.toHaveBeenCalled();
     expect(result.nextState.status).toBe('WAITING');
   });
+
+  /**
+   * @test REQ-003-8-03
+   * @intent 验证空content输入时不调用interviewingNode且无error
+   */
+  it('should skip interviewing node when content is empty', async () => {
+    const { interviewingNode } = await import('../src/core/nodes/interviewing.js');
+    const { analyzingNode } = await import('../src/core/nodes/analyzing.js');
+
+    const result = await runInterviewGraph(initialState, {
+      userId: 'user-123',
+      content: '',
+      isVoice: false,
+    });
+
+    expect(interviewingNode).not.toHaveBeenCalled();
+    expect(analyzingNode).not.toHaveBeenCalled();
+    expect(result.response).toBe('开场问题');
+  });
+
+  /**
+   * @test REQ-003-8-03
+   * @intent 验证PENDING状态有content时先调用planningNode再调用interviewingNode
+   */
+  it('should run planning then interviewing when PENDING with content', async () => {
+    const { planningNode } = await import('../src/core/nodes/planning.js');
+    const { interviewingNode } = await import('../src/core/nodes/interviewing.js');
+
+    const result = await runInterviewGraph(initialState, {
+      userId: 'user-123',
+      content: '我的回答',
+      isVoice: false,
+    });
+
+    expect(planningNode).toHaveBeenCalled();
+    expect(interviewingNode).toHaveBeenCalled();
+    expect(result.nextState.currentQuestion).toBe(1);
+  });
+
+  /**
+   * @test REQ-003-8-03
+   * @intent 验证PENDING状态无content时只调用planningNode
+   */
+  it('should only run planning node when PENDING with no content', async () => {
+    const { planningNode } = await import('../src/core/nodes/planning.js');
+    const { interviewingNode } = await import('../src/core/nodes/interviewing.js');
+
+    const result = await runInterviewGraph(initialState, {
+      userId: 'user-123',
+      content: '',
+      isVoice: false,
+    });
+
+    expect(planningNode).toHaveBeenCalled();
+    expect(interviewingNode).not.toHaveBeenCalled();
+    expect(result.nextState.status).toBe('PENDING');
+  });
+
+  /**
+   * @test REQ-003-8-03
+   * @intent 验证CANCELLED状态跳过planning但interviewing仍处理content（因为graph检查content而非status）
+   */
+  it('should skip planning but process content for CANCELLED status', async () => {
+    const { planningNode } = await import('../src/core/nodes/planning.js');
+    const { interviewingNode } = await import('../src/core/nodes/interviewing.js');
+    const { analyzingNode } = await import('../src/core/nodes/analyzing.js');
+    const { completedNode } = await import('../src/core/nodes/completed.js');
+
+    const cancelledState: InterviewState = {
+      ...initialState,
+      status: 'CANCELLED',
+    };
+
+    const result = await runInterviewGraph(cancelledState, {
+      userId: 'user-123',
+      content: '不应该被处理',
+      isVoice: false,
+    });
+
+    expect(planningNode).not.toHaveBeenCalled();
+    expect(interviewingNode).toHaveBeenCalled();
+    // interviewing node mocked to return shouldContinue: true, so analyzing/complete don't run
+    expect(analyzingNode).not.toHaveBeenCalled();
+    expect(completedNode).not.toHaveBeenCalled();
+    expect(result.nextState.status).toBe('CANCELLED');
+  });
 });

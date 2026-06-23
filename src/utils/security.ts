@@ -44,7 +44,7 @@ export function createVerifyApiKey(prisma: PrismaClient) {
     const adminKey = request.headers['x-admin-key'] as string | undefined;
 
     // Allow admin UI requests authenticated via X-Admin-Key header
-    const expectedAdminKey = process.env.ADMIN_API_KEY;
+    const expectedAdminKey = process.env['ADMIN_API_KEY'];
     if (adminKey && expectedAdminKey && adminKey === expectedAdminKey) {
       request.user = { userId: 'admin', role: 'admin' };
       return;
@@ -87,14 +87,15 @@ export async function logSecurityEvent(
     ipAddress?: string;
   }
 ) {
+  const detailsStr = params.details ? JSON.stringify(params.details) : undefined;
   await prisma.auditLog.create({
     data: {
       action: params.action,
       entityType: params.entityType,
-      entityId: params.entityId,
-      userId: params.userId,
-      details: params.details ? JSON.stringify(params.details) : undefined,
-      ipAddress: params.ipAddress,
+      ...(params.entityId != null ? { entityId: params.entityId } : {}),
+      ...(params.userId != null ? { userId: params.userId } : {}),
+      ...(detailsStr != null ? { details: detailsStr } : {}),
+      ...(params.ipAddress != null ? { ipAddress: params.ipAddress } : {}),
     },
   });
 }

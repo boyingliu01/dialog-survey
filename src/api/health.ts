@@ -45,16 +45,16 @@ async function checkLLM(): Promise<{
   }
 
   try {
-    const apiKey = process.env.LLM_API_KEY || process.env.VOLCENGINE_API_KEY;
+    const apiKey = process.env['LLM_API_KEY'] || process.env['VOLCENGINE_API_KEY'];
     if (!apiKey) {
       return { status: 'degraded', error: 'API key not configured' };
     }
 
     const baseUrl =
-      process.env.LLM_BASE_URL ||
-      process.env.VOLCENGINE_BASE_URL ||
+      process.env['LLM_BASE_URL'] ||
+      process.env['VOLCENGINE_BASE_URL'] ||
       'https://ark.cn-beijing.volces.com/api/coding';
-    const model = process.env.LLM_MODEL || process.env.VOLCENGINE_MODEL || 'deepseek-v3.2';
+    const model = process.env['LLM_MODEL'] || process.env['VOLCENGINE_MODEL'] || 'deepseek-v3.2';
 
     const start = Date.now();
     const response = await fetch(baseUrl, {
@@ -97,9 +97,9 @@ async function checkDingTalk(): Promise<{
   error?: string;
 }> {
   // Check Stream mode configuration (Stream client uses WebSocket, not webhook URL)
-  const clientId = process.env.DINGTALK_CLIENT_ID;
-  const clientSecret = process.env.DINGTALK_CLIENT_SECRET;
-  const agentId = process.env.DINGTALK_AGENT_ID;
+  const clientId = process.env['DINGTALK_CLIENT_ID'];
+  const clientSecret = process.env['DINGTALK_CLIENT_SECRET'];
+  const agentId = process.env['DINGTALK_AGENT_ID'];
 
   if (!clientId || !clientSecret || !agentId) {
     return {

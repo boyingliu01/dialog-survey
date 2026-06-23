@@ -53,7 +53,7 @@ export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRou
     const input = createTemplateSchema.parse(request.body);
     const template = await templateRepo.create({
       name: input.name,
-      description: input.description,
+      ...(input.description != null ? { description: input.description } : {}),
       content: input.content as Record<string, unknown>,
     });
     return {
@@ -101,10 +101,12 @@ export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRou
     }
 
     const template = await templateRepo.update(id, {
-      name: input.name,
-      description: input.description,
-      content: input.content as Record<string, unknown> | undefined,
-      status: input.status as TemplateStatus | undefined,
+      ...(input.name != null ? { name: input.name } : {}),
+      ...(input.description != null ? { description: input.description } : {}),
+      ...(input.content != null
+        ? { content: input.content as Record<string, unknown> }
+        : {}),
+      ...(input.status != null ? { status: input.status as TemplateStatus } : {}),
     });
 
     return reply.send(formatTemplateResponse(template));
@@ -256,7 +258,7 @@ export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRou
 
     const template = await templateRepo.create({
       name: body.name,
-      description: body.description,
+      ...(body.description != null ? { description: body.description } : {}),
       content: body.content,
     });
 

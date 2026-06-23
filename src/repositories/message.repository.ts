@@ -23,9 +23,9 @@ export class MessageRepository {
         interviewId: data.interviewId,
         role: data.role,
         content: data.content,
-        messageId: data.messageId,
+        ...(data.messageId != null ? { messageId: data.messageId } : {}),
         isVoice: data.isVoice || false,
-        voiceText: data.voiceText,
+        ...(data.voiceText != null ? { voiceText: data.voiceText } : {}),
       },
     });
   }

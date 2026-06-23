@@ -2,6 +2,7 @@ import { dirname, normalize, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import cors from '@fastify/cors';
 import fastifyFormbody from '@fastify/formbody';
+import rateLimit from '@fastify/rate-limit';
 import fastifyView from '@fastify/view';
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
@@ -10,7 +11,7 @@ import nunjucks from 'nunjucks';
 
 // Load .env early but explicitly (not via side-effect import).
 // Use override only outside tests so vi.stubEnv() controls env in test runs.
-dotenv.config({ override: process.env.NODE_ENV !== 'test' });
+dotenv.config({ override: process.env['NODE_ENV'] !== 'test' });
 import cron from 'node-cron';
 import { adminTemplatesRoutes } from './api/admin-templates.js';
 import { analysisRoutes } from './api/analysis.js';
@@ -34,8 +35,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const DB_CHECK_TIMEOUT_MS = 5000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
-const LOG_LEVEL = process.env.LOG_LEVEL || (NODE_ENV === 'production' ? 'info' : 'debug');
+const NODE_ENV = process.env['NODE_ENV'] || 'development';
+const LOG_LEVEL = process.env['LOG_LEVEL'] || (NODE_ENV === 'production' ? 'info' : 'debug');
 
 export async function checkDatabaseConnection(): Promise<boolean> {
   const prisma = new PrismaClient();
@@ -63,24 +64,22 @@ export async function checkDatabaseConnection(): Promise<boolean> {
 export async function buildApp() {
   const isProduction = NODE_ENV === 'production';
 
-  const loggerConfig = isProduction
-    ? {
-        level: LOG_LEVEL,
-        transport: undefined,
-      }
-    : {
-        level: LOG_LEVEL,
-        transport: {
-          target: 'pino-pretty',
-          options: {
-            translateTime: 'HH:MM:ss Z',
-            ignore: 'pid,hostname',
-          },
-        },
-      };
+  const prodLoggerConfig: Record<string, unknown> = {
+    level: LOG_LEVEL,
+  };
+  const devLoggerConfig: Record<string, unknown> = {
+    level: LOG_LEVEL,
+    transport: {
+      target: 'pino-pretty',
+      options: {
+        translateTime: 'HH:MM:ss Z',
+        ignore: 'pid,hostname',
+      },
+    },
+  };
 
   const fastify = Fastify({
-    logger: loggerConfig,
+    logger: isProduction ? prodLoggerConfig : devLoggerConfig,
   });
 
   // Security: limit content-type parsing to known safe types (XML bombs, CSV injection).
@@ -142,6 +141,33 @@ export async function buildApp() {
 
   await securityMiddleware(fastify, prisma);
 
+  // Rate limiting — skip in test environment since fastify.inject() bypasses the hook
+  if (NODE_ENV !== 'test') {
+    await fastify.register(rateLimit, {
+      max: 100,
+      timeWindow: '1 minute',
+      errorResponseBuilder: (_request, context) => ({
+        statusCode: 429,
+        error: 'Too Many Requests',
+        message: `Rate limit exceeded, retry in ${Math.ceil(context.ttl / 1000)} seconds`,
+      }),
+    });
+  }
+
+  // Content-Security-Policy header
+  fastify.addHook('onSend', (_request, reply, payload, done) => {
+    reply.header(
+      'Content-Security-Policy',
+      "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' https://unpkg.com; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "img-src 'self' data:; " +
+        "font-src 'self'; " +
+        "connect-src 'self'"
+    );
+    done(null, payload);
+  });
+
   // Schedule daily audit log cleanup at 2:00 AM
   const auditCleanup = new AuditCleanupService(prisma);
   cron.schedule('0 2 * * *', async () => {
@@ -188,13 +214,13 @@ export async function startServer() {
 
   try {
     await app.listen({
-      port: Number(process.env.PORT) || 3001,
-      host: process.env.HOST || '0.0.0.0',
+      port: Number(process.env['PORT']) || 3001,
+      host: process.env['HOST'] || '0.0.0.0',
     });
 
-    const clientId = process.env.DINGTALK_CLIENT_ID;
-    const clientSecret = process.env.DINGTALK_CLIENT_SECRET;
-    const agentId = process.env.DINGTALK_AGENT_ID;
+    const clientId = process.env['DINGTALK_CLIENT_ID'];
+    const clientSecret = process.env['DINGTALK_CLIENT_SECRET'];
+    const agentId = process.env['DINGTALK_AGENT_ID'];
 
     if (clientId && clientSecret && agentId) {
       const client = DingTalkStreamClient.fromEnv();

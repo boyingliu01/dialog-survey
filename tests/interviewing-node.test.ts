@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { interviewingNode } from '../src/core/nodes/interviewing.js';
 import type { InterviewState } from '../src/core/types/index.js';
+import { generateSmartResponse } from '../src/services/followup.service.js';
 
 vi.mock('../src/services/followup.service.js', () => ({
   generateSmartResponse: vi.fn(),
@@ -139,5 +140,156 @@ describe('interviewingNode', () => {
     expect(result.currentQuestion).toBe(3);
     expect(result.response).toBe('您对未来的职业规划是什么？');
     expect(result.shouldContinue).toBe(true);
+  });
+
+  /**
+   * @test REQ-003-5-02
+   * @intent 验证handleSmartResult shouldEndInterview=true → status COMPLETED, shouldContinue false, has response
+   */
+  it('should end interview when smart response indicates shouldEndInterview', async () => {
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '感谢您的参与，访谈到此结束。',
+      action: 'END',
+      shouldProceedToNext: false,
+      shouldEndInterview: true,
+    });
+
+    const result = await interviewingNode(baseState, { content: '我的回答' });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(result.shouldContinue).toBe(false);
+    expect(result.response).toBe('感谢您的参与，访谈到此结束。');
+    expect(result.responses).toBeDefined();
+    expect(result.responses).toHaveLength(1);
+  });
+
+  /**
+   * @test REQ-003-5-02
+   * @intent 验证handleSmartResult action=FOLLOWUP → followupCount incremented, shouldContinue true
+   */
+  it('should increment followupCount when smart response action is FOLLOWUP', async () => {
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '您能再详细说明一下吗？',
+      action: 'FOLLOWUP',
+      shouldProceedToNext: false,
+      shouldEndInterview: false,
+    });
+
+    const result = await interviewingNode(baseState, { content: '简短回答' });
+
+    expect(result.followupCount).toBe(1);
+    expect(result.shouldContinue).toBe(true);
+    expect(result.response).toBe('您能再详细说明一下吗？');
+  });
+
+  /**
+   * @test REQ-003-5-02
+   * @intent 验证handleSmartResult action=STAY → responses preserved, shouldContinue true, no currentQuestion change
+   */
+  it('should preserve responses and stay on current question when smart response action is STAY', async () => {
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '请继续补充您的想法。',
+      action: 'STAY',
+      shouldProceedToNext: false,
+      shouldEndInterview: false,
+    });
+
+    const result = await interviewingNode(baseState, { content: '部分回答' });
+
+    expect(result.responses).toBeDefined();
+    expect(result.responses).toHaveLength(1);
+    expect(result.shouldContinue).toBe(true);
+    expect(result.response).toBe('请继续补充您的想法。');
+    // STAY does not advance currentQuestion
+    expect(result.currentQuestion).toBeUndefined();
+  });
+
+  /**
+   * @test REQ-003-5-03
+   * @intent 验证containsMultipleQuestions → when smart response has 2+ question marks, verify it strips to first sentence + appends next question
+   */
+  it('should strip extra questions when LLM response contains multiple question marks', async () => {
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '您觉得这个挑战大吗？具体是什么挑战？您能描述一下吗？',
+      action: 'NEXT',
+      shouldProceedToNext: true,
+      shouldEndInterview: false,
+    });
+
+    const state = { ...baseState, currentQuestion: 0 };
+    const result = await interviewingNode(state, { content: '遇到了很多挑战' });
+
+    expect(result.currentQuestion).toBe(1);
+    expect(result.shouldContinue).toBe(true);
+    expect(result.response).toContain('您觉得这个挑战大吗');
+    expect(result.response).toContain('您在工作中遇到过最大的挑战是什么');
+  });
+
+  /**
+   * @test REQ-003-5-04
+   * @intent 验证buildFallbackResponse error path → mock generateSmartResponse to throw, verify fallback returns next question
+   */
+  it('should fallback to next question when generateSmartResponse throws', async () => {
+    vi.mocked(generateSmartResponse).mockRejectedValueOnce(new Error('LLM service unavailable'));
+
+    const result = await interviewingNode(baseState, { content: '我的回答' });
+
+    expect(result.responses).toHaveLength(1);
+    expect(result.currentQuestion).toBe(1);
+    expect(result.shouldContinue).toBe(true);
+    expect(result.response).toBe('您在工作中遇到过最大的挑战是什么？');
+  });
+
+  /**
+   * @test REQ-003-5-04
+   * @intent 验证buildFallbackResponse last question → mock smart response to throw on last question, verify closing message
+   */
+  it('should return closing message when fallback on last question', async () => {
+    vi.mocked(generateSmartResponse).mockRejectedValueOnce(new Error('LLM service unavailable'));
+
+    const lastState = { ...baseState, currentQuestion: 3 };
+    const result = await interviewingNode(lastState, { content: '最后回答' });
+
+    expect(result.responses).toHaveLength(1);
+    expect(result.currentQuestion).toBe(4);
+    expect(result.shouldContinue).toBe(false);
+    expect(result.response).toBe('访谈已完成，感谢您的参与！');
+  });
+
+  /**
+   * @test REQ-003-5-05
+   * @intent 验证Interviewing节点在最后问题有closingMessage时返回自定义closing
+   */
+  it('should return custom closing message when on last question with closingMessage', async () => {
+    const { TemplateRepository } = await import('../src/repositories/template.repository.js');
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '感谢您的详细回答。',
+      action: 'NEXT',
+      shouldProceedToNext: true,
+      shouldEndInterview: false,
+    });
+
+    // Mock TemplateRepository to return a template with custom closingMessage
+    const MockRepo = TemplateRepository as unknown as { new (...args: unknown[]): { findById: ReturnType<typeof vi.fn> } };
+    const originalFindById = MockRepo.prototype.findById;
+    MockRepo.prototype.findById = vi.fn().mockResolvedValue({
+      content: JSON.stringify({
+        name: 'Custom Template',
+        questions: ['问题1'],
+        closingMessage: '自定义的结束语，谢谢您的参与！',
+      }),
+    });
+
+    const mockPrisma = {} as unknown as import('@prisma/client').PrismaClient;
+    const state = { ...baseState, templateId: 'custom-template', currentQuestion: 0 };
+    const result = await interviewingNode(state, { content: '回答', prisma: mockPrisma });
+
+    expect(result.currentQuestion).toBe(1);
+    expect(result.shouldContinue).toBe(false);
+    expect(result.response).toContain('感谢您的详细回答。');
+    expect(result.response).toContain('自定义的结束语，谢谢您的参与！');
+
+    // Restore original mock
+    MockRepo.prototype.findById = originalFindById;
   });
 });
