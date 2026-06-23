@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.12] - 2026-06-23
+
+### Fixed
+- **CSP 阻止管理后台 CDN 资源**: 修复 Windows 部署后 `/admin` 页面 Tailwind CSS 和 Alpine.js 被 CSP 拦截的问题。`script-src` 新增 `'unsafe-eval'` (Alpine.js CDN 使用 `eval()`)、`https://cdn.tailwindcss.com`、`https://cdn.jsdelivr.net`；`style-src` 新增 `https://cdn.tailwindcss.com`
+
 ## [1.6.11] - 2026-06-23
 
 ### Added
