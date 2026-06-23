@@ -198,17 +198,20 @@ npm run dev
 ```
 
 **生产模式** (推荐用于长期运行):
-```bash
-npm run build   # 编译到 dist/
-node dist/src/server.ts
-```
 
-或使用 PM2 管理进程:
+**Linux / macOS** — 使用 PM2 管理进程：
 ```bash
 npm install -g pm2
+npm run build   # 编译到 dist/
 pm2 start dist/src/server.ts --name dialog-survey
 pm2 save
 pm2 startup  # 设置开机自启
+```
+
+**Windows** — 直接使用 Node 启动（PM2 在 Windows 上不稳定）：
+```bash
+npm run build   # 编译到 dist/
+node dist/src/server.ts
 ```
 
 ### 环境变量说明
