@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.15] - 2026-06-25
+
+### Fixed
+- **访谈流程 STAY 语义冲突修复 (Delphi 4 轮评审)**: 跨三层（LLM prompt → service → handler）的 STAY 语义冲突导致"同时带出下一题"和"重复回答恶化"。
+  - Fix A: customPrompt fallback 对齐 `isLastQuestion`，最后一题返回 END+closing
+  - Fix B: STAY handler 恢复原始语义——不推进 currentQuestion，返回 LLM 引导文本，重置 followupCount
+  - Fix C: 从 LLM prompt 模板移除 STAY 选项，只保留 NEXT/FOLLOWUP/END
+  - Fix D: 所有非 FOLLOWUP 路径添加 `followupCount: 0`，修复跨题目累计 bug
+
 ## [1.6.14] - 2026-06-24
 
 ### Fixed
