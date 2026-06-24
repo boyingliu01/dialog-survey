@@ -5,6 +5,7 @@ import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import { error, info } from '../utils/logger.js';
 import type { InviteeData } from './interview-plan-base.service.js';
 import { InterviewPlanSendService } from './interview-plan-send.service.js';
+import { verifyPhoneToName } from './member-verification.service.js';
 
 export class PlanNotFoundError extends Error {
   readonly code = 'PLAN_NOT_FOUND' as const;
@@ -94,34 +95,16 @@ export class InterviewPlanService extends InterviewPlanSendService {
 
     // If userId provided, ignore phone entirely - skip DingTalk call
     if (!userId && phone) {
-      // Resolve userId from phone via DingTalk API
-      const normalizedPhone = normalizePhone(phone);
+      const result = await verifyPhoneToName(this.dingTalkClient, phone, name);
 
-      // Validate normalized phone is 11-digit Chinese mobile
-      if (!/^1[3-9]\d{9}$/.test(normalizedPhone)) {
+      if (!result.verified) {
         throw new InvalidMemberInputError(
-          `Invalid phone number format. After normalization, got: ${normalizedPhone}. Expected: 11-digit Chinese mobile (e.g., 13800138000)`
+          result.reason || `Failed to verify phone ${maskPhone(phone)}`
         );
       }
 
-      let lookupResult: Awaited<ReturnType<DingTalkClient['getUserIdByMobile']>>;
-      try {
-        lookupResult = await this.dingTalkClient.getUserIdByMobile(normalizedPhone);
-      } catch {
-        throw new MemberNotFoundError(
-          `Phone number ${maskPhone(phone)} could not be resolved — DingTalk service unavailable`
-        );
-      }
-
-      if (!lookupResult.found) {
-        throw new MemberNotFoundError(`Phone number ${maskPhone(phone)} not found in DingTalk`);
-      }
-
-      userId = lookupResult.userId;
-      // If name not provided by client, use name from DingTalk API response
-      if (!name) {
-        name = lookupResult.name;
-      }
+      userId = result.userId;
+      name = result.name || name;
     }
 
     if (!userId) {
