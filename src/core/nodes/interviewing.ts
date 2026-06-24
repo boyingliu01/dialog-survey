@@ -53,7 +53,24 @@ function handleSmartResult(
   }
 
   if (smartResult.action === 'STAY') {
-    return { responses: newResponses, shouldContinue: true, response: smartResult.response };
+    const nextQ = content.questions[currentQ + 1];
+    const isLast = currentQ >= content.questions.length - 1;
+    if (isLast) {
+      const closing = buildClosingMessage(content.closingMessage);
+      return {
+        responses: newResponses,
+        currentQuestion: currentQ + 1,
+        status: 'COMPLETED',
+        shouldContinue: false,
+        response: closing,
+      };
+    }
+    return {
+      responses: newResponses,
+      currentQuestion: currentQ + 1,
+      shouldContinue: !!nextQ,
+      response: nextQ || '访谈已完成，感谢您的参与！',
+    };
   }
 
   const nextQuestion = content.questions[currentQ + 1];

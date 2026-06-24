@@ -234,7 +234,7 @@
         class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700"
       >批量提醒</button>
     </div>
-    <div x-show="showAdd" x-cloak class="mb-3 p-3 border rounded bg-gray-50 flex gap-2 items-end">
+    <div x-show="showAdd" x-cloak class="mb-3 p-3 border rounded bg-gray-50 flex gap-2 items-start" @click.away="showAdd = false; newUserId = ''; newPhone = ''; newName = ''">
       <div class="flex-1">
         <label class="block text-xs text-gray-500 mb-1">钉钉 ID</label>
         <input
@@ -284,15 +284,13 @@
             }
           });
         "
-        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700"
+        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 mt-[22px]"
       >确认添加</button>
       <button
         type="button"
         @click="showAdd = false; newUserId = ''; newPhone = ''; newName = ''"
-        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+        class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 mt-[22px]"
       >取消</button>
-    </div>
-    <div x-show="showAdd" @click.away="showAdd = false; newUserId = ''; newPhone = ''; newName = ''" x-cloak>
     </div>
     <table class="w-full">
       <thead><tr class="border-b">

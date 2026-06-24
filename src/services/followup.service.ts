@@ -32,7 +32,7 @@ export function parseLLMResponse(rawContent: string): StructuredResponse | null 
     const validActions = ['NEXT', 'FOLLOWUP', 'END', 'STAY'];
     const action: 'NEXT' | 'FOLLOWUP' | 'END' | 'STAY' = validActions.includes(parsed.action)
       ? parsed.action
-      : 'STAY';
+      : 'NEXT';
     return {
       thinking: parsed.thinking || '',
       strategy: parsed.strategy || 1,
@@ -138,11 +138,14 @@ export async function generateSmartResponse(
     const parsed = parseLLMResponse(response.content);
     if (!parsed) {
       info('Failed to parse LLM response, using fallback');
+      const shouldEnd = isLastQuestion === true;
       return {
-        response: FALLBACK_RESPONSE,
-        action: 'NEXT',
-        shouldProceedToNext: true,
-        shouldEndInterview: false,
+        response: shouldEnd
+          ? '感谢您的分享！访谈到此结束，祝您一切顺利！'
+          : FALLBACK_RESPONSE,
+        action: shouldEnd ? ('END' as const) : ('NEXT' as const),
+        shouldProceedToNext: !shouldEnd,
+        shouldEndInterview: shouldEnd,
       };
     }
     if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups) {
@@ -163,11 +166,14 @@ export async function generateSmartResponse(
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';
     info('Smart response generation failed', { error: errMsg });
+    const shouldEnd = isLastQuestion === true;
     return {
-      response: FALLBACK_RESPONSE,
-      action: 'NEXT',
-      shouldProceedToNext: true,
-      shouldEndInterview: false,
+      response: shouldEnd
+        ? '感谢您的分享！访谈到此结束，祝您一切顺利！'
+        : FALLBACK_RESPONSE,
+      action: shouldEnd ? ('END' as const) : ('NEXT' as const),
+      shouldProceedToNext: !shouldEnd,
+      shouldEndInterview: shouldEnd,
     };
   }
 }
