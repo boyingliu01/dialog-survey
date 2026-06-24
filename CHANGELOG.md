@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.14] - 2026-06-24
+
+### Fixed
+- **#104: 访谈流程 4 处问题**: 修复最后一题闭场消息重复输出（handleSmartResult 和 interviewingNode 各自追加 closing 导致重复）；修复 lastQuestion 判断条件向 handleSmartResult 传递后丢失 `nextQuestion`/`currentQ+1`；修复 planningNode 打招呼消息缺少直接意图信号（在 vague 模板铭文前自动插入清晰声明）
+- **#105: DELETE 请求携带 `Content-Type: application/json` 导致 empty body 错误**: `plan-detail.njk` 删除计划和删除成员请求移除多余的 `Content-Type` header；`template-info.njk` 补漏 `X-Admin-Key` header，使模板删除按钮在 Windows 部署下正常通过鉴权
+
 ## [1.6.13] - 2026-06-23
 
 ### Fixed
