@@ -227,7 +227,8 @@ function parseDimensionAnalysis(
       return { dimensionTags: [], emergentTags: [] };
     }
     const jsonStr = jsonRaw as Record<string, unknown>;
-    const rating = typeof jsonStr['interviewerRating'] === 'number' ? jsonStr['interviewerRating'] : undefined;
+    const rating =
+      typeof jsonStr['interviewerRating'] === 'number' ? jsonStr['interviewerRating'] : undefined;
     return {
       dimensionTags: Array.isArray(jsonStr['dimensionTags']) ? jsonStr['dimensionTags'] : [],
       emergentTags: Array.isArray(jsonStr['emergentTags']) ? jsonStr['emergentTags'] : [],

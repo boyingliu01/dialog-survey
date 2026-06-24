@@ -103,9 +103,7 @@ export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRou
     const template = await templateRepo.update(id, {
       ...(input.name != null ? { name: input.name } : {}),
       ...(input.description != null ? { description: input.description } : {}),
-      ...(input.content != null
-        ? { content: input.content as Record<string, unknown> }
-        : {}),
+      ...(input.content != null ? { content: input.content as Record<string, unknown> } : {}),
       ...(input.status != null ? { status: input.status as TemplateStatus } : {}),
     });
 

@@ -140,9 +140,7 @@ export async function generateSmartResponse(
       info('Failed to parse LLM response, using fallback');
       const shouldEnd = isLastQuestion === true;
       return {
-        response: shouldEnd
-          ? '感谢您的分享！访谈到此结束，祝您一切顺利！'
-          : FALLBACK_RESPONSE,
+        response: shouldEnd ? '感谢您的分享！访谈到此结束，祝您一切顺利！' : FALLBACK_RESPONSE,
         action: shouldEnd ? ('END' as const) : ('NEXT' as const),
         shouldProceedToNext: !shouldEnd,
         shouldEndInterview: shouldEnd,
@@ -168,9 +166,7 @@ export async function generateSmartResponse(
     info('Smart response generation failed', { error: errMsg });
     const shouldEnd = isLastQuestion === true;
     return {
-      response: shouldEnd
-        ? '感谢您的分享！访谈到此结束，祝您一切顺利！'
-        : FALLBACK_RESPONSE,
+      response: shouldEnd ? '感谢您的分享！访谈到此结束，祝您一切顺利！' : FALLBACK_RESPONSE,
       action: shouldEnd ? ('END' as const) : ('NEXT' as const),
       shouldProceedToNext: !shouldEnd,
       shouldEndInterview: shouldEnd,
