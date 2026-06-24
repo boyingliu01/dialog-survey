@@ -178,8 +178,9 @@ describe('Core Nodes Branch Coverage', () => {
       expect(result.responses).toHaveLength(1);
       expect(result.responses?.[0]?.content).toBe('用户回应');
 
-      // Should split content and show only first sentence followed by the next question
-      expect(result.response).toMatch(/^[^?？]*\n\n.*$/); // Contains first sentence and next question
+      // Should keep only the first sentence and NOT append the next question
+      // (duplicate question prevention: next question is sent separately by the system)
+      expect(result.response).toBe('第一个问题');
       expect(result.shouldContinue).toBe(true);
     });
 
