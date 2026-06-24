@@ -34,11 +34,12 @@ function handleSmartResult(
   newResponses: NewResponses
 ): (Partial<InterviewState> & NodeOutput) | null {
   if (smartResult.shouldEndInterview) {
+    const closing = buildClosingMessage(content.closingMessage);
     return {
       responses: newResponses,
       status: 'COMPLETED',
       shouldContinue: false,
-      response: smartResult.response,
+      response: `${smartResult.response}\n\n${closing}`,
     };
   }
 
@@ -63,11 +64,20 @@ function handleSmartResult(
       text: smartResult.response.substring(0, 80),
     });
     const firstSentence = smartResult.response.split(/[?？]/)[0].trim();
+    if (isLastQuestion) {
+      const closing = buildClosingMessage(content.closingMessage);
+      return {
+        responses: newResponses,
+        currentQuestion: currentQ + 1,
+        shouldContinue: false,
+        response: `${firstSentence}\n\n${closing}`,
+      };
+    }
     return {
       responses: newResponses,
       currentQuestion: currentQ + 1,
       shouldContinue: !!nextQuestion,
-      response: `${firstSentence}\n\n${isLastQuestion ? content.closingMessage || buildClosingMessage(content.closingMessage) : nextQuestion}`,
+      response: firstSentence,
     };
   }
 
@@ -143,12 +153,21 @@ export async function interviewingNode(
     const handled = handleSmartResult(smartResult, state, content, currentQ, newResponses);
     if (handled) return handled;
 
-    const nextQuestion = content.questions[currentQ + 1];
+    const isLastQuestion = currentQ >= content.questions.length - 1;
+    if (isLastQuestion) {
+      const closing = buildClosingMessage(content.closingMessage);
+      return {
+        responses: newResponses,
+        currentQuestion: currentQ + 1,
+        shouldContinue: false,
+        response: smartResult.response ? `${smartResult.response}\n\n${closing}` : closing,
+      };
+    }
     return {
       responses: newResponses,
       currentQuestion: currentQ + 1,
-      shouldContinue: !!nextQuestion,
-      response: smartResult.response ? `${smartResult.response}\n\n${nextQuestion}` : nextQuestion,
+      shouldContinue: true,
+      response: smartResult.response,
     };
   } catch (e) {
     info('Smart response generation failed, falling back to next question', {

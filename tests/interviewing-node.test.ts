@@ -158,7 +158,8 @@ describe('interviewingNode', () => {
 
     expect(result.status).toBe('COMPLETED');
     expect(result.shouldContinue).toBe(false);
-    expect(result.response).toBe('感谢您的参与，访谈到此结束。');
+    expect(result.response).toContain('感谢您的参与，访谈到此结束。');
+    expect(result.response).toContain('访谈已完成');
     expect(result.responses).toBeDefined();
     expect(result.responses).toHaveLength(1);
   });
@@ -222,7 +223,8 @@ describe('interviewingNode', () => {
     expect(result.currentQuestion).toBe(1);
     expect(result.shouldContinue).toBe(true);
     expect(result.response).toContain('您觉得这个挑战大吗');
-    expect(result.response).toContain('您在工作中遇到过最大的挑战是什么');
+    // No longer appends raw template text — just the trimmed first sentence
+    expect(result.response).not.toContain('您在工作中遇到过最大的挑战是什么');
   });
 
   /**
