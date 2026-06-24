@@ -79,9 +79,8 @@ const TEMPLATES: Record<string, PromptTemplate> = {
 
 **行动决策**：
 - NEXT: 用户回答充分，应该进入下一个问题
-- FOLLOWUP: 需要追问细节（注意：已追问次数不能超过上限）。追问时应提出一个具体的新问题，引导用户深入分享经验和建议。
+- FOLLOWUP: 需要追问细节（注意：已追问次数不能超过上限）。追问时应提出一个具体的新问题，引导用户深入分享经验和建议。当用户困惑或不理解时，用 FOLLOWUP 温柔引导、重新解释话题，而非简单跳过。
 - END: 用户明确想结束访谈
-- STAY: 其他情况，继续当前话题
 
 ---
 
@@ -90,7 +89,7 @@ const TEMPLATES: Record<string, PromptTemplate> = {
 {
   "thinking": "简短分析用户意图和情绪（10-20字）",
   "strategy": "选择的策略编号（1-9）",
-  "action": "NEXT 或 FOLLOWUP 或 END 或 STAY",
+  "action": "NEXT 或 FOLLOWUP 或 END",
   "response": "你的回应内容（50-100字，温暖自然。如果是NEXT，只需肯定用户的分享，不要包含下一个问题。）"
 }
 
@@ -98,8 +97,8 @@ const TEMPLATES: Record<string, PromptTemplate> = {
 {
   "thinking": "用户质疑访谈目的，情绪困惑",
   "strategy": "3",
-  "action": "STAY",
-  "response": "理解您的疑惑。这个访谈是想了解您的工作经历，帮助我们更好地理解您的专业背景。如果您不太想聊这个，我们可以换个话题？"
+  "action": "FOLLOWUP",
+  "response": "理解您的疑惑。这个访谈是想了解您的工作经历，能分享一段让您印象特别深刻的工作经历吗？"
 }`,
     variables: [
       'conversationHistory',

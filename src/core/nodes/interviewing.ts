@@ -37,6 +37,7 @@ function handleSmartResult(
     const closing = buildClosingMessage(content.closingMessage);
     return {
       responses: newResponses,
+      followupCount: 0,
       status: 'COMPLETED',
       shouldContinue: false,
       response: `${smartResult.response}\n\n${closing}`,
@@ -53,23 +54,11 @@ function handleSmartResult(
   }
 
   if (smartResult.action === 'STAY') {
-    const nextQ = content.questions[currentQ + 1];
-    const isLast = currentQ >= content.questions.length - 1;
-    if (isLast) {
-      const closing = buildClosingMessage(content.closingMessage);
-      return {
-        responses: newResponses,
-        currentQuestion: currentQ + 1,
-        status: 'COMPLETED',
-        shouldContinue: false,
-        response: closing,
-      };
-    }
     return {
       responses: newResponses,
-      currentQuestion: currentQ + 1,
-      shouldContinue: !!nextQ,
-      response: nextQ || '访谈已完成，感谢您的参与！',
+      followupCount: 0,
+      shouldContinue: true,
+      response: smartResult.response,
     };
   }
 
@@ -86,6 +75,7 @@ function handleSmartResult(
       return {
         responses: newResponses,
         currentQuestion: currentQ + 1,
+        followupCount: 0,
         shouldContinue: false,
         response: `${firstSentence}\n\n${closing}`,
       };
@@ -93,6 +83,7 @@ function handleSmartResult(
     return {
       responses: newResponses,
       currentQuestion: currentQ + 1,
+      followupCount: 0,
       shouldContinue: !!nextQuestion,
       response: firstSentence,
     };
@@ -105,6 +96,7 @@ function handleSmartResult(
     return {
       responses: newResponses,
       currentQuestion: currentQ + 1,
+      followupCount: 0,
       shouldContinue: false,
       response: `${smartResult.response}\n\n${closing}`,
     };
@@ -126,6 +118,7 @@ function buildFallbackResponse(
     return {
       responses: newResponses,
       currentQuestion: currentQ + 1,
+      followupCount: 0,
       shouldContinue: false,
       response: closing,
     };
@@ -134,6 +127,7 @@ function buildFallbackResponse(
   return {
     responses: newResponses,
     currentQuestion: currentQ + 1,
+    followupCount: 0,
     shouldContinue: !!nextQuestion,
     response: nextQuestion || '访谈已完成，非常感谢您拨冗参与！',
   };
@@ -176,6 +170,7 @@ export async function interviewingNode(
       return {
         responses: newResponses,
         currentQuestion: currentQ + 1,
+        followupCount: 0,
         shouldContinue: false,
         response: smartResult.response ? `${smartResult.response}\n\n${closing}` : closing,
       };
@@ -183,6 +178,7 @@ export async function interviewingNode(
     return {
       responses: newResponses,
       currentQuestion: currentQ + 1,
+      followupCount: 0,
       shouldContinue: true,
       response: smartResult.response,
     };
