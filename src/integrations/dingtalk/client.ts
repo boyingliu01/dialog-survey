@@ -24,8 +24,10 @@ interface AccessTokenResponse {
 interface GetUserByMobileResponse {
   errcode: number;
   errmsg: string;
-  userid?: string;
-  name?: string;
+  result?: {
+    userid?: string;
+    exclusive_account_userid_list?: string[];
+  };
 }
 
 export type DingTalkUserLookupResult =
@@ -105,9 +107,12 @@ export class DingTalkClient {
 
   async getUserIdByMobile(mobile: string): Promise<DingTalkUserLookupResult> {
     const accessToken = await this.getAccessToken();
-    const response = await this.request<GetUserByMobileResponse>('/contact/v2/user/getbymobile', {
+    const response = await this.request<GetUserByMobileResponse>('/topapi/v2/user/getbymobile', {
       method: 'POST',
-      body: { mobile },
+      body: {
+        mobile,
+        support_exclusive_account_search: true,
+      },
       query: {
         access_token: accessToken,
       },
@@ -123,14 +128,14 @@ export class DingTalkClient {
       );
     }
 
-    if (!response.userid) {
+    if (!response.result?.userid) {
       return { found: false };
     }
 
     return {
       found: true,
-      userId: response.userid,
-      name: response.name || '',
+      userId: response.result.userid,
+      name: '',
     };
   }
 
@@ -143,3 +148,4 @@ export class DingTalkClient {
     });
   }
 }
+
