@@ -20,11 +20,24 @@
     hx-swap="innerHTML"
     hx-indicator="#plan-submit-btn"
     hx-on::after-request="if (event.detail.successful) {
+      var resp = null; try { resp = JSON.parse(event.detail.xhr.responseText); } catch(_){}
       {% if isEdit %}
       htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', {target: '#main-content', swap: 'innerHTML'});
       {% else %}
-      var newId = null; try { newId = JSON.parse(event.detail.xhr.responseText).id; } catch(_){}
-      if (newId) { htmx.ajax('GET', '/admin/content/plans/' + newId, {target: '#main-content', swap: 'innerHTML'}); }
+      if (resp && resp.errors && resp.errors.length > 0) {
+        var errHtml = '<div class=\'mt-3 p-3 border border-amber-300 bg-amber-50 rounded text-sm text-amber-800\'>';
+        errHtml += '<p class=\'font-medium mb-1\'>计划已创建，但部分成员无法导入：</p>';
+        errHtml += '<span>成功: ' + (resp.imported || 0) + ' 人, 失败: ' + (resp.failed || 0) + ' 人</span>';
+        errHtml += '<ul class=\'list-disc ml-4 mt-1\'>';
+        for (var i = 0; i < resp.errors.length; i++) { errHtml += '<li>' + resp.errors[i] + '</li>'; }
+        errHtml += '</ul><p class=\'mt-2\'>可前往计划详情页手动添加成员。</p></div>';
+        document.getElementById('plan-form-result').innerHTML = errHtml;
+        if (resp.id) {
+          document.getElementById('plan-form-result').innerHTML += '<a href=\'/admin/content/plans/' + resp.id + '\' hx-get=\'/admin/content/plans/' + resp.id + '\' hx-target=\'#main-content\' class=\'inline-block mt-2 text-sm text-indigo-600 hover:underline\'>前往计划详情页 →</a>';
+        }
+      } else if (resp && resp.id) {
+        htmx.ajax('GET', '/admin/content/plans/' + resp.id, {target: '#main-content', swap: 'innerHTML'});
+      }
       {% endif %}
     }"
     class="space-y-4"

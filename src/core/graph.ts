@@ -33,7 +33,10 @@ export async function runInterviewGraph(
   if (!output.shouldContinue) {
     const result = await analyzingNode(state, prisma);
     state = { ...state, ...result } as InterviewState;
-    output = { ...output, ...result };
+    // Only use analyzingNode response if no response was set by interviewingNode
+    if (!output.response) {
+      output = { ...output, ...result };
+    }
 
     if (state.status === 'COMPLETED') {
       await completedNode(state);
