@@ -9,6 +9,7 @@ import type {
   InviteeData,
 } from './interview-plan-base.service.js';
 import { parseInviteeText } from './interview-plan-base.service.js';
+import { verifyPhoneToName } from './member-verification.service.js';
 
 export class InterviewPlanSendService extends InterviewPlanServiceBase {
   async importInvitees(
@@ -41,13 +42,18 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
           }
         }
         try {
-          const lookup = await client.getUserIdByMobile(inv.phone);
-          if (!lookup.found) {
+          const verified = await verifyPhoneToName(client, inv.phone, inv.name);
+          if (!verified.verified) {
             result.failed++;
-            result.errors.push(`Phone ${inv.phone} not found in DingTalk`);
+            result.errors.push(verified.reason || `Phone ${inv.phone} verification failed`);
             continue;
           }
-          resolvedInvitees.push({ userId: lookup.userId, name: inv.name || lookup.name });
+          if (!verified.userId) {
+            result.failed++;
+            result.errors.push(`Phone ${inv.phone} could not be resolved to a userId`);
+            continue;
+          }
+          resolvedInvitees.push({ userId: verified.userId, name: verified.name });
         } catch (err) {
           result.failed++;
           const errorMsg = err instanceof Error ? err.message : String(err);
@@ -166,6 +172,7 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
       updatedBy: 'admin',
     };
     if (planSendStatus !== undefined) {
+      // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
       planUpdateData['sendStatus'] = planSendStatus;
     }
 
@@ -274,6 +281,7 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
   async updatePlanStatus(planId: string, status: PlanStatus): Promise<void> {
     const updateData: Record<string, unknown> = { status, updatedBy: 'admin' };
     if (status === PlanStatus.COMPLETED) {
+      // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
       updateData['completedAt'] = new Date();
     }
 

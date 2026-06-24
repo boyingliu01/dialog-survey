@@ -230,7 +230,7 @@ describe('InterviewPlanService', () => {
 
       expect(result.success).toBe(0);
       expect(result.failed).toBe(1);
-      expect(result.errors).toContain('Phone 13800138000 not found in DingTalk');
+      expect(result.errors).toContain('Phone number not found in DingTalk');
     });
 
     it('should handle mixed phone and userId invitees', async () => {

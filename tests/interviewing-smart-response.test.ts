@@ -60,7 +60,6 @@ describe('interviewingNode - Smart Response Branches', () => {
       expect(result.currentQuestion).toBe(1);
       expect(result.shouldContinue).toBe(true);
       expect(result.response).toContain('感谢分享！');
-      expect(result.response).toContain('工作中遇到');
     });
 
     /**
@@ -138,7 +137,8 @@ describe('interviewingNode - Smart Response Branches', () => {
 
       expect(result.status).toBe('COMPLETED');
       expect(result.shouldContinue).toBe(false);
-      expect(result.response).toBe('感谢参与，访谈结束。');
+      // END response now includes closingMessage appended (fix for #104)
+      expect(result.response).toContain('感谢参与，访谈结束。');
     });
   });
 

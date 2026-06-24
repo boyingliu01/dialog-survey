@@ -1,6 +1,7 @@
 import { PlanStatus, Prisma, PrismaClient } from '@prisma/client';
 import type { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { info } from '../utils/logger.js';
+import { verifyPhoneToName } from './member-verification.service.js';
 
 export interface CreatePlanInput {
   name: string;
@@ -140,10 +141,14 @@ export class InterviewPlanServiceBase {
     dingtalkClient?: DingTalkClient
   ): Promise<void> {
     const updateData: Record<string, unknown> = { updatedBy: 'admin' };
+    // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
     if (input.name !== undefined) updateData['name'] = input.name;
+    // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
     if (input.description !== undefined) updateData['description'] = input.description;
     if (input.targetDate !== undefined)
+      // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
       updateData['targetDate'] = input.targetDate ? new Date(input.targetDate) : null;
+    // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
     if (input.schedule !== undefined) updateData['schedule'] = input.schedule;
 
     if (input.invitees !== undefined) {
@@ -154,9 +159,9 @@ export class InterviewPlanServiceBase {
       for (const inv of rawInvitees) {
         if (inv.phone && !inv.userId && dingtalkClient) {
           try {
-            const lookup = await dingtalkClient.getUserIdByMobile(inv.phone);
-            if (lookup.found) {
-              resolvedInvitees.push({ userId: lookup.userId, name: inv.name || lookup.name });
+            const verified = await verifyPhoneToName(dingtalkClient, inv.phone, inv.name);
+            if (verified.verified && verified.userId) {
+              resolvedInvitees.push({ userId: verified.userId, name: verified.name });
             } else {
               resolvedInvitees.push(inv);
             }
@@ -212,6 +217,7 @@ export class InterviewPlanServiceBase {
         });
       }
 
+      // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
       updateData['inviteeData'] = newInvitees as unknown as Prisma.InputJsonValue;
     }
 

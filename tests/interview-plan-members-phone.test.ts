@@ -5,7 +5,6 @@ import {
   InterviewPlanService,
   InvalidMemberInputError,
   MemberConflictError,
-  MemberNotFoundError,
   PlanNotFoundError,
 } from '../src/services/interview-plan-members.service.js';
 
@@ -76,16 +75,25 @@ describe('InterviewPlanService.addMember with phone support', () => {
       );
     });
 
-    it('should use name from client when provided even in phone mode', async () => {
-      await service.addMember('plan-1', { phone: '13800138000', name: 'Custom Name' });
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
+    /**
+     * @test REQ-006-member-verify
+     * @intent 验证手机号+姓名不匹配时被拒绝 — 输入姓名与钉钉注册姓名不一致应抛出 InvalidMemberInputError
+     */
+    it('should reject name mismatch when provided name differs from DingTalk name', async () => {
+      await expect(
+        service.addMember('plan-1', { phone: '13800138000', name: 'Custom Name' })
+      ).rejects.toThrow(InvalidMemberInputError);
     });
   });
 
   describe('DingTalk phone lookup', () => {
-    it('should throw MemberNotFoundError when phone is not found in DingTalk', async () => {
+    /**
+     * @test REQ-006-member-verify
+     * @intent 验证手机号在钉钉中未找到时被拒绝 — 应抛出 InvalidMemberInputError（verifyPhoneToName 统一返回此错误）
+     */
+    it('should throw InvalidMemberInputError when phone is not found in DingTalk', async () => {
       await expect(service.addMember('plan-1', { phone: '13900139000' })).rejects.toThrow(
-        MemberNotFoundError
+        InvalidMemberInputError
       );
     });
 
