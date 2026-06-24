@@ -25,7 +25,10 @@ export async function runInterviewGraph(
   }
 
   if (input.content) {
-    const result = await interviewingNode(state, { content: input.content, ...(prisma != null ? { prisma } : {}) });
+    const result = await interviewingNode(state, {
+      content: input.content,
+      ...(prisma != null ? { prisma } : {}),
+    });
     state = { ...state, ...result } as InterviewState;
     output = { ...output, ...result };
   }
