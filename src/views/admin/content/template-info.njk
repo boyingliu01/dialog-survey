@@ -5,7 +5,7 @@
       {% if template.status != 'PUBLISHED' %}
       <button
         hx-post="/admin/api/templates/{{ template.id }}/publish"
-        hx-target="#form-result"
+        hx-target="#main-content"
         hx-swap="innerHTML"
         class="inline-flex items-center px-2.5 py-1 text-xs font-medium text-amber-600 bg-amber-50 rounded-md hover:bg-amber-100"
       >
