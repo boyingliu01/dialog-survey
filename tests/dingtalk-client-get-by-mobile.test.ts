@@ -73,10 +73,10 @@ describe('DingTalkClient.getUserIdByMobile', () => {
         ok: true,
         json: async () => ({ errcode: 0, errmsg: 'ok', access_token: 'token', expires_in: 7200 }),
       } as Response);
-      // Second call: get user by mobile
+      // Second call: get user by mobile (v2 API: nested result.userid, no name field)
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ errcode: 0, errmsg: 'ok', userid: 'user123', name: '张三' }),
+        json: async () => ({ errcode: 0, errmsg: 'ok', result: { userid: 'user123' } }),
       } as Response);
 
       const result = await client.getUserIdByMobile('13800138000');
@@ -84,7 +84,7 @@ describe('DingTalkClient.getUserIdByMobile', () => {
       expect(result.found).toBe(true);
       if (result.found) {
         expect(result.userId).toBe('user123');
-        expect(result.name).toBe('张三');
+        expect(result.name).toBe('');
       }
       expect(mockFetch).toHaveBeenCalledTimes(2);
     });

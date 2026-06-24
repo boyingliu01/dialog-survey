@@ -14,11 +14,11 @@ describe('Smart Response System', () => {
       const module = await import('../src/services/followup.service.js');
       expect(module.parseLLMResponse).toBeDefined();
 
-      const validJson = `{"thinking":"用户困惑","strategy":3,"action":"STAY","response":"我来解释一下..."}`;
+      const validJson = `{"thinking":"用户困惑","strategy":3,"action":"FOLLOWUP","response":"我来解释一下..."}`;
       const result = module.parseLLMResponse(validJson);
 
       expect(result).not.toBeNull();
-      expect(result?.action).toBe('STAY');
+      expect(result?.action).toBe('FOLLOWUP');
       expect(result?.response).toBe('我来解释一下...');
       expect(result?.strategy).toBe(3);
     });
@@ -69,16 +69,17 @@ describe('Smart Response System', () => {
 
     /**
      * @test REQ-005-5-10
-     * @intent 验证parseLLMResponse在遇到非法动作时会回退到STAY动作，确保智能响应系统的健壮性
+     * @intent 验证parseLLMResponse在遇到非法动作时会回退到NEXT动作，确保智能响应系统的健壮性
+     * (v2: STAY now advances question just like NEXT, so invalid action fallback to NEXT is equivalent)
      */
-    it('should fallback invalid action to STAY', async () => {
+    it('should fallback invalid action to NEXT', async () => {
       const module = await import('../src/services/followup.service.js');
 
       const invalidAction = '{"thinking":"分析","action":"INVALID","response":"回应"}';
       const result = module.parseLLMResponse(invalidAction);
 
       expect(result).not.toBeNull();
-      expect(result?.action).toBe('STAY');
+      expect(result?.action).toBe('NEXT');
     });
 
     /**
@@ -88,7 +89,7 @@ describe('Smart Response System', () => {
     it('should handle all valid actions', async () => {
       const module = await import('../src/services/followup.service.js');
 
-      const actions = ['NEXT', 'FOLLOWUP', 'END', 'STAY'];
+      const actions = ['NEXT', 'FOLLOWUP', 'END'];
       for (const action of actions) {
         const json = `{"thinking":"test","action":"${action}","response":"test"}`;
         const result = module.parseLLMResponse(json);
@@ -191,12 +192,12 @@ describe('Smart Response System', () => {
       expect(template?.template).toContain('转移话题');
     });
 
-    it('should include all 4 action types', () => {
+    it('should include all 3 action types', () => {
       const template = promptService.getTemplate('generateSmartResponse');
       expect(template?.template).toContain('NEXT');
       expect(template?.template).toContain('FOLLOWUP');
       expect(template?.template).toContain('END');
-      expect(template?.template).toContain('STAY');
+      expect(template?.template).not.toContain('STAY');
     });
 
     it('should render correctly with all variables', () => {

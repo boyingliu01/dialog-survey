@@ -93,11 +93,11 @@ describe('Branch Coverage: followup.service.ts', () => {
       expect(result).toBeNull();
     });
 
-    it('should fallback to STAY when action is invalid but response is valid', () => {
+    it('should fallback to NEXT when action is invalid but response is valid', () => {
       const invalidActionJson = `{"action":"INVALID_ACTION","response":"some response","thinking":"some thinking","strategy":2}`;
       const result = parseLLMResponse(invalidActionJson);
       expect(result).not.toBeNull();
-      expect(result?.action).toBe('STAY');
+      expect(result?.action).toBe('NEXT');
       expect(result?.response).toBe('some response');
     });
 
@@ -188,7 +188,7 @@ describe('Branch Coverage: followup.service.ts', () => {
       const state = makeState();
       const result = await generateSmartResponse(state, 'a', 'q', 'custom');
       expect(result.response).toBe('Some raw text without JSON');
-      expect(result.action).toBe('STAY');
+      expect(result.action).toBe('NEXT');
     });
 
     it('should fallback to FALLBACK_RESPONSE when custom prompt LLM call fails', async () => {

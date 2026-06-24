@@ -7,13 +7,13 @@ import { promptService } from './prompt.service.js';
 export interface StructuredResponse {
   thinking: string;
   strategy: number;
-  action: 'NEXT' | 'FOLLOWUP' | 'END' | 'STAY';
+  action: 'NEXT' | 'FOLLOWUP' | 'END';
   response: string;
 }
 
 export interface SmartResponseResult {
   response: string;
-  action: 'NEXT' | 'FOLLOWUP' | 'END' | 'STAY';
+  action: 'NEXT' | 'FOLLOWUP' | 'END';
   shouldProceedToNext: boolean;
   shouldEndInterview: boolean;
 }
@@ -29,8 +29,8 @@ export function parseLLMResponse(rawContent: string): StructuredResponse | null 
   try {
     const parsed = JSON.parse(content);
     if (!parsed.action || !parsed.response) return null;
-    const validActions = ['NEXT', 'FOLLOWUP', 'END', 'STAY'];
-    const action: 'NEXT' | 'FOLLOWUP' | 'END' | 'STAY' = validActions.includes(parsed.action)
+    const validActions = ['NEXT', 'FOLLOWUP', 'END'];
+    const action: 'NEXT' | 'FOLLOWUP' | 'END' = validActions.includes(parsed.action)
       ? parsed.action
       : 'NEXT';
     return {
@@ -94,11 +94,14 @@ export async function generateSmartResponse(
       const parsed = parseLLMResponse(response.content);
       if (!parsed) {
         warn('Failed to parse custom prompt result as JSON, using raw text');
+        const shouldEnd = isLastQuestion === true;
         return {
-          response: smartTruncate(response.content, 150),
-          action: 'STAY',
-          shouldProceedToNext: false,
-          shouldEndInterview: false,
+          response: shouldEnd
+            ? '感谢您的分享！访谈到此结束，祝您一切顺利！'
+            : smartTruncate(response.content, 150),
+          action: shouldEnd ? ('END' as const) : ('NEXT' as const),
+          shouldProceedToNext: !shouldEnd,
+          shouldEndInterview: shouldEnd,
         };
       }
       if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups)
