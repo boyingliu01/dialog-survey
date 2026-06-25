@@ -20,7 +20,7 @@
       return r.text();
     })
     .then(() => {
-      htmx.ajax('GET', '/admin', '#main-content');
+      htmx.ajax('GET', '/admin/content/plans/' + planId, '#main-content');
       this.showDeleteDialog = false;
       this.deleteStep = 1;
       this.deleteConfirmText = '';
