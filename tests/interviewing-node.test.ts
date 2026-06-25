@@ -154,7 +154,9 @@ describe('interviewingNode', () => {
       shouldEndInterview: true,
     });
 
-    const result = await interviewingNode(baseState, { content: '我的回答' });
+    // Must be on last question for END to take effect
+    const lastState = { ...baseState, currentQuestion: 3 };
+    const result = await interviewingNode(lastState, { content: '我的回答' });
 
     expect(result.status).toBe('COMPLETED');
     expect(result.shouldContinue).toBe(false);
@@ -223,8 +225,8 @@ describe('interviewingNode', () => {
     expect(result.currentQuestion).toBe(1);
     expect(result.shouldContinue).toBe(true);
     expect(result.response).toContain('您觉得这个挑战大吗');
-    // No longer appends raw template text — just the trimmed first sentence
-    expect(result.response).not.toContain('您在工作中遇到过最大的挑战是什么');
+    // After fix: NEXT response now includes the next question appended by code
+    expect(result.response).toContain('您在工作中遇到过最大的挑战是什么');
   });
 
   /**
@@ -293,5 +295,58 @@ describe('interviewingNode', () => {
 
     // Restore original mock
     MockRepo.prototype.findById = originalFindById;
+  });
+
+  it('should force NEXT when LLM returns END prematurely (not last question)', async () => {
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '感谢您的参与，访谈到此结束。',
+      action: 'END',
+      shouldProceedToNext: false,
+      shouldEndInterview: true,
+    });
+
+    // 4 questions (indices 0-3), currentQuestion=1 is NOT the last
+    const multiState = { ...baseState, currentQuestion: 1 };
+    const result = await interviewingNode(multiState, { content: '我的回答' });
+
+    // END on non-last question → should NOT be COMPLETED
+    expect(result.status).not.toBe('COMPLETED');
+    expect(result.shouldContinue).toBe(true);
+    // Should advance to next question
+    expect(result.currentQuestion).toBe(2);
+    expect(result.followupCount).toBe(0);
+  });
+
+  it('should allow END on the actual last question', async () => {
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '感谢您的参与，访谈到此结束。',
+      action: 'END',
+      shouldProceedToNext: false,
+      shouldEndInterview: true,
+    });
+
+    // 4 questions (indices 0-3), currentQuestion=3 IS the last
+    const lastState = { ...baseState, currentQuestion: 3 };
+    const result = await interviewingNode(lastState, { content: '最后回答' });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(result.shouldContinue).toBe(false);
+    expect(result.response).toContain('感谢您的参与');
+  });
+
+  it('should force NEXT when action is END explicitly on non-last question', async () => {
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '我觉得访谈到此为止吧。',
+      action: 'END',
+      shouldProceedToNext: false,
+      shouldEndInterview: false,
+    });
+
+    const multiState = { ...baseState, currentQuestion: 0 };
+    const result = await interviewingNode(multiState, { content: '回答' });
+
+    expect(result.status).not.toBe('COMPLETED');
+    expect(result.shouldContinue).toBe(true);
+    expect(result.currentQuestion).toBe(1);
   });
 });

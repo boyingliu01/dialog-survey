@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { generateSmartResponse } from '../../services/followup.service.js';
-import { info } from '../../utils/logger.js';
+import { info, warn } from '../../utils/logger.js';
 import {
   DEFAULT_CLOSING_MESSAGE,
   type InterviewState,
@@ -27,7 +27,8 @@ function routeAction(
   currentQ: number,
   totalQuestions: number,
   smartResponse: string,
-  closingMessage?: string
+  closingMessage?: string,
+  nextQuestion?: string
 ): ActionResult {
   const isLastQuestion = currentQ >= totalQuestions - 1;
   const closing = closingMessage || DEFAULT_CLOSING_MESSAGE;
@@ -41,13 +42,22 @@ function routeAction(
 
   // Rule 2: END / shouldEndInterview
   if (action === 'END' || action === 'shouldEndInterview') {
-    return {
-      followupCount: 0,
-      currentQuestion: currentQ,
-      shouldContinue: false,
-      status: 'COMPLETED',
-      response: `${smartResponse}\n\n${closing}`,
-    };
+    if (currentQ < totalQuestions - 1) {
+      warn('LLM tried to END prematurely — forcing NEXT', {
+        currentQ,
+        totalQuestions,
+        remainingQuestions: totalQuestions - currentQ - 1,
+      });
+      action = 'NEXT';
+    } else {
+      return {
+        followupCount: 0,
+        currentQuestion: currentQ,
+        shouldContinue: false,
+        status: 'COMPLETED',
+        response: `${smartResponse}\n\n${closing}`,
+      };
+    }
   }
 
   // Rule 3: FOLLOWUP (not exceeded limit)
@@ -85,7 +95,7 @@ function routeAction(
     followupCount: 0,
     currentQuestion: currentQ + 1,
     shouldContinue: true,
-    response: smartResponse,
+    response: nextQuestion ? `${smartResponse}\n\n${nextQuestion}` : smartResponse,
   };
 }
 
@@ -135,7 +145,8 @@ export async function interviewingNode(
       input.content,
       currentQuestion,
       content.llmPromptTemplate,
-      currentQ >= content.questions.length - 1
+      currentQ >= content.questions.length - 1,
+      content.questions.length
     );
 
     info('Smart response generated', {
@@ -144,9 +155,10 @@ export async function interviewingNode(
       response: smartResult.response.substring(0, 50),
     });
 
+    const nextQ = content.questions[currentQ + 1];
     const handled = smartResult.shouldEndInterview
-      ? routeAction('END', state.followupCount, state.maxFollowups, currentQ, content.questions.length, smartResult.response, content.closingMessage)
-      : routeAction(smartResult.action, state.followupCount, state.maxFollowups, currentQ, content.questions.length, smartResult.response, content.closingMessage);
+      ? routeAction('END', state.followupCount, state.maxFollowups, currentQ, content.questions.length, smartResult.response, content.closingMessage, nextQ)
+      : routeAction(smartResult.action, state.followupCount, state.maxFollowups, currentQ, content.questions.length, smartResult.response, content.closingMessage, nextQ);
 
     return {
       responses: newResponses,
