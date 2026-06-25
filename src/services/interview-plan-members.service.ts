@@ -90,7 +90,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
 
     // Validate: at least one of userId or phone must be provided
     if (!userId && !phone) {
-      throw new InvalidMemberInputError('Either userId or phone is required');
+      throw new InvalidMemberInputError('请填写钉钉 ID 或手机号');
     }
 
     // If userId provided, ignore phone entirely - skip DingTalk call
@@ -108,7 +108,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
     }
 
     if (!userId) {
-      throw new InvalidMemberInputError('userId is required after phone resolution');
+      throw new InvalidMemberInputError('手机号验证失败，未获取到用户身份');
     }
 
     const newInterviewId = await this.prisma.$transaction(async (tx) => {
@@ -122,7 +122,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
         where: { planId, userId },
       });
       if (existingByUserId) {
-        throw new MemberConflictError(`Member already exists in plan: ${userId}`);
+        throw new MemberConflictError('该成员已在访谈计划中');
       }
 
       // Phone mode: check phone conflict in inviteeData JSON
@@ -182,10 +182,10 @@ export class InterviewPlanService extends InterviewPlanSendService {
         throw new InterviewNotFoundError(interviewId);
       }
       if (interview.planId !== planId) {
-        throw new InvalidStateError(`Interview does not belong to plan: ${interviewId}`);
+        throw new InvalidStateError('该访谈记录不属于此计划');
       }
       if (interview.status === 'COMPLETED') {
-        throw new InvalidStateError(`Cannot remove completed interview: ${interviewId}`);
+        throw new InvalidStateError('无法删除已完成的访谈');
       }
 
       const plan = await tx.interviewPlan.findUnique({ where: { id: planId } });

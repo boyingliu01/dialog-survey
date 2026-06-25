@@ -94,14 +94,11 @@ export async function generateSmartResponse(
       const parsed = parseLLMResponse(response.content);
       if (!parsed) {
         warn('Failed to parse custom prompt result as JSON, using raw text');
-        const shouldEnd = isLastQuestion === true;
         return {
-          response: shouldEnd
-            ? '感谢您的分享！访谈到此结束，祝您一切顺利！'
-            : smartTruncate(response.content, 150),
-          action: shouldEnd ? ('END' as const) : ('NEXT' as const),
-          shouldProceedToNext: !shouldEnd,
-          shouldEndInterview: shouldEnd,
+          response: smartTruncate(response.content, 150),
+          action: 'NEXT',
+          shouldProceedToNext: true,
+          shouldEndInterview: false,
         };
       }
       if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups)
@@ -141,12 +138,11 @@ export async function generateSmartResponse(
     const parsed = parseLLMResponse(response.content);
     if (!parsed) {
       info('Failed to parse LLM response, using fallback');
-      const shouldEnd = isLastQuestion === true;
       return {
-        response: shouldEnd ? '感谢您的分享！访谈到此结束，祝您一切顺利！' : FALLBACK_RESPONSE,
-        action: shouldEnd ? ('END' as const) : ('NEXT' as const),
-        shouldProceedToNext: !shouldEnd,
-        shouldEndInterview: shouldEnd,
+        response: FALLBACK_RESPONSE,
+        action: 'NEXT',
+        shouldProceedToNext: true,
+        shouldEndInterview: false,
       };
     }
     if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups) {
@@ -167,12 +163,11 @@ export async function generateSmartResponse(
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';
     info('Smart response generation failed', { error: errMsg });
-    const shouldEnd = isLastQuestion === true;
     return {
-      response: shouldEnd ? '感谢您的分享！访谈到此结束，祝您一切顺利！' : FALLBACK_RESPONSE,
-      action: shouldEnd ? ('END' as const) : ('NEXT' as const),
-      shouldProceedToNext: !shouldEnd,
-      shouldEndInterview: shouldEnd,
+      response: FALLBACK_RESPONSE,
+      action: 'NEXT',
+      shouldProceedToNext: true,
+      shouldEndInterview: false,
     };
   }
 }
