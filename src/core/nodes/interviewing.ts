@@ -1,108 +1,92 @@
 import type { PrismaClient } from '@prisma/client';
-import { TemplateRepository } from '../../repositories/template.repository.js';
 import { generateSmartResponse } from '../../services/followup.service.js';
-import { info, warn } from '../../utils/logger.js';
-import type { InterviewState, NodeOutput } from '../types/index.js';
+import { info } from '../../utils/logger.js';
+import {
+  DEFAULT_CLOSING_MESSAGE,
+  type InterviewState,
+  type NodeOutput,
+  type TemplateContent,
+} from '../types/index.js';
+import { loadTemplateContent } from './template-utils.js';
 
 type ResponseEntry = { questionId: string; content: string; isFollowup: boolean };
 type NewResponses = ResponseEntry[];
 
-export interface TemplateContent {
-  name: string;
-  description?: string;
-  invitationPrompt: string;
-  questions: string[];
-  closingMessage?: string;
-  llmPromptTemplate?: string;
-}
-
-interface SmartResult {
-  action: string;
+interface ActionResult {
+  followupCount: number;
+  currentQuestion: number;
+  shouldContinue: boolean;
+  status?: InterviewState['status'];
   response: string;
-  shouldEndInterview: boolean;
 }
 
-function buildClosingMessage(closingMessage: string | undefined): string {
-  return closingMessage || '访谈已完成，感谢您的参与！';
-}
-
-function handleSmartResult(
-  smartResult: SmartResult,
-  state: InterviewState,
-  content: TemplateContent,
+function routeAction(
+  initialAction: string,
+  followupCount: number,
+  maxFollowups: number,
   currentQ: number,
-  newResponses: NewResponses
-): (Partial<InterviewState> & NodeOutput) | null {
-  if (smartResult.shouldEndInterview) {
-    const closing = buildClosingMessage(content.closingMessage);
+  totalQuestions: number,
+  smartResponse: string,
+  closingMessage?: string
+): ActionResult {
+  const isLastQuestion = currentQ >= totalQuestions - 1;
+  const closing = closingMessage || DEFAULT_CLOSING_MESSAGE;
+
+  let action = initialAction;
+
+  // Rule 1: Enforce followup limit - force NEXT if exceeded
+  if (action === 'FOLLOWUP' && followupCount >= maxFollowups) {
+    action = 'NEXT';
+  }
+
+  // Rule 2: END / shouldEndInterview
+  if (action === 'END' || action === 'shouldEndInterview') {
     return {
-      responses: newResponses,
       followupCount: 0,
+      currentQuestion: currentQ,
+      shouldContinue: false,
       status: 'COMPLETED',
-      shouldContinue: false,
-      response: `${smartResult.response}\n\n${closing}`,
+      response: `${smartResponse}\n\n${closing}`,
     };
   }
 
-  if (smartResult.action === 'FOLLOWUP') {
+  // Rule 3: FOLLOWUP (not exceeded limit)
+  if (action === 'FOLLOWUP') {
     return {
-      responses: newResponses,
-      followupCount: state.followupCount + 1,
+      followupCount: followupCount + 1,
+      currentQuestion: currentQ,
       shouldContinue: true,
-      response: smartResult.response,
+      response: smartResponse,
     };
   }
 
-  if (smartResult.action === 'STAY') {
+  // Rule 4: STAY (re-ask same question) — also increments followup to prevent infinite loops
+  if (action === 'STAY') {
     return {
-      responses: newResponses,
-      followupCount: 0,
+      followupCount: followupCount + 1,
+      currentQuestion: currentQ,
       shouldContinue: true,
-      response: smartResult.response,
+      response: smartResponse,
     };
   }
 
-  const nextQuestion = content.questions[currentQ + 1];
-  const isLastQuestion = currentQ >= content.questions.length - 1;
-
-  if (containsMultipleQuestions(smartResult.response)) {
-    warn('LLM response contains multiple questions. Removing extra text.', {
-      text: smartResult.response.substring(0, 80),
-    });
-    const firstSentence = smartResult.response.split(/[?？]/)[0].trim();
-    if (isLastQuestion) {
-      const closing = buildClosingMessage(content.closingMessage);
-      return {
-        responses: newResponses,
-        currentQuestion: currentQ + 1,
-        followupCount: 0,
-        shouldContinue: false,
-        response: `${firstSentence}\n\n${closing}`,
-      };
-    }
+  // Rule 5: NEXT — advance to next question or complete
+  if (isLastQuestion) {
     return {
-      responses: newResponses,
-      currentQuestion: currentQ + 1,
       followupCount: 0,
-      shouldContinue: !!nextQuestion,
-      response: firstSentence,
-    };
-  }
-
-  if (isLastQuestion && smartResult.response) {
-    const closing =
-      content.closingMessage ||
-      '非常感谢您的分享！这些信息对我们非常有价值。访谈到此结束，祝您工作顺利！';
-    return {
-      responses: newResponses,
       currentQuestion: currentQ + 1,
-      followupCount: 0,
       shouldContinue: false,
-      response: `${smartResult.response}\n\n${closing}`,
+      status: 'COMPLETED',
+      response: `${smartResponse}\n\n${closing}`,
     };
   }
 
-  return null;
+  return {
+    followupCount: 0,
+    currentQuestion: currentQ + 1,
+    shouldContinue: true,
+    response: smartResponse,
+  };
 }
 
 function buildFallbackResponse(
@@ -114,13 +98,12 @@ function buildFallbackResponse(
   const isLastQuestion = currentQ >= content.questions.length - 1;
 
   if (isLastQuestion) {
-    const closing = buildClosingMessage(content.closingMessage);
     return {
       responses: newResponses,
       currentQuestion: currentQ + 1,
       followupCount: 0,
       shouldContinue: false,
-      response: closing,
+      response: content.closingMessage || DEFAULT_CLOSING_MESSAGE,
     };
   }
 
@@ -129,7 +112,7 @@ function buildFallbackResponse(
     currentQuestion: currentQ + 1,
     followupCount: 0,
     shouldContinue: !!nextQuestion,
-    response: nextQuestion || '访谈已完成，非常感谢您拨冗参与！',
+    response: nextQuestion || DEFAULT_CLOSING_MESSAGE,
   };
 }
 
@@ -161,26 +144,13 @@ export async function interviewingNode(
       response: smartResult.response.substring(0, 50),
     });
 
-    const handled = handleSmartResult(smartResult, state, content, currentQ, newResponses);
-    if (handled) return handled;
+    const handled = smartResult.shouldEndInterview
+      ? routeAction('END', state.followupCount, state.maxFollowups, currentQ, content.questions.length, smartResult.response, content.closingMessage)
+      : routeAction(smartResult.action, state.followupCount, state.maxFollowups, currentQ, content.questions.length, smartResult.response, content.closingMessage);
 
-    const isLastQuestion = currentQ >= content.questions.length - 1;
-    if (isLastQuestion) {
-      const closing = buildClosingMessage(content.closingMessage);
-      return {
-        responses: newResponses,
-        currentQuestion: currentQ + 1,
-        followupCount: 0,
-        shouldContinue: false,
-        response: smartResult.response ? `${smartResult.response}\n\n${closing}` : closing,
-      };
-    }
     return {
       responses: newResponses,
-      currentQuestion: currentQ + 1,
-      followupCount: 0,
-      shouldContinue: true,
-      response: smartResult.response,
+      ...handled,
     };
   } catch (e) {
     info('Smart response generation failed, falling back to next question', {
@@ -189,33 +159,4 @@ export async function interviewingNode(
   }
 
   return buildFallbackResponse(content, currentQ, newResponses);
-}
-
-/**
- * Detect multiple questions in a text. If > 1 question mark, returns true.
- */
-function containsMultipleQuestions(text: string): boolean {
-  const matches = text.match(/[?？]/g);
-  return matches ? matches.length > 1 : false;
-}
-
-async function loadTemplateContent(
-  templateId?: string,
-  prisma?: PrismaClient
-): Promise<TemplateContent> {
-  if (templateId && prisma) {
-    const repo = new TemplateRepository(prisma);
-    const template = await repo.findById(templateId);
-    if (template) return JSON.parse(template.content) as TemplateContent;
-  }
-  return {
-    name: 'Default Interview',
-    invitationPrompt: '您好！欢迎参与本次访谈。',
-    questions: [
-      '请简单介绍一下您的工作经历？',
-      '您在工作中遇到过最大的挑战是什么？',
-      '您是如何解决这个挑战的？',
-      '您对未来的职业规划是什么？',
-    ],
-  };
 }

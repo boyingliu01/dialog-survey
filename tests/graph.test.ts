@@ -20,16 +20,7 @@ vi.mock('../src/core/nodes/interviewing.js', () => ({
   }),
 }));
 
-vi.mock('../src/core/nodes/analyzing.js', () => ({
-  analyzingNode: vi.fn().mockResolvedValue({
-    status: 'COMPLETED',
-    reportGenerated: true,
-  }),
-}));
-
-vi.mock('../src/core/nodes/completed.js', () => ({
-  completedNode: vi.fn().mockResolvedValue(undefined),
-}));
+// analyzingNode and completedNode deleted (M-1) — analysis trigger inlined in graph.ts
 
 describe('runInterviewGraph', () => {
   let initialState: InterviewState;
@@ -127,12 +118,10 @@ describe('runInterviewGraph', () => {
 
   /**
    * @test REQ-003-8-02
-   * @intent 验证当访谈结束时执行分析节点和完成节点的状态机边条件
+   * @intent 验证当访谈结束时shouldContinue=false, response设为closing message
    */
-  it('should run analyzing and completed nodes when interview ends', async () => {
+  it('should return closing message when interview ends', async () => {
     const { interviewingNode } = await import('../src/core/nodes/interviewing.js');
-    const { analyzingNode } = await import('../src/core/nodes/analyzing.js');
-    const { completedNode } = await import('../src/core/nodes/completed.js');
 
     vi.mocked(interviewingNode).mockResolvedValueOnce({
       currentQuestion: 4,
@@ -149,44 +138,8 @@ describe('runInterviewGraph', () => {
       isVoice: false,
     });
 
-    expect(analyzingNode).toHaveBeenCalled();
-    expect(completedNode).toHaveBeenCalled();
-    expect(result.nextState.status).toBe('COMPLETED');
-    expect(result.nextState.reportGenerated).toBe(true);
-  });
-
-  /**
-   * @test REQ-003-8-02
-   * @intent 验证在分析完成后，如果不是COMPLETED状态则不会运行完成节点的状态机边条件
-   */
-  it('should not run completed node if status is not COMPLETED after analyzing', async () => {
-    const { interviewingNode } = await import('../src/core/nodes/interviewing.js');
-    const { analyzingNode } = await import('../src/core/nodes/analyzing.js');
-    const { completedNode } = await import('../src/core/nodes/completed.js');
-
-    vi.mocked(interviewingNode).mockResolvedValueOnce({
-      currentQuestion: 3,
-      responses: [],
-      response: 'No more questions',
-      shouldContinue: false,
-    });
-
-    vi.mocked(analyzingNode).mockResolvedValueOnce({
-      status: 'WAITING',
-      reportGenerated: false,
-    });
-
-    initialState.status = 'ACTIVE';
-
-    const result = await runInterviewGraph(initialState, {
-      userId: 'user-123',
-      content: '回答',
-      isVoice: false,
-    });
-
-    expect(analyzingNode).toHaveBeenCalled();
-    expect(completedNode).not.toHaveBeenCalled();
-    expect(result.nextState.status).toBe('WAITING');
+    expect(result.response).toContain('访谈已完成');
+    expect(result.response).toContain('一切顺利');
   });
 
   /**
@@ -195,7 +148,6 @@ describe('runInterviewGraph', () => {
    */
   it('should skip interviewing node when content is empty', async () => {
     const { interviewingNode } = await import('../src/core/nodes/interviewing.js');
-    const { analyzingNode } = await import('../src/core/nodes/analyzing.js');
 
     const result = await runInterviewGraph(initialState, {
       userId: 'user-123',
@@ -204,15 +156,14 @@ describe('runInterviewGraph', () => {
     });
 
     expect(interviewingNode).not.toHaveBeenCalled();
-    expect(analyzingNode).not.toHaveBeenCalled();
     expect(result.response).toBe('开场问题');
   });
 
   /**
    * @test REQ-003-8-03
-   * @intent 验证PENDING状态有content时先调用planningNode再调用interviewingNode
+   * @intent 验证PENDING状态有content时只执行planningNode(Phase 1立即返回)
    */
-  it('should run planning then interviewing when PENDING with content', async () => {
+  it('should run planning then return immediately when PENDING with content', async () => {
     const { planningNode } = await import('../src/core/nodes/planning.js');
     const { interviewingNode } = await import('../src/core/nodes/interviewing.js');
 
@@ -223,8 +174,8 @@ describe('runInterviewGraph', () => {
     });
 
     expect(planningNode).toHaveBeenCalled();
-    expect(interviewingNode).toHaveBeenCalled();
-    expect(result.nextState.currentQuestion).toBe(1);
+    expect(interviewingNode).not.toHaveBeenCalled();
+    expect(result.nextState.currentQuestion).toBe(0);
   });
 
   /**
@@ -248,13 +199,11 @@ describe('runInterviewGraph', () => {
 
   /**
    * @test REQ-003-8-03
-   * @intent 验证CANCELLED状态跳过planning但interviewing仍处理content（因为graph检查content而非status）
+   * @intent 验证CANCELLED状态被guard拦截,返回DEFAULT_CLOSING_MESSAGE
    */
-  it('should skip planning but process content for CANCELLED status', async () => {
+  it('should skip processing for CANCELLED status', async () => {
     const { planningNode } = await import('../src/core/nodes/planning.js');
     const { interviewingNode } = await import('../src/core/nodes/interviewing.js');
-    const { analyzingNode } = await import('../src/core/nodes/analyzing.js');
-    const { completedNode } = await import('../src/core/nodes/completed.js');
 
     const cancelledState: InterviewState = {
       ...initialState,
@@ -268,10 +217,8 @@ describe('runInterviewGraph', () => {
     });
 
     expect(planningNode).not.toHaveBeenCalled();
-    expect(interviewingNode).toHaveBeenCalled();
-    // interviewing node mocked to return shouldContinue: true, so analyzing/complete don't run
-    expect(analyzingNode).not.toHaveBeenCalled();
-    expect(completedNode).not.toHaveBeenCalled();
+    expect(interviewingNode).not.toHaveBeenCalled();
     expect(result.nextState.status).toBe('CANCELLED');
+    expect(result.response).toContain('访谈已结束');
   });
 });
