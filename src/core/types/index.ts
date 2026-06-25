@@ -69,3 +69,31 @@ export interface NodeOutput {
   shouldContinue?: boolean;
   nextQuestion?: string;
 }
+
+export const DEFAULT_CLOSING_MESSAGE = '访谈已结束，非常感谢您拨冗参与！您的分享对我们很有价值，祝您一切顺利！';
+
+export interface TemplateContent {
+  name: string;
+  description?: string;
+  invitationPrompt: string;
+  questions: string[];
+  closingMessage?: string;
+  llmPromptTemplate?: string;
+  dimensions?: Array<{
+    id: string;
+    label: string;
+    keywords?: string[];
+  }>;
+  analysisConfig?: Record<string, unknown>;
+}
+
+export const DEFAULT_TEMPLATE_CONTENT: TemplateContent = {
+  name: 'Default Interview',
+  invitationPrompt: '您好！欢迎参与本次访谈。',
+  questions: [
+    '请简单介绍一下您的工作经历？',
+    '您在工作中遇到过最大的挑战是什么？',
+    '您是如何解决这个挑战的？',
+    '您对未来的职业规划是什么？',
+  ],
+};
