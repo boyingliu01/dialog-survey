@@ -2,22 +2,13 @@ import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 describe('LangGraph State Machine', () => {
-  describe('ConversationEngine', () => {
+  describe('ConversationEngine (Deleted)', () => {
     /**
-     * @test REQ-003-1-01
-     * @intent 验证ConversationEngine统一入口存在
+     * @test REFACTOR-M1
+     * @intent ConversationEngine deleted as dead code (issue #115)
      */
-    it('should have src/services/conversation-engine.ts', () => {
-      expect(fs.existsSync('src/services/conversation-engine.ts')).toBe(true);
-    });
-
-    /**
-     * @test REQ-003-1-01
-     * @intent 验证ConversationEngine实现processMessage函数用于路由Webhook消息
-     */
-    it('should implement processMessage function', () => {
-      const content = fs.readFileSync('src/services/conversation-engine.ts', 'utf-8');
-      expect(content.toLowerCase()).toContain('process');
+    it('should have removed src/services/conversation-engine.ts', () => {
+      expect(fs.existsSync('src/services/conversation-engine.ts')).toBe(false);
     });
   });
 
@@ -59,19 +50,19 @@ describe('LangGraph State Machine', () => {
     });
 
     /**
-     * @test REQ-003-6-01
-     * @intent 验证Analyzing节点存在
+     * @test REFACTOR-C2
+     * @intent 验证Analyzing节点已删除(功能内联到graph.ts, issue #109)
      */
-    it('should have analyzing node', () => {
-      expect(fs.existsSync('src/core/nodes/analyzing.ts')).toBe(true);
+    it('should have removed analyzing node (inlined into graph.ts)', () => {
+      expect(fs.existsSync('src/core/nodes/analyzing.ts')).toBe(false);
     });
 
     /**
-     * @test REQ-003-7-01
-     * @intent 验证Completed节点存在
+     * @test REFACTOR-C2
+     * @intent 验证Completed节点已删除(功能内联到graph.ts, issue #109)
      */
-    it('should have completed node', () => {
-      expect(fs.existsSync('src/core/nodes/completed.ts')).toBe(true);
+    it('should have removed completed node (inlined into graph.ts)', () => {
+      expect(fs.existsSync('src/core/nodes/completed.ts')).toBe(false);
     });
   });
 });

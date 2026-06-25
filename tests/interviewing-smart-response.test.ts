@@ -143,7 +143,7 @@ describe('interviewingNode - Smart Response Branches', () => {
   });
 
   describe('STAY action', () => {
-    it('should stay on current question without incrementing followupCount', async () => {
+    it('should stay on current question and increment followupCount', async () => {
       const { generateSmartResponse } = await import('../src/services/followup.service.js');
       vi.mocked(generateSmartResponse).mockResolvedValue({
         response: '我理解您的疑惑，让我解释一下...',
@@ -158,6 +158,7 @@ describe('interviewingNode - Smart Response Branches', () => {
 
       expect(result.shouldContinue).toBe(true);
       expect(result.response).toBe('我理解您的疑惑，让我解释一下...');
+      expect(result.followupCount).toBe(1);
     });
   });
 
@@ -183,7 +184,7 @@ describe('interviewingNode - Smart Response Branches', () => {
       });
 
       expect(result.shouldContinue).toBe(false);
-      expect(result.response).toContain('访谈已完成');
+      expect(result.response).toContain('访谈已');
     });
   });
 

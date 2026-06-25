@@ -13,9 +13,12 @@ import {
 export type { StreamMessage, ParsedStreamMessage, ProcessResult } from './stream-message-utils.js';
 
 const MAX_RETRIES = 3;
+const DEDUP_CACHE_SIZE = 1000;
 
 export class StreamMessageService {
   private repo: InterviewStateRepository;
+  private userLocks = new Map<string, Promise<void>>();
+  private dedupCache = new Map<string, number>();
 
   constructor(repo: InterviewStateRepository) {
     this.repo = repo;
@@ -53,12 +56,57 @@ export class StreamMessageService {
       return { success: false, error: 'Missing userId or content' };
     }
 
-    info('Processing stream message', {
-      userId: parsed.userId,
-      content: parsed.content,
-      messageId: parsed.messageId,
+    // H-4: Empty content guard (also handled in graph.ts)
+    if (!parsed.content.trim()) {
+      info('Skipping empty message', { userId: parsed.userId });
+      return { success: false, error: 'Empty message content' };
+    }
+
+    // H-1: Message dedup via LRU cache
+    if (parsed.messageId) {
+      const cached = this.dedupCache.get(parsed.messageId);
+      if (cached) {
+        info('Skipping duplicate message', { messageId: parsed.messageId });
+        return { success: false, error: 'Duplicate message' };
+      }
+      this.dedupCache.set(parsed.messageId, Date.now());
+      // Evict oldest entries when cache exceeds limit
+      if (this.dedupCache.size > DEDUP_CACHE_SIZE) {
+        const oldest = [...this.dedupCache.entries()].sort((a, b) => a[1] - b[1])[0];
+        if (oldest) this.dedupCache.delete(oldest[0]);
+      }
+    }
+
+    // H-6: Per-user mutex to serialize concurrent messages
+    return this.withUserLock(parsed.userId, () =>
+      this.processMessageInternal(parsed as ReturnType<typeof parseStreamMessage> & { userId: string; content: string; messageId?: string; sessionWebhook?: string }, message, retryCount, prisma)
+    );
+  }
+
+  private async withUserLock<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+    const previous = this.userLocks.get(userId) ?? Promise.resolve();
+
+    let release: (() => void) | undefined;
+    const lock = new Promise<void>((resolve) => { release = resolve; });
+
+    const current = previous.then(async () => {
+      try {
+        return await fn();
+      } finally {
+        release?.();
+      }
     });
 
+    this.userLocks.set(userId, lock);
+    return current;
+  }
+
+  private async processMessageInternal(
+    parsed: { userId: string; content: string; messageId?: string; sessionWebhook?: string },
+    message: { data: string; headers: { messageId: string } },
+    retryCount: number,
+    prisma?: PrismaClient
+  ): Promise<{ success: boolean; response?: string; error?: string }> {
     let state = await this.repo.findActiveInterview(parsed.userId);
 
     if (!state) {
@@ -174,6 +222,17 @@ export class StreamMessageService {
           );
         }
       }
+
+      // H-5: Dead letter queue for pending data on retry exhaustion
+      if (retryCount >= MAX_RETRIES) {
+        error('Persistence retries exhausted - pending data may be lost', {
+          userId: parsed.userId,
+          interviewId: state.interviewId,
+          pendingMessagesCount: nextState.pendingMessages.length,
+          pendingResponsesCount: nextState.pendingResponses.length,
+        });
+      }
+
       return { success: false, error: errorMsg };
     }
 
@@ -207,6 +266,16 @@ export class StreamMessageService {
       if (errorMsg.includes('Version conflict') && retryCount < MAX_RETRIES) {
         return this.processStreamMessage(message, retryCount + 1);
       }
+
+      // H-5: Dead letter logging on retry exhaustion
+      if (retryCount >= MAX_RETRIES) {
+        error('Persistence retries exhausted in retry path', {
+          interviewId: state.interviewId,
+          pendingMessagesCount: graphResult.nextState.pendingMessages.length,
+          pendingResponsesCount: graphResult.nextState.pendingResponses.length,
+        });
+      }
+
       return { success: false, error: errorMsg };
     }
 
@@ -229,7 +298,6 @@ export class StreamMessageService {
   }
 }
 
-// Backwards-compatible exports
 export { parseStreamMessage, sendReply, isAllowedWebhookUrl } from './stream-message-utils.js';
 
 export async function processStreamMessage(

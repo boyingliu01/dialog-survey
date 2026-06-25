@@ -40,7 +40,7 @@ describe('planningNode', () => {
     const result = await planningNode(baseState, mockPrisma);
 
     expect(result.response).toBe(
-      '您好！欢迎参与本次访谈。您的回答对我们非常重要，请根据提示回答问题即可。\n\n请简单介绍一下您的工作经历？'
+      '您好！欢迎参与本次访谈。\n\n请简单介绍一下您的工作经历？'
     );
     expect(result.shouldContinue).toBe(true);
     expect(result.currentQuestion).toBe(0);
@@ -56,7 +56,7 @@ describe('planningNode', () => {
     expect(result.messages).toHaveLength(1);
     expect(result.messages[0].role).toBe('assistant');
     expect(result.messages[0].content).toBe(
-      '您好！欢迎参与本次访谈。您的回答对我们非常重要，请根据提示回答问题即可。'
+      '您好！欢迎参与本次访谈。'
     );
     expect(result.messages[0].timestamp).toBeDefined();
   });
@@ -87,7 +87,7 @@ describe('planningNode', () => {
     const result = await planningNode(stateWithoutTemplate, mockPrisma);
 
     expect(result.response).toBe(
-      '您好！欢迎参与本次访谈。您的回答对我们非常重要，请根据提示回答问题即可。\n\n请简单介绍一下您的工作经历？'
+      '您好！欢迎参与本次访谈。\n\n请简单介绍一下您的工作经历？'
     );
     expect(result.shouldContinue).toBe(true);
   });

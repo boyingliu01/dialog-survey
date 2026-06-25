@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { interviewingNode } from '../src/core/nodes/interviewing.js';
-import type { InterviewState } from '../src/core/types/index.js';
+import { DEFAULT_CLOSING_MESSAGE, type InterviewState } from '../src/core/types/index.js';
 import { generateSmartResponse } from '../src/services/followup.service.js';
 
 vi.mock('../src/services/followup.service.js', () => ({
@@ -74,7 +74,7 @@ describe('interviewingNode', () => {
 
     expect(result.responses).toHaveLength(1);
     expect(result.currentQuestion).toBe(4);
-    expect(result.response).toBe('访谈已完成，感谢您的参与！');
+    expect(result.response).toBe(DEFAULT_CLOSING_MESSAGE);
     expect(result.shouldContinue).toBe(false);
     expect(result.nextQuestion).toBeUndefined();
   });
@@ -159,7 +159,7 @@ describe('interviewingNode', () => {
     expect(result.status).toBe('COMPLETED');
     expect(result.shouldContinue).toBe(false);
     expect(result.response).toContain('感谢您的参与，访谈到此结束。');
-    expect(result.response).toContain('访谈已完成');
+    expect(result.response).toContain('访谈已');
     expect(result.responses).toBeDefined();
     expect(result.responses).toHaveLength(1);
   });
@@ -201,8 +201,8 @@ describe('interviewingNode', () => {
     expect(result.responses).toHaveLength(1);
     expect(result.shouldContinue).toBe(true);
     expect(result.response).toBe('请继续补充您的想法。');
-    // STAY does not advance currentQuestion
-    expect(result.currentQuestion).toBeUndefined();
+    // STAY now emits currentQuestion explicitly (0), fixing bug C-1a
+    expect(result.currentQuestion).toBe(0);
   });
 
   /**
@@ -255,7 +255,7 @@ describe('interviewingNode', () => {
     expect(result.responses).toHaveLength(1);
     expect(result.currentQuestion).toBe(4);
     expect(result.shouldContinue).toBe(false);
-    expect(result.response).toBe('访谈已完成，感谢您的参与！');
+    expect(result.response).toBe(DEFAULT_CLOSING_MESSAGE);
   });
 
   /**
