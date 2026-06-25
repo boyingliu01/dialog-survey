@@ -131,7 +131,8 @@ describe('interviewingNode - Smart Response Branches', () => {
         shouldEndInterview: true,
       });
 
-      const result = await interviewingNode(createMockState(1), {
+      // Must be on last question for END to take effect
+      const result = await interviewingNode(createMockState(3), {
         content: '我想结束访谈',
       });
 
