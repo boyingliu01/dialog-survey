@@ -89,7 +89,9 @@ describe('Core Nodes Branch Coverage', () => {
         shouldEndInterview: true,
       });
 
-      const result = await interviewingNode(baseState, { content: '回答内容' });
+      // Must be on last question for END to take effect
+      const lastState = { ...baseState, currentQuestion: 3 };
+      const result = await interviewingNode(lastState, { content: '回答内容' });
 
       expect(result.responses).toHaveLength(1);
       expect(result.status).toBe('COMPLETED');

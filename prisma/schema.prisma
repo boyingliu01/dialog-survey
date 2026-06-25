@@ -46,6 +46,7 @@ model Interview {
   reportPath      String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+  nudgeCount      Int              @default(0) // Number of timeout nudge reminders sent
 
   messages     Message[]
   responses    Response[]

@@ -389,6 +389,66 @@ describe('InterviewStateRepository', () => {
     });
   });
 
+  describe('findCompletedInterview', () => {
+    /**
+     * @test bugfix-findCompletedInterview-returns-completed
+     * @intent 验证findCompletedInterview能找到COMPLETED状态的访谈，
+     *        返回updatedAt和templateId用于冷却期检查
+     */
+    it('should return completed interview with updatedAt and templateId', async () => {
+      const completedInterview = {
+        ...mockInterview,
+        status: 'COMPLETED',
+        updatedAt: new Date('2026-06-25T10:00:00Z'),
+        templateId: 'template-42',
+      };
+      mockPrisma.interview.findFirst.mockResolvedValue(completedInterview);
+
+      const result = await repository.findCompletedInterview('user-123');
+
+      expect(result).not.toBeNull();
+      expect(result?.completedAt).toEqual(new Date('2026-06-25T10:00:00Z'));
+      expect(result?.templateId).toBe('template-42');
+      expect(mockPrisma.interview.findFirst).toHaveBeenCalledWith({
+        where: { userId: 'user-123', status: 'COMPLETED' },
+        orderBy: { updatedAt: 'desc' },
+        select: { updatedAt: true, templateId: true },
+      });
+    });
+
+    /**
+     * @test bugfix-findCompletedInterview-returns-null
+     * @intent 验证无COMPLETED访谈时返回null（不阻塞新访谈创建）
+     */
+    it('should return null when no completed interview exists', async () => {
+      mockPrisma.interview.findFirst.mockResolvedValue(null);
+
+      const result = await repository.findCompletedInterview('user-123');
+
+      expect(result).toBeNull();
+    });
+
+    /**
+     * @test bugfix-findCompletedInterview-respects-order
+     * @intent 验证有多个COMPLETED访谈时返回最新的一个（by updatedAt desc）
+     */
+    it('should return most recent completed interview', async () => {
+      const newer = {
+        ...mockInterview,
+        id: 'interview-newer',
+        status: 'COMPLETED',
+        updatedAt: new Date('2026-06-25T12:00:00Z'),
+        templateId: 'template-new',
+      };
+      mockPrisma.interview.findFirst.mockResolvedValue(newer);
+
+      const result = await repository.findCompletedInterview('user-123');
+
+      expect(result?.completedAt).toEqual(new Date('2026-06-25T12:00:00Z'));
+      expect(result?.templateId).toBe('template-new');
+    });
+  });
+
   describe('disconnect', () => {
     it('should call $disconnect on prisma client', async () => {
       await repository.disconnect();

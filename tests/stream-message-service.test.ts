@@ -37,6 +37,7 @@ describe('StreamMessageService', () => {
 
     mockRepo = {
       findActiveInterview: vi.fn(),
+      findCompletedInterview: vi.fn().mockResolvedValue(null),
       createInterview: vi.fn(),
       loadFullState: vi.fn(),
       saveFullState: vi.fn(),
@@ -507,6 +508,233 @@ describe('StreamMessageService', () => {
       const graphCallArg = vi.mocked(runInterviewGraph).mock.calls[0][0];
       expect(graphCallArg.interviewId).toBe('pre-created-interview');
       expect(graphCallArg.templateId).toBe('plan-template-999');
+    });
+
+    /**
+     * @test bugfix-cooldown-blocks-restart-within-cooldown
+     * @intent 验证用户在冷却期内发消息时被拦截，收到冷却提醒消息
+     */
+    it('should block message and send cooldown reply when recently completed interview exists', async () => {
+      mockRepo.findActiveInterview.mockResolvedValueOnce(null);
+      const completedAt = new Date(Date.now() - 5 * 60 * 1000); // 5 min ago
+      vi.stubEnv('INTERVIEW_COOLDOWN_MINUTES', '30');
+      mockRepo.findCompletedInterview = vi.fn().mockResolvedValueOnce({
+        completedAt,
+        templateId: 'template-1',
+      });
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      const message: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: {
+          topic: 'chat',
+          messageId: 'msg-cooldown-block',
+          time: '2024-01-01T00:00:00Z',
+        },
+        data: JSON.stringify({
+          senderStaffId: 'user-123',
+          text: { content: 'Hello again' },
+          sessionWebhook: 'https://oapi.dingtalk.com',
+        }),
+      };
+
+      const result = await service.processStreamMessage(message);
+
+      expect(result.success).toBe(true);
+      expect(result.response).toContain('分钟');
+      expect(mockRepo.createInterview).not.toHaveBeenCalled();
+      expect(mockFetch).toHaveBeenCalled();
+    });
+
+    /**
+     * @test bugfix-cooldown-allows-restart-after-cooldown
+     * @intent 验证冷却期过后，用户可以正常开始新访谈
+     */
+    it('should allow new interview when cooldown has expired', async () => {
+      mockRepo.findActiveInterview.mockResolvedValueOnce(null);
+      const completedAt = new Date(Date.now() - 60 * 60 * 1000); // 60 min ago
+      vi.stubEnv('INTERVIEW_COOLDOWN_MINUTES', '30');
+      mockRepo.findCompletedInterview = vi.fn().mockResolvedValueOnce({
+        completedAt,
+        templateId: 'template-1',
+      });
+      mockRepo.createInterview.mockResolvedValueOnce('interview-new');
+      mockRepo.saveFullState.mockResolvedValueOnce({
+        success: true,
+        newVersion: 2,
+      });
+
+      vi.mocked(runInterviewGraph).mockResolvedValueOnce({
+        response: '请简单介绍一下您的工作经历？',
+        nextState: {
+          ...baseState,
+          interviewId: 'interview-new',
+          status: 'ACTIVE',
+        },
+      });
+
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      const message: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: {
+          topic: 'chat',
+          messageId: 'msg-cooldown-expired',
+          time: '2024-01-01T00:00:00Z',
+        },
+        data: JSON.stringify({
+          senderStaffId: 'user-123',
+          text: { content: 'Hello again' },
+          sessionWebhook: 'https://oapi.dingtalk.com',
+        }),
+      };
+
+      const result = await service.processStreamMessage(message);
+
+      expect(result.success).toBe(true);
+      expect(mockRepo.createInterview).toHaveBeenCalled();
+    });
+
+    /**
+     * @test bugfix-cooldown-no-completed-interview
+     * @intent 验证没有已完成访谈时正常创建新访谈（不触发冷却）
+     */
+    it('should create new interview normally when no completed interview exists', async () => {
+      mockRepo.findActiveInterview.mockResolvedValueOnce(null);
+      mockRepo.findCompletedInterview = vi.fn().mockResolvedValueOnce(null);
+      mockRepo.createInterview.mockResolvedValueOnce('interview-new');
+      mockRepo.saveFullState.mockResolvedValueOnce({
+        success: true,
+        newVersion: 2,
+      });
+
+      vi.mocked(runInterviewGraph).mockResolvedValueOnce({
+        response: '请简单介绍一下您的工作经历？',
+        nextState: {
+          ...baseState,
+          interviewId: 'interview-new',
+          status: 'ACTIVE',
+        },
+      });
+
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      const message: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: {
+          topic: 'chat',
+          messageId: 'msg-no-completed',
+          time: '2024-01-01T00:00:00Z',
+        },
+        data: JSON.stringify({
+          senderStaffId: 'user-123',
+          text: { content: 'Hello' },
+          sessionWebhook: 'https://oapi.dingtalk.com',
+        }),
+      };
+
+      const result = await service.processStreamMessage(message);
+
+      expect(result.success).toBe(true);
+      expect(mockRepo.createInterview).toHaveBeenCalled();
+    });
+
+    /**
+     * @test bugfix-timeout-sends-nudge-on-first-timeout
+     * @intent 验证首次超时发送提醒消息，不跳过问题
+     */
+    it('should send nudge message on first timeout without advancing question', async () => {
+      const staleState = {
+        ...baseState,
+        status: 'ACTIVE' as const,
+        currentQuestion: 0,
+        nudgeCount: 0,
+        messages: [
+          {
+            role: 'assistant' as const,
+            content: '请介绍您的工作经历？',
+            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+          },
+        ],
+      };
+      mockRepo.findActiveInterview.mockResolvedValueOnce(staleState);
+      vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '1');
+      vi.stubEnv('INTERVIEW_TIMEOUT_MAX_NUDGES', '3');
+
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      const message: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: {
+          topic: 'chat',
+          messageId: 'msg-timeout-nudge',
+          time: '2024-01-01T00:00:00Z',
+        },
+        data: JSON.stringify({
+          senderStaffId: 'user-123',
+          text: { content: 'Hello' },
+          sessionWebhook: 'https://oapi.dingtalk.com',
+        }),
+      };
+
+      const result = await service.processStreamMessage(message);
+
+      expect(result.success).toBe(true);
+      expect(result.response).toContain('继续');
+    });
+
+    /**
+     * @test bugfix-timeout-no-timeout-when-active
+     * @intent 验证正常回复时不触发超时
+     */
+    it('should process normally when not timed out', async () => {
+      const activeState = {
+        ...baseState,
+        status: 'ACTIVE' as const,
+        nudgeCount: 0,
+        messages: [
+          {
+            role: 'assistant' as const,
+            content: '请介绍您的工作经历？',
+            timestamp: new Date(Date.now() - 5 * 60 * 1000), // 5 min ago
+          },
+        ],
+      };
+      mockRepo.findActiveInterview.mockResolvedValueOnce(activeState);
+      mockRepo.saveFullState.mockResolvedValueOnce({ success: true, newVersion: 2 });
+      vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '1');
+
+      vi.mocked(runInterviewGraph).mockResolvedValueOnce({
+        response: '感谢您的回答，下一个问题...',
+        nextState: { ...activeState, currentQuestion: 1 },
+      });
+
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      const message: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: {
+          topic: 'chat',
+          messageId: 'msg-not-timeout',
+          time: '2024-01-01T00:00:00Z',
+        },
+        data: JSON.stringify({
+          senderStaffId: 'user-123',
+          text: { content: 'My answer' },
+          sessionWebhook: 'https://oapi.dingtalk.com',
+        }),
+      };
+
+      const result = await service.processStreamMessage(message);
+
+      expect(result.success).toBe(true);
+      expect(result.response).toBe('感谢您的回答，下一个问题...');
+      expect(mockRepo.saveFullState).toHaveBeenCalled();
     });
 
     /**

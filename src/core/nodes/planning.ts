@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { polishFirstQuestion } from '../../services/followup.service.js';
 import type { InterviewState, NodeOutput } from '../types/index.js';
 import { loadTemplateContent } from './template-utils.js';
 
@@ -8,6 +9,7 @@ export async function planningNode(
 ): Promise<Partial<InterviewState> & NodeOutput> {
   const content = await loadTemplateContent(state.templateId, prisma);
   const firstQuestion = content.questions[0] || '请开始回答，我会根据您的回答进行追问。';
+  const refinedFirstQuestion = await polishFirstQuestion(firstQuestion);
   let greeting = content.invitationPrompt;
 
   // Ensure the greeting clearly conveys interview intent within the first ~40 chars.
@@ -29,7 +31,7 @@ export async function planningNode(
         timestamp: new Date(),
       },
     ],
-    response: `${greeting}\n\n${firstQuestion}`,
+    response: `${greeting}\n\n${refinedFirstQuestion}`,
     shouldContinue: true,
   };
 }

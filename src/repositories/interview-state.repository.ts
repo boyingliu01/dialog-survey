@@ -279,6 +279,18 @@ export class InterviewStateRepository {
     return mapInterviewToInterviewState(interview);
   }
 
+  async findCompletedInterview(
+    userId: string
+  ): Promise<{ completedAt: Date; templateId: string } | null> {
+    const interview = await this.prisma.interview.findFirst({
+      where: { userId, status: 'COMPLETED' },
+      orderBy: { updatedAt: 'desc' },
+      select: { updatedAt: true, templateId: true },
+    });
+    if (!interview) return null;
+    return { completedAt: interview.updatedAt, templateId: interview.templateId };
+  }
+
   async disconnect(): Promise<void> {
     await this.prisma.$disconnect();
   }
