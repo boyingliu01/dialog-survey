@@ -6,6 +6,7 @@ import { InterviewPlanService } from '../src/services/interview-plan.service.js'
 describe('InterviewPlanService', () => {
   let service: InterviewPlanService;
   let mockPrisma: any;
+  let mockDingtalkClient: any;
 
   beforeEach(() => {
     mockPrisma = {
@@ -25,7 +26,13 @@ describe('InterviewPlanService', () => {
       },
       $disconnect: vi.fn(),
     };
-    service = new InterviewPlanService(mockPrisma as unknown as PrismaClient);
+    mockDingtalkClient = {
+      getUserIdByMobile: vi.fn().mockResolvedValue(null),
+    };
+    service = new InterviewPlanService(
+      mockPrisma as unknown as PrismaClient,
+      mockDingtalkClient as any
+    );
   });
 
   describe('createPlan', () => {
