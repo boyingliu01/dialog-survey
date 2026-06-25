@@ -123,7 +123,7 @@ describe('DingTalkTokenManager', () => {
     delete process.env.DINGTALK_CLIENT_SECRET;
 
     await expect(tokenManager.getAccessToken()).rejects.toThrow(
-      'DINGTALK_CLIENT_ID and DINGTALK_CLIENT_SECRET must be set in environment variables'
+      'DINGTALK_APP_KEY/DINGTALK_APP_SECRET or DINGTALK_CLIENT_ID/DINGTALK_CLIENT_SECRET must be set in environment variables'
     );
   });
 

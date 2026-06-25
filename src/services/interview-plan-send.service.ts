@@ -275,7 +275,11 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
     const message = invitationPrompt
       ? `${invitationPrompt}\n\n（来自「${planName}」访谈。请直接在钉钉中回复 OpenClaw小钉 任意消息即可开始访谈。）`
       : `您被邀请参与「${planName}」访谈。请直接在钉钉中回复 OpenClaw小钉 任意消息（如"你好"或"开始"）即可开始访谈。`;
-    await messageSender.sendTextMessage([userId], message);
+    const result = await messageSender.sendTextMessage([userId], message);
+    if (result.failedUserIds.length > 0) {
+      const errors = result.errors?.map((e) => `${e.userId}: ${e.error}`).join('; ') || 'unknown error';
+      throw new Error(`DingTalk send failed: ${errors}`);
+    }
   }
 
   async updatePlanStatus(planId: string, status: PlanStatus): Promise<void> {

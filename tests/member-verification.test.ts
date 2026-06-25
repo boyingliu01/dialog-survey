@@ -139,7 +139,7 @@ describe('verifyPhoneToName', () => {
       );
 
       expect(result.verified).toBe(false);
-      expect(result.reason).toContain('not found');
+      expect(result.reason).toContain('该手机号未在钉钉通讯录中注册');
       expect(result.userId).toBeUndefined();
     });
 
@@ -157,7 +157,7 @@ describe('verifyPhoneToName', () => {
       );
 
       expect(result.verified).toBe(false);
-      expect(result.reason).toContain('unavailable');
+      expect(result.reason).toContain('钉钉服务暂时不可用');
     });
   });
 

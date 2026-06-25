@@ -55,11 +55,14 @@ const remindSchema = z.object({
 });
 
 function mapServiceErrorToStatus(err: unknown): { status: number; message: string } {
-  if (err instanceof PlanNotFoundError || err instanceof InterviewNotFoundError) {
-    return { status: 404, message: err.message };
+  if (err instanceof PlanNotFoundError) {
+    return { status: 404, message: '访谈计划不存在或已被删除' };
+  }
+  if (err instanceof InterviewNotFoundError) {
+    return { status: 404, message: '访谈记录不存在或已被删除' };
   }
   if (err instanceof MemberNotFoundError) {
-    return { status: 404, message: err.message };
+    return { status: 404, message: '成员不存在或已被删除' };
   }
   if (err instanceof MemberConflictError) {
     return { status: 409, message: err.message };
@@ -70,7 +73,7 @@ function mapServiceErrorToStatus(err: unknown): { status: number; message: strin
   if (err instanceof InvalidMemberInputError) {
     return { status: 400, message: err.message };
   }
-  const message = err instanceof Error ? err.message : 'Unexpected error';
+  const message = err instanceof Error ? err.message : '服务异常，请稍后重试';
   return { status: 502, message };
 }
 
