@@ -63,7 +63,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
 
       await expect(
         service.addMember('plan-1', { userId: 'user-1', name: 'Alice' })
-      ).rejects.toThrow('Member already exists');
+      ).rejects.toThrow('该成员已在访谈计划中');
     });
 
     it('should create interview and append to inviteeData', async () => {
@@ -141,7 +141,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
       });
 
       await expect(service.removeMember('plan-1', 'int-1')).rejects.toThrow(
-        'Interview does not belong to plan'
+        '该访谈记录不属于此计划'
       );
     });
 
@@ -182,7 +182,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
       });
 
       await expect(service.removeMember('plan-1', 'int-1')).rejects.toThrow(
-        'Cannot remove completed interview'
+        '无法删除已完成的访谈'
       );
     });
 

@@ -32,11 +32,11 @@ export class DingTalkTokenManager implements TokenManager {
   }
 
   private validateCredentials(): void {
-    const id = process.env['DINGTALK_CLIENT_ID'];
-    const secret = process.env['DINGTALK_CLIENT_SECRET'];
-    if (!id || !secret) {
+    const appKey = process.env['DINGTALK_APP_KEY'] || process.env['DINGTALK_CLIENT_ID'];
+    const appSecret = process.env['DINGTALK_APP_SECRET'] || process.env['DINGTALK_CLIENT_SECRET'];
+    if (!appKey || !appSecret) {
       throw new Error(
-        'DINGTALK_CLIENT_ID and DINGTALK_CLIENT_SECRET must be set in environment variables'
+        'DINGTALK_APP_KEY/DINGTALK_APP_SECRET or DINGTALK_CLIENT_ID/DINGTALK_CLIENT_SECRET must be set in environment variables'
       );
     }
   }
@@ -106,9 +106,9 @@ export class DingTalkTokenManager implements TokenManager {
   }
 
   private async doFetch(): Promise<TokenResponse> {
-    const id = process.env['DINGTALK_CLIENT_ID'] ?? '';
-    const secret = process.env['DINGTALK_CLIENT_SECRET'] ?? '';
-    const url = `https://oapi.dingtalk.com/gettoken?appkey=${encodeURIComponent(id)}&appsecret=${encodeURIComponent(secret)}`;
+    const appKey: string = process.env['DINGTALK_APP_KEY'] || process.env['DINGTALK_CLIENT_ID'] || '';
+    const appSecret: string = process.env['DINGTALK_APP_SECRET'] || process.env['DINGTALK_CLIENT_SECRET'] || '';
+    const url = `https://oapi.dingtalk.com/gettoken?appkey=${encodeURIComponent(appKey)}&appsecret=${encodeURIComponent(appSecret)}`;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);

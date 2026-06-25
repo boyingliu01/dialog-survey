@@ -46,10 +46,9 @@ export async function verifyPhoneToName(
   try {
     lookupResult = await client.getUserIdByMobile(normalizedPhone);
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
-    return {
-      verified: false,
-      reason: `DingTalk service unavailable: ${errorMsg}`,
+      return {
+        verified: false,
+        reason: '钉钉服务暂时不可用，请稍后重试',
       name: '',
     };
   }
@@ -57,7 +56,7 @@ export async function verifyPhoneToName(
   if (!lookupResult.found) {
     return {
       verified: false,
-      reason: 'Phone number not found in DingTalk',
+      reason: '该手机号未在钉钉通讯录中注册',
       name: '',
     };
   }
@@ -97,6 +96,6 @@ export async function verifyPhoneToName(
     verified: false,
     userId: lookupResult.userId,
     name: dtName,
-    reason: `Name mismatch: provided "${inputName}" but DingTalk registered name is "${dtName}"`,
+    reason: `输入的姓名与钉钉注册的姓名（${dtName}）不一致`,
   };
 }

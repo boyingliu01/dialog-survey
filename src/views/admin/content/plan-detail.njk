@@ -269,14 +269,14 @@
         @click="
           if (!newUserId && !newPhone) { alert('请填写钉钉 ID 或手机号'); return; }
           if (!newName) { alert('请填写姓名'); return; }
-          var values = { name: newName };
-          if (newUserId) { values.userId = newUserId; }
-          if (newPhone) { values.phone = newPhone; }
-          htmx.ajax('POST', '/api/plans/{{ plan.id }}/members', {
-            swap: 'none',
-            values: values,
-            headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '{{ adminApiKey | default('') }}' }
-          }).then(function(xhr) {
+           var payload = { name: newName };
+           if (newUserId) { payload.userId = newUserId; }
+           if (newPhone) { payload.phone = newPhone; }
+           htmx.ajax('POST', '/api/plans/{{ plan.id }}/members', {
+             swap: 'none',
+             body: JSON.stringify(payload),
+             headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '{{ adminApiKey | default('') }}' }
+           }).then(function(xhr) {
             if (xhr.xhr && xhr.xhr.status >= 200 && xhr.xhr.status < 300) {
               htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', '#main-content');
             } else {
