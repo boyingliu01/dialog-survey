@@ -1,4 +1,9 @@
 # Changelog
+## 1.6.19 - 2026-06-26
+
+- fix: mock polishFirstQuestion in planning-node tests to remove LLM API dependency in CI
+- fix: add LLM env vars to CI workflow test step
+
 ## 1.6.18 - 2026-06-26
 
 - refactor: remove dead code from interview-plan services (parseInviteeText, importInvitees, phone verification)
