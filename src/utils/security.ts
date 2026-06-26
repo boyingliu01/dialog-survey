@@ -35,8 +35,8 @@ function checkRateLimit(ipAddress: string): boolean {
 
 export function createVerifyApiKey(prisma: PrismaClient) {
   return async function verifyApiKey(request: FastifyRequest, reply: FastifyReply) {
-    // Allow GET requests without authentication (public read-only access)
-    if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'OPTIONS') {
+    // Only exempt public health endpoint from API key auth
+    if (request.method === 'GET' && (request.url === '/api/health' || request.url.startsWith('/api/health?'))) {
       return;
     }
 
