@@ -274,20 +274,19 @@ export async function startServer() {
           error: err instanceof Error ? err.message : String(err),
         });
       });
-
-      const gracefulShutdown = async (signal: string) => {
-        info(`Received ${signal}, shutting down gracefully`);
-        client.disconnect();
-        await app.close();
-        await prisma.$disconnect();
-        process.exit(0);
-      };
-
-      process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-      process.on('SIGINT', () => gracefulShutdown('SIGINT'));
     } else {
       info('DingTalk Stream mode not configured, skipping WebSocket connection');
     }
+
+    const gracefulShutdown = async (signal: string) => {
+      info(`Received ${signal}, shutting down gracefully`);
+      await app.close();
+      await prisma.$disconnect();
+      process.exit(0);
+    };
+
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
     return app;
   } catch (err) {
