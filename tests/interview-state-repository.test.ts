@@ -370,7 +370,7 @@ describe('InterviewStateRepository', () => {
       expect(mockPrisma.interview.findFirst).toHaveBeenCalledWith({
         where: {
           userId: 'user-123',
-          status: { in: ['ACTIVE', 'WAITING', 'PENDING'] },
+          status: { in: ['ACTIVE', 'PROCESSING', 'WAITING', 'PENDING'] },
         },
         orderBy: { createdAt: 'desc' },
         include: {

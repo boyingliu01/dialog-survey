@@ -27,7 +27,11 @@ export interface ProcessResult {
 export function parseStreamMessage(message: StreamMessage): ParsedStreamMessage | null {
   try {
     const data = JSON.parse(message.data);
-    const content = data.text?.content || data.content || '';
+    const rawContent = data.text?.content ?? data.content ?? '';
+
+    // Guard: DingTalk may send non-text messages (rich text, images, voice)
+    // where content is an object/array instead of a string.
+    const content = typeof rawContent === 'string' ? rawContent : String(rawContent);
 
     return {
       userId: data.senderStaffId || '',
