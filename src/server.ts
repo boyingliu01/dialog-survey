@@ -27,6 +27,7 @@ import { AuditCleanupService } from './services/audit-cleanup.service.js';
 import { ExportService } from './services/export.service.js';
 import { InterviewPlanService } from './services/interview-plan.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
+import { DingTalkMessageSender } from './integrations/dingtalk/message-sender.js';
 import { error, info, warn } from './utils/logger.js';
 import { renderMarkdown } from './utils/markdown.js';
 import { createVerifyApiKey, securityMiddleware } from './utils/security.js';
@@ -217,6 +218,24 @@ export async function startServer() {
       port: Number(process.env['PORT']) || 3001,
       host: process.env['HOST'] || '0.0.0.0',
     });
+
+    const sender = new DingTalkMessageSender();
+    const stalledInterviews = await prisma.interview.findMany({
+      where: { status: { in: ['ACTIVE', 'PROCESSING'] } },
+      include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    });
+    for (const iv of stalledInterviews) {
+      const lastMsg = iv.messages[0];
+      if (!lastMsg || lastMsg.role !== 'assistant') continue;
+      info('Resending unsent message on startup', {
+        interviewId: iv.id, userId: iv.userId,
+      });
+      sender.sendTextMessage([iv.userId], lastMsg.content).catch((e: unknown) => {
+        error('Failed to resend on startup', {
+          interviewId: iv.id, error: e instanceof Error ? e.message : String(e),
+        });
+      });
+    }
 
     const clientId = process.env['DINGTALK_CLIENT_ID'];
     const clientSecret = process.env['DINGTALK_CLIENT_SECRET'];
