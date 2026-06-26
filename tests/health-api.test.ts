@@ -79,6 +79,7 @@ describe('GET /health', () => {
 
   it('should return degraded when DB is ok but LLM is degraded (no API key)', async () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
+    vi.stubEnv('LLM_API_KEY', '');
     vi.stubEnv('VOLCENGINE_API_KEY', '');
     vi.stubEnv('DINGTALK_CLIENT_ID', 'valid-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'valid-client-secret');
