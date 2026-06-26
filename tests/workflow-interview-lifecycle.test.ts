@@ -401,15 +401,19 @@ describe('Workflow: Interview Analysis', () => {
       expect(planBody.id).toBeDefined();
       s2.planId = planBody.id;
 
-      // 3. Import invitees (simulate publishing plan)
-      const inviteRes = await plansApp.inject({
+      // 3. Add member via addMember API (replaces old batch import)
+      const addMemberRes = await plansApp.inject({
         method: 'POST',
-        url: `/api/plans/${s2.planId}/invitees`,
+        url: `/api/plans/${s2.planId}/members`,
+        headers: {
+          'x-admin-key': 'test-secret-key',
+        },
         payload: {
-          invitees: [{ userId: 'wf-user-analysis', name: 'Alice' }],
+          userId: 'wf-user-analysis',
+          name: 'Alice',
         },
       });
-      expect(inviteRes.statusCode).toBe(200);
+      expect(addMemberRes.statusCode).toBe(200);
 
       // 4. Simulate interview execution: create COMPLETED interview with messages
       const interview = await prisma.interview.create({

@@ -1,4 +1,13 @@
 # Changelog
+## 1.6.18 - 2026-06-26
+
+- refactor: remove dead code from interview-plan services (parseInviteeText, importInvitees, phone verification)
+- chore: create GitHub issues #131-#134 for 4 interview bugs found in testing
+
+## 1.6.17 - 2026-06-26
+
+- test: add regression tests for add member Zod error handling
+
 ## 1.6.16 - 2026-06-26
 
 - fix: add member error handling — surface Zod validation and service errors in frontend
