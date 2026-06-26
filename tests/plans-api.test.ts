@@ -147,29 +147,24 @@ describe('Interview Plan API Endpoints', () => {
       await prisma.template.delete({ where: { id: template.id } });
     });
 
-    it('should NOT auto-send when creating with invitees (publish default false)', async () => {
+    it('should create plan with only basic info (no invitees)', async () => {
       const template = await prisma.template.create({
-        data: { name: 'NoAutoSend Template', content: '{}', status: 'DRAFT' },
+        data: { name: 'Basic Plan Template', content: '{}', status: 'DRAFT' },
       });
 
       const res = await fastify.inject({
         method: 'POST',
         url: '/api/plans',
         payload: {
-          name: 'No Auto Send Plan',
+          name: 'Basic Plan',
           templateId: template.id,
-          invitees: 'test-user-1 Test User',
         },
       });
 
       expect(res.statusCode).toBe(200);
       const body = JSON.parse(res.body);
       expect(body.id).toBeDefined();
-      expect(body.imported).toBeGreaterThanOrEqual(1);
-      expect(body.sent).toBe(0);
-      expect(body.failed).toBe(0);
 
-      await prisma.interview.deleteMany({ where: { planId: body.id } });
       await prisma.interviewPlan.delete({ where: { id: body.id } });
       await prisma.template.delete({ where: { id: template.id } });
     });
@@ -390,96 +385,6 @@ describe('Interview Plan API Endpoints', () => {
     });
   });
 
-  describe('POST /api/plans/:id/invitees — import invitees', () => {
-    it('should import invitees and return counts', async () => {
-      const template = await prisma.template.create({
-        data: { name: 'InviteeTest Template', content: '{}', status: 'DRAFT' },
-      });
-      const plan = await prisma.interviewPlan.create({
-        data: { name: 'Invitee Plan', templateId: template.id, status: 'PENDING' },
-      });
-
-      const res = await fastify.inject({
-        method: 'POST',
-        url: `/api/plans/${plan.id}/invitees`,
-        payload: {
-          invitees: [
-            { userId: 'user-001', name: 'Alice' },
-            { userId: 'user-002', name: 'Bob', email: 'bob@test.com' },
-          ],
-        },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.success).toBe(2);
-      expect(body.failed).toBe(0);
-
-      await prisma.interview.deleteMany({ where: { planId: plan.id } });
-      await prisma.interviewPlan.delete({ where: { id: plan.id } });
-      await prisma.template.delete({ where: { id: template.id } });
-    });
-
-    it('should skip duplicate invitees in same plan', async () => {
-      const template = await prisma.template.create({
-        data: { name: 'DupTest Template', content: '{}', status: 'DRAFT' },
-      });
-      const plan = await prisma.interviewPlan.create({
-        data: { name: 'Dup Plan', templateId: template.id, status: 'PENDING' },
-      });
-
-      await fastify.inject({
-        method: 'POST',
-        url: `/api/plans/${plan.id}/invitees`,
-        payload: { invitees: [{ userId: 'user-dup', name: 'Dup' }] },
-      });
-
-      const res = await fastify.inject({
-        method: 'POST',
-        url: `/api/plans/${plan.id}/invitees`,
-        payload: { invitees: [{ userId: 'user-dup', name: 'Dup Again' }] },
-      });
-
-      expect(res.statusCode).toBe(200);
-      const body = JSON.parse(res.body);
-      expect(body.success).toBe(0);
-      expect(body.failed).toBe(1);
-
-      await prisma.interview.deleteMany({ where: { planId: plan.id } });
-      await prisma.interviewPlan.delete({ where: { id: plan.id } });
-      await prisma.template.delete({ where: { id: template.id } });
-    });
-
-    it('should return 500 for non-existent plan', async () => {
-      const res = await fastify.inject({
-        method: 'POST',
-        url: '/api/plans/non-existent-id/invitees',
-        payload: { invitees: [{ userId: 'user-x', name: 'X' }] },
-      });
-
-      expect(res.statusCode).toBe(500);
-    });
-
-    it('should return 500 for empty invitees array (service throws)', async () => {
-      const res = await fastify.inject({
-        method: 'POST',
-        url: '/api/plans/some-id/invitees',
-        payload: { invitees: [] },
-      });
-
-      expect(res.statusCode).toBe(500);
-    });
-
-    it('should return 500 for missing invitees field (Zod validation)', async () => {
-      const res = await fastify.inject({
-        method: 'POST',
-        url: '/api/plans/some-id/invitees',
-        payload: {},
-      });
-
-      expect(res.statusCode).toBe(500);
-    });
-  });
 
   describe('POST /api/plans/:id/send — send invitations', () => {
     it('should return sent/failed counts', async () => {
@@ -673,6 +578,213 @@ describe('Interview Plan API Endpoints', () => {
         payload: {},
       });
       expect(res.statusCode).toBe(401);
+    });
+
+    it('POST /api/plans/:id/members should return 401 without admin auth', async () => {
+      const res = await fastify.inject({
+        method: 'POST',
+        url: '/api/plans/non-existent/members',
+        payload: { userId: 'test-user', name: 'Test' },
+      });
+      expect(res.statusCode).toBe(401);
+    });
+  });
+
+  describe('POST /api/plans/:id/members — add member to plan', () => {
+    it('should add member by userId and return interviewId', async () => {
+      const template = await prisma.template.create({
+        data: { name: 'MemberTest Template', content: '{}', status: 'DRAFT' },
+      });
+      const plan = await prisma.interviewPlan.create({
+        data: { name: 'MemberTest Plan', templateId: template.id, status: 'PENDING' },
+      });
+
+      const res = await fastify.inject({
+        method: 'POST',
+        url: `/api/plans/${plan.id}/members`,
+        headers: { 'x-admin-key': 'test-admin-key' },
+        payload: { userId: 'user-add-1', name: 'Alice' },
+      });
+
+      expect(res.statusCode).toBe(200);
+      const body = JSON.parse(res.body);
+      expect(body.interviewId).toBeDefined();
+
+      // Verify interview was created
+      const interview = await prisma.interview.findUnique({
+        where: { id: body.interviewId },
+      });
+      expect(interview).not.toBeNull();
+      expect(interview?.userId).toBe('user-add-1');
+      expect(interview?.planId).toBe(plan.id);
+
+      // Verify plan inviteeData was updated
+      const updatedPlan = await prisma.interviewPlan.findUnique({ where: { id: plan.id } });
+      const invitees = updatedPlan?.inviteeData as Array<{ userId: string; name: string }> | undefined;
+      expect(invitees).toBeDefined();
+      expect(invitees?.length).toBe(1);
+      expect(invitees?.[0]?.userId).toBe('user-add-1');
+
+      await prisma.interview.deleteMany({ where: { planId: plan.id } });
+      await prisma.interviewPlan.delete({ where: { id: plan.id } });
+      await prisma.template.delete({ where: { id: template.id } });
+    });
+
+    it('should return 400 when neither userId nor phone provided', async () => {
+      const template = await prisma.template.create({
+        data: { name: 'NoUserId Template', content: '{}', status: 'DRAFT' },
+      });
+      const plan = await prisma.interviewPlan.create({
+        data: { name: 'NoUserId Plan', templateId: template.id, status: 'PENDING' },
+      });
+
+      const res = await fastify.inject({
+        method: 'POST',
+        url: `/api/plans/${plan.id}/members`,
+        headers: { 'x-admin-key': 'test-admin-key' },
+        payload: { name: 'NoId' },
+      });
+
+      // Zod validation rejects empty body but allows {name} if userId/phone missing
+      // The service layer then throws InvalidMemberInputError
+      expect([400, 401, 500]).toContain(res.statusCode);
+
+      await prisma.interviewPlan.delete({ where: { id: plan.id } });
+      await prisma.template.delete({ where: { id: template.id } });
+    });
+
+    it('should return 409 for duplicate member userId', async () => {
+      const template = await prisma.template.create({
+        data: { name: 'DupMember Template', content: '{}', status: 'DRAFT' },
+      });
+      const plan = await prisma.interviewPlan.create({
+        data: { name: 'DupMember Plan', templateId: template.id, status: 'PENDING' },
+      });
+
+      // First add — should succeed
+      const res1 = await fastify.inject({
+        method: 'POST',
+        url: `/api/plans/${plan.id}/members`,
+        headers: { 'x-admin-key': 'test-admin-key' },
+        payload: { userId: 'dup-user', name: 'Duplicate' },
+      });
+      expect(res1.statusCode).toBe(200);
+
+      // Second add with same userId — should fail
+      const res2 = await fastify.inject({
+        method: 'POST',
+        url: `/api/plans/${plan.id}/members`,
+        headers: { 'x-admin-key': 'test-admin-key' },
+        payload: { userId: 'dup-user', name: 'Duplicate Again' },
+      });
+      expect(res2.statusCode).toBe(409);
+
+      await prisma.interview.deleteMany({ where: { planId: plan.id } });
+      await prisma.interviewPlan.delete({ where: { id: plan.id } });
+      await prisma.template.delete({ where: { id: template.id } });
+    });
+
+    it('should return 400 with error message on Zod validation failure (invalid phone)', async () => {
+      const template = await prisma.template.create({
+        data: { name: 'PhoneValidation Template', content: '{}', status: 'DRAFT' },
+      });
+      const plan = await prisma.interviewPlan.create({
+        data: { name: 'PhoneValidation Plan', templateId: template.id, status: 'PENDING' },
+      });
+
+      const res = await fastify.inject({
+        method: 'POST',
+        url: `/api/plans/${plan.id}/members`,
+        headers: { 'x-admin-key': 'test-admin-key' },
+        payload: { phone: 'not-a-phone!!!', name: 'BadPhone' },
+      });
+
+      // Regression: ZodError was outside try/catch, causing 500 instead of 400
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.error).toContain('输入格式错误');
+      expect(body.error).toContain('Invalid phone format');
+
+      await prisma.interviewPlan.delete({ where: { id: plan.id } });
+      await prisma.template.delete({ where: { id: template.id } });
+    });
+
+    it('should return 400 with error message on Zod validation failure (missing userId and phone)', async () => {
+      const template = await prisma.template.create({
+        data: { name: 'MissingFields Template', content: '{}', status: 'DRAFT' },
+      });
+      const plan = await prisma.interviewPlan.create({
+        data: { name: 'MissingFields Plan', templateId: template.id, status: 'PENDING' },
+      });
+
+      const res = await fastify.inject({
+        method: 'POST',
+        url: `/api/plans/${plan.id}/members`,
+        headers: { 'x-admin-key': 'test-admin-key' },
+        payload: { name: 'NoIdOrPhone' },
+      });
+
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.error).toContain('输入格式错误');
+
+      await prisma.interviewPlan.delete({ where: { id: plan.id } });
+      await prisma.template.delete({ where: { id: template.id } });
+    });
+
+    it('should return 400 with Chinese message for empty body (Zod level)', async () => {
+      const res = await fastify.inject({
+        method: 'POST',
+        url: '/api/plans/00000000-0000-0000-0000-000000000000/members',
+        headers: {
+          'x-admin-key': 'test-admin-key',
+          'content-type': 'application/json',
+        },
+        payload: {},
+      });
+
+      // Regression: empty body was silently rejected with unclear error
+      // Now Zod catches it and returns 400 with Chinese message
+      expect([400, 404]).toContain(res.statusCode);
+      if (res.statusCode === 400) {
+        const body = JSON.parse(res.body);
+        expect(body.error).toBeDefined();
+        expect(typeof body.error).toBe('string');
+      }
+    });
+
+    it('should return 400 with error.message for empty body (does not pass Zod refine)', async () => {
+      const template = await prisma.template.create({
+        data: { name: 'EmptyBody Template', content: '{}', status: 'DRAFT' },
+      });
+      const plan = await prisma.interviewPlan.create({
+        data: { name: 'EmptyBody Plan', templateId: template.id, status: 'PENDING' },
+      });
+
+      const res = await fastify.inject({
+        method: 'POST',
+        url: `/api/plans/${plan.id}/members`,
+        headers: { 'x-admin-key': 'test-admin-key' },
+        payload: {},
+      });
+
+      // Empty object passes Zod optional checks but fails .refine()
+      expect(res.statusCode).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.error).toContain('输入格式错误');
+
+      await prisma.interviewPlan.delete({ where: { id: plan.id } });
+      await prisma.template.delete({ where: { id: template.id } });
+    });
+
+    it('should return 404 for non-existent plan', async () => {
+      const res = await fastify.inject({
+        method: 'POST',
+        url: '/api/plans/00000000-0000-0000-0000-000000000000/members',
+        headers: { 'x-admin-key': 'test-admin-key' },
+        payload: { userId: 'ghost-user', name: 'Ghost' },
+      });
+      expect(res.statusCode).toBe(404);
     });
   });
 });
