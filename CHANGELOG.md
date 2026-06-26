@@ -1,4 +1,8 @@
 # Changelog
+## 1.6.20 - 2026-06-26
+
+- fix: stub LLM_API_KEY in health-api test alongside VOLCENGINE_API_KEY (CI clears both)
+
 ## 1.6.19 - 2026-06-26
 
 - fix: mock polishFirstQuestion in planning-node tests to remove LLM API dependency in CI
