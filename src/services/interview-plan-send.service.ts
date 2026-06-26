@@ -1,106 +1,9 @@
-import { PlanStatus, Prisma, SendStatus } from '@prisma/client';
-import { DingTalkClient } from '../integrations/dingtalk/client.js';
+import { PlanStatus, SendStatus } from '@prisma/client';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import { error, info, warn } from '../utils/logger.js';
 import { InterviewPlanServiceBase } from './interview-plan-base.service.js';
-import type {
-  CreateAndPublishInput,
-  ImportResult,
-  InviteeData,
-} from './interview-plan-base.service.js';
-import { parseInviteeText } from './interview-plan-base.service.js';
-import { verifyPhoneToName } from './member-verification.service.js';
 
 export class InterviewPlanSendService extends InterviewPlanServiceBase {
-  async importInvitees(
-    planId: string,
-    invitees: InviteeData[],
-    dingtalkClient?: DingTalkClient
-  ): Promise<ImportResult> {
-    const result: ImportResult = { success: 0, failed: 0, errors: [] };
-    const plan = await this.prisma.interviewPlan.findUnique({ where: { id: planId } });
-    if (!plan) throw new Error(`Plan not found: ${planId}`);
-    const existingUserIds = new Set(
-      (await this.prisma.interview.findMany({ where: { planId }, select: { userId: true } })).map(
-        (i) => i.userId
-      )
-    );
-
-    // Resolve phone entries to userId via DingTalk API
-    const resolvedInvitees: InviteeData[] = [];
-    for (const inv of invitees) {
-      if (inv.phone && !inv.userId) {
-        let client = dingtalkClient;
-        if (!client) {
-          // Fallback: create DingTalkClient from env when not injected
-          try {
-            client = DingTalkClient.fromEnv();
-          } catch {
-            result.failed++;
-            result.errors.push(`Phone ${inv.phone} requires DingTalk client for resolution`);
-            continue;
-          }
-        }
-        try {
-          const verified = await verifyPhoneToName(client, inv.phone, inv.name);
-          if (!verified.verified) {
-            result.failed++;
-            result.errors.push(verified.reason || `Phone ${inv.phone} verification failed`);
-            continue;
-          }
-          if (!verified.userId) {
-            result.failed++;
-            result.errors.push(`Phone ${inv.phone} could not be resolved to a userId`);
-            continue;
-          }
-          resolvedInvitees.push({ userId: verified.userId, name: verified.name });
-        } catch (err) {
-          result.failed++;
-          const errorMsg = err instanceof Error ? err.message : String(err);
-          result.errors.push(`Failed to resolve phone ${inv.phone}: ${errorMsg}`);
-        }
-      } else {
-        resolvedInvitees.push(inv);
-      }
-    }
-
-    const uniqueInvitees = new Map<string, InviteeData>();
-    for (const inv of resolvedInvitees) {
-      const key = inv.userId ?? 'unknown';
-      uniqueInvitees.set(key, inv);
-    }
-    const interviews = [];
-    for (const invitee of uniqueInvitees.values()) {
-      if (!invitee.userId || existingUserIds.has(invitee.userId)) {
-        if (invitee.userId) {
-          result.failed++;
-          result.errors.push(`User ${invitee.userId} already exists in plan`);
-        }
-        continue;
-      }
-      interviews.push({
-        userId: invitee.userId,
-        templateId: plan.templateId,
-        planId: planId,
-        status: 'PENDING' as const,
-      });
-    }
-    if (interviews.length > 0) {
-      await this.prisma.interview.createMany({ data: interviews });
-      result.success = interviews.length;
-    }
-    await this.prisma.interviewPlan.update({
-      where: { id: planId },
-      data: {
-        inviteeData: Array.from(uniqueInvitees.values()) as unknown as Prisma.InputJsonValue,
-        status: PlanStatus.READY,
-        updatedBy: 'admin',
-      },
-    });
-    info('Invitees imported', { planId, success: result.success, failed: result.failed });
-    return result;
-  }
-
   async sendInvitations(planId: string): Promise<{ sent: number; failed: number }> {
     const plan = await this.prisma.interviewPlan.findUnique({
       where: { id: planId },
@@ -305,44 +208,5 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
 
   async cancelPlan(planId: string): Promise<void> {
     await this.updatePlanStatus(planId, PlanStatus.CANCELLED);
-  }
-
-  async createAndPublish(input: CreateAndPublishInput): Promise<{
-    planId: string;
-    imported: number;
-    sent: number;
-    failed: number;
-    errors: string[];
-  }> {
-    const planId = await this.createPlan({
-      name: input.name,
-      ...(input.description != null ? { description: input.description } : {}),
-      templateId: input.templateId,
-      ...(input.targetDate != null ? { targetDate: new Date(input.targetDate) } : {}),
-      ...(input.schedule != null ? { schedule: input.schedule } : {}),
-    });
-
-    const invitees = parseInviteeText(input.invitees);
-    if (invitees.length === 0) {
-      return { planId, imported: 0, sent: 0, failed: 0, errors: ['未提供有效的受访人员'] };
-    }
-
-    const importResult = await this.importInvitees(planId, invitees);
-
-    let sent = 0;
-    let failed = 0;
-    if (input.publish === true) {
-      const sendResult = await this.sendInvitations(planId);
-      sent = sendResult.sent;
-      failed = sendResult.failed;
-    }
-
-    return {
-      planId,
-      imported: importResult.success,
-      sent,
-      failed,
-      errors: importResult.errors,
-    };
   }
 }

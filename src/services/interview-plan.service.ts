@@ -1,12 +1,9 @@
 // Barrel file: re-exports from split modules for backwards compatibility.
 // All existing imports from './interview-plan.service.js' continue to work.
 
-export { parseInviteeText } from './interview-plan-base.service.js';
 export type {
   CreatePlanInput,
-  CreateAndPublishInput,
   InviteeData,
-  ImportResult,
 } from './interview-plan-base.service.js';
 export { InterviewPlanServiceBase } from './interview-plan-base.service.js';
 
