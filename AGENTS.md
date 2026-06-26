@@ -315,12 +315,69 @@ docker compose logs -f app    # 查看日志
 | `prisma.$MODEL.$METHOD()` in API layer | **ERROR** | ast-grep rule, route through repos |
 | HTMX shell URL into `#main-content` | **ERROR** | Causes nested page bug. Use `/admin/content/*` |
 | Public `prisma` getter on services | **ERROR** | Encapsulate behind methods with discriminated unions |
+| HTMX POST without auth header | **ERROR** | Body `hx-headers` may not inherit. Use `htmx:configRequest` global injection. See Rule 5 |
+
+### HTMX Auth Header（CRITICAL — 反复踩坑，3 次修复）
+
+Admin 模板的 HTMX POST 请求需要 `X-Admin-Key` header。**不要依赖逐个按钮添加 `hx-headers`** — 此方式已在 3 次 commit 中重复失败 (`76ec03f`, `8b6b442`, `ea34b9c`)。
+
+**唯一正确做法**：`admin-tree.njk` 中使用 `htmx:configRequest` 全局注入：
+
+```javascript
+document.body.addEventListener('htmx:configRequest', function(evt) {
+  evt.detail.headers['X-Admin-Key'] = '{{ adminApiKey }}';
+});
+```
+
+一处配置，所有 HTMX 请求自动带上——新增/修改按钮时无需考虑 auth。
 
 ### HTMX URL Convention (CRITICAL)
 
 - **Shell URLs** (full page): `/admin`, `/admin/templates`, `/admin/plans`, `/admin/analytics`
 - **Fragment URLs** (HTMX swap): `/admin/content/templates/:id`, `/admin/content/plans/:id`
 - **Rule**: `hx-get`/`hx-post` targeting `#main-content` MUST use fragment URLs
+
+---
+
+## AI RULES — HTMX Template Constraints (DO NOT VIOLATE)
+
+These constraints are machine-enforced by the pre-commit hook (Gate 1) AND must be followed by AI agents during implementation.
+
+### R1: No `body: JSON.stringify()` in `htmx.ajax()` (regressed in `53dcb1f`, `6190622`)
+
+- **USE**: `values: { ... }` in `htmx.ajax()` for POST/PUT request bodies
+- **NEVER**: `body: JSON.stringify(...)` in any `.njk` file's `htmx.ajax()` call
+- **Reason**: HTMX's internal request processing conflicts with raw `body` + explicit `Content-Type: application/json`, producing `FST_ERR_CTP_EMPTY_JSON_BODY` (empty body sent to server)
+- **Correct pattern**:
+  ```javascript
+  // ✅ CORRECT
+  var values = { name: newName, phone: newPhone };
+  htmx.ajax('POST', '/api/plans/123/members', {
+    swap: 'none',
+    values: values,
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '...' }
+  })
+
+  // ❌ WRONG — DO NOT USE
+  var payload = { name: newName, phone: newPhone };
+  htmx.ajax('POST', '/api/plans/123/members', {
+    body: JSON.stringify(payload),  // ← WILL CAUSE EMPTY BODY ERROR
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '...' }
+  })
+  ```
+- **Note**: Test files use `fastify.inject({ body: JSON.stringify(...) })` — this is CORRECT and NOT the same as `htmx.ajax()`. Do NOT confuse the two.
+
+### R2: No per-button `X-Admin-Key` hx-headers (regressed in `76ec03f`, `8b6b442`, `ea34b9c`)
+
+- **ALREADY HANDLED**: `admin-tree.njk` line 74 injects `X-Admin-Key` globally via `htmx:configRequest` event listener — ALL HTMX requests inherit it
+- **NEVER** add `hx-headers='{"X-Admin-Key": "..."}'` to individual buttons in fragment templates (`src/views/admin/content/*.njk`)
+- **EXCEPTION**: `htmx.ajax()` calls DO need explicit `X-Admin-Key` in their `headers` object because they bypass `hx-headers` attribute inheritance
+- **Pre-commit hook N2 rule** blocks per-button `hx-headers` with `X-Admin-Key` in `src/views/admin/content/`
+
+### R3: Nunjucks comparison + filter precedence trap
+
+- **WRONG**: `{% if plan.status == 'PENDING' or plan.status == 'READY' | lower %}` — filter `| lower` binds to the entire comparison, producing wrong result
+- **CORRECT**: `{% if plan.status == 'PENDING' or plan.status == 'READY' %}` — no filter after `or`, or wrap: `{% if (plan.status == 'PENDING') or (plan.status == 'READY') %}`
 
 ---
 

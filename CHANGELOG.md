@@ -1,4 +1,8 @@
 # Changelog
+## 1.6.16 - 2026-06-26
+
+- fix: add member error handling — surface Zod validation and service errors in frontend
+
 
 All notable changes to this project will be documented in this file.
 
