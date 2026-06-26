@@ -349,4 +349,95 @@ describe('interviewingNode', () => {
     expect(result.shouldContinue).toBe(true);
     expect(result.currentQuestion).toBe(1);
   });
+
+  /**
+   * @test #131-T5
+   * @intent FOLLOWUP force-converted to NEXT (followup limit exceeded) should NOT have
+   *        nextQuestion text mixed into the response. The safety net replaces the LLM's
+   *        follow-up text with a generic transition. routeAction appends nextQuestion.
+   */
+  it('#131: should use safety net transition when FOLLOWUP is forced to NEXT', async () => {
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '好的，关于这个话题我们已经聊得比较深入了。我们继续看下一个问题。',
+      action: 'NEXT',  // pre-converted by safety net in generateSmartResponse
+      shouldProceedToNext: true,
+      shouldEndInterview: false,
+    });
+
+    const state = { ...baseState, followupCount: 2 };
+    const result = await interviewingNode(state, { content: '简短回答' });
+
+    // safety net response + routeAction appends next question
+    expect(result.response).toContain('我们继续看下一个问题');
+    expect(result.response).toContain('您在工作中遇到过最大的挑战是什么');
+    expect(result.currentQuestion).toBe(1);
+    expect(result.followupCount).toBe(0);
+    expect(result.shouldContinue).toBe(true);
+  });
+
+  /**
+   * @test #131-T4
+   * @intent END on last question: LLM farewell + system closingMessage is acceptable
+   *        (routeAction line 58 appends closing). This is NOT the #131 bug path.
+   */
+  it('#131: should keep closingMessage concatenation on END + last question', async () => {
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '非常感谢您的参与，您的分享很有价值。',
+      action: 'END',
+      shouldProceedToNext: false,
+      shouldEndInterview: true,
+    });
+
+    const lastState = { ...baseState, currentQuestion: 3 };
+    const result = await interviewingNode(lastState, { content: '最后回答' });
+
+    expect(result.status).toBe('COMPLETED');
+    expect(result.shouldContinue).toBe(false);
+    expect(result.response).toContain('非常感谢您的参与');
+    expect(result.response).toContain(DEFAULT_CLOSING_MESSAGE);
+  });
+
+  /**
+   * @test #131-T3
+   * @intent NEXT on last question: LLM farewell + system closingMessage is acceptable
+   *        (routeAction line 90 appends closing). This is NOT the #131 bug path.
+   */
+  it('#131: should keep closingMessage concatenation on NEXT + last question', async () => {
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '感谢您的分享，访谈到此结束。',
+      action: 'NEXT',
+      shouldProceedToNext: true,
+      shouldEndInterview: false,
+    });
+
+    const lastState = { ...baseState, currentQuestion: 3 };
+    const result = await interviewingNode(lastState, { content: '最后回答' });
+
+    expect(result.shouldContinue).toBe(false);
+    expect(result.response).toContain(DEFAULT_CLOSING_MESSAGE);
+  });
+
+  /**
+   * @test #131-T1
+   * @intent NEXT on non-last question should have nextQuestion appended (normal system behavior)
+   *        but should NOT contain the LLM's own question concatenated strangely.
+   */
+  it('#131: NEXT should append nextQuestion cleanly (system responsibility)', async () => {
+    vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+      response: '感谢您的分享，您提到了工作中的一些挑战。',
+      action: 'NEXT',
+      shouldProceedToNext: true,
+      shouldEndInterview: false,
+    });
+
+    const result = await interviewingNode(baseState, { content: '我的回答' });
+
+    expect(result.currentQuestion).toBe(1);
+    // LLM transition text + system-appended next question
+    expect(result.response).toContain('感谢您的分享');
+    expect(result.response).toContain('您在工作中遇到过最大的挑战是什么');
+    // NOT: two questions in one message
+    const questionMarkCount = (result.response?.match(/\?/g) || []).length;
+    expect(questionMarkCount).toBeLessThanOrEqual(2);
+  });
 });

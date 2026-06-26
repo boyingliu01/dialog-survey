@@ -794,9 +794,15 @@ describe('StreamMessageService', () => {
       mockRepo.saveFullState.mockImplementation(async () => {
         saveCallCount++;
         if (saveCallCount === 1) {
-          throw new Error('Version conflict: expected 1, got 2');
+          // First call: PROCESSING save - succeeds
+          return { success: true, newVersion: 2 };
         }
-        return { success: true, newVersion: 3 };
+        if (saveCallCount === 2) {
+          // Second call: ACTIVE save - version conflict
+          throw new Error('Version conflict: expected 2, got 3');
+        }
+        // Third call: retry ACTIVE save - succeeds
+        return { success: true, newVersion: 4 };
       });
 
       vi.mocked(runInterviewGraph).mockResolvedValue({
@@ -1024,10 +1030,9 @@ describe('StreamMessageService', () => {
         responses: [{ questionId: 'q0', content: 'First answer', isFollowup: false }],
       };
       mockRepo.findActiveInterview.mockResolvedValueOnce(existingState);
-      mockRepo.saveFullState.mockResolvedValueOnce({
-        success: true,
-        newVersion: 2,
-      });
+      mockRepo.saveFullState
+        .mockResolvedValueOnce({ success: true, newVersion: 2 })
+        .mockResolvedValueOnce({ success: true, newVersion: 3 });
 
       vi.mocked(runInterviewGraph).mockResolvedValueOnce({
         response: '下一个问题',
@@ -1061,7 +1066,7 @@ describe('StreamMessageService', () => {
       await service.processStreamMessage(message);
 
       expect(mockRepo.saveFullState).toHaveBeenCalled();
-      const savedState = mockRepo.saveFullState.mock.calls[0][1];
+      const savedState = mockRepo.saveFullState.mock.calls[1][1];
       expect(savedState.pendingResponses).toBeDefined();
       expect(savedState.pendingResponses.length).toBeGreaterThanOrEqual(1);
       expect(savedState.pendingResponses).toContainEqual({
@@ -1069,6 +1074,115 @@ describe('StreamMessageService', () => {
         content: 'My answer',
         isFollowup: false,
       });
+    });
+  });
+
+  describe('Breakpoint Resume (PROCESSING state)', () => {
+    const processingState: InterviewState = {
+      userId: 'user-123',
+      interviewId: 'interview-123',
+      templateId: 'default',
+      status: 'PROCESSING',
+      messages: [],
+      currentQuestion: 2,
+      followupCount: 1,
+      maxFollowups: 2,
+      responses: [
+        { questionId: 'q0', content: '回答1', isFollowup: false },
+        { questionId: 'q1', content: '回答2', isFollowup: false },
+      ],
+      reportGenerated: false,
+      version: 5,
+      originalVersion: 5,
+      pendingMessages: [{ role: 'user', content: '我的回答', isVoice: false }],
+      pendingResponses: [],
+    };
+
+    const makeNextState = (currentQ: number, version: number): InterviewState => ({
+      userId: 'user-123',
+      interviewId: 'interview-123',
+      templateId: 'default',
+      status: 'ACTIVE',
+      messages: [],
+      currentQuestion: currentQ,
+      followupCount: 0,
+      maxFollowups: 2,
+      responses: [
+        { questionId: 'q0', content: '回答1', isFollowup: false },
+        { questionId: 'q1', content: '回答2', isFollowup: false },
+        { questionId: 'q2', content: '新消息', isFollowup: false },
+      ],
+      reportGenerated: false,
+      version,
+      originalVersion: version,
+      pendingMessages: [],
+      pendingResponses: [],
+    });
+
+    it('should detect PROCESSING and silently resume', async () => {
+      mockRepo.findActiveInterview.mockResolvedValue(processingState);
+      mockRepo.saveFullState.mockResolvedValue({ success: true, newVersion: 6 });
+
+      vi.mocked(runInterviewGraph).mockResolvedValueOnce({
+        response: '好的我们继续',
+        nextState: makeNextState(3, 6),
+      });
+
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      const result = await service.processStreamMessage(
+        { data: JSON.stringify({ senderStaffId: 'user-123', sessionWebhook: 'https://oapi.dingtalk.com/robot/send', text: { content: '继续回答' } }), headers: { messageId: 'msg-1' } } as any,
+        0
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockRepo.saveFullState).toHaveBeenCalledTimes(2);
+    });
+
+    it('should transition PROCESSING to ACTIVE after success', async () => {
+      mockRepo.findActiveInterview.mockResolvedValue(processingState);
+      mockRepo.saveFullState
+        .mockResolvedValueOnce({ success: true, newVersion: 6 })
+        .mockResolvedValueOnce({ success: true, newVersion: 7 });
+
+      vi.mocked(runInterviewGraph).mockResolvedValueOnce({
+        response: '回复',
+        nextState: makeNextState(3, 7),
+      });
+
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      const result = await service.processStreamMessage(
+        { data: JSON.stringify({ senderStaffId: 'user-123', sessionWebhook: 'https://oapi.dingtalk.com/robot/send', text: { content: '新消息' } }), headers: { messageId: 'msg-2' } } as any,
+        0
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockRepo.saveFullState).toHaveBeenLastCalledWith(
+        'interview-123',
+        expect.objectContaining({ status: 'ACTIVE' })
+      );
+    });
+
+    it('saveFullState failure keeps PROCESSING for next recovery', async () => {
+      mockRepo.findActiveInterview.mockResolvedValue(processingState);
+      mockRepo.saveFullState
+        .mockResolvedValueOnce({ success: true, newVersion: 6 })
+        .mockRejectedValueOnce(new Error('DB write failed'));
+
+      vi.mocked(runInterviewGraph).mockResolvedValueOnce({
+        response: '回复',
+        nextState: makeNextState(3, 7),
+      });
+
+      mockFetch.mockResolvedValueOnce({ ok: true });
+
+      const result = await service.processStreamMessage(
+        { data: JSON.stringify({ senderStaffId: 'user-123', sessionWebhook: 'https://oapi.dingtalk.com/robot/send', text: { content: '消息' } }), headers: { messageId: 'msg-3' } } as any,
+        0
+      );
+
+      expect(result.success).toBe(false);
     });
   });
 });

@@ -263,7 +263,7 @@ export class InterviewStateRepository {
     const interview = await this.prisma.interview.findFirst({
       where: {
         userId,
-        status: { in: ['ACTIVE', 'WAITING', 'PENDING'] },
+        status: { in: ['ACTIVE', 'PROCESSING', 'WAITING', 'PENDING'] },
       },
       orderBy: { createdAt: 'desc' },
       include: {

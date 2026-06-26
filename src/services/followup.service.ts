@@ -19,6 +19,7 @@ export interface SmartResponseResult {
 }
 
 export const FALLBACK_RESPONSE = '感谢您的回答，我们继续下一个话题。';
+const FORCED_NEXT_TRANSITION = '好的，关于这个话题我们已经聊得比较深入了。我们继续看下一个问题。';
 
 export async function polishFirstQuestion(rawText: string): Promise<string> {
   const llm = OpenAICompatibleLLM.fromEnv();
@@ -130,8 +131,10 @@ export async function generateSmartResponse(
           shouldEndInterview: false,
         };
       }
-      if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups)
+      if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups) {
         parsed.action = 'NEXT';
+        parsed.response = FORCED_NEXT_TRANSITION;
+      }
       return {
         response: smartTruncate(parsed.response, 150),
         action: parsed.action,
@@ -178,7 +181,7 @@ export async function generateSmartResponse(
     if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups) {
       info('Followup limit exceeded, forcing NEXT');
       return {
-        response: smartTruncate(parsed.response, 150),
+        response: FORCED_NEXT_TRANSITION,
         action: 'NEXT',
         shouldProceedToNext: true,
         shouldEndInterview: false,

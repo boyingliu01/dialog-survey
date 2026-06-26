@@ -184,6 +184,27 @@ export class StreamMessageService {
     const timeoutResult = this.checkTimeoutNudge(state, parsed);
     if (timeoutResult) return timeoutResult;
 
+    // Detect silent recovery: previous processing was interrupted
+    if (state.status === 'PROCESSING') {
+      info('Silent resume from interrupted processing', {
+        userId: parsed.userId,
+        interviewId: state.interviewId,
+      });
+    }
+
+    // Two-phase persistence: save PROCESSING before LLM call, then ACTIVE after
+    state.status = 'PROCESSING';
+    try {
+      await this.repo.saveFullState(state.interviewId as string, state);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      error('Failed to persist user message before LLM call', {
+        userId: parsed.userId,
+        error: errMsg,
+      });
+      return { success: false, error: errMsg };
+    }
+
     const graphResult: GraphResult = await runInterviewGraph(
       state,
       {
@@ -205,6 +226,7 @@ export class StreamMessageService {
       content: graphResult.response,
       isVoice: false,
     });
+    nextState.status = 'ACTIVE';
 
     try {
       await this.repo.saveFullState(state.interviewId as string, nextState);
@@ -240,6 +262,7 @@ export class StreamMessageService {
             content: retryGraphResult.response,
             isVoice: false,
           });
+          retryGraphResult.nextState.status = 'ACTIVE';
           return this.processStreamMessageWithState(
             message,
             retryGraphResult,
