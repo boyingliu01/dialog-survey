@@ -69,8 +69,12 @@
     </main>
   </div>
 
-  <!-- Global HTMX toast: errors (red) + success (green) -->
+  <!-- Global HTMX: inject X-Admin-Key into ALL requests -->
   <script>
+  document.body.addEventListener('htmx:configRequest', function(evt) {
+    evt.detail.headers['X-Admin-Key'] = '{{ adminApiKey | default('') }}';
+  });
+
   // Show/hide loading indicator for HTMX content loads
   document.body.addEventListener('htmx:beforeRequest', function(evt) {
     var loadingEl = document.getElementById('content-loading');

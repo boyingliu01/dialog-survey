@@ -300,10 +300,8 @@ export class InterviewPlanService extends InterviewPlanSendService {
       description?: string;
       targetDate?: string;
       schedule?: string;
-      invitees?: string;
-    },
-    dingtalkClient?: DingTalkClient
+    }
   ): Promise<void> {
-    return super.updatePlan(planId, input, dingtalkClient ?? this.dingTalkClient);
+    return super.updatePlan(planId, input);
   }
 }
