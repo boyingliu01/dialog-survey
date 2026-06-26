@@ -276,7 +276,7 @@
           htmx.ajax('POST', '/api/plans/{{ plan.id }}/members', {
             swap: 'none',
             values: values,
-            headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '{{ adminApiKey | default('') }}' }
+            headers: { 'X-Admin-Key': '{{ adminApiKey | default('') }}' }
           }).then(function() {
             htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', '#main-content');
           }).catch(function(err) {
@@ -337,7 +337,7 @@
             {% if interview.status != 'COMPLETED' and interview.status != 'CANCELLED' and (interview.sendStatus == 'SENT' or interview.sendStatus == 'DELIVERED') %}
             <button
               type="button"
-              onclick="htmx.ajax('POST', '/api/plans/{{ plan.id }}/remind', { swap: 'none', values: { interviewId: '{{ interview.id }}' }, headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '{{ adminApiKey | default('') }}' } }).then(function(xhr){ if(xhr.xhr && xhr.xhr.status>=200 && xhr.xhr.status<300){ htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content'); } else { alert('提醒发送失败'); } })"
+              onclick="htmx.ajax('POST', '/api/plans/{{ plan.id }}/remind', { swap: 'none', values: { interviewId: '{{ interview.id }}' }, headers: { 'X-Admin-Key': '{{ adminApiKey | default('') }}' } }).then(function(xhr){ if(xhr.xhr && xhr.xhr.status>=200 && xhr.xhr.status<300){ htmx.ajax('GET','/admin/content/plans/{{ plan.id }}','#main-content'); } else { alert('提醒发送失败'); } })"
               class="text-xs text-amber-600 hover:underline"
             >提醒</button>
             {% endif %}
