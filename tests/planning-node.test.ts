@@ -3,6 +3,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { planningNode } from '../src/core/nodes/planning.js';
 import type { InterviewState } from '../src/core/types/index.js';
 
+// Mock polishFirstQuestion to avoid LLM API dependency in unit tests.
+// polishFirstQuestion is integration-tested separately in followup service tests.
+vi.mock('../src/services/followup.service.js', () => {
+  const actual = vi.importActual('../src/services/followup.service.js');
+  return {
+    ...actual,
+    polishFirstQuestion: vi.fn(async (raw: string) => raw),
+  };
+});
+
 const mockFindById = vi.fn().mockResolvedValue(null);
 
 vi.mock('../src/repositories/template.repository.js', () => {
