@@ -107,13 +107,14 @@ export async function generateSmartResponse(
     : '';
 
   if (customPrompt) {
+    const escaped = (s: string) => s.replace(/\{\{/g, '\\{\\{').replace(/\}\}/g, '\\}\\}');
     const prompt = customPrompt
-      .replace(/\{\{conversationHistory\}\}/g, conversationHistory)
-      .replace(/\{\{currentQuestion\}\}/g, currentQuestion)
+      .replace(/\{\{conversationHistory\}\}/g, escaped(conversationHistory))
+      .replace(/\{\{currentQuestion\}\}/g, escaped(currentQuestion))
       .replace(/\{\{followupCount\}\}/g, String(state.followupCount))
       .replace(/\{\{maxFollowups\}\}/g, String(state.maxFollowups))
-      .replace(/\{\{userAnswer\}\}/g, userAnswer)
-      .replace(/\{\{userName\}\}/g, userName)
+      .replace(/\{\{userAnswer\}\}/g, escaped(userAnswer))
+      .replace(/\{\{userName\}\}/g, escaped(userName))
       .replace(/\{\{questionProgress\}\}/g, questionProgress)
       .replace(/\{\{lastQuestionFlag\}\}/g, lastQuestionFlag);
 
