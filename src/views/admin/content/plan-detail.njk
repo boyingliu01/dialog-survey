@@ -277,12 +277,12 @@
             swap: 'none',
             values: values,
             headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '{{ adminApiKey | default('') }}' }
-          }).then(function(xhr) {
-            if (xhr.xhr && xhr.xhr.status >= 200 && xhr.xhr.status < 300) {
-              htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', '#main-content');
-            } else {
-              alert('添加成员失败');
-            }
+          }).then(function() {
+            htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', '#main-content');
+          }).catch(function(err) {
+            var msg = '添加成员失败';
+            try { var body = JSON.parse(err.xhr.responseText); if (body.error) msg = body.error; } catch (_) {}
+            alert(msg);
           });
         "
         class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 mt-[22px]"

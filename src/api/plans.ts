@@ -7,11 +7,9 @@ import {
   InterviewPlanService,
   InvalidMemberInputError,
   InvalidStateError,
-  type InviteeData,
   MemberConflictError,
   MemberNotFoundError,
   PlanNotFoundError,
-  parseInviteeText,
 } from '../services/interview-plan.service.js';
 
 const createPlanSchema = z.object({
@@ -20,20 +18,6 @@ const createPlanSchema = z.object({
   templateId: z.string().uuid(),
   targetDate: z.string().optional(),
   schedule: z.string().optional(),
-  invitees: z.string().optional(),
-  publish: z.coerce.boolean().optional().default(false),
-});
-
-const importInviteesSchema = z.object({
-  invitees: z.array(
-    z.object({
-      userId: z.string(),
-      name: z.string(),
-      email: z.string().optional(),
-      phone: z.string().optional(),
-      customFields: z.record(z.string(), z.unknown()).optional(),
-    })
-  ),
 });
 
 const addMemberSchema = z
@@ -86,7 +70,6 @@ export async function interviewPlanRoutes(
   fastify.post('/api/plans', async (request, _reply) => {
     const input = createPlanSchema.parse(request.body);
 
-    // Always create the plan first
     const planId = await planService.createPlan({
       name: input.name,
       ...(input.description != null ? { description: input.description } : {}),
@@ -94,27 +77,6 @@ export async function interviewPlanRoutes(
       ...(input.targetDate != null ? { targetDate: new Date(input.targetDate) } : {}),
       ...(input.schedule != null ? { schedule: input.schedule } : {}),
     });
-
-    if (input.invitees) {
-      const inviteeData = parseInviteeText(input.invitees);
-      const importResult = await planService.importInvitees(planId, inviteeData);
-
-      let sent = 0;
-      let failed = 0;
-      if (input.publish === true) {
-        const sendResult = await planService.sendInvitations(planId);
-        sent = sendResult.sent;
-        failed = sendResult.failed;
-      }
-
-      return {
-        id: planId,
-        imported: importResult.success,
-        sent,
-        failed,
-        errors: importResult.errors,
-      };
-    }
 
     return { id: planId };
   });
@@ -149,16 +111,8 @@ export async function interviewPlanRoutes(
       ...(input.description != null ? { description: input.description } : {}),
       ...(input.targetDate != null ? { targetDate: input.targetDate } : {}),
       ...(input.schedule != null ? { schedule: input.schedule } : {}),
-      ...(input.invitees != null ? { invitees: input.invitees } : {}),
     });
     return { id };
-  });
-
-  fastify.post('/api/plans/:id/invitees', async (request, _reply) => {
-    const { id } = request.params as { id: string };
-    const { invitees } = importInviteesSchema.parse(request.body);
-    const result = await planService.importInvitees(id, invitees as InviteeData[]);
-    return result;
   });
 
   fastify.post('/api/plans/:id/send', async (request, _reply) => {
@@ -193,8 +147,8 @@ export async function interviewPlanRoutes(
 
   fastify.post('/api/plans/:id/members', { preHandler: adminAuth }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const input = addMemberSchema.parse(request.body);
     try {
+      const input = addMemberSchema.parse(request.body);
       const result = await planService.addMember(id, {
         ...(input.userId != null ? { userId: input.userId } : {}),
         ...(input.phone != null ? { phone: input.phone } : {}),
@@ -202,6 +156,10 @@ export async function interviewPlanRoutes(
       });
       return result;
     } catch (e) {
+      if (e instanceof z.ZodError) {
+        const messages = e.issues.map((issue) => issue.message).join('；');
+        return reply.status(400).send({ error: `输入格式错误：${messages}` });
+      }
       const { status, message } = mapServiceErrorToStatus(e);
       return reply.status(status).send({ error: message });
     }
