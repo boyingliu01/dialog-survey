@@ -159,7 +159,7 @@ export class PromptService {
     for (const [key, value] of Object.entries(variables)) {
       result = result.replace(
         new RegExp(`{{${key}}}`, 'g'),
-        value.replace(/\{\{/g, '{{').replace(/\}\}/g, '}}')
+        value.replace(/\{\{/g, '\\{\\{').replace(/\}\}/g, '\\}\\}')
       );
     }
     return result;
