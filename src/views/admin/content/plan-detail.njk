@@ -20,10 +20,9 @@
       return r.text();
     })
     .then(() => {
-      htmx.ajax('GET', '/admin/content/plans/' + planId, '#main-content');
-      this.showDeleteDialog = false;
-      this.deleteStep = 1;
-      this.deleteConfirmText = '';
+      // Refresh tree sidebar (plan is deleted, tree needs update)
+      // Full page reload mirrors template deletion pattern
+      location.reload();
     })
     .catch(err => {
       alert('删除失败：' + err.message);
@@ -52,10 +51,11 @@
         编辑
       </button>
       {% if plan.status == 'PENDING' or plan.status == 'READY' %}
-      <button
+       <button
         hx-post="/api/plans/{{ plan.id }}/send"
         hx-target="#main-content"
         hx-swap="innerHTML"
+        hx-headers='{"X-Admin-Key": "{{ adminApiKey | default('') }}"}'
         hx-confirm="确认发送访谈邀约？将向 {{ totalInterviews or 0 }} 位受访者发送钉钉消息。"
         class="inline-flex items-center px-2.5 py-1 text-xs font-medium text-emerald-600 bg-emerald-50 rounded-md hover:bg-emerald-100"
       >
@@ -211,10 +211,11 @@
   <div x-show="activeTab==='members'" x-cloak class="text-sm" x-data="{ showAdd: false, newUserId: '', newPhone: '', newName: '' }">
     <div class="flex gap-2 mb-3">
       {% if plan.status == 'PENDING' or plan.status == 'READY' %}
-      <button
+       <button
         hx-post="/api/plans/{{ plan.id }}/send"
         hx-target="#main-content"
         hx-swap="innerHTML"
+        hx-headers='{"X-Admin-Key": "{{ adminApiKey | default('') }}"}'
         hx-confirm="确认向所有未发送成员发送访谈邀约？"
         class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700"
       >批量发送邀约</button>
@@ -269,14 +270,14 @@
         @click="
           if (!newUserId && !newPhone) { alert('请填写钉钉 ID 或手机号'); return; }
           if (!newName) { alert('请填写姓名'); return; }
-           var payload = { name: newName };
-           if (newUserId) { payload.userId = newUserId; }
-           if (newPhone) { payload.phone = newPhone; }
-           htmx.ajax('POST', '/api/plans/{{ plan.id }}/members', {
-             swap: 'none',
-             body: JSON.stringify(payload),
-             headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '{{ adminApiKey | default('') }}' }
-           }).then(function(xhr) {
+          var values = { name: newName };
+          if (newUserId) { values.userId = newUserId; }
+          if (newPhone) { values.phone = newPhone; }
+          htmx.ajax('POST', '/api/plans/{{ plan.id }}/members', {
+            swap: 'none',
+            values: values,
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Key': '{{ adminApiKey | default('') }}' }
+          }).then(function(xhr) {
             if (xhr.xhr && xhr.xhr.status >= 200 && xhr.xhr.status < 300) {
               htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', '#main-content');
             } else {
@@ -328,6 +329,7 @@
               hx-post="/api/plans/{{ plan.id }}/interviews/{{ interview.id }}/send"
               hx-target="#main-content"
               hx-swap="innerHTML"
+              hx-headers='{"X-Admin-Key": "{{ adminApiKey | default('') }}"}'
               hx-confirm="确认向 {{ interview.userId }} 发送访谈邀约？"
               class="text-xs text-indigo-600 hover:underline"
             >发送</button>
