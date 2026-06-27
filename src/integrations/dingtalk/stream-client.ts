@@ -48,6 +48,7 @@ export class DingTalkStreamClient {
   private options: StreamClientOptions;
   private ws: WebSocket | null = null;
   private connected = false;
+  private isConnecting = false;
   private reconnectAttempts = 0;
   private eventHandlers: Map<string, EventHandler[]> = new Map();
   private circuitState: CircuitState = 'CLOSED';
@@ -146,6 +147,11 @@ export class DingTalkStreamClient {
       return;
     }
 
+    if (this.isConnecting) {
+      info('Connection already in progress, skipping');
+      return;
+    }
+    this.isConnecting = true;
     const token = await this.getConnectionToken();
     const wsUrl = this.buildWebSocketUrl(token);
 
@@ -155,7 +161,9 @@ export class DingTalkStreamClient {
 
     this.ws.on('open', () => {
       this.connected = true;
+      this.isConnecting = false;
       this.reconnectAttempts = 0;
+      this.failureCount = 0;
       info('Connected to DingTalk Stream');
       this.emit('connected', {});
     });
@@ -171,6 +179,7 @@ export class DingTalkStreamClient {
 
     this.ws.on('close', (code: number, reason: Buffer) => {
       this.connected = false;
+      this.isConnecting = false;
       this.failureCount++;
       info('WebSocket connection closed', {
         code,
