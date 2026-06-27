@@ -110,10 +110,6 @@ export class InterviewPlanServiceBase {
     info('Interview plan updated', { planId });
   }
 
-  async disconnect(): Promise<void> {
-    await this.prisma.$disconnect();
-  }
-
   async findByIdWithTemplate(id: string) {
     return this.prisma.interviewPlan.findUnique({
       where: { id },
