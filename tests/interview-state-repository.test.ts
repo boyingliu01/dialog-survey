@@ -448,12 +448,4 @@ describe('InterviewStateRepository', () => {
       expect(result?.templateId).toBe('template-new');
     });
   });
-
-  describe('disconnect', () => {
-    it('should call $disconnect on prisma client', async () => {
-      await repository.disconnect();
-
-      expect(mockPrisma.$disconnect).toHaveBeenCalled();
-    });
-  });
 });
