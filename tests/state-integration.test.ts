@@ -367,14 +367,6 @@ describe('InterviewStateRepository - Missing Coverage Tests', () => {
     });
   });
 
-  describe('disconnect', () => {
-    it('should call prisma disconnect', async () => {
-      await repository.disconnect();
-
-      expect(mockPrisma.$disconnect).toHaveBeenCalled();
-    });
-  });
-
   describe('version conflict retries and errors in saveState', () => {
     /**
      * @test extended-saveState-max-retry-reached

@@ -290,8 +290,4 @@ export class InterviewStateRepository {
     if (!interview) return null;
     return { completedAt: interview.updatedAt, templateId: interview.templateId };
   }
-
-  async disconnect(): Promise<void> {
-    await this.prisma.$disconnect();
-  }
 }
