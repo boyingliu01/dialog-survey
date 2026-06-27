@@ -152,7 +152,8 @@ export class InterviewStateRepository {
 
   async saveFullState(
     interviewId: string,
-    state: InterviewState
+    state: InterviewState,
+    retryCount = 0
   ): Promise<{ success: boolean; newVersion: number }> {
     try {
       const updatedInterview = await this.prisma.$transaction(async (tx) => {
@@ -224,6 +225,13 @@ export class InterviewStateRepository {
       return { success: true, newVersion: updatedInterview.version };
     } catch (err) {
       if (err instanceof StatePersistenceError) {
+        if (err.retryable && retryCount < MAX_RETRIES) {
+          info('Retrying full state save', {
+            interviewId,
+            retryCount: retryCount + 1,
+          });
+          return this.saveFullState(interviewId, state, retryCount + 1);
+        }
         error('State persistence error', {
           interviewId,
           code: err.code,
