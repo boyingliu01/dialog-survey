@@ -1,4 +1,5 @@
 import { error, info } from '../../utils/logger.js';
+import { RetryError } from '../../utils/retry.js';
 import { LLMOptions, LLMRequest, LLMResponse, LLMService } from './base.js';
 
 // 支持的模型列表：doubao-seed-2.0-code, doubao-seed-2.0-pro, doubao-seed-2.0-lite,
@@ -42,7 +43,11 @@ export class OpenAICompatibleLLM implements LLMService {
     if (!response.ok) {
       const errText = await response.text();
       error('LLM API error', { status: response.status, body: errText });
-      throw new Error(`LLM API error: ${response.status} - ${errText}`);
+      throw new RetryError(
+        `LLM API error: ${response.status} - ${errText}`,
+        response.status,
+        response.status >= 500 || response.status === 429
+      );
     }
 
     const data = (await response.json()) as {
