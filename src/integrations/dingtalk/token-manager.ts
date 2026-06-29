@@ -48,14 +48,14 @@ export class DingTalkTokenManager implements TokenManager {
   }
 
   private async refreshToken(): Promise<string> {
+    this.refreshPromise = this.fetchWithRetry().then((token) => {
+      this.cachedToken = token.access_token;
+      this.tokenExpiryTime = Date.now() + token.expires_in * 1000;
+      info('Successfully refreshed access token');
+      return token.access_token;
+    });
     this.isRefreshing = true;
     try {
-      this.refreshPromise = this.fetchWithRetry().then((token) => {
-        this.cachedToken = token.access_token;
-        this.tokenExpiryTime = Date.now() + token.expires_in * 1000;
-        info('Successfully refreshed access token');
-        return token.access_token;
-      });
       return await this.refreshPromise;
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
