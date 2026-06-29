@@ -135,7 +135,7 @@ export class DingTalkStreamClient {
    * Build WebSocket URL from connection token
    */
   buildWebSocketUrl(token: ConnectionToken): string {
-    return `${token.endpoint}?ticket=${token.ticket}`;
+    return `${token.endpoint}?ticket=${encodeURIComponent(token.ticket)}`;
   }
 
   /**
