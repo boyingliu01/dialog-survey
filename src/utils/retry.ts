@@ -3,6 +3,8 @@ export interface RetryOptions {
   initialDelayMs: number;
   maxDelayMs: number;
   backoffMultiplier: number;
+  /** HTTP status codes that should trigger a retry (default: 429, 5xx) */
+  retryableStatuses?: number[];
 }
 
 const DEFAULT_OPTIONS: RetryOptions = {
@@ -10,7 +12,19 @@ const DEFAULT_OPTIONS: RetryOptions = {
   initialDelayMs: 1000,
   maxDelayMs: 10000,
   backoffMultiplier: 2,
+  retryableStatuses: [429, ...Array.from({ length: 100 }, (_, i) => 500 + i)],
 };
+
+export class RetryError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode?: number,
+    public readonly retryable: boolean = false
+  ) {
+    super(message);
+    this.name = 'RetryError';
+  }
+}
 
 export async function withRetry<T>(
   fn: () => Promise<T>,
@@ -27,6 +41,12 @@ export async function withRetry<T>(
       lastError = e instanceof Error ? e : new Error(String(e));
 
       if (attempt < opts.maxRetries) {
+        // Only retry on configured status codes
+        if (e instanceof RetryError) {
+          if (!e.statusCode || !opts.retryableStatuses?.includes(e.statusCode)) {
+            throw e; // Non-retryable status code (e.g., 400)
+          }
+        }
         await sleep(delay);
         delay = Math.min(delay * opts.backoffMultiplier, opts.maxDelayMs);
       }
