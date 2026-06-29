@@ -119,7 +119,7 @@ export class StreamMessageService {
         const elapsed = Date.now() - completed.completedAt.getTime();
         if (elapsed < cooldownMs) {
           const remainingMin = Math.ceil((cooldownMs - elapsed) / 60000);
-          const cooldownMsg = `您的上一次访谈刚刚结束，请等待约 ${remainingMin} 分钟后再开始新的访谈。`;
+          const cooldownMsg = `您的访谈已经完成，感谢您的参与！如需再次访谈，请等待约 ${remainingMin} 分钟后重试。`;
           if (parsed.sessionWebhook) {
             await this.sendReply(parsed.sessionWebhook, cooldownMsg);
           }
