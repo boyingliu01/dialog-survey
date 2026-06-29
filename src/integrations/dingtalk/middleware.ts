@@ -17,7 +17,9 @@ export function verifySignature(timestamp: number, secret: string, signature: st
     .update(stringToSign)
     .digest('base64');
 
-  return expectedSignature === signature;
+  const bufExpected = Buffer.from(expectedSignature);
+  const bufActual = Buffer.from(signature);
+  return bufExpected.length === bufActual.length && crypto.timingSafeEqual(bufExpected, bufActual);
 }
 
 export function verifyTimestamp(timestamp: number): boolean {
