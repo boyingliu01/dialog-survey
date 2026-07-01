@@ -76,6 +76,8 @@ describe('buildApp', () => {
   let app: Awaited<ReturnType<typeof import('../src/server.js').then>>;
 
   beforeAll(async () => {
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
     const { buildApp } = await import('../src/server.js');
     app = await buildApp();
   });
