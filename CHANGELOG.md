@@ -1,4 +1,19 @@
 # Changelog
+
+## 1.7.0 - 2026-07-01
+
+- feat: batch CSV import for interviewees (import-preview + import-commit endpoints)
+- feat: getUserByUserId() DingTalk API for name lookup (getByMobile returns empty name)
+- feat: CSV parsing with BOM + GBK encoding + Chinese column headers
+- feat: cross-plan duplicate check in addMember
+- fix: rewrite graph.ts to resolve node branching ambiguity
+- fix: InterviewPlanService DI from server.ts (previously lost streamClient/tokenManager)
+- fix: stream-client robotCode configuration + message-sending branches
+- fix: addMember cross-plan duplicate prevention
+- test: batch-import integration tests (11 tests)
+- test: interview-plan-members-phone real DB integration tests
+- deps: @fastify/multipart + csv-parse + iconv-lite
+
 ## 1.6.20 - 2026-06-26
 
 - fix: stub LLM_API_KEY in health-api test alongside VOLCENGINE_API_KEY (CI clears both)
