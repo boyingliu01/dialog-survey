@@ -33,6 +33,7 @@ export const InterviewStateSchema = z.object({
     })
   ),
   reportGenerated: z.boolean().default(false),
+  nudgeCount: z.number().default(0), // 超时提醒计数 (persisted to DB)
   // 多轮对话状态管理字段
   version: z.number().default(1), // 当前数据库版本号 (required for optimistic locking)
   originalVersion: z.number().default(1), // 加载时版本号 (用于乐观锁检查)

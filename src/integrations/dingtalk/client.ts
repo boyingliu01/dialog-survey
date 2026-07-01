@@ -34,6 +34,28 @@ export type DingTalkUserLookupResult =
   | { found: true; userId: string; name: string }
   | { found: false };
 
+export interface DingTalkUserInfo {
+  userid: string;
+  name: string | undefined;
+  mobile: string | undefined;
+  stateCode: string | undefined;
+  active: boolean | undefined;
+  deptIdList: number[] | undefined;
+}
+
+interface GetUserByUserIdResponse {
+  errcode: number;
+  errmsg: string;
+  result?: {
+    userid?: string;
+    name?: string;
+    mobile?: string;
+    state_code?: string;
+    active?: boolean;
+    dept_id_list?: number[];
+  };
+}
+
 export class DingTalkClient {
   private appKey: string;
   private appSecret: string;
@@ -136,6 +158,39 @@ export class DingTalkClient {
       found: true,
       userId: response.result.userid,
       name: '',
+    };
+  }
+
+  async getUserByUserId(userId: string): Promise<DingTalkUserInfo> {
+    const accessToken = await this.getAccessToken();
+    const response = await this.request<GetUserByUserIdResponse>('/topapi/v2/user/get', {
+      method: 'POST',
+      body: {
+        userid: userId,
+        language: 'zh_CN',
+      },
+      query: {
+        access_token: accessToken,
+      },
+    });
+
+    if (response.errcode !== 0) {
+      throw new Error(
+        `DingTalk user/get failed: ${response.errmsg} (errcode: ${response.errcode})`
+      );
+    }
+
+    if (!response.result?.userid) {
+      throw new Error('DingTalk user/get returned no userid');
+    }
+
+    return {
+      userid: response.result.userid,
+      name: response.result.name,
+      mobile: response.result.mobile,
+      stateCode: response.result.state_code,
+      active: response.result.active,
+      deptIdList: response.result.dept_id_list,
     };
   }
 

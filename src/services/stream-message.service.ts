@@ -143,6 +143,7 @@ export class StreamMessageService {
         currentQuestion: 0,
         followupCount: 0,
         maxFollowups: 2,
+        nudgeCount: 0,
         responses: [],
         reportGenerated: false,
         version: 1,
@@ -180,9 +181,7 @@ export class StreamMessageService {
       }
     }
 
-    // Timeout check: if user hasn't responded in a while, send a nudge reminder
-    const timeoutResult = this.checkTimeoutNudge(state, parsed);
-    if (timeoutResult) return timeoutResult;
+    this.checkTimeoutNudge(state, parsed);
 
     // Detect silent recovery: previous processing was interrupted
     if (state.status === 'PROCESSING') {
@@ -338,44 +337,43 @@ export class StreamMessageService {
   private checkTimeoutNudge(
     state: InterviewState,
     parsed: { userId: string; content: string; sessionWebhook?: string }
-  ): Promise<{ success: boolean; response: string }> | null {
-    if (state.status !== 'ACTIVE') return null;
+  ): void {
+    const statuses = ['ACTIVE', 'WAITING'] as string[];
+    if (!statuses.includes(state.status)) return;
 
     const lastBotMsg = [...state.messages].reverse().find((m) => m.role === 'assistant');
-    if (!lastBotMsg?.timestamp) return null;
+    if (!lastBotMsg?.timestamp) return;
 
     const timeoutHours = Number.parseInt(process.env['INTERVIEW_TIMEOUT_HOURS'] || '1', 10);
     const effectiveTimeout = Number.isNaN(timeoutHours) || timeoutHours <= 0 ? 1 : timeoutHours;
     const timeoutMs = effectiveTimeout * 60 * 60 * 1000;
     const elapsed = Date.now() - new Date(lastBotMsg.timestamp).getTime();
 
-    if (elapsed >= timeoutMs) {
-      const nudgeCount = (state as any).nudgeCount ?? 0;
-      const maxNudges = Number.parseInt(process.env['INTERVIEW_TIMEOUT_MAX_NUDGES'] || '3', 10);
-      const effectiveMaxNudges = Number.isNaN(maxNudges) || maxNudges <= 0 ? 3 : maxNudges;
+    if (elapsed < timeoutMs) return;
 
-      if (nudgeCount < effectiveMaxNudges) {
-        const nudgeMsg = '您好，距离上次回复已过去较长时间。您的访谈还在进行中，请继续回答。';
-        if (parsed.sessionWebhook) {
-          this.sendReply(parsed.sessionWebhook, nudgeMsg).catch(() => {});
-        }
-        info('Timeout nudge sent', {
-          userId: parsed.userId,
-          nudgeCount: nudgeCount + 1,
-          elapsedHours: Math.round(elapsed / (60 * 60 * 1000)),
-        });
-        return Promise.resolve({ success: true, response: nudgeMsg });
-      }
+    const maxNudges = Number.parseInt(process.env['INTERVIEW_TIMEOUT_MAX_NUDGES'] || '3', 10);
+    const effectiveMaxNudges = Number.isNaN(maxNudges) || maxNudges <= 0 ? 3 : maxNudges;
 
-      // Max nudges exceeded — skip to next question
-      info('Max nudges exceeded, skipping question', {
+    if (state.nudgeCount >= effectiveMaxNudges) {
+      info('Max nudges exceeded, will skip to next question', {
         userId: parsed.userId,
-        nudgeCount,
+        nudgeCount: state.nudgeCount,
         currentQuestion: state.currentQuestion,
       });
+      return;
     }
 
-    return null;
+    const nudgeMsg = '您好，距离上次回复已过去较长时间。您的访谈还在进行中，请继续回答。';
+    if (parsed.sessionWebhook) {
+      this.sendReply(parsed.sessionWebhook, nudgeMsg).catch(() => {});
+    }
+
+    state.nudgeCount++;
+    info('Timeout nudge sent', {
+      userId: parsed.userId,
+      nudgeCount: state.nudgeCount,
+      elapsedHours: Math.round(elapsed / (60 * 60 * 1000)),
+    });
   }
 
   private async resolveDefaultTemplateId(prisma?: PrismaClient): Promise<string> {

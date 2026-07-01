@@ -75,7 +75,6 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
       updatedBy: 'admin',
     };
     if (planSendStatus !== undefined) {
-      // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
       planUpdateData['sendStatus'] = planSendStatus;
     }
 
@@ -170,7 +169,7 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
     }
   }
 
-  private async sendInvitation(
+  protected async sendInvitation(
     userId: string,
     planName: string,
     invitationPrompt: string
@@ -180,7 +179,8 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
       : `您被邀请参与「${planName}」访谈。请直接在钉钉中回复 OpenClaw小钉 任意消息（如"你好"或"开始"）即可开始访谈。`;
     const result = await messageSender.sendTextMessage([userId], message);
     if (result.failedUserIds.length > 0) {
-      const errors = result.errors?.map((e) => `${e.userId}: ${e.error}`).join('; ') || 'unknown error';
+      const errors =
+        result.errors?.map((e) => `${e.userId}: ${e.error}`).join('; ') || 'unknown error';
       throw new Error(`DingTalk send failed: ${errors}`);
     }
   }
@@ -188,7 +188,6 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
   async updatePlanStatus(planId: string, status: PlanStatus): Promise<void> {
     const updateData: Record<string, unknown> = { status, updatedBy: 'admin' };
     if (status === PlanStatus.COMPLETED) {
-      // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
       updateData['completedAt'] = new Date();
     }
 

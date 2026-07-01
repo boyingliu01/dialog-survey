@@ -92,14 +92,10 @@ export class InterviewPlanServiceBase {
     }
   ): Promise<void> {
     const updateData: Record<string, unknown> = { updatedBy: 'admin' };
-    // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
     if (input.name !== undefined) updateData['name'] = input.name;
-    // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
     if (input.description !== undefined) updateData['description'] = input.description;
     if (input.targetDate !== undefined)
-      // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
       updateData['targetDate'] = input.targetDate ? new Date(input.targetDate) : null;
-    // biome-ignore lint/complexity/useLiteralKeys: Record<string,unknown> requires bracket notation per TS4111
     if (input.schedule !== undefined) updateData['schedule'] = input.schedule;
 
     await this.prisma.interviewPlan.update({
