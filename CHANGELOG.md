@@ -4,6 +4,7 @@
 
 - feat: 管理后台支持从 JSON 导入模板 (#136)
 - feat: 模板区域添加导入按钮，支持粘贴 JSON 导入模板
+- fix: stub DingTalk env vars in CI tests to prevent buildApp failure
 - test: 新增模板导入测试（+8 tests）
 
 ## 1.7.2 - 2026-07-01
