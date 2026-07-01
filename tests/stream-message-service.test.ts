@@ -329,6 +329,7 @@ describe('StreamMessageService', () => {
       currentQuestion: 0,
       followupCount: 0,
       maxFollowups: 2,
+      nudgeCount: 0,
       responses: [],
       reportGenerated: false,
       version: 1,
@@ -656,15 +657,22 @@ describe('StreamMessageService', () => {
           {
             role: 'assistant' as const,
             content: '请介绍您的工作经历？',
-            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
           },
         ],
       };
       mockRepo.findActiveInterview.mockResolvedValueOnce(staleState);
+      mockRepo.saveFullState.mockResolvedValueOnce({ success: true, newVersion: 2 });
+      mockRepo.saveFullState.mockResolvedValueOnce({ success: true, newVersion: 3 });
       vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '1');
       vi.stubEnv('INTERVIEW_TIMEOUT_MAX_NUDGES', '3');
 
-      mockFetch.mockResolvedValueOnce({ ok: true });
+      vi.mocked(runInterviewGraph).mockResolvedValueOnce({
+        response: '感谢您的回答，请继续...',
+        nextState: { ...staleState, nudgeCount: 1 },
+      });
+
+      mockFetch.mockResolvedValue({ ok: true });
 
       const message: StreamMessage = {
         specVersion: '1.0',
@@ -684,7 +692,63 @@ describe('StreamMessageService', () => {
       const result = await service.processStreamMessage(message);
 
       expect(result.success).toBe(true);
-      expect(result.response).toContain('继续');
+      expect(result.response).toBe('感谢您的回答，请继续...');
+      expect(mockFetch).toHaveBeenCalled();
+      expect(runInterviewGraph).toHaveBeenCalled();
+    });
+
+    /**
+     * @test bugfix-breakpoint-resume-on-timeout
+     * @intent 验证超时用户回复时，nudge 为附带提醒而非替代处理 —— 用户输入应继续送入 LLM
+     */
+    it('should process user input AND send nudge side-effect on timeout, not block resume', async () => {
+      const staleState = {
+        ...baseState,
+        status: 'ACTIVE' as const,
+        currentQuestion: 2,
+        nudgeCount: 0,
+        messages: [
+          {
+            role: 'assistant' as const,
+            content: '请分享一下您的工作经历？',
+            timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
+          },
+        ],
+      };
+      mockRepo.findActiveInterview.mockResolvedValueOnce(staleState);
+      mockRepo.saveFullState.mockResolvedValueOnce({ success: true, newVersion: 2 });
+      mockRepo.saveFullState.mockResolvedValueOnce({ success: true, newVersion: 3 });
+      vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '1');
+      vi.stubEnv('INTERVIEW_TIMEOUT_MAX_NUDGES', '3');
+
+      vi.mocked(runInterviewGraph).mockResolvedValueOnce({
+        response: '感谢您的分享！下一个问题...',
+        nextState: { ...staleState, currentQuestion: 3, nudgeCount: 1 },
+      });
+
+      mockFetch.mockResolvedValue({ ok: true });
+
+      const message: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: {
+          topic: 'chat',
+          messageId: 'msg-breakpoint-resume',
+          time: '2024-01-01T00:00:00Z',
+        },
+        data: JSON.stringify({
+          senderStaffId: 'user-123',
+          text: { content: '我在XX公司做了3年开发' },
+          sessionWebhook: 'https://oapi.dingtalk.com',
+        }),
+      };
+
+      const result = await service.processStreamMessage(message);
+
+      expect(result.success).toBe(true);
+      expect(result.response).toBe('感谢您的分享！下一个问题...');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(runInterviewGraph).toHaveBeenCalled();
     });
 
     /**
@@ -1087,6 +1151,7 @@ describe('StreamMessageService', () => {
       currentQuestion: 2,
       followupCount: 1,
       maxFollowups: 2,
+      nudgeCount: 0,
       responses: [
         { questionId: 'q0', content: '回答1', isFollowup: false },
         { questionId: 'q1', content: '回答2', isFollowup: false },
@@ -1107,6 +1172,7 @@ describe('StreamMessageService', () => {
       currentQuestion: currentQ,
       followupCount: 0,
       maxFollowups: 2,
+      nudgeCount: 0,
       responses: [
         { questionId: 'q0', content: '回答1', isFollowup: false },
         { questionId: 'q1', content: '回答2', isFollowup: false },

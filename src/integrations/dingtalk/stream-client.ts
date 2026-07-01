@@ -4,6 +4,7 @@ import { debug, error, info } from '../../utils/logger.js';
 export interface DingTalkStreamConfig {
   clientId: string;
   clientSecret: string;
+  robotCode?: string;
   agentId?: string;
 }
 
@@ -76,11 +77,13 @@ export class DingTalkStreamClient {
     const clientId = process.env['DINGTALK_CLIENT_ID'] || '';
     const clientSecret = process.env['DINGTALK_CLIENT_SECRET'] || '';
     const agentId: string | undefined = process.env['DINGTALK_AGENT_ID'];
+    const robotCode: string | undefined = process.env['DINGTALK_ROBOT_CODE'];
 
     return new DingTalkStreamClient({
       clientId,
       clientSecret,
       ...(agentId != null ? { agentId } : {}),
+      ...(robotCode != null ? { robotCode } : {}),
     });
   }
 
@@ -264,7 +267,7 @@ export class DingTalkStreamClient {
   }
 
   /**
-   * Send text message via session webhook
+   * Send text message via session webhook (reply in existing conversation)
    */
   async sendText(sessionWebhook: string, content: string): Promise<void> {
     if (!sessionWebhook) {
@@ -295,6 +298,96 @@ export class DingTalkStreamClient {
       sessionWebhook,
       contentLength: content.length,
     });
+  }
+
+  /**
+   * Send single chat message proactively via Robot API (需要 Robot.SingleChat.ReadWrite 权限)
+   */
+  async sendSingleChatText(
+    userId: string,
+    content: string,
+    accessToken: string
+  ): Promise<{
+    success: boolean;
+    processQueryKey?: string | undefined;
+    error?: string | undefined;
+  }> {
+    return this.sendSingleChat(userId, 'sampleText', JSON.stringify({ content }), accessToken);
+  }
+
+  /**
+   * Send single chat markdown message proactively via Robot API
+   */
+  async sendSingleChatMarkdown(
+    userId: string,
+    title: string,
+    text: string,
+    accessToken: string
+  ): Promise<{
+    success: boolean;
+    processQueryKey?: string | undefined;
+    error?: string | undefined;
+  }> {
+    return this.sendSingleChat(
+      userId,
+      'sampleMarkdown',
+      JSON.stringify({ title, text }),
+      accessToken
+    );
+  }
+
+  private async sendSingleChat(
+    userId: string,
+    msgKey: string,
+    msgParam: string,
+    accessToken: string
+  ): Promise<{
+    success: boolean;
+    processQueryKey?: string | undefined;
+    error?: string | undefined;
+  }> {
+    const robotCode = this.config.robotCode;
+    if (!robotCode) {
+      return { success: false, error: 'robotCode not configured' };
+    }
+
+    const url = 'https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend';
+    const body = {
+      robotCode,
+      userIds: [userId],
+      msgKey,
+      msgParam,
+    };
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-acs-dingtalk-access-token': accessToken,
+      },
+      body: JSON.stringify(body),
+    });
+
+    const data = (await response.json()) as {
+      code?: string;
+      message?: string;
+      processQueryKey?: string;
+      result?: { processQueryKey?: string };
+    };
+
+    if (!response.ok || (data.code && data.code !== '0' && data.code !== '')) {
+      error('Single chat send failed', {
+        userId,
+        code: data.code,
+        message: data.message,
+      });
+      return { success: false, error: data.message || `HTTP ${response.status}` };
+    }
+
+    const processQueryKey: string | undefined =
+      data.processQueryKey || data.result?.processQueryKey || undefined;
+    debug('Single chat message sent', { userId, processQueryKey });
+    return { success: true, processQueryKey };
   }
 
   /**

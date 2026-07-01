@@ -1,9 +1,15 @@
 {
-  "reportVersion": "1.1",
-  "generatedAt": "2026-06-29T04:22:04Z",
+  "timestamp": "2026-06-27T01:35:19Z",
+  "trigger": "pre-commit",
   "branch": "master",
-  "commit": "20670380613c588d143432fdbf5d067411338651",
-  "language": "typescript",
+  "commit": "95a20fd2670ceb5b10f9fdf213d9ef94cfd7ab10",
+  "changed_files": [
+    "VERSION",
+    "src/repositories/interview-state.repository.ts",
+    "src/services/interview-plan-base.service.ts",
+    "tests/interview-state-repository.test.ts",
+    "tests/state-integration.test.ts"
+  ],
   "overall": {
     "gatesPassed": 9,
     "gatesTotal": 9,
@@ -36,8 +42,15 @@
     "gate5_tests": {
       "name": "Tests + Coverage",
       "status": "PASS",
-      "thresholds": { "lines": 80, "functions": 80, "branches": 70, "statements": 80 },
-      "actual": { "coverage": "N/A" },
+      "thresholds": {
+        "lines": 80,
+        "functions": 80,
+        "branches": 70,
+        "statements": 80
+      },
+      "actual": {
+        "coverage": "N/A"
+      },
       "failedTests": []
     },
     "gate6_arch_boyscout": {
@@ -61,5 +74,7 @@
       "status": "PASS",
       "tool": "semgrep"
     }
-  }
+  },
+  "warnings": [],
+  "errors": []
 }

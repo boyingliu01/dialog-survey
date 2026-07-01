@@ -2,6 +2,7 @@ import { dirname, normalize, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import cors from '@fastify/cors';
 import fastifyFormbody from '@fastify/formbody';
+import fastifyMultipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import fastifyView from '@fastify/view';
 import { PrismaClient } from '@prisma/client';
@@ -18,7 +19,9 @@ import { analysisRoutes } from './api/analysis.js';
 import { healthRoutes } from './api/health.js';
 import { interviewPlanRoutes } from './api/plans.js';
 import { templateRoutes } from './api/templates.js';
+import { DingTalkMessageSender } from './integrations/dingtalk/message-sender.js';
 import { DingTalkStreamClient } from './integrations/dingtalk/stream-client.js';
+import { tokenManager } from './integrations/dingtalk/token-manager.js';
 import { InterviewRepository } from './repositories/interview.repository.js';
 import { TemplateRepository } from './repositories/template.repository.js';
 import { AnalysisService } from './services/analysis.service.js';
@@ -27,7 +30,6 @@ import { AuditCleanupService } from './services/audit-cleanup.service.js';
 import { ExportService } from './services/export.service.js';
 import { InterviewPlanService } from './services/interview-plan.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
-import { DingTalkMessageSender } from './integrations/dingtalk/message-sender.js';
 import { error, info, warn } from './utils/logger.js';
 import { renderMarkdown } from './utils/markdown.js';
 import { createVerifyApiKey, securityMiddleware } from './utils/security.js';
@@ -99,6 +101,10 @@ export async function buildApp() {
 
   await fastify.register(fastifyFormbody);
 
+  await fastify.register(fastifyMultipart, {
+    limits: { fileSize: 1 * 1024 * 1024, parts: 1 },
+  });
+
   const viewsDir = resolve(__dirname, '..', 'src', 'views');
 
   const customNunjucks = {
@@ -134,7 +140,13 @@ export async function buildApp() {
 
   const prisma = new PrismaClient();
   const templateRepo = new TemplateRepository(prisma);
-  const interviewPlanService = new InterviewPlanService(prisma);
+  const streamClient = DingTalkStreamClient.fromEnv();
+  const interviewPlanService = new InterviewPlanService(
+    prisma,
+    undefined,
+    streamClient,
+    tokenManager
+  );
   const interviewRepo = new InterviewRepository(prisma);
   const analysisService = new AnalysisService(prisma);
   const analyticsService = new AnalyticsService(prisma);
@@ -160,7 +172,7 @@ export async function buildApp() {
     reply.header(
       'Content-Security-Policy',
       "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.tailwindcss.com https://cdn.jsdelivr.net; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.tailwindcss.com https://cdn.jsdelivr.net; " +
         "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; " +
         "img-src 'self' data:; " +
         "font-src 'self'; " +
@@ -188,7 +200,7 @@ export async function buildApp() {
 
   await fastify.register(async (api) => {
     api.addHook('preHandler', verifyApiKey);
-    await api.register(interviewPlanRoutes, { prisma });
+    await api.register(interviewPlanRoutes, { interviewPlanService, prisma });
     await api.register(templateRoutes, { templateRepo, prisma });
     await api.register(analysisRoutes, { prisma });
   });
@@ -228,11 +240,13 @@ export async function startServer() {
       const lastMsg = iv.messages[0];
       if (!lastMsg || lastMsg.role !== 'assistant') continue;
       info('Resending unsent message on startup', {
-        interviewId: iv.id, userId: iv.userId,
+        interviewId: iv.id,
+        userId: iv.userId,
       });
       sender.sendTextMessage([iv.userId], lastMsg.content).catch((e: unknown) => {
         error('Failed to resend on startup', {
-          interviewId: iv.id, error: e instanceof Error ? e.message : String(e),
+          interviewId: iv.id,
+          error: e instanceof Error ? e.message : String(e),
         });
       });
     }
@@ -253,7 +267,7 @@ export async function startServer() {
           topic: (message as StreamMessage)?.headers?.topic,
           messageId: (message as StreamMessage)?.headers?.messageId,
         });
-        processStreamMessage(message as StreamMessage, prisma).catch((err) => {
+        processStreamMessage(message as StreamMessage, prisma).catch((err: unknown) => {
           const errMsg = err instanceof Error ? err.message : String(err);
           error('Failed to process message', { error: errMsg });
         });
@@ -269,7 +283,7 @@ export async function startServer() {
       });
 
       // Non-blocking DingTalk connection — server stays up even if DingTalk fails
-      client.connect().catch((err) => {
+      client.connect().catch((err: unknown) => {
         warn('DingTalk Stream connection failed, server continues without it', {
           error: err instanceof Error ? err.message : String(err),
         });

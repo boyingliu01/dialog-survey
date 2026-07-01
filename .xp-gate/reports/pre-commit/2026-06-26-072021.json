@@ -1,14 +1,16 @@
 {
-  "reportVersion": "1.1",
-  "generatedAt": "2026-06-29T04:22:04Z",
+  "timestamp": "2026-06-26T07:20:21Z",
+  "trigger": "pre-commit",
   "branch": "master",
-  "commit": "20670380613c588d143432fdbf5d067411338651",
-  "language": "typescript",
+  "commit": "2c771d54b2bf110b60c99132256e9dd9e88781e4",
+  "changed_files": [
+    ".github/workflows/publish.yml"
+  ],
   "overall": {
-    "gatesPassed": 9,
+    "gatesPassed": 8,
     "gatesTotal": 9,
-    "score": 10.0,
-    "verdict": "PASS"
+    "score": 8.0,
+    "verdict": "PARTIAL"
   },
   "gates": {
     "gate1_static_analysis": {
@@ -36,8 +38,15 @@
     "gate5_tests": {
       "name": "Tests + Coverage",
       "status": "PASS",
-      "thresholds": { "lines": 80, "functions": 80, "branches": 70, "statements": 80 },
-      "actual": { "coverage": "N/A" },
+      "thresholds": {
+        "lines": 80,
+        "functions": 80,
+        "branches": 70,
+        "statements": 80
+      },
+      "actual": {
+        "coverage": "N/A"
+      },
       "failedTests": []
     },
     "gate6_arch_boyscout": {
@@ -48,7 +57,7 @@
     },
     "gate7_iac_security": {
       "name": "IaC Security Scanning",
-      "status": "PASS",
+      "status": "SKIP",
       "tools": "checkov, hadolint, kube-score, tflint"
     },
     "gate8_secret_scanning": {
@@ -61,5 +70,7 @@
       "status": "PASS",
       "tool": "semgrep"
     }
-  }
+  },
+  "warnings": [],
+  "errors": []
 }

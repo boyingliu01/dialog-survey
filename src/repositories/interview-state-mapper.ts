@@ -12,6 +12,7 @@ export function mapInterviewToInterviewState(interview: {
   currentQuestion: number | null;
   followupCount: number;
   maxFollowups: number;
+  nudgeCount: number;
   reportPath: string | null;
   version: number;
   userName?: string | null;
@@ -39,6 +40,7 @@ export function mapInterviewToInterviewState(interview: {
     currentQuestion: interview.currentQuestion ?? 0,
     followupCount: interview.followupCount,
     maxFollowups: interview.maxFollowups,
+    nudgeCount: interview.nudgeCount,
     responses: interview.responses.map((r) => ({
       questionId: r.questionId,
       content: r.content,

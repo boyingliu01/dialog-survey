@@ -2,6 +2,8 @@ import { SendStatus } from '@prisma/client';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
+import { DingTalkStreamClient } from '../integrations/dingtalk/stream-client.js';
+import type { TokenManager } from '../integrations/dingtalk/token-manager.js';
 import { error, info } from '../utils/logger.js';
 import type { InviteeData } from './interview-plan-base.service.js';
 import { InterviewPlanSendService } from './interview-plan-send.service.js';
@@ -78,10 +80,19 @@ export interface AddMemberInput {
 
 export class InterviewPlanService extends InterviewPlanSendService {
   private dingTalkClient: DingTalkClient;
+  private streamClient?: DingTalkStreamClient | undefined;
+  private tokenManager?: TokenManager | undefined;
 
-  constructor(prisma: PrismaClient, dingTalkClient?: DingTalkClient) {
+  constructor(
+    prisma: PrismaClient,
+    dingTalkClient?: DingTalkClient,
+    streamClient?: DingTalkStreamClient,
+    tokenManager?: TokenManager
+  ) {
     super(prisma);
     this.dingTalkClient = dingTalkClient ?? DingTalkClient.fromEnv();
+    this.streamClient = streamClient;
+    this.tokenManager = tokenManager;
   }
 
   async addMember(planId: string, input: AddMemberInput): Promise<{ interviewId: string }> {
@@ -117,12 +128,24 @@ export class InterviewPlanService extends InterviewPlanSendService {
         throw new PlanNotFoundError(planId);
       }
 
-      // Check userId conflict first
+      // Check userId conflict: same user in same plan OR has active interview in another plan
       const existingByUserId = await tx.interview.findFirst({
         where: { planId, userId },
       });
       if (existingByUserId) {
         throw new MemberConflictError('该成员已在访谈计划中');
+      }
+
+      const activeInOtherPlan = await tx.interview.findFirst({
+        where: {
+          userId,
+          planId: { not: planId },
+          status: { notIn: ['COMPLETED', 'CANCELLED'] },
+        },
+        select: { planId: true },
+      });
+      if (activeInOtherPlan) {
+        throw new MemberConflictError('该成员已有尚未完成的访谈');
       }
 
       // Phone mode: check phone conflict in inviteeData JSON
@@ -263,34 +286,87 @@ export class InterviewPlanService extends InterviewPlanSendService {
       return { reminded: 0, failed: 0 };
     }
 
-    const message = `【访谈提醒】您参与的访谈 "${plan.name}" 尚未完成，请抽空回复访谈邀约消息继续完成。`;
-    const concurrency = 10;
+    const useSingleChat = !!(this.streamClient && this.tokenManager);
     let reminded = 0;
     let failed = 0;
 
-    for (let i = 0; i < targets.length; i += concurrency) {
-      const batch = targets.slice(i, i + concurrency);
-      const results = await Promise.allSettled(
-        batch.map((target) => messageSender.sendTextMessage([target.userId], message))
-      );
-      for (let j = 0; j < results.length; j++) {
-        const result = results[j];
-        if (result.status === 'fulfilled') {
+    if (useSingleChat) {
+      const client = this.streamClient as DingTalkStreamClient;
+      const tokenMgr = this.tokenManager as TokenManager;
+      const accessToken = await tokenMgr.getAccessToken();
+      for (const target of targets) {
+        const result = await client.sendSingleChatMarkdown(
+          target.userId,
+          '访谈提醒',
+          `**访谈提醒**\n\n您参与的访谈 **"${plan.name}"** 尚未完成，请在本聊天中回复任意消息继续完成访谈。`,
+          accessToken
+        );
+        if (result.success) {
           reminded++;
         } else {
           failed++;
-          const errMsg = result.reason instanceof Error ? result.reason.message : 'send failed';
-          error('Reminder send failed', {
+          error('Reminder send failed (single chat)', {
             planId,
-            userId: batch[j].userId,
-            error: errMsg,
+            userId: target.userId,
+            error: result.error,
           });
+        }
+      }
+    } else {
+      const message = `【访谈提醒】您参与的访谈 "${plan.name}" 尚未完成，请抽空回复访谈邀约消息继续完成。`;
+      const concurrency = 10;
+      for (let i = 0; i < targets.length; i += concurrency) {
+        const batch = targets.slice(i, i + concurrency);
+        const results = await Promise.allSettled(
+          batch.map((target) => messageSender.sendTextMessage([target.userId], message))
+        );
+        for (let j = 0; j < results.length; j++) {
+          const result = results[j];
+          if (result.status === 'fulfilled') {
+            reminded++;
+          } else {
+            failed++;
+            const errMsg = result.reason instanceof Error ? result.reason.message : 'send failed';
+            error('Reminder send failed', {
+              planId,
+              userId: batch[j].userId,
+              error: errMsg,
+            });
+          }
         }
       }
     }
 
-    info('Reminders sent', { planId, reminded, failed });
+    info('Reminders sent', {
+      planId,
+      reminded,
+      failed,
+      channel: useSingleChat ? 'single-chat' : 'work-notification',
+    });
     return { reminded, failed };
+  }
+
+  protected async sendInvitation(
+    userId: string,
+    planName: string,
+    invitationPrompt: string
+  ): Promise<void> {
+    const client = this.streamClient;
+    const tokenMgr = this.tokenManager;
+    if (client && tokenMgr) {
+      const token = await tokenMgr.getAccessToken();
+      const title = '访谈邀请';
+      const body = invitationPrompt
+        ? `${invitationPrompt}\n\n> 来自「${planName}」访谈`
+        : `您被邀请参与 **"${planName}"** 访谈。请在聊天中回复任意消息即可开始访谈。`;
+      const result = await client.sendSingleChatMarkdown(userId, title, body, token);
+      if (!result.success) {
+        throw new Error(`DingTalk single chat failed: ${result.error || 'unknown'}`);
+      }
+      return;
+    }
+
+    return super.sendInvitation(userId, planName, invitationPrompt);
   }
 
   async updatePlan(

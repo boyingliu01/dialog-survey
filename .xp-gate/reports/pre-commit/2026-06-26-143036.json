@@ -1,9 +1,13 @@
 {
-  "reportVersion": "1.1",
-  "generatedAt": "2026-06-29T04:22:04Z",
+  "timestamp": "2026-06-26T14:30:36Z",
+  "trigger": "pre-commit",
   "branch": "master",
-  "commit": "20670380613c588d143432fdbf5d067411338651",
-  "language": "typescript",
+  "commit": "95a6fb03eb7a928423ee5bd526426a16a3758eb5",
+  "changed_files": [
+    "VERSION",
+    "src/services/followup.service.ts",
+    "src/services/prompt.service.ts"
+  ],
   "overall": {
     "gatesPassed": 9,
     "gatesTotal": 9,
@@ -36,8 +40,15 @@
     "gate5_tests": {
       "name": "Tests + Coverage",
       "status": "PASS",
-      "thresholds": { "lines": 80, "functions": 80, "branches": 70, "statements": 80 },
-      "actual": { "coverage": "N/A" },
+      "thresholds": {
+        "lines": 80,
+        "functions": 80,
+        "branches": 70,
+        "statements": 80
+      },
+      "actual": {
+        "coverage": "N/A"
+      },
       "failedTests": []
     },
     "gate6_arch_boyscout": {
@@ -61,5 +72,7 @@
       "status": "PASS",
       "tool": "semgrep"
     }
-  }
+  },
+  "warnings": [],
+  "errors": []
 }

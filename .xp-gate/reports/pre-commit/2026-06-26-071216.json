@@ -1,9 +1,29 @@
 {
-  "reportVersion": "1.1",
-  "generatedAt": "2026-06-29T04:22:04Z",
+  "timestamp": "2026-06-26T07:12:16Z",
+  "trigger": "pre-commit",
   "branch": "master",
-  "commit": "20670380613c588d143432fdbf5d067411338651",
-  "language": "typescript",
+  "commit": "046610d9312d51dfe259073a933d9f8ff208d4ae",
+  "changed_files": [
+    ".quality-history.jsonl",
+    ".xp-gate/quality-status/master.json",
+    ".xp-gate/reports/pre-commit/2026-06-25-064939.json",
+    ".xp-gate/reports/pre-commit/2026-06-25-065308.json",
+    ".xp-gate/reports/pre-commit/2026-06-26-040416.json",
+    ".xp-gate/reports/pre-commit/2026-06-26-040912.json",
+    ".xp-gate/reports/pre-commit/2026-06-26-054247.json",
+    ".xp-gate/reports/pre-commit/2026-06-26-054545.json",
+    "CHANGELOG.md",
+    "VERSION",
+    "package.json",
+    "src/services/interview-plan-base.service.ts",
+    "src/services/interview-plan-members.service.ts",
+    "src/services/interview-plan-send.service.ts",
+    "src/services/interview-plan.service.ts",
+    "src/views/admin/content/plan-form.njk",
+    "src/views/layouts/admin-tree.njk",
+    "tests/interview-plan.test.ts",
+    "tests/workflow-interview-lifecycle.test.ts"
+  ],
   "overall": {
     "gatesPassed": 9,
     "gatesTotal": 9,
@@ -36,8 +56,15 @@
     "gate5_tests": {
       "name": "Tests + Coverage",
       "status": "PASS",
-      "thresholds": { "lines": 80, "functions": 80, "branches": 70, "statements": 80 },
-      "actual": { "coverage": "N/A" },
+      "thresholds": {
+        "lines": 80,
+        "functions": 80,
+        "branches": 70,
+        "statements": 80
+      },
+      "actual": {
+        "coverage": "N/A"
+      },
       "failedTests": []
     },
     "gate6_arch_boyscout": {
@@ -61,5 +88,7 @@
       "status": "PASS",
       "tool": "semgrep"
     }
-  }
+  },
+  "warnings": [],
+  "errors": []
 }

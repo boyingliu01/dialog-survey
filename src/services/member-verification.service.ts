@@ -4,7 +4,7 @@ import type { DingTalkClient } from '../integrations/dingtalk/client.js';
  * Normalize a phone number: strip all non-digit characters,
  * strip +86 country code prefix if present.
  */
-function normalizePhone(phone: string): string {
+export function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   return digits.startsWith('86') && digits.length === 13 ? digits.slice(2) : digits;
 }
@@ -45,7 +45,7 @@ export async function verifyPhoneToName(
   let lookupResult: Awaited<ReturnType<DingTalkClient['getUserIdByMobile']>>;
   try {
     lookupResult = await client.getUserIdByMobile(normalizedPhone);
-  } catch (err) {
+  } catch (_err) {
       return {
         verified: false,
         reason: '钉钉服务暂时不可用，请稍后重试',

@@ -1,9 +1,12 @@
 {
-  "reportVersion": "1.1",
-  "generatedAt": "2026-06-29T04:22:04Z",
+  "timestamp": "2026-06-27T01:43:05Z",
+  "trigger": "pre-commit",
   "branch": "master",
-  "commit": "20670380613c588d143432fdbf5d067411338651",
-  "language": "typescript",
+  "commit": "bbe8511ff30f26dbca45cf5f5fe944560045fa49",
+  "changed_files": [
+    "VERSION",
+    "src/integrations/dingtalk/stream-client.ts"
+  ],
   "overall": {
     "gatesPassed": 9,
     "gatesTotal": 9,
@@ -36,8 +39,15 @@
     "gate5_tests": {
       "name": "Tests + Coverage",
       "status": "PASS",
-      "thresholds": { "lines": 80, "functions": 80, "branches": 70, "statements": 80 },
-      "actual": { "coverage": "N/A" },
+      "thresholds": {
+        "lines": 80,
+        "functions": 80,
+        "branches": 70,
+        "statements": 80
+      },
+      "actual": {
+        "coverage": "N/A"
+      },
       "failedTests": []
     },
     "gate6_arch_boyscout": {
@@ -61,5 +71,7 @@
       "status": "PASS",
       "tool": "semgrep"
     }
-  }
+  },
+  "warnings": [],
+  "errors": []
 }

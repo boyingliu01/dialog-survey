@@ -154,3 +154,94 @@ describe('DingTalkStreamClient Branch Coverage', () => {
     expect((client as any).ws).toBeNull();
   });
 });
+
+describe('DingTalkStreamClient — Single Chat', () => {
+  const mockConfig = {
+    clientId: 'test-client-id',
+    clientSecret: 'test-client-secret',
+    robotCode: 'dingemmnhyusk82zvx7t',
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should send single chat text message successfully', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ code: '0', processQueryKey: 'msg-001' }),
+      })
+    ) as unknown as typeof fetch;
+
+    const client = new DingTalkStreamClient(mockConfig);
+    const result = await client.sendSingleChatText('user-123', 'Hello', 'test-token');
+
+    expect(result.success).toBe(true);
+    expect(result.processQueryKey).toBe('msg-001');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'x-acs-dingtalk-access-token': 'test-token',
+        }),
+        body: expect.stringContaining('robotCode'),
+      })
+    );
+  });
+
+  it('should send single chat markdown message successfully', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ code: '0', processQueryKey: 'msg-md-001' }),
+      })
+    ) as unknown as typeof fetch;
+
+    const client = new DingTalkStreamClient(mockConfig);
+    const result = await client.sendSingleChatMarkdown(
+      'user-123',
+      '访谈提醒',
+      '您有未完成的访谈',
+      'test-token'
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.processQueryKey).toBe('msg-md-001');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend',
+      expect.objectContaining({
+        body: expect.stringContaining('sampleMarkdown'),
+      })
+    );
+  });
+
+  it('should return error when robotCode not configured', async () => {
+    const client = new DingTalkStreamClient({
+      clientId: 'test-client-id',
+      clientSecret: 'test-client-secret',
+    });
+
+    const result = await client.sendSingleChatText('user-123', 'Hello', 'test-token');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('robotCode');
+  });
+
+  it('should return error on API failure', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({ code: '400', message: 'invalidParameter.userIds.empty' }),
+      })
+    ) as unknown as typeof fetch;
+
+    const client = new DingTalkStreamClient(mockConfig);
+    const result = await client.sendSingleChatText('user-123', 'Hello', 'test-token');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('invalidParameter.userIds.empty');
+  });
+});
