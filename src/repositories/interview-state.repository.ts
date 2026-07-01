@@ -205,6 +205,7 @@ export class InterviewStateRepository {
             status: state.status,
             currentQuestion: state.currentQuestion,
             followupCount: state.followupCount,
+            nudgeCount: state.nudgeCount,
             version: { increment: 1 },
           },
         });

@@ -368,6 +368,22 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
       ).rejects.toBeInstanceOf(MemberConflictError);
     });
 
+    it('addMember should throw MemberConflictError for cross-plan active interview', async () => {
+      const { MemberConflictError } = await import('../src/services/interview-plan.service.js');
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-2',
+        templateId: 'tpl-1',
+        inviteeData: [],
+      });
+      // Same-plan check: no duplicate
+      mockPrisma.interview.findFirst.mockResolvedValueOnce(null);
+      // Cross-plan check: user has active interview in different plan
+      mockPrisma.interview.findFirst.mockResolvedValueOnce({ planId: 'plan-1' });
+      await expect(
+        service.addMember('plan-2', { userId: 'user-1', name: 'Alice' })
+      ).rejects.toBeInstanceOf(MemberConflictError);
+    });
+
     it('removeMember should throw InterviewNotFoundError when missing', async () => {
       const { InterviewNotFoundError } = await import('../src/services/interview-plan.service.js');
       mockPrisma.interview.findUnique.mockResolvedValue(null);
