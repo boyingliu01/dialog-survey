@@ -29,6 +29,7 @@ describe('InterviewPlanService - Additional Coverage', () => {
       interview: {
         findMany: vi.fn(),
         findUnique: vi.fn(),
+        findFirst: vi.fn(),
         createMany: vi.fn(),
         update: vi.fn(),
       },
@@ -136,6 +137,53 @@ describe('InterviewPlanService - Additional Coverage', () => {
       const updateCall = mockPrisma.interview.update.mock.calls[0][0];
       expect(updateCall.data.sendStatus).toBe('SENT');
       expect(updateCall.data.sentAt).toBeInstanceOf(Date);
+    });
+
+    it('should skip user who has active interview in another plan', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        name: 'Test Plan',
+        startedAt: null,
+        interviews: [
+          { id: 'int-1', userId: 'user-1' },
+          { id: 'int-2', userId: 'user-2' },
+        ],
+      });
+      // user-1 has active interview elsewhere, user-2 does not
+      mockPrisma.interview.findFirst
+        .mockResolvedValueOnce({ id: 'other-int', planId: 'plan-other' })
+        .mockResolvedValueOnce(null);
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+      mockPrisma.interview.update.mockResolvedValue({});
+
+      const { messageSender } = await import('../src/integrations/dingtalk/message-sender.js');
+      vi.mocked(messageSender.sendTextMessage).mockClear();
+
+      const result = await service.sendInvitations('plan-1');
+
+      // Only user-2 should be sent; user-1 skipped
+      expect(result.sent).toBe(1);
+      expect(messageSender.sendTextMessage).toHaveBeenCalledTimes(1);
+      expect(messageSender.sendTextMessage).toHaveBeenCalledWith(['user-2'], expect.any(String));
+    });
+
+    it('should skip all users with active interviews elsewhere', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        name: 'Test Plan',
+        startedAt: null,
+        interviews: [
+          { id: 'int-1', userId: 'user-1' },
+          { id: 'int-2', userId: 'user-2' },
+        ],
+      });
+      // All users have active interviews → all skipped
+      mockPrisma.interview.findFirst.mockResolvedValue({ id: 'other-int', planId: 'plan-other' });
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+
+      const result = await service.sendInvitations('plan-1');
+
+      expect(result.sent).toBe(0);
     });
   });
 

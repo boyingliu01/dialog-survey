@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.2 - 2026-07-01
+
+- fix: renderPdfHtml() 嵌入 NotoSansCJKsc-Regular.otf base64 字体修复 PDF 中文乱码
+- fix: exportInterviewToExcel() join template.content.questions 映射实际问题文本
+- fix: sendInvitations() 添加跨计划活跃访谈检查，防止重复发送邀请
+- test: 新增字体渲染、问题文本映射、去重 guard 测试（+5 tests）
+
 ## 1.7.0 - 2026-07-01
 
 - feat: batch CSV import for interviewees (import-preview + import-commit endpoints)
