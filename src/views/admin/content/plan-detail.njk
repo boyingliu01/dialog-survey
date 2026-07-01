@@ -208,7 +208,7 @@
     </div>
     {% endif %}
   </div>
-  <div x-show="activeTab==='members'" x-cloak class="text-sm" x-data="{ showAdd: false, newUserId: '', newPhone: '', newName: '', showImport: false, importStatus: '', importFile: null, importResults: null, importConfirmed: false, getFailedRows() { return this.importResults?.results?.filter(r => r.status !== 'ok') || []; }, getPassedRows() { return this.importResults?.results?.filter(r => r.status === 'ok' || r.status === 'name_mismatch') || []; } }">
+  <div x-show="activeTab==='members'" x-cloak class="text-sm" x-data="{ showAdd: false, newUserId: '', newPhone: '', newName: '', showImport: false, importStatus: '', importFile: null, importResults: null, importConfirmed: false, getFailedRows() { return this.importResults?.results?.filter(r => r.status !== 'ok' && r.status !== 'name_mismatch' && r.status !== 'duplicate_phone') || []; }, getPassedRows() { return this.importResults?.results?.filter(r => r.status === 'ok' || r.status === 'name_mismatch' || r.status === 'duplicate_phone') || []; } }">
     <div class="flex gap-2 mb-3">
       {% if plan.status == 'PENDING' or plan.status == 'READY' %}
        <button
@@ -328,7 +328,7 @@
                           <td class="p-1" x-text="row.inputName || row.dingtalkName || '-'"></td>
                           <td class="p-1" x-text="row.phone || '-'"></td>
                           <td class="p-1" x-text="row.userId || '-'"></td>
-                          <td class="p-1" x-text="row.status === 'name_mismatch' ? '姓名不匹配' : '验证通过'"></td>
+                          <td class="p-1" :class="row.status === 'name_mismatch' ? 'text-amber-600' : row.status === 'duplicate_phone' ? 'text-blue-600' : 'text-emerald-600'" x-text="row.status === 'name_mismatch' ? '姓名不匹配' : row.status === 'duplicate_phone' ? '手机号重复' : '验证通过'"></td>
                         </tr>
                       </template>
                     </tbody>

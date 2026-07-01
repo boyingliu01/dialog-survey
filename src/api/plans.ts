@@ -201,6 +201,7 @@ export async function interviewPlanRoutes(
   interface CsvRow {
     phone: string;
     name: string | undefined;
+    isDuplicate: boolean;
   }
 
   interface ImportRowResult {
@@ -237,11 +238,12 @@ export async function interviewPlanRoutes(
       const rawPhone = row[phoneIdx]?.trim();
       if (!rawPhone) continue;
       const phone = normalizePhone(rawPhone);
-      if (seenPhones.has(phone)) continue;
+      const isDuplicate = seenPhones.has(phone);
       seenPhones.set(phone, true);
       result.push({
         phone,
         name: nameIdx >= 0 ? row[nameIdx]?.trim() || undefined : undefined,
+        isDuplicate,
       });
     }
     return { rows: result, dedupedPhones: seenPhones };
@@ -294,12 +296,37 @@ export async function interviewPlanRoutes(
 
       const client = DingTalkClient.fromEnv();
       const results: ImportRowResult[] = [];
+      const phoneResultCache = new Map<string, { userId: string; dingtalkName: string }>();
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         const base = { rowIndex: i + 2, phone: row.phone, inputName: row.name };
+
+        if (row.isDuplicate) {
+          const cached = phoneResultCache.get(row.phone);
+          if (cached) {
+            results.push({
+              ...base,
+              status: 'duplicate_phone',
+              userId: cached.userId,
+              dingtalkName: cached.dingtalkName,
+              message: `手机号重复，与第 ${i + 1} 行合并为同一人`,
+            });
+          } else {
+            results.push({
+              ...base,
+              status: 'phone_not_found',
+              userId: undefined,
+              dingtalkName: undefined,
+              message: '该手机号未在钉钉通讯录中注册',
+            });
+          }
+          continue;
+        }
+
         try {
           const { userId, dingtalkName } = await verifyRow(client, row);
+          phoneResultCache.set(row.phone, { userId, dingtalkName });
           if (row.name && dingtalkName && row.name !== dingtalkName) {
             results.push({
               ...base,
