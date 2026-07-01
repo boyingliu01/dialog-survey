@@ -1,9 +1,9 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PrismaClient } from '@prisma/client';
 import { chromium } from 'playwright';
 import * as XLSX from 'xlsx';
-import { info } from '../utils/logger.js';
+import { info, warn } from '../utils/logger.js';
 
 export class ExportService {
   private readonly reportsDir: string;
@@ -72,6 +72,7 @@ export class ExportService {
         userId: true,
         status: true,
         templateId: true,
+        template: { select: { content: true } },
         responses: {
           select: { questionId: true, content: true, isFollowup: true, followupDepth: true },
           orderBy: { createdAt: 'asc' },
@@ -91,9 +92,12 @@ export class ExportService {
 
     const wb = XLSX.utils.book_new();
 
+    // Map question IDs to question text from template content
+    const questionMap = this.buildQuestionMap(interview.template?.content);
+
     // Sheet 1: Responses
     const rows = interview.responses.map((r) => ({
-      questionId: r.questionId,
+      question: questionMap[r.questionId] || r.questionId,
       answer: r.content,
       isFollowup: r.isFollowup ? '是' : '否',
       followupDepth: r.followupDepth,
@@ -139,6 +143,21 @@ export class ExportService {
       recommendations: string[];
     } | null
   ): string {
+    // Load CJK font for Chinese text rendering in PDF
+    let fontFaceCss = '';
+    const fontPath = join(this.reportsDir, 'NotoSansCJKsc-Regular.otf');
+    if (existsSync(fontPath)) {
+      try {
+        const fontBase64 = readFileSync(fontPath).toString('base64');
+        fontFaceCss = `@font-face{font-family:'NotoSansCJK';src:url(data:font/opentype;base64,${fontBase64})}body{font-family:'NotoSansCJK',sans-serif}`;
+      } catch {
+        warn('Failed to load CJK font for PDF', { fontPath });
+      }
+    }
+    if (!fontFaceCss) {
+      fontFaceCss = 'body{font-family:"Noto Sans CJK SC","Noto Sans SC","Noto Sans",sans-serif}';
+    }
+
     const responseRows = interview.responses
       .map(
         (r, i) => `<tr>
@@ -162,7 +181,7 @@ export class ExportService {
 <html lang="zh-CN">
 <head><meta charset="utf-8"><title>访谈报告 - ${this.escapeHtml(interview.userId)}</title>
 <style>
-  body { font-family: sans-serif; color: #333; font-size: 12px; line-height: 1.5; }
+  ${fontFaceCss}
   h1 { font-size: 18px; margin-bottom: 4px; }
   h2 { font-size: 14px; margin-top: 16px; margin-bottom: 8px; color: #444; }
   table { width: 100%; border-collapse: collapse; margin-top: 8px; }
@@ -187,6 +206,21 @@ export class ExportService {
   ${reportHtml}
 </body>
 </html>`;
+  }
+
+  private buildQuestionMap(contentJson: string | null | undefined): Record<string, string> {
+    if (!contentJson) return {};
+    try {
+      const parsed = JSON.parse(contentJson) as { questions?: string[] };
+      const questions = parsed.questions || [];
+      const map: Record<string, string> = {};
+      for (let i = 0; i < questions.length; i++) {
+        map[`q${i}`] = questions[i];
+      }
+      return map;
+    } catch {
+      return {};
+    }
   }
 
   private escapeHtml(text: string): string {

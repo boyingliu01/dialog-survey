@@ -92,6 +92,34 @@ describe('ExportService', () => {
       expect(pdfPath).toBeTruthy();
       expect(readFileSync(pdfPath).length).toBeGreaterThan(100);
     });
+
+    it('should produce valid PDF with Chinese text when CJK font is available', async () => {
+      mockPrisma.interview.findUnique.mockResolvedValue({
+        id: 'iv-1',
+        userId: 'user-001',
+        status: 'COMPLETED',
+        templateId: 'tpl-1',
+        responses: [
+          { questionId: 'Q1', content: '测试中文回答', isFollowup: false, followupDepth: 0 },
+        ],
+      });
+      mockPrisma.analysisReport.findFirst.mockResolvedValue({
+        content: '报告摘要内容',
+        keyFindings: ['关键发现一'],
+        sentiment: 'positive',
+        recommendations: ['改进建议'],
+      });
+
+      const pdfPath = await service.exportInterviewToPdf('iv-1');
+      const pdfBytes = readFileSync(pdfPath);
+
+      expect(pdfBytes.length).toBeGreaterThan(100);
+      expect(pdfBytes.toString().startsWith('%PDF')).toBe(true);
+
+      // When CJK font is available, PDF should have ToUnicode CMap for text extraction
+      const pdfStr = pdfBytes.toString('latin1');
+      expect(pdfStr).toMatch(/\/ToUnicode\s+\d+\s+\d+\s+R/);
+    });
   });
 
   describe('exportInterviewToExcel', () => {
@@ -101,9 +129,12 @@ describe('ExportService', () => {
         userId: 'user-001',
         status: 'COMPLETED',
         templateId: 'tpl-1',
+        template: {
+          content: JSON.stringify({ questions: ['你的名字是什么？', '你喜欢什么颜色？'] }),
+        },
         responses: [
-          { questionId: 'Q1', content: '答案A', isFollowup: false, followupDepth: 0 },
-          { questionId: 'Q2', content: '答案B', isFollowup: true, followupDepth: 1 },
+          { questionId: 'q0', content: '答案A', isFollowup: false, followupDepth: 0 },
+          { questionId: 'q1', content: '答案B', isFollowup: true, followupDepth: 1 },
         ],
       });
       mockPrisma.analysisReport.findFirst.mockResolvedValue(null);
@@ -119,12 +150,12 @@ describe('ExportService', () => {
 
       expect(rows).toHaveLength(2);
       expect(rows[0]).toMatchObject({
-        questionId: 'Q1',
+        question: '你的名字是什么？',
         answer: '答案A',
         isFollowup: '否',
       });
       expect(rows[1]).toMatchObject({
-        questionId: 'Q2',
+        question: '你喜欢什么颜色？',
         answer: '答案B',
         isFollowup: '是',
       });
@@ -136,7 +167,8 @@ describe('ExportService', () => {
         userId: 'user-003',
         status: 'COMPLETED',
         templateId: 'tpl-1',
-        responses: [{ questionId: 'Q1', content: '答案', isFollowup: false, followupDepth: 0 }],
+        template: { content: JSON.stringify({ questions: ['问题一'] }) },
+        responses: [{ questionId: 'q0', content: '答案', isFollowup: false, followupDepth: 0 }],
       });
       mockPrisma.analysisReport.findFirst.mockResolvedValue({
         content: '分析报告内容',

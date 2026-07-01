@@ -36,6 +36,24 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
     let failed = 0;
 
     for (const interview of plan.interviews) {
+      // Skip if user already has an active interview in another plan
+      const activeInOtherPlan = await this.prisma.interview.findFirst({
+        where: {
+          userId: interview.userId,
+          planId: { not: planId },
+          status: { notIn: ['COMPLETED', 'CANCELLED'] },
+        },
+        select: { id: true },
+      });
+      if (activeInOtherPlan) {
+        warn('Skipping invitation - user has active interview in another plan', {
+          planId,
+          userId: interview.userId,
+          otherInterviewId: activeInOtherPlan.id,
+        });
+        continue;
+      }
+
       try {
         await this.sendInvitation(interview.userId, plan.name, invitationPrompt);
         sent++;
