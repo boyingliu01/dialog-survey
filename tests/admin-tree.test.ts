@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/server.js';
 
 const ADMIN_KEY = 'test-admin-key';
@@ -10,14 +10,16 @@ describe('Admin Tree Routes', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    process.env.ADMIN_API_KEY = ADMIN_KEY;
+    vi.stubEnv('ADMIN_API_KEY', ADMIN_KEY);
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
     const result = await buildApp();
     app = result.fastify;
     await app.ready();
   });
 
   afterAll(async () => {
-    process.env.ADMIN_API_KEY = undefined;
+    vi.unstubAllEnvs();
     await app.close();
     await prisma.$disconnect();
   });
