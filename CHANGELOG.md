@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.3 - 2026-07-01
+
+- feat: 管理后台支持从 JSON 导入模板 (#136)
+- feat: 模板区域添加导入按钮，支持粘贴 JSON 导入模板
+- test: 新增模板导入测试（+8 tests）
+
 ## 1.7.2 - 2026-07-01
 
 - fix: renderPdfHtml() 嵌入 NotoSansCJKsc-Regular.otf base64 字体修复 PDF 中文乱码
