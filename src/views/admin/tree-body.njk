@@ -15,17 +15,30 @@
   </div>
   <div class="flex items-center justify-between px-2 py-1">
     <span class="font-semibold text-[11px] text-gray-400 uppercase tracking-wider">访谈模板</span>
-    <button
-      hx-get="/admin/content/templates/new"
-      hx-target="#main-content"
-      hx-swap="innerHTML"
-      class="inline-flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50"
-      title="新建模板"
-    >
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-      </svg>
-    </button>
+    <div class="flex items-center gap-0.5">
+      <button
+        hx-get="/admin/content/templates/import"
+        hx-target="#main-content"
+        hx-swap="innerHTML"
+        class="inline-flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50"
+        title="导入模板"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+        </svg>
+      </button>
+      <button
+        hx-get="/admin/content/templates/new"
+        hx-target="#main-content"
+        hx-swap="innerHTML"
+        class="inline-flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-indigo-600 hover:bg-indigo-50"
+        title="新建模板"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+      </button>
+    </div>
   </div>
   {% for template in templates %}
   <div x-data="toggleNode(true)" class="tree-group">

@@ -205,7 +205,69 @@ export async function adminTemplatesRoutes(
     }
   );
 
+  // GET /admin/content/templates/import — HTMX fragment for JSON import form
+  fastify.get(
+    '/admin/content/templates/import',
+    { preHandler: adminAuth },
+    async (_request: FastifyRequest, reply: FastifyReply) => {
+      return reply.view('admin/content/template-import.njk', {
+        adminApiKey: getAdminApiKey(),
+      });
+    }
+  );
+
   // GET /admin/content/plans/new — HTMX fragment for new plan form
+  fastify.post(
+    `${API_PATH}/templates/import`,
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const body = request.body as Record<string, unknown>;
+        const jsonStr = body['json'] as string | undefined;
+        if (!jsonStr || !jsonStr.trim()) {
+          return reply.status(422).send(htmlError('请粘贴模板 JSON 内容'));
+        }
+
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+        } catch {
+          return reply.status(422).send(htmlError('JSON 格式错误，请检查后重试'));
+        }
+
+        const name = parsed['name'] as string | undefined;
+        const description = parsed['description'] as string | undefined;
+        const content = parsed['content'] as Record<string, unknown> | undefined;
+
+        if (!name || !name.trim()) {
+          return reply.status(422).send(htmlError('JSON 缺少 name 字段'));
+        }
+        if (!content || typeof content !== 'object') {
+          return reply.status(422).send(htmlError('JSON 缺少 content 字段'));
+        }
+
+        const validationError = validateTemplateContent(content);
+        if (validationError) return reply.status(422).send(htmlError(validationError));
+
+        await templateRepo.create({
+          name: name.trim(),
+          ...(description != null ? { description: description.trim() } : {}),
+          content,
+        });
+
+        info('Admin template imported', { name: name.trim() });
+        return reply
+          .status(201)
+          .header('HX-Redirect', '/admin')
+          .send('');
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Failed to import template';
+        error('Failed to import admin template', { error: errMsg });
+        return reply.status(500).send(htmlError(errMsg));
+      }
+    }
+  );
+
   fastify.get(
     '/admin/content/plans/new',
     { preHandler: adminAuth },
