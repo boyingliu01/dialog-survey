@@ -114,6 +114,13 @@ describe('InterviewPlan API (Integration)', () => {
 
   describe('GET /api/plans', () => {
     it('should list all plans', async () => {
+      const before = await ctx.app.inject({
+        method: 'GET',
+        url: '/api/plans',
+        headers: { 'x-api-key': TEST_API_KEY },
+      });
+      const beforeCount = before.json().plans.length;
+
       // Create 2 plans
       const planA = await ctx.prisma.interviewPlan.create({
         data: { name: '计划A', templateId, status: 'PENDING', createdBy: 'admin', updatedBy: 'admin' },
@@ -133,7 +140,7 @@ describe('InterviewPlan API (Integration)', () => {
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(body.plans).toBeDefined();
-      expect(body.plans.length).toBe(2);
+      expect(body.plans.length).toBe(beforeCount + 2);
     });
 
     it('should filter plans by status', async () => {
