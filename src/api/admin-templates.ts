@@ -256,10 +256,7 @@ export async function adminTemplatesRoutes(
         });
 
         info('Admin template imported', { name: name.trim() });
-        return reply
-          .status(201)
-          .header('HX-Redirect', '/admin')
-          .send('');
+        return reply.status(201).header('HX-Redirect', '/admin').send('');
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : 'Failed to import template';
         error('Failed to import admin template', { error: errMsg });
