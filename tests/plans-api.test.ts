@@ -92,7 +92,7 @@ describe('Interview Plan API Endpoints', () => {
       expect(res.statusCode).toBe(500);
     });
 
-    it('should return 500 for Zod validation errors (empty name)', async () => {
+    it('should return 400 for Zod validation errors (empty name)', async () => {
       const res = await fastify.inject({
         method: 'POST',
         url: '/api/plans',
@@ -102,37 +102,37 @@ describe('Interview Plan API Endpoints', () => {
         },
       });
 
-      expect(res.statusCode).toBe(500);
+      expect(res.statusCode).toBe(400);
     });
 
-    it('should return 500 for Zod validation errors (missing templateId)', async () => {
+    it('should return 400 for Zod validation errors (missing templateId)', async () => {
       const res = await fastify.inject({
         method: 'POST',
         url: '/api/plans',
         payload: { name: 'No template' },
       });
 
-      expect(res.statusCode).toBe(500);
+      expect(res.statusCode).toBe(400);
     });
 
-    it('should return 500 for Zod validation errors (non-UUID templateId)', async () => {
+    it('should return 400 for Zod validation errors (non-UUID templateId)', async () => {
       const res = await fastify.inject({
         method: 'POST',
         url: '/api/plans',
         payload: { name: 'Bad UUID', templateId: 'not-a-uuid' },
       });
 
-      expect(res.statusCode).toBe(500);
+      expect(res.statusCode).toBe(400);
     });
 
-    it('should return 500 for Zod validation errors (empty body)', async () => {
+    it('should return 400 for Zod validation errors (empty body)', async () => {
       const res = await fastify.inject({
         method: 'POST',
         url: '/api/plans',
         payload: {},
       });
 
-      expect(res.statusCode).toBe(500);
+      expect(res.statusCode).toBe(400);
     });
 
     it('should accept plan with targetDate', async () => {
