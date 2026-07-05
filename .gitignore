@@ -115,3 +115,9 @@ worktrees/
 
 # Delphi review artifacts (contain colons in filenames, break Windows git)
 .delphi/
+
+# XP-gate generated reports
+.xp-gate/reports/
+
+# Generated interview report PDFs
+reports/*.pdf
