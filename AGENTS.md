@@ -288,12 +288,84 @@ docker compose logs -f app    # 查看日志
 
 ## Testing
 
+### Test Layers
+
+**Unit Tests** (`*.test.ts`)
+- Mock dependencies (Prisma, external services)
+- Test business logic in isolation
+- Fast execution, no database required
+
+**Integration Tests** (`*.integration.test.ts`)
+- Real PostgreSQL database (`dialog_survey_test`)
+- No mocks for repositories/services
+- Each test creates and cleans up its own data (no full table DELETE/TRUNCATE)
+- Parallel execution enabled (`fileParallelism: true`)
+- Prerequisites: PostgreSQL running + test database initialized
+
+**E2E Tests** (future)
+- Zero mocks (only external services like DingTalk/LLM)
+- Full workflow validation
+
+### Test Configuration
+
 - **Location**: `tests/` directory (flat structure)
-- **Files**: 75 `.test.ts` files
+- **Files**: 75+ `.test.ts` files, 3+ `.integration.test.ts` files
 - **Framework**: Vitest 4.x (node environment, 10s timeout)
 - **Coverage thresholds**: lines 80%, functions 80%, branches 70%, statements 80%
+- **Parallel execution**: Enabled for all tests (unit + integration)
 - **Mocking**: Manual `vi.fn()` Prisma mocks, `vi.mock()` for modules, `vi.stubEnv()` for env vars
-- See `tests/AGENTS.md` for detailed patterns
+
+### Running Tests
+
+```bash
+# Unit tests only (no database required)
+npx vitest run --exclude '**/*.integration.test.ts'
+
+# Integration tests only (requires PostgreSQL)
+npx vitest run tests/*.integration.test.ts
+
+# All tests
+npx vitest run
+```
+
+### Integration Test Pattern
+
+```typescript
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { TestDatabase } from './helpers/test-db.js';
+
+describe('MyService (Integration)', () => {
+  let testDb: TestDatabase;
+  let createdIds: string[] = [];
+
+  beforeAll(async () => {
+    testDb = new TestDatabase();
+    await testDb.setup();
+  });
+
+  beforeEach(() => {
+    createdIds = [];
+  });
+
+  afterEach(async () => {
+    if (createdIds.length > 0) {
+      await testDb.cleanup({ templates: createdIds });
+    }
+  });
+
+  afterAll(async () => {
+    await testDb.teardown();
+  });
+
+  it('should create data', async () => {
+    const item = await repo.create({ ... });
+    createdIds.push(item.id);
+    expect(item.id).toBeDefined();
+  });
+});
+```
+
+See `tests/AGENTS.md` for detailed patterns
 
 ---
 
