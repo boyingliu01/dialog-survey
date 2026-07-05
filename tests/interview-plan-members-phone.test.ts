@@ -77,9 +77,11 @@ describe('Phone member tests (real DB integration)', () => {
 
   // Safety net: clean up any leftover test data
   afterEach(async () => {
-    await prisma.interview.deleteMany({
-      where: { userId: { in: ['user_zhangsan', 'user_lisi', 'phone-test-1', 'phone-test-2'] } },
-    }).catch(() => {});
+    await prisma.interview
+      .deleteMany({
+        where: { userId: { in: ['user_zhangsan', 'user_lisi', 'phone-test-1', 'phone-test-2'] } },
+      })
+      .catch(() => {});
   });
 
   describe('input validation', () => {
@@ -184,7 +186,9 @@ describe('Phone member tests (real DB integration)', () => {
         expect(interview?.userId).toBe('user_zhangsan');
         // Name auto-populated from DingTalk (张三)
         const plan = await prisma.interviewPlan.findUnique({ where: { id: planId } });
-        const invitees = plan?.inviteeData as Array<{ userId: string; name: string; phone?: string }> | undefined;
+        const invitees = plan?.inviteeData as
+          | Array<{ userId: string; name: string; phone?: string }>
+          | undefined;
         expect(invitees?.[0]?.userId).toBe('user_zhangsan');
         expect(invitees?.[0]?.name).toBe('张三');
         expect(invitees?.[0]?.phone).toBe('13800138000');

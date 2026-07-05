@@ -30,7 +30,10 @@ describe('Interview Plan API Endpoints', () => {
   beforeAll(async () => {
     vi.stubEnv('ADMIN_API_KEY', 'test-admin-key');
     fastify = Fastify({ logger: false });
-    await interviewPlanRoutes(fastify, { interviewPlanService: new InterviewPlanService(prisma), prisma });
+    await interviewPlanRoutes(fastify, {
+      interviewPlanService: new InterviewPlanService(prisma),
+      prisma,
+    });
     await fastify.ready();
   });
 
@@ -623,19 +626,22 @@ describe('Interview Plan API Endpoints', () => {
         planId = plan.id;
 
         const pauseRes = await fastify.inject({
-          method: 'POST', url: `/api/plans/${plan.id}/pause`,
+          method: 'POST',
+          url: `/api/plans/${plan.id}/pause`,
         });
         expect(pauseRes.statusCode).toBe(200);
         expect(JSON.parse(pauseRes.body).status).toBe('paused');
 
         const resumeRes = await fastify.inject({
-          method: 'POST', url: `/api/plans/${plan.id}/resume`,
+          method: 'POST',
+          url: `/api/plans/${plan.id}/resume`,
         });
         expect(resumeRes.statusCode).toBe(200);
         expect(JSON.parse(resumeRes.body).status).toBe('running');
 
         const cancelRes = await fastify.inject({
-          method: 'POST', url: `/api/plans/${plan.id}/cancel`,
+          method: 'POST',
+          url: `/api/plans/${plan.id}/cancel`,
         });
         expect(cancelRes.statusCode).toBe(200);
         expect(JSON.parse(cancelRes.body).status).toBe('cancelled');

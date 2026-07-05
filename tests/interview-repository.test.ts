@@ -1,7 +1,6 @@
 import { PrismaClient } from '@prisma/client';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InterviewRepository } from '../src/repositories/interview.repository.js';
-import type { InterviewStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const repo = new InterviewRepository(prisma);

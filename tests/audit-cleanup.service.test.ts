@@ -110,7 +110,7 @@ describe('AuditCleanupService', () => {
         },
       });
 
-      const result = await service.cleanupOldLogs(365);
+      await service.cleanupOldLogs(365);
 
       // The future log should NOT be counted in deleted
       const remaining = await prisma.auditLog.findMany({
