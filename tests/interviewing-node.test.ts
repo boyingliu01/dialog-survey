@@ -274,7 +274,9 @@ describe('interviewingNode', () => {
     });
 
     // Mock TemplateRepository to return a template with custom closingMessage
-    const MockRepo = TemplateRepository as unknown as { new (...args: unknown[]): { findById: ReturnType<typeof vi.fn> } };
+    const MockRepo = TemplateRepository as unknown as {
+      new (...args: unknown[]): { findById: ReturnType<typeof vi.fn> };
+    };
     const originalFindById = MockRepo.prototype.findById;
     MockRepo.prototype.findById = vi.fn().mockResolvedValue({
       content: JSON.stringify({
@@ -359,7 +361,7 @@ describe('interviewingNode', () => {
   it('#131: should use safety net transition when FOLLOWUP is forced to NEXT', async () => {
     vi.mocked(generateSmartResponse).mockResolvedValueOnce({
       response: '好的，关于这个话题我们已经聊得比较深入了。我们继续看下一个问题。',
-      action: 'NEXT',  // pre-converted by safety net in generateSmartResponse
+      action: 'NEXT', // pre-converted by safety net in generateSmartResponse
       shouldProceedToNext: true,
       shouldEndInterview: false,
     });
