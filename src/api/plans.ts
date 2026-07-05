@@ -70,8 +70,16 @@ export async function interviewPlanRoutes(
 ) {
   const planService = opts.interviewPlanService;
 
-  fastify.post('/api/plans', async (request, _reply) => {
-    const input = createPlanSchema.parse(request.body);
+  fastify.post('/api/plans', async (request, reply) => {
+    let input: z.infer<typeof createPlanSchema>;
+    try {
+      input = createPlanSchema.parse(request.body);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return reply.status(400).send({ error: 'Invalid input', details: e.issues });
+      }
+      throw e;
+    }
 
     const planId = await planService.createPlan({
       name: input.name,
@@ -208,7 +216,13 @@ export async function interviewPlanRoutes(
     rowIndex: number;
     phone: string;
     inputName: string | undefined;
-    status: 'ok' | 'name_mismatch' | 'phone_not_found' | 'dingtalk_error' | 'duplicate_phone' | 'phone_invalid';
+    status:
+      | 'ok'
+      | 'name_mismatch'
+      | 'phone_not_found'
+      | 'dingtalk_error'
+      | 'duplicate_phone'
+      | 'phone_invalid';
     userId: string | undefined;
     dingtalkName: string | undefined;
     message: string;
@@ -351,7 +365,8 @@ export async function interviewPlanRoutes(
             status: msg === 'phone_not_found' ? 'phone_not_found' : 'dingtalk_error',
             userId: undefined,
             dingtalkName: undefined,
-            message: msg === 'phone_not_found' ? '该手机号未在钉钉通讯录中注册' : `钉钉 API 错误：${msg}`,
+            message:
+              msg === 'phone_not_found' ? '该手机号未在钉钉通讯录中注册' : `钉钉 API 错误：${msg}`,
           });
         }
       }
@@ -416,8 +431,12 @@ export async function interviewPlanRoutes(
         select: { userId: true, planId: true },
       });
       if (crossPlanDups.length > 0) {
-        const conflicts = crossPlanDups.map((d) => `userId=${d.userId} 在计划 ${d.planId} 中有未完成的访谈`);
-        return reply.code(409).send({ error: `以下成员已有尚未完成的访谈：${conflicts.join('；')}` });
+        const conflicts = crossPlanDups.map(
+          (d) => `userId=${d.userId} 在计划 ${d.planId} 中有未完成的访谈`
+        );
+        return reply
+          .code(409)
+          .send({ error: `以下成员已有尚未完成的访谈：${conflicts.join('；')}` });
       }
 
       const existingInPlan = await prisma.interview.findMany({
@@ -466,7 +485,11 @@ export async function interviewPlanRoutes(
               action: 'BATCH_IMPORT',
               entityType: 'InterviewPlan',
               entityId: id,
-              details: JSON.stringify({ imported: newRows.length, skipped, totalRows: rows.length }),
+              details: JSON.stringify({
+                imported: newRows.length,
+                skipped,
+                totalRows: rows.length,
+              }),
             },
           });
 

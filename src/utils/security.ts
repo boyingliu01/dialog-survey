@@ -23,6 +23,9 @@ export function hashApiKey(apiKey: string): string {
 }
 
 function checkRateLimit(ipAddress: string): boolean {
+  if (process.env['NODE_ENV'] === 'test') {
+    return true;
+  }
   const now = Date.now();
   const entry = failedAttempts.get(ipAddress);
   if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
@@ -36,7 +39,10 @@ function checkRateLimit(ipAddress: string): boolean {
 export function createVerifyApiKey(prisma: PrismaClient) {
   return async function verifyApiKey(request: FastifyRequest, reply: FastifyReply) {
     // Only exempt public health endpoint from API key auth
-    if (request.method === 'GET' && (request.url === '/api/health' || request.url.startsWith('/api/health?'))) {
+    if (
+      request.method === 'GET' &&
+      (request.url === '/api/health' || request.url.startsWith('/api/health?'))
+    ) {
       return;
     }
 

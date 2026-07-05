@@ -79,7 +79,17 @@ export class StreamMessageService {
 
     // H-6: Per-user mutex to serialize concurrent messages
     return this.withUserLock(parsed.userId, () =>
-      this.processMessageInternal(parsed as ReturnType<typeof parseStreamMessage> & { userId: string; content: string; messageId?: string; sessionWebhook?: string }, message, retryCount, prisma)
+      this.processMessageInternal(
+        parsed as ReturnType<typeof parseStreamMessage> & {
+          userId: string;
+          content: string;
+          messageId?: string;
+          sessionWebhook?: string;
+        },
+        message,
+        retryCount,
+        prisma
+      )
     );
   }
 
@@ -87,7 +97,9 @@ export class StreamMessageService {
     const previous = this.userLocks.get(userId) ?? Promise.resolve();
 
     let release: (() => void) | undefined;
-    const lock = new Promise<void>((resolve) => { release = resolve; });
+    const lock = new Promise<void>((resolve) => {
+      release = resolve;
+    });
 
     const current = previous.then(async () => {
       try {
@@ -113,8 +125,12 @@ export class StreamMessageService {
       // Check for recently completed interview to prevent infinite restart
       const completed = await this.repo.findCompletedInterview(parsed.userId);
       if (completed) {
-        const cooldownMinutes = Number.parseInt(process.env['INTERVIEW_COOLDOWN_MINUTES'] || '30', 10);
-        const effectiveCooldown = Number.isNaN(cooldownMinutes) || cooldownMinutes <= 0 ? 30 : cooldownMinutes;
+        const cooldownMinutes = Number.parseInt(
+          process.env['INTERVIEW_COOLDOWN_MINUTES'] || '30',
+          10
+        );
+        const effectiveCooldown =
+          Number.isNaN(cooldownMinutes) || cooldownMinutes <= 0 ? 30 : cooldownMinutes;
         const cooldownMs = effectiveCooldown * 60 * 1000;
         const elapsed = Date.now() - completed.completedAt.getTime();
         if (elapsed < cooldownMs) {

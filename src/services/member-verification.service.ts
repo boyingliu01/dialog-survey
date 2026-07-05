@@ -46,9 +46,9 @@ export async function verifyPhoneToName(
   try {
     lookupResult = await client.getUserIdByMobile(normalizedPhone);
   } catch (_err) {
-      return {
-        verified: false,
-        reason: '钉钉服务暂时不可用，请稍后重试',
+    return {
+      verified: false,
+      reason: '钉钉服务暂时不可用，请稍后重试',
       name: '',
     };
   }
