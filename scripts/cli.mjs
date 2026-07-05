@@ -210,9 +210,7 @@ export async function checkPostgres(databaseUrl, timeoutMs = 3000) {
 
     await new Promise((resolve, reject) => {
       const socket = new net.Socket();
-      let settled = false;
       const cleanup = () => {
-        settled = true;
         socket.destroy();
       };
       socket.setTimeout(timeoutMs);
