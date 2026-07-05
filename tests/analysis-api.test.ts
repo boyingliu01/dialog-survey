@@ -20,23 +20,6 @@ async function createApp(): Promise<FastifyInstance> {
   return app;
 }
 
-async function createAppWithMockService(
-  method: string,
-  resultOrError: unknown,
-  shouldReject: boolean
-): Promise<FastifyInstance> {
-  const { AnalysisService } = await import('../src/services/analysis.service.js');
-  const fn = shouldReject
-    ? vi.fn().mockRejectedValue(resultOrError)
-    : vi.fn().mockResolvedValue(resultOrError);
-  (AnalysisService.prototype as any)[method] = fn;
-  const app = Fastify({ logger: false });
-  const { analysisRoutes } = await import('../src/api/analysis.js');
-  await app.register(analysisRoutes, { prisma });
-  await app.ready();
-  return app;
-}
-
 describe('Analysis API Endpoints', () => {
   let app: FastifyInstance;
 

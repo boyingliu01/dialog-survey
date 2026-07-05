@@ -14,7 +14,8 @@ const MockDingTalkClient = class {
     return { found: false };
   }
   async getUserByUserId(userId: string) {
-    if (userId === 'user_zhangsan') return { userid: 'user_zhangsan', name: '张三', mobile: '13800138000' };
+    if (userId === 'user_zhangsan')
+      return { userid: 'user_zhangsan', name: '张三', mobile: '13800138000' };
     if (userId === 'user_lisi') return { userid: 'user_lisi', name: '李四', mobile: '13900139000' };
     throw new Error('user not found');
   }
@@ -26,7 +27,9 @@ vi.mock('../src/integrations/dingtalk/client.js', () => ({
 
 vi.mock('../src/integrations/dingtalk/message-sender.js', () => ({
   messageSender: {
-    sendTextMessage: vi.fn().mockResolvedValue({ taskId: 'mock-task', successCount: 1, failedUserIds: [] }),
+    sendTextMessage: vi
+      .fn()
+      .mockResolvedValue({ taskId: 'mock-task', successCount: 1, failedUserIds: [] }),
   },
 }));
 
@@ -43,31 +46,15 @@ function makeCsv(header: string, ...rows: string[]): string {
   return [header, ...rows].join('\n');
 }
 
-const VALID_CSV = makeCsv(
-  'phone,name',
-  '13800138000,张三',
-  '13900139000,李四'
-);
+const VALID_CSV = makeCsv('phone,name', '13800138000,张三', '13900139000,李四');
 
-const NAME_MISMATCH_CSV = makeCsv(
-  'phone,name',
-  '13800138000,NotZhangSan'
-);
+const NAME_MISMATCH_CSV = makeCsv('phone,name', '13800138000,NotZhangSan');
 
-const PHONE_NOT_FOUND_CSV = makeCsv(
-  'phone,name',
-  '00000000000,NotFound'
-);
+const PHONE_NOT_FOUND_CSV = makeCsv('phone,name', '00000000000,NotFound');
 
-const CHINESE_HEADER_CSV = makeCsv(
-  '手机号,姓名',
-  '13800138000,张三'
-);
+const CHINESE_HEADER_CSV = makeCsv('手机号,姓名', '13800138000,张三');
 
-const NO_PHONE_COLUMN_CSV = makeCsv(
-  'name,age',
-  '张三,30'
-);
+const NO_PHONE_COLUMN_CSV = makeCsv('name,age', '张三,30');
 
 describe('Batch Import API', () => {
   let fastify: FastifyInstance;
@@ -316,8 +303,22 @@ describe('Batch Import API', () => {
         planId = JSON.parse(createRes.body).id;
 
         const rows = [
-          { rowIndex: 2, phone: '13800138000', status: 'ok', userId: 'user_zhangsan', dingtalkName: '张三', message: '验证通过' },
-          { rowIndex: 3, phone: '13900139000', status: 'ok', userId: 'user_lisi', dingtalkName: '李四', message: '验证通过' },
+          {
+            rowIndex: 2,
+            phone: '13800138000',
+            status: 'ok',
+            userId: 'user_zhangsan',
+            dingtalkName: '张三',
+            message: '验证通过',
+          },
+          {
+            rowIndex: 3,
+            phone: '13900139000',
+            status: 'ok',
+            userId: 'user_lisi',
+            dingtalkName: '李四',
+            message: '验证通过',
+          },
         ];
 
         const res = await fastify.inject({
@@ -367,7 +368,14 @@ describe('Batch Import API', () => {
         planId = JSON.parse(createRes.body).id;
 
         const rows = [
-          { rowIndex: 2, phone: '13800138000', status: 'ok', userId: 'user_zhangsan', dingtalkName: '张三', message: '验证通过' },
+          {
+            rowIndex: 2,
+            phone: '13800138000',
+            status: 'ok',
+            userId: 'user_zhangsan',
+            dingtalkName: '张三',
+            message: '验证通过',
+          },
         ];
 
         // First commit
@@ -417,8 +425,22 @@ describe('Batch Import API', () => {
         planId = JSON.parse(createRes.body).id;
 
         const rows = [
-          { rowIndex: 2, phone: '13800138000', status: 'ok', userId: 'user_zhangsan', dingtalkName: '张三', message: '验证通过' },
-          { rowIndex: 3, phone: '000', status: 'name_mismatch', userId: 'bad', dingtalkName: 'Nope', message: 'err' },
+          {
+            rowIndex: 2,
+            phone: '13800138000',
+            status: 'ok',
+            userId: 'user_zhangsan',
+            dingtalkName: '张三',
+            message: '验证通过',
+          },
+          {
+            rowIndex: 3,
+            phone: '000',
+            status: 'name_mismatch',
+            userId: 'bad',
+            dingtalkName: 'Nope',
+            message: 'err',
+          },
         ];
 
         const res = await fastify.inject({
@@ -460,7 +482,18 @@ describe('Batch Import API', () => {
           method: 'POST',
           url: `/api/plans/${plan1Id}/import-commit`,
           headers: { 'x-admin-key': 'test-admin-key' },
-          payload: { rows: [{ rowIndex: 2, phone: '13800138000', status: 'ok', userId: 'user_zhangsan', dingtalkName: '张三', message: '验证通过' }] },
+          payload: {
+            rows: [
+              {
+                rowIndex: 2,
+                phone: '13800138000',
+                status: 'ok',
+                userId: 'user_zhangsan',
+                dingtalkName: '张三',
+                message: '验证通过',
+              },
+            ],
+          },
         });
         expect(res1.statusCode).toBe(200);
 
@@ -480,7 +513,18 @@ describe('Batch Import API', () => {
           method: 'POST',
           url: `/api/plans/${plan2Id}/import-commit`,
           headers: { 'x-admin-key': 'test-admin-key' },
-          payload: { rows: [{ rowIndex: 2, phone: '13800138000', status: 'ok', userId: 'user_zhangsan', dingtalkName: '张三', message: '验证通过' }] },
+          payload: {
+            rows: [
+              {
+                rowIndex: 2,
+                phone: '13800138000',
+                status: 'ok',
+                userId: 'user_zhangsan',
+                dingtalkName: '张三',
+                message: '验证通过',
+              },
+            ],
+          },
         });
 
         expect(res2.statusCode).toBe(409);
@@ -489,12 +533,14 @@ describe('Batch Import API', () => {
           await prisma.interview.deleteMany({ where: { planId: plan2Id } }).catch(() => {});
           await prisma.interviewPlan.delete({ where: { id: plan2Id } }).catch(() => {});
         }
-        if (template2Id) await prisma.template.delete({ where: { id: template2Id } }).catch(() => {});
+        if (template2Id)
+          await prisma.template.delete({ where: { id: template2Id } }).catch(() => {});
         if (plan1Id) {
           await prisma.interview.deleteMany({ where: { planId: plan1Id } }).catch(() => {});
           await prisma.interviewPlan.delete({ where: { id: plan1Id } }).catch(() => {});
         }
-        if (template1Id) await prisma.template.delete({ where: { id: template1Id } }).catch(() => {});
+        if (template1Id)
+          await prisma.template.delete({ where: { id: template1Id } }).catch(() => {});
       }
     });
 
@@ -520,7 +566,14 @@ describe('Batch Import API', () => {
         });
 
         const rows = [
-          { rowIndex: 2, phone: '13800138000', status: 'ok', userId: 'user_zhangsan', dingtalkName: '张三', message: '验证通过' },
+          {
+            rowIndex: 2,
+            phone: '13800138000',
+            status: 'ok',
+            userId: 'user_zhangsan',
+            dingtalkName: '张三',
+            message: '验证通过',
+          },
         ];
 
         const res = await fastify.inject({

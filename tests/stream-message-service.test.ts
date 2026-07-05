@@ -1197,7 +1197,14 @@ describe('StreamMessageService', () => {
       mockFetch.mockResolvedValueOnce({ ok: true });
 
       const result = await service.processStreamMessage(
-        { data: JSON.stringify({ senderStaffId: 'user-123', sessionWebhook: 'https://oapi.dingtalk.com/robot/send', text: { content: '继续回答' } }), headers: { messageId: 'msg-1' } } as any,
+        {
+          data: JSON.stringify({
+            senderStaffId: 'user-123',
+            sessionWebhook: 'https://oapi.dingtalk.com/robot/send',
+            text: { content: '继续回答' },
+          }),
+          headers: { messageId: 'msg-1' },
+        } as any,
         0
       );
 
@@ -1219,7 +1226,14 @@ describe('StreamMessageService', () => {
       mockFetch.mockResolvedValueOnce({ ok: true });
 
       const result = await service.processStreamMessage(
-        { data: JSON.stringify({ senderStaffId: 'user-123', sessionWebhook: 'https://oapi.dingtalk.com/robot/send', text: { content: '新消息' } }), headers: { messageId: 'msg-2' } } as any,
+        {
+          data: JSON.stringify({
+            senderStaffId: 'user-123',
+            sessionWebhook: 'https://oapi.dingtalk.com/robot/send',
+            text: { content: '新消息' },
+          }),
+          headers: { messageId: 'msg-2' },
+        } as any,
         0
       );
 
@@ -1244,7 +1258,14 @@ describe('StreamMessageService', () => {
       mockFetch.mockResolvedValueOnce({ ok: true });
 
       const result = await service.processStreamMessage(
-        { data: JSON.stringify({ senderStaffId: 'user-123', sessionWebhook: 'https://oapi.dingtalk.com/robot/send', text: { content: '消息' } }), headers: { messageId: 'msg-3' } } as any,
+        {
+          data: JSON.stringify({
+            senderStaffId: 'user-123',
+            sessionWebhook: 'https://oapi.dingtalk.com/robot/send',
+            text: { content: '消息' },
+          }),
+          headers: { messageId: 'msg-3' },
+        } as any,
         0
       );
 

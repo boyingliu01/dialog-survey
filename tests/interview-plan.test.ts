@@ -134,7 +134,6 @@ describe('InterviewPlanService', () => {
     });
   });
 
-
   describe('pause/resume/cancel', () => {
     it('should pause plan', async () => {
       mockPrisma.interviewPlan.update.mockResolvedValue({});

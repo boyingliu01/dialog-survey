@@ -181,9 +181,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
         status: 'COMPLETED',
       });
 
-      await expect(service.removeMember('plan-1', 'int-1')).rejects.toThrow(
-        '无法删除已完成的访谈'
-      );
+      await expect(service.removeMember('plan-1', 'int-1')).rejects.toThrow('无法删除已完成的访谈');
     });
 
     it('should decrement sentCount when removing a SENT interview', async () => {
