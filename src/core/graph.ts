@@ -30,7 +30,11 @@ export async function runInterviewGraph(
   }
 
   // Guard: skip non-active states
-  if (initialState.status !== 'ACTIVE' && initialState.status !== 'WAITING' && initialState.status !== 'PROCESSING') {
+  if (
+    initialState.status !== 'ACTIVE' &&
+    initialState.status !== 'WAITING' &&
+    initialState.status !== 'PROCESSING'
+  ) {
     return {
       response: DEFAULT_CLOSING_MESSAGE,
       nextState: initialState,

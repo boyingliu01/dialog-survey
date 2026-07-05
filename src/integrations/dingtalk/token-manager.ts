@@ -106,8 +106,10 @@ export class DingTalkTokenManager implements TokenManager {
   }
 
   private async doFetch(): Promise<TokenResponse> {
-    const appKey: string = process.env['DINGTALK_APP_KEY'] || process.env['DINGTALK_CLIENT_ID'] || '';
-    const appSecret: string = process.env['DINGTALK_APP_SECRET'] || process.env['DINGTALK_CLIENT_SECRET'] || '';
+    const appKey: string =
+      process.env['DINGTALK_APP_KEY'] || process.env['DINGTALK_CLIENT_ID'] || '';
+    const appSecret: string =
+      process.env['DINGTALK_APP_SECRET'] || process.env['DINGTALK_CLIENT_SECRET'] || '';
     const url = `https://oapi.dingtalk.com/gettoken?appkey=${encodeURIComponent(appKey)}&appsecret=${encodeURIComponent(appSecret)}`;
     const response = await fetch(url);
     if (!response.ok) {

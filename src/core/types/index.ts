@@ -13,7 +13,9 @@ export const InterviewStateSchema = z.object({
   userId: z.string(),
   templateId: z.string().optional(),
   interviewId: z.string().optional(),
-  status: z.enum(['PENDING', 'ACTIVE', 'PROCESSING', 'WAITING', 'COMPLETED', 'CANCELLED']).default('PENDING'),
+  status: z
+    .enum(['PENDING', 'ACTIVE', 'PROCESSING', 'WAITING', 'COMPLETED', 'CANCELLED'])
+    .default('PENDING'),
   userName: z.string().optional(),
   messages: z.array(
     z.object({
@@ -71,7 +73,8 @@ export interface NodeOutput {
   nextQuestion?: string;
 }
 
-export const DEFAULT_CLOSING_MESSAGE = '访谈已结束，非常感谢您拨冗参与！您的分享对我们很有价值，祝您一切顺利！';
+export const DEFAULT_CLOSING_MESSAGE =
+  '访谈已结束，非常感谢您拨冗参与！您的分享对我们很有价值，祝您一切顺利！';
 
 export interface TemplateContent {
   name: string;

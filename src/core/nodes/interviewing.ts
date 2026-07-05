@@ -157,8 +157,26 @@ export async function interviewingNode(
 
     const nextQ = content.questions[currentQ + 1];
     const handled = smartResult.shouldEndInterview
-      ? routeAction('END', state.followupCount, state.maxFollowups, currentQ, content.questions.length, smartResult.response, content.closingMessage, nextQ)
-      : routeAction(smartResult.action, state.followupCount, state.maxFollowups, currentQ, content.questions.length, smartResult.response, content.closingMessage, nextQ);
+      ? routeAction(
+          'END',
+          state.followupCount,
+          state.maxFollowups,
+          currentQ,
+          content.questions.length,
+          smartResult.response,
+          content.closingMessage,
+          nextQ
+        )
+      : routeAction(
+          smartResult.action,
+          state.followupCount,
+          state.maxFollowups,
+          currentQ,
+          content.questions.length,
+          smartResult.response,
+          content.closingMessage,
+          nextQ
+        );
 
     return {
       responses: newResponses,
