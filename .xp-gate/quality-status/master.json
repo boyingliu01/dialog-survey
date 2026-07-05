@@ -1,14 +1,14 @@
 {
-  "reportVersion": "1.1",
-  "generatedAt": "2026-06-29T04:22:04Z",
+  "reportVersion": "2.0",
+  "generatedAt": "2026-07-03T07:38:29Z",
   "branch": "master",
-  "commit": "20670380613c588d143432fdbf5d067411338651",
+  "commit": "97eb92d44627912ba7014ab42c5f3111f7beac21",
   "language": "typescript",
   "overall": {
     "gatesPassed": 9,
-    "gatesTotal": 9,
-    "score": 10.0,
-    "verdict": "PASS"
+    "gatesTotal": 11,
+    "score": 8.0,
+    "verdict": "PARTIAL"
   },
   "gates": {
     "gate1_static_analysis": {
@@ -56,10 +56,20 @@
       "status": "PASS",
       "tool": "gitleaks"
     },
-    "gate9_sast": {
+    "gate9_build_integrity": {
+      "name": "Build Integrity",
+      "status": "PASS",
+      "tool": "tsc + npm pack + import check"
+    },
+    "gate10_sast": {
       "name": "SAST Security Scan",
       "status": "PASS",
       "tool": "semgrep"
+    },
+    "gate11_sprint_flow": {
+      "name": "Sprint Flow Enforcement",
+      "status": "SKIP",
+      "tool": "sprint-gate.sh"
     }
   }
 }
