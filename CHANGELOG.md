@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.5 - 2026-07-06
+
+- fix: #131 — LLM NEXT transition now sees next question, generates natural transition
+- fix: interview COMPLETED status no longer overwritten by ACTIVE (root cause of 2 bugs)
+- fix: NEXT response only returns LLM text, no longer appends duplicate next question
+- feat: add nextQuestion flag to LLM prompt for coherent topic transitions
+- chore: gitignore xp-gate/quality-status/ and .quality-history.jsonl
+
 ## 1.7.4 - 2026-07-06
 
 - feat: add PR quality gates CI (6 gates: static-analysis, unit, integration, security, coverage, smoke)
