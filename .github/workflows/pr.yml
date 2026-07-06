@@ -1,0 +1,246 @@
+name: PR Quality Gates
+
+on:
+  pull_request:
+    branches: [master, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-analysis:
+    name: Static Analysis (Biome + tsc + ast-grep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Biome check
+        run: npx biome check src/
+
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+      - name: ast-grep lint (no raw Prisma in API, advisory only)
+        run: npx --package=@ast-grep/cli sg scan --rule .ast-grep/rules/no-raw-prisma-in-api.yml || true
+
+  unit-tests:
+    name: Unit Tests (mock, PrismaClient init needs DB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: dialog_survey_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright for PDF export tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Push Prisma schema
+        run: npx prisma db push
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
+
+      - name: Run unit tests
+        run: npx vitest run --exclude '**/*.integration.test.ts' --exclude 'tests/e2e/**'
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
+          TEST_DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
+          DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || 'dummy-ci-client-id' }}
+          DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || 'dummy-ci-client-secret' }}
+
+  integration-tests:
+    name: Integration Tests (real PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: dialog_survey_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright for PDF export tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Push Prisma schema
+        run: npx prisma db push
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
+
+      - name: Run integration tests
+        run: npx vitest run tests/*.integration.test.ts
+        env:
+          NODE_ENV: test
+          TEST_DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY || '' }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || '' }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL || '' }}
+          DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || 'dummy-ci-client-id' }}
+          DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || 'dummy-ci-client-secret' }}
+
+  security-scan:
+    name: Security Scan (semgrep + gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: semgrep SAST scan
+        continue-on-error: true
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: auto
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN || '' }}
+
+      - name: gitleaks secret scan
+        continue-on-error: true
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  coverage:
+    name: Coverage Check (80/80/70/80)
+    if: always()
+    needs: [unit-tests, integration-tests]
+    # Run regardless of integration test failures (known pre-existing data residue issue)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: dialog_survey_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright for PDF export tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Push Prisma schema
+        run: npx prisma db push
+        env:
+          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
+
+      - name: Run all tests with coverage
+        run: npx vitest --coverage
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
+          TEST_DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY || '' }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || '' }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL || '' }}
+          DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || 'dummy-ci-client-id' }}
+          DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || 'dummy-ci-client-secret' }}
+          # Coverage thresholds are enforced by vitest.config.ts
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  smoke:
+    name: Smoke Test
+    if: always()
+    needs: [static-analysis, unit-tests, integration-tests, security-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run smoke test
+        run: npm run smoke
