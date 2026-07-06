@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.7 - 2026-07-06
+
+- fix: biome lint issues across tests/ (unused imports, import sorting, formatting)
+- fix: flaky interview-flow E2E race condition (retry findFirst with backoff)
+- fix: pre-commit hook now runs Biome check when biome.json exists (xp-gate PR #291)
+
 ## 1.7.6 - 2026-07-06
 
 - fix: admin UI broken — Alpine.js CDN unreachable (jsdelivr ERR_CONNECTION_CLOSED)
