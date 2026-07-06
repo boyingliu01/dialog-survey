@@ -261,6 +261,7 @@ npx vitest --run                        # 确认数据库可连接后再跑
 | `npm run build`         | Compile TypeScript to dist/         |
 | `npm run test`          | Run Vitest (828 tests)              |
 | `npm run test:coverage` | Tests with coverage (≥80%)          |
+| `npm run smoke`         | Pre-acceptance suite: type-check + lint + 44 key tests (health, structure, env, server API) — ~8s |
 | `npm run lint`          | Biome lint on src/                  |
 | `npm run type-check`    | TypeScript noEmit check             |
 | `npm run check`         | Biome check (lint + imports)        |
@@ -271,6 +272,19 @@ npx vitest --run                        # 确认数据库可连接后再跑
 ### Quality Gates
 
 Pre-commit hook: 9 gates (tsc+biome, jscpd, lizard complexity, principles checker, test coverage, archlint, IaC scanning, gitleaks, semgrep). Pre-push adds: mutation testing (stryker), mock density check, code walkthrough (delphi-review). See `githooks/` for source.
+
+### PR CI (`pr.yml`) — every PR to master/main
+
+| Job | What it runs | Expected time |
+|-----|-------------|---------------|
+| Static Analysis | Biome check src/ + tsc --noEmit + ast-grep lint | ~2 min |
+| Unit Tests | `vitest --exclude '*.integration.test.ts' --exclude 'tests/e2e/**'` (+ PostgreSQL for PrismaClient init) | ~2 min |
+| Integration Tests | `vitest run tests/*.integration.test.ts` (real PostgreSQL service container) | ~5 min |
+| Security Scan | semgrep SAST (advisory) + gitleaks secret scan (advisory) | ~2 min |
+| Coverage Check | `vitest --coverage` enforcing 80/80/70/80 thresholds | ~5 min |
+| Smoke Test | `npm run smoke` (~44 tests, <10s) — precondition for manual acceptance testing | ~30s |
+
+All jobs run in parallel except coverage (waits for unit+integration) and smoke (waits for analysis+tests+security).
 
 ### 架构检查排除规则
 
