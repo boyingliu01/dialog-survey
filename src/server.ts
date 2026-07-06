@@ -1,5 +1,6 @@
 import { dirname, normalize, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import fastifyStatic from '@fastify/static';
 import cors from '@fastify/cors';
 import fastifyFormbody from '@fastify/formbody';
 import fastifyMultipart from '@fastify/multipart';
@@ -94,6 +95,11 @@ export async function buildApp() {
       done(null, '');
     }
   );
+
+  await fastify.register(fastifyStatic, {
+    root: resolve(__dirname, '../public'),
+    prefix: '/',
+  });
 
   await fastify.register(cors, {
     origin: true,
