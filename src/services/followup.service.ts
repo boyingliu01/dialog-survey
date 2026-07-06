@@ -69,20 +69,6 @@ export function parseLLMResponse(rawContent: string): StructuredResponse | null 
   }
 }
 
-export function smartTruncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  const threshold = Math.floor(maxLength * 0.7);
-  const searchStart = Math.min(threshold, maxLength - 10);
-  const punctuations = ['。', '！', '？', '.', '!', '?'];
-  let lastPunctuation = -1;
-  for (const punct of punctuations) {
-    const idx = text.lastIndexOf(punct, maxLength);
-    if (idx > searchStart && idx > lastPunctuation) lastPunctuation = idx;
-  }
-  if (lastPunctuation > threshold) return `${text.slice(0, lastPunctuation + 1)}...`;
-  return `${text.slice(0, maxLength - 3)}...`;
-}
-
 export async function generateSmartResponse(
   state: InterviewState,
   userAnswer: string,
@@ -133,7 +119,7 @@ export async function generateSmartResponse(
       if (!parsed) {
         warn('Failed to parse custom prompt result as JSON, using raw text');
         return {
-          response: smartTruncate(response.content, 150),
+          response: response.content,
           action: 'NEXT',
           shouldProceedToNext: true,
           shouldEndInterview: false,
@@ -144,7 +130,7 @@ export async function generateSmartResponse(
         parsed.response = FORCED_NEXT_TRANSITION;
       }
       return {
-        response: smartTruncate(parsed.response, 150),
+        response: parsed.response,
         action: parsed.action,
         shouldProceedToNext: parsed.action === 'NEXT',
         shouldEndInterview: parsed.action === 'END',
@@ -197,7 +183,7 @@ export async function generateSmartResponse(
       };
     }
     return {
-      response: smartTruncate(parsed.response, 150),
+      response: parsed.response,
       action: parsed.action,
       shouldProceedToNext: parsed.action === 'NEXT',
       shouldEndInterview: parsed.action === 'END',
