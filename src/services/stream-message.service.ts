@@ -241,7 +241,10 @@ export class StreamMessageService {
       content: graphResult.response,
       isVoice: false,
     });
-    nextState.status = 'ACTIVE';
+    // Preserve COMPLETED status from graph (don't overwrite when interview ends)
+    if (nextState.status !== 'COMPLETED') {
+      nextState.status = 'ACTIVE';
+    }
 
     try {
       await this.repo.saveFullState(state.interviewId as string, nextState);
@@ -277,7 +280,9 @@ export class StreamMessageService {
             content: retryGraphResult.response,
             isVoice: false,
           });
-          retryGraphResult.nextState.status = 'ACTIVE';
+          if (retryGraphResult.nextState.status !== 'COMPLETED') {
+            retryGraphResult.nextState.status = 'ACTIVE';
+          }
           return this.processStreamMessageWithState(
             message,
             retryGraphResult,

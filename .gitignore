@@ -118,6 +118,10 @@ worktrees/
 
 # XP-gate generated reports
 .xp-gate/reports/
+.xp-gate/quality-status/
+
+# Quality history (auto-generated)
+.quality-history.jsonl
 
 # Generated interview report PDFs
 reports/*.pdf

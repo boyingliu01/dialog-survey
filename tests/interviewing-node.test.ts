@@ -225,8 +225,8 @@ describe('interviewingNode', () => {
     expect(result.currentQuestion).toBe(1);
     expect(result.shouldContinue).toBe(true);
     expect(result.response).toContain('您觉得这个挑战大吗');
-    // After fix: NEXT response now includes the next question appended by code
-    expect(result.response).toContain('您在工作中遇到过最大的挑战是什么');
+    // NEXT response should NOT contain next question (LLM handles the transition)
+    expect(result.response).not.toContain('您在工作中遇到过最大的挑战是什么');
   });
 
   /**
@@ -369,9 +369,9 @@ describe('interviewingNode', () => {
     const state = { ...baseState, followupCount: 2 };
     const result = await interviewingNode(state, { content: '简短回答' });
 
-    // safety net response + routeAction appends next question
+    // safety net response ONLY — no next question appended (LLM handles transition)
     expect(result.response).toContain('我们继续看下一个问题');
-    expect(result.response).toContain('您在工作中遇到过最大的挑战是什么');
+    expect(result.response).not.toContain('您在工作中遇到过最大的挑战是什么');
     expect(result.currentQuestion).toBe(1);
     expect(result.followupCount).toBe(0);
     expect(result.shouldContinue).toBe(true);
@@ -421,10 +421,10 @@ describe('interviewingNode', () => {
 
   /**
    * @test #131-T1
-   * @intent NEXT on non-last question should have nextQuestion appended (normal system behavior)
-   *        but should NOT contain the LLM's own question concatenated strangely.
+   * @intent NEXT on non-last question: should ONLY return LLM transition text,
+   *        NOT append nextQuestion (that was the bug — LLM handles the transition)
    */
-  it('#131: NEXT should append nextQuestion cleanly (system responsibility)', async () => {
+  it('#131: NEXT should NOT append nextQuestion (LLM handles natural transition)', async () => {
     vi.mocked(generateSmartResponse).mockResolvedValueOnce({
       response: '感谢您的分享，您提到了工作中的一些挑战。',
       action: 'NEXT',
@@ -435,11 +435,10 @@ describe('interviewingNode', () => {
     const result = await interviewingNode(baseState, { content: '我的回答' });
 
     expect(result.currentQuestion).toBe(1);
-    // LLM transition text + system-appended next question
     expect(result.response).toContain('感谢您的分享');
-    expect(result.response).toContain('您在工作中遇到过最大的挑战是什么');
-    // NOT: two questions in one message
-    const questionMarkCount = (result.response?.match(/\?/g) || []).length;
-    expect(questionMarkCount).toBeLessThanOrEqual(2);
+    // The response should NOT contain the next question text (LLM handles transition)
+    expect(result.response).not.toContain('您在工作中遇到过最大的挑战是什么');
+    // Only LLM's own text, no extra question appended
+    expect(result.response).toBe('感谢您的分享，您提到了工作中的一些挑战。');
   });
 });
