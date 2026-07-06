@@ -6,9 +6,9 @@
  * Run: npx vitest run tests/interview-state-repository.integration.test.ts
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { InterviewState } from '../src/core/types/index.js';
 import { InterviewStateRepository } from '../src/repositories/interview-state.repository.js';
 import { TestDatabase } from './helpers/test-db.js';
-import type { InterviewState } from '../src/core/types/index.js';
 
 function makeState(overrides: Partial<InterviewState> = {}): InterviewState {
   return {
@@ -255,9 +255,9 @@ describe('InterviewStateRepository (Integration)', () => {
       await repo.saveState({ interviewId, state, version: 1 });
 
       // Try to save with stale version 1
-      await expect(
-        repo.saveState({ interviewId, state, version: 1 })
-      ).rejects.toThrow('Version conflict');
+      await expect(repo.saveState({ interviewId, state, version: 1 })).rejects.toThrow(
+        'Version conflict'
+      );
     });
 
     it('should reject version conflict even with different data', async () => {
@@ -412,9 +412,7 @@ describe('InterviewStateRepository (Integration)', () => {
         originalVersion: 5, // stale
       });
 
-      await expect(repo.saveFullState(interviewId, state)).rejects.toThrow(
-        'Version conflict'
-      );
+      await expect(repo.saveFullState(interviewId, state)).rejects.toThrow('Version conflict');
     });
   });
 
@@ -439,9 +437,7 @@ describe('InterviewStateRepository (Integration)', () => {
       });
 
       // The retry logic will try 3 times (retryCount 0, 1, 2) and then fail
-      await expect(repo.saveFullState(interviewId, state)).rejects.toThrow(
-        'Version conflict'
-      );
+      await expect(repo.saveFullState(interviewId, state)).rejects.toThrow('Version conflict');
     });
 
     it('should succeed after retry if version becomes valid', async () => {

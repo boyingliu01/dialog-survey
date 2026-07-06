@@ -107,9 +107,10 @@ export async function generateSmartResponse(
     ? '\n【注意】：这是最后一个问题。请回顾用户的分享，写一段温暖的告别语，总结他提到的核心观点和感受。不要提出新的问题。\n'
     : '';
 
-  const nextQuestionFlag = !isLastQuestion && nextQuestion
-    ? `\n【下一问题】：${nextQuestion}\n（如果你决定NEXT，请先总结用户的回答，然后自然地引出下一问题）\n`
-    : '';
+  const nextQuestionFlag =
+    !isLastQuestion && nextQuestion
+      ? `\n【下一问题】：${nextQuestion}\n（如果你决定NEXT，请先总结用户的回答，然后自然地引出下一问题）\n`
+      : '';
 
   if (customPrompt) {
     const escaped = (s: string) => s.replace(/\{\{/g, '\\{\\{').replace(/\}\}/g, '\\}\\}');

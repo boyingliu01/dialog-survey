@@ -1,10 +1,10 @@
 import { dirname, normalize, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import fastifyStatic from '@fastify/static';
 import cors from '@fastify/cors';
 import fastifyFormbody from '@fastify/formbody';
 import fastifyMultipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
+import fastifyStatic from '@fastify/static';
 import fastifyView from '@fastify/view';
 import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';

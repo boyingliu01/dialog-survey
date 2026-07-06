@@ -54,7 +54,13 @@ describe('ExportService (Integration)', () => {
   });
 
   beforeEach(() => {
-    createdIds = { templates: [], interviews: [], messages: [], responses: [], analysisReports: [] };
+    createdIds = {
+      templates: [],
+      interviews: [],
+      messages: [],
+      responses: [],
+      analysisReports: [],
+    };
   });
 
   afterEach(async () => {
@@ -239,13 +245,17 @@ describe('ExportService (Integration)', () => {
       expect(existsSync(path)).toBe(true);
 
       // Clean up the generated file
-      try { rmSync(path); } catch { /* ignore */ }
+      try {
+        rmSync(path);
+      } catch {
+        /* ignore */
+      }
     });
 
     it('should throw when interview is not found', async () => {
-      await expect(
-        service.exportInterviewToExcel('non-existent-id')
-      ).rejects.toThrow('Interview not found');
+      await expect(service.exportInterviewToExcel('non-existent-id')).rejects.toThrow(
+        'Interview not found'
+      );
     });
   });
 
@@ -264,7 +274,11 @@ describe('ExportService (Integration)', () => {
       expect(content).toBe('%PDF-mock');
 
       // Clean up
-      try { rmSync(path); } catch { /* ignore */ }
+      try {
+        rmSync(path);
+      } catch {
+        /* ignore */
+      }
     });
 
     it('should include report summary in PDF when report exists', async () => {
@@ -273,7 +287,11 @@ describe('ExportService (Integration)', () => {
       const path = await service.exportInterviewToPdf(interviewId);
       expect(existsSync(path)).toBe(true);
 
-      try { rmSync(path); } catch { /* ignore */ }
+      try {
+        rmSync(path);
+      } catch {
+        /* ignore */
+      }
     });
 
     it('should handle interview without report for PDF export', async () => {
@@ -309,13 +327,17 @@ describe('ExportService (Integration)', () => {
       const path = await service.exportInterviewToPdf(interview.id);
       expect(existsSync(path)).toBe(true);
 
-      try { rmSync(path); } catch { /* ignore */ }
+      try {
+        rmSync(path);
+      } catch {
+        /* ignore */
+      }
     });
 
     it('should reject non-existent interview for PDF', async () => {
-      await expect(
-        service.exportInterviewToPdf('non-existent-pdf-id')
-      ).rejects.toThrow('Interview not found');
+      await expect(service.exportInterviewToPdf('non-existent-pdf-id')).rejects.toThrow(
+        'Interview not found'
+      );
     });
   });
 
@@ -333,7 +355,11 @@ describe('ExportService (Integration)', () => {
       expect(followupResponses.length).toBeGreaterThanOrEqual(1);
       expect(followupResponses[0].followupDepth).toBe(1);
 
-      try { rmSync(path); } catch { /* ignore */ }
+      try {
+        rmSync(path);
+      } catch {
+        /* ignore */
+      }
     });
 
     it('should include template/plan metadata association', async () => {
@@ -431,7 +457,11 @@ describe('ExportService (Integration)', () => {
       expect(ordered[1].content).toBe('First');
       expect(ordered[2].content).toBe('Second');
 
-      try { rmSync(path); } catch { /* ignore */ }
+      try {
+        rmSync(path);
+      } catch {
+        /* ignore */
+      }
     });
   });
 });
