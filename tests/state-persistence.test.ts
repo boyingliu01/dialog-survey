@@ -174,6 +174,7 @@ describe('InterviewStateRepository', () => {
             originalVersion: 1,
             pendingMessages: [],
             pendingResponses: [],
+            nudgeCount: 0,
             interviewId: 'invalid-id',
           },
           version: 1,
@@ -207,6 +208,7 @@ describe('InterviewStateRepository', () => {
             originalVersion: 1,
             pendingMessages: [],
             pendingResponses: [],
+            nudgeCount: 0,
             interviewId: 'interview-1',
           },
           version: 3,
@@ -236,6 +238,7 @@ describe('InterviewStateRepository', () => {
             originalVersion: 3,
             pendingMessages: [],
             pendingResponses: [],
+            nudgeCount: 0,
           },
           version: 3,
         })

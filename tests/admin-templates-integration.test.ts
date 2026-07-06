@@ -126,11 +126,11 @@ describe('Admin Templates Integration — save → load → render', () => {
   }
 
   beforeAll(async () => {
-    process.env.ADMIN_API_KEY = ADMIN_KEY;
+    process.env['ADMIN_API_KEY'] = ADMIN_KEY;
   });
 
   afterAll(() => {
-    process.env.ADMIN_API_KEY = undefined;
+    process.env['ADMIN_API_KEY'] = undefined;
   });
 
   beforeEach(() => {
@@ -142,15 +142,15 @@ describe('Admin Templates Integration — save → load → render', () => {
       const now = new Date();
       const template: Template = {
         id,
-        name: String(args.data.name),
-        description: args.data.description as string | null,
-        content: args.data.content as string,
-        version: args.data.version as number,
-        status: args.data.status as TemplateStatus,
+        name: String(args.data['name']),
+        description: args.data['description'] as string | null,
+        content: args.data['content'] as string,
+        version: args.data['version'] as number,
+        status: args.data['status'] as TemplateStatus,
         createdAt: now,
         updatedAt: now,
-        createdBy: args.data.createdBy as string,
-        updatedBy: args.data.updatedBy as string,
+        createdBy: args.data['createdBy'] as string,
+        updatedBy: args.data['updatedBy'] as string,
         dimensions: null,
         analysisConfig: null,
       };
@@ -183,13 +183,13 @@ describe('Admin Templates Integration — save → load → render', () => {
         const now = new Date();
         const updated: Template = {
           ...tpl,
-          name: (args.data.name as string) ?? tpl.name,
-          description: (args.data.description as string | null) ?? tpl.description,
-          content: (args.data.content as string) ?? tpl.content,
+          name: (args.data['name'] as string) ?? tpl['name'],
+          description: (args.data['description'] as string | null) ?? tpl['description'],
+          content: (args.data['content'] as string) ?? tpl['content'],
           version: tpl.version + 1,
-          status: (args.data.status as TemplateStatus) ?? tpl.status,
+          status: (args.data['status'] as TemplateStatus) ?? tpl['status'],
           updatedAt: now,
-          updatedBy: (args.data.updatedBy as string) ?? tpl.updatedBy,
+          updatedBy: (args.data['updatedBy'] as string) ?? tpl['updatedBy'],
         };
         mockStore.set(id, updated);
         return Promise.resolve(updated);

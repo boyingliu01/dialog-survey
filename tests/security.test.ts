@@ -11,10 +11,6 @@ vi.mock('@prisma/client', () => {
   };
 });
 
-const _getMocks = () => ({
-  findFirst: (globalThis as any).__mockFindFirst,
-});
-
 /**
  * @test Tests for the anonymization function that masks PII data
  */

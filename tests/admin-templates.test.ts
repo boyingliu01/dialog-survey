@@ -221,10 +221,10 @@ describe('TemplateRepository - findAllPaginated', () => {
     mockPrisma.template.findMany.mockResolvedValueOnce([]);
     mockPrisma.template.count.mockResolvedValueOnce(45);
 
-    const result = await repo.findAllPaginated(3, 20);
+    const result = (await repo.findAllPaginated(3, 20)) as Record<string, unknown>;
 
-    expect(result.skip).toBeUndefined();
-    expect(result.page).toBe(3);
+    expect(result['skip']).toBeUndefined();
+    expect(result['page']).toBe(3);
     expect(mockPrisma.template.findMany).toHaveBeenCalledWith({
       orderBy: { updatedAt: 'desc' },
       skip: 40,
@@ -401,7 +401,7 @@ describe('TemplateRepository - getUsageStats', () => {
 describe('Admin Auth middleware', () => {
   describe('without ADMIN_API_KEY configured', () => {
     beforeAll(() => {
-      delete process.env.ADMIN_API_KEY;
+      delete process.env['ADMIN_API_KEY'];
     });
 
     it('should allow GET requests without checking API key', async () => {
@@ -493,13 +493,13 @@ describe('Admin Auth middleware', () => {
 
     beforeAll(async () => {
       vi.resetModules();
-      process.env.ADMIN_API_KEY = 'test-secret-key';
+      process.env['ADMIN_API_KEY'] = 'test-secret-key';
       const mod = await import('../src/middleware/admin-auth.js');
       dynamicAdminAuth = mod.adminAuth;
     });
 
     afterAll(() => {
-      delete process.env.ADMIN_API_KEY;
+      delete process.env['ADMIN_API_KEY'];
     });
 
     it('should return 401 for POST with wrong API key', async () => {
@@ -635,21 +635,25 @@ describe('Admin Templates Routes - DELETE constraint check', () => {
     vi.restoreAllMocks();
   });
 
+  const mockCall = <T>(fn: T) => fn as unknown as (...args: unknown[]) => unknown;
+
   async function simulateDeleteHandler() {
-    const existing = await mockRepo.findById('tpl-123');
+    const existing = await mockCall(mockRepo.findById)('tpl-123');
     if (!existing) {
-      return mockReply.status(404).send(expect.any(String));
+      return (mockReply.status as unknown as (...args: unknown[]) => unknown)(404);
     }
 
-    const usageStats = await mockRepo.getUsageStats('tpl-123');
+    const usageStats = (await mockCall(mockRepo.getUsageStats)('tpl-123')) as {
+      interviews: { active: number; waiting: number };
+    };
     const activeOrWaiting = usageStats.interviews.active + usageStats.interviews.waiting;
 
     if (activeOrWaiting > 0) {
-      return mockReply.status(409).send(expect.any(String));
+      return (mockReply.status as unknown as (...args: unknown[]) => unknown)(409);
     }
 
-    await mockRepo.delete('tpl-123');
-    return mockReply.send(expect.any(String));
+    await mockCall(mockRepo.delete)('tpl-123');
+    return (mockReply.send as unknown as (...args: unknown[]) => unknown)(expect.any(String));
   }
 
   it('should return 404 when template does not exist', async () => {

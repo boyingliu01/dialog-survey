@@ -58,6 +58,37 @@ function logError(msg) {
   process.stderr.write(`Error: ${msg}\n`);
 }
 
+/**
+ * Start the dialog-survey service via the appropriate process manager.
+ * Uses PM2 on Linux/macOS, falls back to direct node on Windows.
+ * Shared between installCommand and startCommand.
+ */
+async function startViaServiceManager() {
+  const platformCheck = checkPlatformDeps();
+  if (platformCheck.serviceManager === 'pm2') {
+    try {
+      exec(`pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production`, {
+        cwd: INSTALL_DIR,
+      });
+      log('PM2 process started ✓');
+    } catch (err) {
+      logError(`PM2 start failed: ${err.message}`);
+      process.exitCode = 1;
+      return;
+    }
+  } else {
+    log('Starting service directly (PM2 is unstable on Windows, using direct node)...');
+    try {
+      startViaNode(INSTALL_DIR);
+      log('Direct process started ✓');
+    } catch (err) {
+      logError(`Direct start failed: ${err.message}`);
+      process.exitCode = 1;
+      return;
+    }
+  }
+}
+
 // ─── Argument Parsing ────────────────────────────────────────────────────────
 
 /**
@@ -354,7 +385,7 @@ export function checkPlatformDeps() {
  * @param {string} cwd
  */
 export function startViaNode(cwd) {
-  exec('node dist/server.js &', { cwd });
+  exec('node dist/src/server.js &', { cwd });
 }
 
 /**
@@ -363,7 +394,7 @@ export function startViaNode(cwd) {
  */
 export function stopDirectService() {
   try {
-    exec('pkill -f "node dist/server"');
+    exec('pkill -f "node dist/src/server"');
     return true;
   } catch {
     return false;
@@ -376,7 +407,7 @@ export function stopDirectService() {
  */
 export function isDirectServiceRunning() {
   try {
-    const result = exec('pgrep -f "node dist/server"');
+    const result = exec('pgrep -f "node dist/src/server"');
     return result.length > 0;
   } catch {
     return false;
@@ -605,29 +636,7 @@ export async function installCommand(flags) {
 
   // Step 10: Start service (platform-aware)
   // Note: No build step needed — dist/ is pre-compiled in the npm package.
-  if (platformCheck.serviceManager === 'pm2') {
-    log('Starting service via PM2...');
-    try {
-      exec(`pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production`, {
-        cwd: INSTALL_DIR,
-      });
-      log('  PM2 process started ✓');
-    } catch (err) {
-      logError(`PM2 start failed: ${err.message}`);
-      process.exitCode = 1;
-      return;
-    }
-  } else {
-    log('Starting service directly (PM2 is unstable on Windows, using direct node)...');
-    try {
-      startViaNode(INSTALL_DIR);
-      log('  Direct process started ✓');
-    } catch (err) {
-      logError(`Direct start failed: ${err.message}`);
-      process.exitCode = 1;
-      return;
-    }
-  }
+  await startViaServiceManager();
 
   // Step 12: Wait for health
   log('Waiting for health check...');
@@ -702,31 +711,7 @@ export async function startCommand() {
     return;
   }
 
-  const platformCheck = checkPlatformDeps();
-
-  if (platformCheck.serviceManager === 'pm2') {
-    try {
-      exec(`pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production`, {
-        cwd: INSTALL_DIR,
-      });
-      log('PM2 process started ✓');
-    } catch (err) {
-      logError(`PM2 start failed: ${err.message}`);
-      process.exitCode = 1;
-      return;
-    }
-  } else {
-    log('Starting service directly (PM2 is unstable on Windows, using direct node)...');
-    try {
-      startViaNode(INSTALL_DIR);
-      log('Direct process started ✓');
-    } catch (err) {
-      logError(`Direct start failed: ${err.message}`);
-      process.exitCode = 1;
-      return;
-    }
-  }
-
+  await startViaServiceManager();
   log('Waiting for health check...');
   const healthy = await waitForHealth();
   if (healthy) {

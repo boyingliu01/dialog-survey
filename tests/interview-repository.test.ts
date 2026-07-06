@@ -90,9 +90,9 @@ describe('InterviewRepository', () => {
       const { counts, total } = await repo.countByStatusForTemplate(templateId);
 
       // Verify counts include all statuses
-      expect(counts.PENDING).toBeDefined();
-      expect(counts.ACTIVE).toBeDefined();
-      expect(counts.COMPLETED).toBeDefined();
+      expect(counts['PENDING']).toBeDefined();
+      expect(counts['ACTIVE']).toBeDefined();
+      expect(counts['COMPLETED']).toBeDefined();
 
       // Verify total count
       expect(total).toBeGreaterThanOrEqual(4); // Original + 3 new

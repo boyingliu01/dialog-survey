@@ -48,6 +48,7 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
           { role: 'assistant', content: 'Hi there!', isVoice: false },
         ],
         pendingResponses: [],
+        nudgeCount: 0,
       };
 
       mockPrisma.$transaction.mockImplementation(async (callback: any) => {
@@ -100,6 +101,7 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         originalVersion: 1,
         pendingMessages: [],
         pendingResponses: [{ questionId: 'q-1', content: 'Answer 1', isFollowup: true }],
+        nudgeCount: 0,
       };
 
       mockPrisma.$transaction.mockImplementation(async (callback: any) => {
@@ -146,6 +148,7 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         originalVersion: 1,
         pendingMessages: [{ role: 'user', content: 'Test', isVoice: false }],
         pendingResponses: [],
+        nudgeCount: 0,
       };
 
       mockPrisma.$transaction.mockImplementation(async (callback: any) => {
@@ -193,6 +196,7 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         originalVersion: 1,
         pendingMessages: [{ role: 'user', content: 'Test', isVoice: false }],
         pendingResponses: [],
+        nudgeCount: 0,
       };
 
       mockPrisma.$transaction.mockImplementation(async (callback: any) => {
@@ -233,6 +237,7 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         originalVersion: 1,
         pendingMessages: [],
         pendingResponses: [],
+        nudgeCount: 0,
       };
 
       mockPrisma.$transaction.mockImplementation(async (callback: any) => {

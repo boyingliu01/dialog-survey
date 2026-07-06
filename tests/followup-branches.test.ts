@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InterviewState } from '../src/core/types/index.js';
-import {
-  generateSmartResponse,
-  parseLLMResponse,
-} from '../src/services/followup.service.js';
+import { generateSmartResponse, parseLLMResponse } from '../src/services/followup.service.js';
 
 const mockChat = vi.fn();
 

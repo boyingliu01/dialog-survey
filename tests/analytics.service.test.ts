@@ -146,11 +146,11 @@ describe('AnalyticsService', () => {
 
       const result = await service.getStatusDistribution();
 
-      expect(result.PENDING).toBe(5);
-      expect(result.COMPLETED).toBe(10);
-      expect(result.ACTIVE).toBe(3);
-      expect(result.WAITING).toBe(0);
-      expect(result.CANCELLED).toBe(0);
+      expect(result['PENDING']).toBe(5);
+      expect(result['COMPLETED']).toBe(10);
+      expect(result['ACTIVE']).toBe(3);
+      expect(result['WAITING']).toBe(0);
+      expect(result['CANCELLED']).toBe(0);
     });
 
     it('should include all statuses even when some are missing from DB results', async () => {
@@ -159,8 +159,8 @@ describe('AnalyticsService', () => {
       const result = await service.getStatusDistribution();
 
       expect(Object.keys(result)).toHaveLength(5);
-      expect(result.CANCELLED).toBe(2);
-      expect(result.PENDING).toBe(0);
+      expect(result['CANCELLED']).toBe(2);
+      expect(result['PENDING']).toBe(0);
     });
   });
 

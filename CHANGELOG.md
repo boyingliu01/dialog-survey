@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.7.8 - 2026-07-06
+
+- feat: unified tsconfig.json — single `npx tsc --noEmit` checks src/ + tests/
+- fix: 81 tsc errors across 35 files (TS2741, TS4111, TS2375, TS2348, TS6133)
+- fix: noPropertyAccessFromIndexSignature process.env access (37 sites)
+- fix: exactOptionalPropertyTypes violations (10 sites)
+- fix: build artifacts path sync — dist/server.js → dist/src/server.js
+- ci: TypeScript type check in pr.yml uses single `npx tsc --noEmit`
+- chore: npm run dev now references dist/src/server.js
+
 ## 1.7.7 - 2026-07-06
 
 - fix: biome lint issues across tests/ (unused imports, import sorting, formatting)

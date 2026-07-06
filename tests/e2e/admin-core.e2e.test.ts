@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createE2EServer } from './helpers/e2e-server.js';
 
 // E2E tests need extra time for browser startup and page navigation
+// Coverage mode adds significant overhead (instrumentation, slower DB queries)
 vi.setConfig({ testTimeout: 30000, hookTimeout: 20000 });
 
 describe('Admin Core Paths (Playwright E2E)', () => {
@@ -18,7 +19,7 @@ describe('Admin Core Paths (Playwright E2E)', () => {
     baseUrl = server.baseUrl;
 
     // Store reference for cleanup
-    (globalThis as Record<string, unknown>).__E2E_SERVER = server;
+    (globalThis as Record<string, unknown>)['__E2E_SERVER'] = server;
 
     browser = await chromium.launch({ headless: true });
     context = await browser.newContext({
@@ -32,7 +33,7 @@ describe('Admin Core Paths (Playwright E2E)', () => {
     await context.close();
     await browser.close();
 
-    const server = (globalThis as Record<string, unknown>).__E2E_SERVER as Awaited<
+    const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as Awaited<
       ReturnType<typeof createE2EServer>
     >;
     if (server) {
@@ -50,7 +51,7 @@ describe('Admin Core Paths (Playwright E2E)', () => {
   describe('Admin Navigation (Shell → Fragment)', () => {
     it('should load admin page with tree sidebar', async () => {
       await page.goto(`${baseUrl}/admin`, {
-        waitUntil: 'networkidle',
+        waitUntil: 'load',
       });
       await page.waitForSelector('#main-content', { timeout: 5000 });
 
@@ -65,7 +66,7 @@ describe('Admin Core Paths (Playwright E2E)', () => {
 
     it('should navigate to dashboard via HTMX fragment', async () => {
       await page.goto(`${baseUrl}/admin`, {
-        waitUntil: 'networkidle',
+        waitUntil: 'load',
       });
 
       await page.click('button:has-text("进度仪表板")');
@@ -77,7 +78,7 @@ describe('Admin Core Paths (Playwright E2E)', () => {
 
     it('should not crash on non-existent content route', async () => {
       const response = await page.goto(`${baseUrl}/admin/content/templates/non-existent-id`, {
-        waitUntil: 'networkidle',
+        waitUntil: 'load',
       });
       const status = response?.status() ?? 200;
       expect(status).toBeLessThan(500);
@@ -87,7 +88,7 @@ describe('Admin Core Paths (Playwright E2E)', () => {
   describe('Templates CRUD', () => {
     it('should show template creation form', async () => {
       await page.goto(`${baseUrl}/admin`, {
-        waitUntil: 'networkidle',
+        waitUntil: 'load',
       });
 
       const newTemplateBtn = page.locator('button[title="新建模板"]');
@@ -100,7 +101,7 @@ describe('Admin Core Paths (Playwright E2E)', () => {
 
     it('should navigate to template import page', async () => {
       await page.goto(`${baseUrl}/admin`, {
-        waitUntil: 'networkidle',
+        waitUntil: 'load',
       });
 
       const importBtn = page.locator('button[title="导入模板"]');
@@ -121,7 +122,7 @@ describe('Admin Core Paths (Playwright E2E)', () => {
       const routes = ['/admin', '/admin/content/dashboard'];
       for (const route of routes) {
         const response = await page.goto(`${baseUrl}${route}`, {
-          waitUntil: 'networkidle',
+          waitUntil: 'load',
         });
         expect(response?.status()).toBeLessThan(500);
       }
@@ -153,7 +154,7 @@ describe('Admin Core Paths (Playwright E2E)', () => {
         }
       });
 
-      await page.goto(`${baseUrl}/admin`, { waitUntil: 'networkidle' });
+      await page.goto(`${baseUrl}/admin`, { waitUntil: 'load' });
       await page.waitForTimeout(1000);
 
       // No Alpine CDN load failures

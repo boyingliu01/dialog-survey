@@ -14,6 +14,7 @@ import {
   startViaNode,
   stopDirectService,
   validateConfig,
+  // @ts-expect-error - cli.mjs has no type declarations
 } from '../scripts/cli.mjs';
 
 describe('CLI', () => {
