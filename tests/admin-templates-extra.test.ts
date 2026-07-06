@@ -93,6 +93,7 @@ async function createTestApp() {
     interviewRepo: new InterviewRepository(prisma),
     analysisService: new AnalysisService(prisma),
     analyticsService: new AnalyticsService(prisma),
+    prisma,
   });
 
   return app;

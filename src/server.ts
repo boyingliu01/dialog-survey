@@ -212,6 +212,7 @@ export async function buildApp() {
     analysisService,
     analyticsService,
     exportService,
+    prisma,
   });
 
   return { fastify, prisma };

@@ -229,6 +229,7 @@ describe('Admin Templates Integration — save → load → render', () => {
       interviewRepo: new InterviewRepository(prisma),
       analysisService: new AnalysisService(prisma),
       analyticsService: new AnalyticsService(prisma),
+      prisma,
     });
     await app.ready();
   }

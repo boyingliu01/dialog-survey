@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
@@ -8,6 +9,7 @@ import type { AnalysisService } from '../services/analysis.service.js';
 import type { AnalyticsService } from '../services/analytics.service.js';
 import { ExportService } from '../services/export.service.js';
 import type { InterviewPlanService } from '../services/interview-plan.service.js';
+import { updateTemplateDimensions } from '../services/template-dimension.service.js';
 import { error, info } from '../utils/logger.js';
 
 export interface AdminTemplatesRoutesOptions {
@@ -17,6 +19,7 @@ export interface AdminTemplatesRoutesOptions {
   analysisService: AnalysisService;
   analyticsService: AnalyticsService;
   exportService?: ExportService;
+  prisma: PrismaClient;
 }
 
 const createTemplateSchema = z.object({
@@ -141,6 +144,7 @@ export async function adminTemplatesRoutes(
     analysisService,
     analyticsService,
     exportService,
+    prisma,
   } = opts;
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
@@ -238,6 +242,9 @@ export async function adminTemplatesRoutes(
         const name = parsed['name'] as string | undefined;
         const description = parsed['description'] as string | undefined;
         const content = parsed['content'] as Record<string, unknown> | undefined;
+        const dimensions = parsed['dimensions'] as
+          | Array<{ id: string; label: string; keywords?: string[] }>
+          | undefined;
 
         if (!name || !name.trim()) {
           return reply.status(422).send(htmlError('JSON 缺少 name 字段'));
@@ -249,11 +256,25 @@ export async function adminTemplatesRoutes(
         const validationError = validateTemplateContent(content);
         if (validationError) return reply.status(422).send(htmlError(validationError));
 
-        await templateRepo.create({
+        const created = await templateRepo.create({
           name: name.trim(),
           ...(description != null ? { description: description.trim() } : {}),
           content,
         });
+
+        // Save dimensions to the DB-level column if provided
+        if (dimensions && Array.isArray(dimensions) && dimensions.length > 0) {
+          try {
+            await updateTemplateDimensions(prisma, created.id, dimensions);
+          } catch (e) {
+            const dimErr = e instanceof Error ? e.message : 'Invalid dimensions';
+            error('Template created but dimensions import failed', {
+              templateId: created.id,
+              error: dimErr,
+            });
+            // Non-fatal: template was created, just dimensions failed
+          }
+        }
 
         info('Admin template imported', { name: name.trim() });
         return reply.status(201).header('HX-Redirect', '/admin').send('');

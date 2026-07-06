@@ -155,6 +155,7 @@ describe('Admin Templates Import', () => {
       interviewRepo: {} as any,
       analysisService: {} as any,
       analyticsService: {} as any,
+      prisma,
     });
     await app.ready();
     return app;
@@ -292,6 +293,67 @@ describe('Admin Templates Import', () => {
 
       expect(res.statusCode).toBe(422);
       expect(res.body).toContain('请填写邀约提示词');
+    });
+
+    it('should import template with dimensions', async () => {
+      app = await buildApp();
+      await app.ready();
+
+      const dimensions = [
+        { id: 'dim1', label: '维度一', keywords: ['关键词1', '关键词2'] },
+        { id: 'dim2', label: '维度二', keywords: ['关键词3'] },
+      ];
+
+      const jsonPayload = JSON.stringify({
+        name: '含维度的模板',
+        description: '测试维度导入',
+        content: {
+          invitationPrompt: '你好',
+          questions: ['问题1', '问题2'],
+        },
+        dimensions,
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/admin/api/templates/import',
+        headers: { 'x-admin-key': ADMIN_KEY },
+        payload: { json: jsonPayload },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(mockTemplateCreate).toHaveBeenCalledTimes(1);
+      const createArg = mockTemplateCreate.mock.calls[0][0];
+      expect(createArg.data.name).toBe('含维度的模板');
+    });
+
+    it('should import template with closingMessage and llmPromptTemplate', async () => {
+      app = await buildApp();
+      await app.ready();
+
+      const jsonPayload = JSON.stringify({
+        name: '完整模板',
+        content: {
+          invitationPrompt: '欢迎参加访谈',
+          questions: ['问题A', '问题B', '问题C'],
+          closingMessage: '感谢您的参与',
+          llmPromptTemplate: '你是一个访谈主持人...',
+        },
+      });
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/admin/api/templates/import',
+        headers: { 'x-admin-key': ADMIN_KEY },
+        payload: { json: jsonPayload },
+      });
+
+      expect(res.statusCode).toBe(201);
+      expect(mockTemplateCreate).toHaveBeenCalledTimes(1);
+      const createArg = mockTemplateCreate.mock.calls[0][0];
+      const savedContent = JSON.parse(createArg.data.content) as Record<string, unknown>;
+      expect(savedContent['closingMessage']).toBe('感谢您的参与');
+      expect(savedContent['llmPromptTemplate']).toBe('你是一个访谈主持人...');
     });
 
     it('should return 401 without admin key', async () => {
