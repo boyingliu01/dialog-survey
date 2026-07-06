@@ -78,8 +78,8 @@ jobs:
           NODE_ENV: test
           DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
           TEST_DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
-          DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || '' }}
-          DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || '' }}
+          DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || 'dummy-ci-client-id' }}
+          DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || 'dummy-ci-client-secret' }}
 
   integration-tests:
     name: Integration Tests (real PostgreSQL)
@@ -127,8 +127,8 @@ jobs:
           LLM_API_KEY: ${{ secrets.LLM_API_KEY || '' }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || '' }}
           LLM_MODEL: ${{ secrets.LLM_MODEL || '' }}
-          DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || '' }}
-          DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || '' }}
+          DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || 'dummy-ci-client-id' }}
+          DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || 'dummy-ci-client-secret' }}
 
   security-scan:
     name: Security Scan (semgrep + gitleaks)
