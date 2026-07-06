@@ -157,6 +157,7 @@ export async function createTestServer(): Promise<TestServer> {
     analysisService,
     analyticsService,
     exportService,
+    prisma,
   });
 
   // Skip DingTalk Stream connection in tests
