@@ -60,6 +60,7 @@ function makeState(overrides: Partial<InterviewState> = {}): InterviewState {
     originalVersion: 5,
     pendingMessages: [],
     pendingResponses: [],
+    nudgeCount: 0,
     ...overrides,
   };
 }

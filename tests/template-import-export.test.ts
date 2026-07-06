@@ -7,7 +7,7 @@ const generateId = () => `tmpl-${Date.now()}-${++idCounter}`;
 interface TemplateRecord {
   id: string;
   name: string;
-  description?: string;
+  description: string | null;
   content: string;
   version: number;
   status: string;
@@ -26,10 +26,10 @@ class TemplateRepository {
     const template: TemplateRecord = {
       id: generateId(),
       name: data.name,
-      description: data.description,
+      description: (data.description ?? null) as string | null,
       content: JSON.stringify(data.content),
       version: 1,
-      status: TemplateStatus.DRAFT as unknown as string,
+      status: TemplateStatus.DRAFT as string,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -139,7 +139,7 @@ describe('Task-008-4: Template Import/Export', () => {
 
     const template = await repository.create(minimalData);
     expect(template.name).toBe('Minimal Template');
-    expect(template.description).toBeUndefined();
+    expect(template.description).toBeNull();
   });
 
   /**

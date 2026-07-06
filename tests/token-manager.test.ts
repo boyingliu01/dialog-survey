@@ -12,16 +12,16 @@ describe('DingTalkTokenManager', () => {
 
   beforeEach(() => {
     tokenManager = new DingTalkTokenManager();
-    process.env.DINGTALK_CLIENT_ID = 'test_client_id';
-    process.env.DINGTALK_CLIENT_SECRET = 'test_client_secret';
+    process.env['DINGTALK_CLIENT_ID'] = 'test_client_id';
+    process.env['DINGTALK_CLIENT_SECRET'] = 'test_client_secret';
     vi.clearAllMocks();
     // Replace the real delay (2s/4s exponential backoff) with 1ms for tests
     (tokenManager as any).delay = vi.fn().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
-    process.env.DINGTALK_CLIENT_ID = undefined;
-    process.env.DINGTALK_CLIENT_SECRET = undefined;
+    process.env['DINGTALK_CLIENT_ID'] = undefined;
+    process.env['DINGTALK_CLIENT_SECRET'] = undefined;
   });
 
   it('should fetch a new token when cache is empty', async () => {
@@ -118,9 +118,9 @@ describe('DingTalkTokenManager', () => {
   });
 
   it('should throw error when environment variables are not set', async () => {
-    delete process.env.DINGTALK_CLIENT_ID;
+    delete process.env['DINGTALK_CLIENT_ID'];
 
-    delete process.env.DINGTALK_CLIENT_SECRET;
+    delete process.env['DINGTALK_CLIENT_SECRET'];
 
     await expect(tokenManager.getAccessToken()).rejects.toThrow(
       'DINGTALK_APP_KEY/DINGTALK_APP_SECRET or DINGTALK_CLIENT_ID/DINGTALK_CLIENT_SECRET must be set in environment variables'

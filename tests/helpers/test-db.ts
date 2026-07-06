@@ -7,10 +7,10 @@ export class TestDatabase {
 
   constructor() {
     this.databaseUrl =
-      process.env.TEST_DATABASE_URL ||
+      process.env['TEST_DATABASE_URL'] ||
       'postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test';
 
-    process.env.DATABASE_URL = this.databaseUrl;
+    process.env['DATABASE_URL'] = this.databaseUrl;
     this.prisma = new PrismaClient();
   }
 

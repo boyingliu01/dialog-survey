@@ -55,6 +55,7 @@ describe('Core Nodes Branch Coverage', () => {
       originalVersion: 1,
       pendingMessages: [],
       pendingResponses: [],
+      nudgeCount: 0,
     };
 
     it('should handle generateSmartResponse service error and use fallback path', async () => {

@@ -335,12 +335,12 @@ describe('Batch Import API', () => {
         expect(body.interviewIds.length).toBe(2);
 
         // Verify DB state
-        const interviews = await prisma.interview.findMany({ where: { planId } });
+        const interviews = await prisma.interview.findMany({ where: { planId: planId as string } });
         expect(interviews.length).toBe(2);
         expect(interviews[0].status).toBe('PENDING');
 
         // Verify inviteeData
-        const plan = await prisma.interviewPlan.findUnique({ where: { id: planId } });
+        const plan = await prisma.interviewPlan.findUnique({ where: { id: planId as string } });
         const invitees = plan?.inviteeData as Array<{ userId: string; name: string }> | undefined;
         expect(invitees?.length).toBe(2);
       } finally {

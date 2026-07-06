@@ -56,14 +56,14 @@ describe('DELETE /admin/api/templates/:id', () => {
 
   beforeAll(async () => {
     vi.resetModules();
-    process.env.ADMIN_API_KEY = 'test-secret-key';
+    process.env['ADMIN_API_KEY'] = 'test-secret-key';
     app = await createTestApp();
   });
 
   afterAll(async () => {
     await app.close();
     await prisma.$disconnect();
-    process.env.ADMIN_API_KEY = undefined;
+    process.env['ADMIN_API_KEY'] = undefined;
   });
 
   it('should delete a draft template and verify it is gone from DB', async () => {

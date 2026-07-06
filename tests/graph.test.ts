@@ -42,6 +42,7 @@ describe('runInterviewGraph', () => {
       originalVersion: 1,
       pendingMessages: [],
       pendingResponses: [],
+      nudgeCount: 0,
     };
   });
 

@@ -44,6 +44,7 @@ describe('planningNode', () => {
     originalVersion: 1,
     pendingMessages: [],
     pendingResponses: [],
+    nudgeCount: 0,
   };
 
   it('should return invitation prompt as response', async () => {
@@ -61,10 +62,11 @@ describe('planningNode', () => {
   it('should add first question message to messages array', async () => {
     const result = await planningNode(baseState, mockPrisma);
 
-    expect(result.messages).toHaveLength(1);
-    expect(result.messages[0].role).toBe('assistant');
-    expect(result.messages[0].content).toBe('您好！欢迎参与本次访谈。');
-    expect(result.messages[0].timestamp).toBeDefined();
+    const msgs = result.messages as NonNullable<typeof result.messages>;
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].role).toBe('assistant');
+    expect(msgs[0].content).toBe('您好！欢迎参与本次访谈。');
+    expect(msgs[0].timestamp).toBeDefined();
   });
 
   /**
@@ -74,14 +76,15 @@ describe('planningNode', () => {
   it('should preserve existing messages', async () => {
     const stateWithMessages = {
       ...baseState,
-      messages: [{ role: 'user', content: 'Hello', timestamp: new Date() }],
+      messages: [{ role: 'user' as const, content: 'Hello', timestamp: new Date() }],
     };
 
     const result = await planningNode(stateWithMessages, mockPrisma);
 
-    expect(result.messages).toHaveLength(2);
-    expect(result.messages[0].role).toBe('user');
-    expect(result.messages[1].role).toBe('assistant');
+    const msgs = result.messages as NonNullable<typeof result.messages>;
+    expect(msgs).toHaveLength(2);
+    expect(msgs[0].role).toBe('user');
+    expect(msgs[1].role).toBe('assistant');
   });
 
   /**

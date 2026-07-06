@@ -37,6 +37,7 @@ describe('interviewingNode - Smart Response Branches', () => {
     originalVersion: 1,
     pendingMessages: [],
     pendingResponses: [],
+    nudgeCount: 0,
   });
 
   describe('NEXT action', () => {
@@ -148,7 +149,7 @@ describe('interviewingNode - Smart Response Branches', () => {
       const { generateSmartResponse } = await import('../src/services/followup.service.js');
       vi.mocked(generateSmartResponse).mockResolvedValue({
         response: '我理解您的疑惑，让我解释一下...',
-        action: 'STAY',
+        action: 'STAY' as 'NEXT' | 'FOLLOWUP' | 'END',
         shouldProceedToNext: false,
         shouldEndInterview: false,
       });

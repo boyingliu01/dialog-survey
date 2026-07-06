@@ -72,16 +72,16 @@ describe('DingTalkStreamClient', () => {
      * @intent 验证可以从环境变量创建客户端
      */
     it('should create client from environment variables', () => {
-      process.env.DINGTALK_CLIENT_ID = 'env-client-id';
-      process.env.DINGTALK_CLIENT_SECRET = 'env-client-secret';
-      process.env.DINGTALK_AGENT_ID = 'env-agent-id';
+      process.env['DINGTALK_CLIENT_ID'] = 'env-client-id';
+      process.env['DINGTALK_CLIENT_SECRET'] = 'env-client-secret';
+      process.env['DINGTALK_AGENT_ID'] = 'env-agent-id';
 
       const client = DingTalkStreamClient.fromEnv();
       expect(client).toBeInstanceOf(DingTalkStreamClient);
 
-      process.env.DINGTALK_CLIENT_ID = undefined;
-      process.env.DINGTALK_CLIENT_SECRET = undefined;
-      process.env.DINGTALK_AGENT_ID = undefined;
+      process.env['DINGTALK_CLIENT_ID'] = undefined;
+      process.env['DINGTALK_CLIENT_SECRET'] = undefined;
+      process.env['DINGTALK_AGENT_ID'] = undefined;
     });
   });
 
@@ -195,6 +195,7 @@ describe('DingTalkStreamClient', () => {
 
       let openHandler: (() => void) | null = null;
 
+      // @ts-expect-error - ws.WebSocket.on type incompatible with vi.spyOn mock
       vi.spyOn(WebSocket.prototype, 'on').mockImplementation(function (
         this: WebSocket,
         event: string,
@@ -211,7 +212,7 @@ describe('DingTalkStreamClient', () => {
 
       // Simulate WebSocket 'open' event
       if (openHandler) {
-        openHandler();
+        (openHandler as () => void)();
       }
 
       expect(client.isConnected()).toBe(true);
@@ -321,7 +322,8 @@ describe('DingTalkStreamClient', () => {
       let wsInstance: WebSocket | null = null;
       const mockSend = vi.fn();
 
-      vi.spyOn(WebSocket.prototype as any, 'on').mockImplementation(function (
+      // @ts-expect-error - ws.WebSocket.on type incompatible with vi.spyOn mock
+      vi.spyOn(WebSocket.prototype, 'on').mockImplementation(function (
         this: WebSocket,
         event: string,
         handler: (data: unknown) => void
@@ -352,12 +354,12 @@ describe('DingTalkStreamClient', () => {
 
       // Simulate open first so the client marks itself as connected
       if (openHandler) {
-        openHandler();
+        (openHandler as () => void)();
       }
 
       // Simulate an incoming message
       if (messageHandler) {
-        messageHandler(Buffer.from(JSON.stringify(mockMessage)));
+        (messageHandler as (data: Buffer) => void)(Buffer.from(JSON.stringify(mockMessage)));
       }
 
       // Verify ACK was sent over the WebSocket
@@ -511,7 +513,8 @@ describe('DingTalkStreamClient', () => {
 
       let errorHandler: ((err: Error) => void) | null = null;
 
-      vi.spyOn(WebSocket.prototype as any, 'on').mockImplementation(function (
+      // @ts-expect-error - ws.WebSocket.on type incompatible with vi.spyOn mock
+      vi.spyOn(WebSocket.prototype, 'on').mockImplementation(function (
         this: WebSocket,
         event: string,
         handler: (data: unknown) => void
@@ -529,7 +532,7 @@ describe('DingTalkStreamClient', () => {
       await client.connect();
 
       if (errorHandler) {
-        errorHandler(new Error('Connection failed'));
+        (errorHandler as (err: Error) => void)(new Error('Connection failed'));
       }
 
       expect(errorSpy).toHaveBeenCalledWith(new Error('Connection failed'));

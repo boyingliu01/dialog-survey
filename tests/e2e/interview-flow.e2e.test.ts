@@ -119,7 +119,7 @@ describe('Interview Flow (E2E)', () => {
     'should complete a full interview lifecycle: 3 questions, all NEXT',
     { timeout: 30000 },
     async () => {
-      const _templateId = await createPublishedTemplate([
+      await createPublishedTemplate([
         '问题一：请介绍您的工作经历',
         '问题二：您最大的成就是什么？',
         '问题三：您未来的计划是什么？',
