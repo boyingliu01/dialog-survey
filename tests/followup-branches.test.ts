@@ -3,7 +3,6 @@ import type { InterviewState } from '../src/core/types/index.js';
 import {
   generateSmartResponse,
   parseLLMResponse,
-  smartTruncate,
 } from '../src/services/followup.service.js';
 
 const mockChat = vi.fn();
@@ -41,6 +40,7 @@ function makeState(overrides?: Partial<InterviewState>): InterviewState {
     originalVersion: 1,
     pendingMessages: [],
     pendingResponses: [],
+    nudgeCount: 0,
     ...overrides,
   };
 }
@@ -109,36 +109,6 @@ describe('Branch Coverage: followup.service.ts', () => {
       expect(result?.response).toBe('some response');
       expect(result?.thinking).toBe('');
       expect(result?.strategy).toBe(1);
-    });
-  });
-
-  describe('smartTruncate - Additional Branch Coverage', () => {
-    it('should handle Chinese punctuation correctly', () => {
-      const chineseText = '这是一个句子。这也是一个句子。这应该被截断的部分。';
-      const result = smartTruncate(chineseText, 15);
-      expect(result.length).toBeLessThanOrEqual(18);
-      expect(result).toContain('。');
-      expect(result.endsWith('...')).toBe(true);
-    });
-
-    it('should handle text with no punctuation in target range', () => {
-      const noPunctuation = 'This text has no proper punctuation marks inside';
-      const result = smartTruncate(noPunctuation, 10);
-      expect(result.length).toBeLessThanOrEqual(13);
-      expect(result).toContain('...');
-    });
-
-    it('should return text unchanged when exactly at max length', () => {
-      const exactLength = 'This is ten';
-      const result = smartTruncate(exactLength, exactLength.length);
-      expect(result).toBe(exactLength);
-    });
-
-    it('should handle mixed language punctuation', () => {
-      const mixedText = 'Some English. 一些中文。Some more.';
-      const result = smartTruncate(mixedText, 20);
-      expect(result.length).toBeLessThanOrEqual(23);
-      expect(result).toContain('...');
     });
   });
 

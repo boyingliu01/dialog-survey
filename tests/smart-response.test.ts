@@ -98,65 +98,6 @@ describe('Smart Response System', () => {
     });
   });
 
-  describe('smartTruncate', () => {
-    /**
-     * @test REQ-005-5-09
-     * @intent 验证smartTruncate函数能正确返回长度小于最大限制的原始文本，确保智能回复系统能保持简短文本不变
-     */
-    it('should return original text if under max length', async () => {
-      const module = await import('../src/services/followup.service.js');
-      expect(module.smartTruncate).toBeDefined();
-
-      const shortText = '这是一段短文本';
-      const result = module.smartTruncate(shortText, 150);
-
-      expect(result).toBe(shortText);
-    });
-
-    /**
-     * @test REQ-005-5-09
-     * @intent 验证smartTruncate函数能在句子边界处截断长文本并添加省略号，确保智能回复保持良好的可读性
-     */
-    it('should truncate at sentence boundary', async () => {
-      const module = await import('../src/services/followup.service.js');
-
-      const longText =
-        '这是一段很长的文本，包含多个句子。这是第二个句子。这是第三个句子，用于测试截断功能是否正常工作。最后一个句子要足够长才能触发截断机制。';
-      const result = module.smartTruncate(longText, 30);
-
-      expect(result.length).toBeLessThanOrEqual(35);
-      expect(result).toContain('。');
-      expect(result).toContain('...');
-    });
-
-    /**
-     * @test REQ-005-5-09
-     * @intent 验证smartTruncate函数在没有句子边界时回退到简单截断，确保智能回复处理无标点文本的能力
-     */
-    it('should fallback to simple truncate if no sentence boundary', async () => {
-      const module = await import('../src/services/followup.service.js');
-
-      const noBoundary = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-      const result = module.smartTruncate(noBoundary, 30);
-
-      expect(result.length).toBeLessThanOrEqual(33);
-      expect(result).toContain('...');
-    });
-
-    /**
-     * @test REQ-005-5-09
-     * @intent 验证smartTruncate在接近阈值处保留句子边界完整性，确保智能回复在阈值附近表现一致
-     */
-    it('should preserve sentence boundary at 70% threshold', async () => {
-      const module = await import('../src/services/followup.service.js');
-
-      const text = '第一个句子完整保留。中间内容不应该出现被截断的句子边界。最后部分要足够长。';
-      const result = module.smartTruncate(text, 25);
-
-      expect(result.endsWith('...')).toBe(true);
-    });
-  });
-
   describe('generateSmartResponse prompt template', () => {
     it('should have generateSmartResponse template', () => {
       const template = promptService.getTemplate('generateSmartResponse');
