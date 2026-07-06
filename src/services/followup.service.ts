@@ -1,5 +1,5 @@
 import type { InterviewState } from '../core/types/index.js';
-import { DEFAULT_MODEL, OpenAICompatibleLLM } from '../integrations/llm/openai-compatible.js';
+import { OpenAICompatibleLLM } from '../integrations/llm/openai-compatible.js';
 import { info, warn } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
@@ -35,7 +35,7 @@ ${rawText}
 - 一句话即可，不要展开`;
 
     const response = await withRetry(() =>
-      llm.chat({ model: DEFAULT_MODEL, messages: [{ role: 'user', content: prompt }] })
+      llm.chat({ messages: [{ role: 'user', content: prompt }] })
     );
     const refined = response.content.trim();
     if (!refined || refined === rawText) return rawText;
@@ -87,6 +87,7 @@ export async function generateSmartResponse(
   state: InterviewState,
   userAnswer: string,
   currentQuestion: string,
+  nextQuestion?: string,
   customPrompt?: string,
   isLastQuestion?: boolean,
   totalQuestions?: number
@@ -106,6 +107,10 @@ export async function generateSmartResponse(
     ? '\n【注意】：这是最后一个问题。请回顾用户的分享，写一段温暖的告别语，总结他提到的核心观点和感受。不要提出新的问题。\n'
     : '';
 
+  const nextQuestionFlag = !isLastQuestion && nextQuestion
+    ? `\n【下一问题】：${nextQuestion}\n（如果你决定NEXT，请先总结用户的回答，然后自然地引出下一问题）\n`
+    : '';
+
   if (customPrompt) {
     const escaped = (s: string) => s.replace(/\{\{/g, '\\{\\{').replace(/\}\}/g, '\\}\\}');
     const prompt = customPrompt
@@ -116,11 +121,12 @@ export async function generateSmartResponse(
       .replace(/\{\{userAnswer\}\}/g, escaped(userAnswer))
       .replace(/\{\{userName\}\}/g, escaped(userName))
       .replace(/\{\{questionProgress\}\}/g, questionProgress)
-      .replace(/\{\{lastQuestionFlag\}\}/g, lastQuestionFlag);
+      .replace(/\{\{lastQuestionFlag\}\}/g, lastQuestionFlag)
+      .replace(/\{\{nextQuestionFlag\}\}/g, nextQuestionFlag);
 
     try {
       const response = await withRetry(() =>
-        llm.chat({ model: DEFAULT_MODEL, messages: [{ role: 'user', content: prompt }] })
+        llm.chat({ messages: [{ role: 'user', content: prompt }] })
       );
       const parsed = parseLLMResponse(response.content);
       if (!parsed) {
@@ -163,11 +169,12 @@ export async function generateSmartResponse(
     userAnswer,
     userName,
     lastQuestionFlag,
+    nextQuestionFlag,
   });
 
   try {
     const response = await withRetry(() =>
-      llm.chat({ model: DEFAULT_MODEL, messages: [{ role: 'user', content: prompt }] })
+      llm.chat({ messages: [{ role: 'user', content: prompt }] })
     );
     const parsed = parseLLMResponse(response.content);
     if (!parsed) {

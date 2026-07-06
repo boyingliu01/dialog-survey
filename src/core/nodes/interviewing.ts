@@ -27,8 +27,7 @@ function routeAction(
   currentQ: number,
   totalQuestions: number,
   smartResponse: string,
-  closingMessage?: string,
-  nextQuestion?: string
+  closingMessage?: string
 ): ActionResult {
   const isLastQuestion = currentQ >= totalQuestions - 1;
   const closing = closingMessage || DEFAULT_CLOSING_MESSAGE;
@@ -95,7 +94,7 @@ function routeAction(
     followupCount: 0,
     currentQuestion: currentQ + 1,
     shouldContinue: true,
-    response: nextQuestion ? `${smartResponse}\n\n${nextQuestion}` : smartResponse,
+    response: smartResponse,
   };
 }
 
@@ -140,10 +139,12 @@ export async function interviewingNode(
   ];
 
   try {
+    const nextQuestion = content.questions[currentQ + 1];
     const smartResult = await generateSmartResponse(
       state,
       input.content,
       currentQuestion,
+      nextQuestion,
       content.llmPromptTemplate,
       currentQ >= content.questions.length - 1,
       content.questions.length
@@ -155,7 +156,6 @@ export async function interviewingNode(
       response: smartResult.response.substring(0, 50),
     });
 
-    const nextQ = content.questions[currentQ + 1];
     const handled = smartResult.shouldEndInterview
       ? routeAction(
           'END',
@@ -164,8 +164,7 @@ export async function interviewingNode(
           currentQ,
           content.questions.length,
           smartResult.response,
-          content.closingMessage,
-          nextQ
+          content.closingMessage
         )
       : routeAction(
           smartResult.action,
@@ -174,8 +173,7 @@ export async function interviewingNode(
           currentQ,
           content.questions.length,
           smartResult.response,
-          content.closingMessage,
-          nextQ
+          content.closingMessage
         );
 
     return {

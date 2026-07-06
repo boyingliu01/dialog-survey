@@ -1,13 +1,13 @@
 {
   "reportVersion": "2.0",
-  "generatedAt": "2026-07-03T07:38:29Z",
+  "generatedAt": "2026-07-06T03:29:42Z",
   "branch": "master",
-  "commit": "97eb92d44627912ba7014ab42c5f3111f7beac21",
+  "commit": "bcdc05ce0bdd7720c25cbe51df7e65f1532575ce",
   "language": "typescript",
   "overall": {
-    "gatesPassed": 9,
+    "gatesPassed": 6,
     "gatesTotal": 11,
-    "score": 8.0,
+    "score": 5.0,
     "verdict": "PARTIAL"
   },
   "gates": {
@@ -23,14 +23,14 @@
     },
     "gate3_complexity": {
       "name": "Cyclomatic Complexity",
-      "status": "PASS",
+      "status": "SKIP",
       "threshold": "5",
       "blockThreshold": "5",
       "warnings": 0
     },
     "gate4_principles": {
       "name": "Clean Code + SOLID",
-      "status": "PASS",
+      "status": "SKIP",
       "warnings": 0
     },
     "gate5_tests": {
@@ -58,7 +58,7 @@
     },
     "gate9_build_integrity": {
       "name": "Build Integrity",
-      "status": "PASS",
+      "status": "SKIP",
       "tool": "tsc + npm pack + import check"
     },
     "gate10_sast": {

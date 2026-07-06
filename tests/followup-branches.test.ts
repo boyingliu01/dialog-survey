@@ -152,6 +152,7 @@ describe('Branch Coverage: followup.service.ts', () => {
         state,
         'my answer',
         'What?',
+        undefined,
         'custom {{userAnswer}}'
       );
       expect(result.response).toBe('Good answer');
@@ -178,7 +179,7 @@ describe('Branch Coverage: followup.service.ts', () => {
         content: JSON.stringify({ thinking: 'need more', action: 'FOLLOWUP', response: 'More?' }),
       });
       const state = makeState({ followupCount: 5, maxFollowups: 3 });
-      const result = await generateSmartResponse(state, 'a', 'q', 'custom');
+      const result = await generateSmartResponse(state, 'a', 'q', undefined, 'custom');
       expect(result.action).toBe('NEXT');
       expect(result.shouldProceedToNext).toBe(true);
     });
@@ -186,7 +187,7 @@ describe('Branch Coverage: followup.service.ts', () => {
     it('should fallback to raw text when custom prompt response is not valid JSON', async () => {
       mockChat.mockResolvedValue({ content: 'Some raw text without JSON' });
       const state = makeState();
-      const result = await generateSmartResponse(state, 'a', 'q', 'custom');
+      const result = await generateSmartResponse(state, 'a', 'q', undefined, 'custom');
       expect(result.response).toBe('Some raw text without JSON');
       expect(result.action).toBe('NEXT');
     });
@@ -194,7 +195,7 @@ describe('Branch Coverage: followup.service.ts', () => {
     it('should fallback to FALLBACK_RESPONSE when custom prompt LLM call fails', async () => {
       mockChat.mockRejectedValue(new Error('LLM timeout'));
       const state = makeState();
-      const result = await generateSmartResponse(state, 'a', 'q', 'custom');
+      const result = await generateSmartResponse(state, 'a', 'q', undefined, 'custom');
       expect(result.response).toBe('感谢您的回答，我们继续下一个话题。');
       expect(result.action).toBe('NEXT');
     });

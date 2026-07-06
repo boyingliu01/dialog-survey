@@ -64,6 +64,7 @@ const TEMPLATES: Record<string, PromptTemplate> = {
 **进度**: {{questionProgress}}
 **已追问次数**: {{followupCount}}/{{maxFollowups}}
 **用户回答**: {{userAnswer}}
+{{nextQuestionFlag}}
 
 ---
 
@@ -82,7 +83,7 @@ const TEMPLATES: Record<string, PromptTemplate> = {
 
 **行动决策**：
 - NEXT: 用户回答充分不再需要追问，或用户明确表示不想继续这个话题/想跳过。
-  如果是非最后一问：肯定用户的分享（1-2句）后，自然地过渡引出下一个问题。使过渡听起来像自然的对话衔接。总字数150-200字。
+  如果是非最后一问：先肯定用户的分享，用1-2句**用自己的话总结用户回答的核心内容**，表明你理解了他的观点。然后自然地过渡引出下一个问题。**过渡时必须引用下一个问题的具体内容**，让用户感到话题转换是连贯的。使过渡听起来像自然的对话衔接。总字数150-200字。
   如果是最后一问：回顾用户的分享，写一段温暖的告别语，表达感谢和祝福。总字数150-200字。
 - FOLLOWUP: 用户的回答还有可以深入挖掘的空间 → 深入挖掘当前话题，提出一个具体的追问问题（60-120字），引导用户分享更多细节、场景和个人体验。
 - END: 用户明确想完全结束访谈
@@ -114,6 +115,7 @@ const TEMPLATES: Record<string, PromptTemplate> = {
       'userAnswer',
       'userName',
       'lastQuestionFlag',
+      'nextQuestionFlag',
     ],
   },
 
