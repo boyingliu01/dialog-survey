@@ -32,7 +32,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: ast-grep lint (no raw Prisma in API)
-        run: npx @ast-grep/cli scan --rule .ast-grep/rules/no-raw-prisma-in-api.yml
+        run: npx --package=@ast-grep/cli sg scan --rule .ast-grep/rules/no-raw-prisma-in-api.yml
 
   unit-tests:
     name: Unit Tests (mock, no DB)
@@ -54,6 +54,7 @@ jobs:
         run: npx vitest run --exclude '**/*.integration.test.ts' --exclude 'tests/e2e/**'
         env:
           NODE_ENV: test
+          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test_unused
 
   integration-tests:
     name: Integration Tests (real PostgreSQL)
@@ -94,7 +95,7 @@ jobs:
           DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
 
       - name: Run integration tests
-        run: npx vitest run tests/**/*.integration.test.ts
+        run: npx vitest run tests/*.integration.test.ts
         env:
           NODE_ENV: test
           TEST_DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
