@@ -48,7 +48,7 @@ vi.mock('@prisma/client', () => ({
 }));
 
 vi.mock('../src/server.js', async (importOriginal) => {
-  const original = await importOriginal();
+  const original = (await importOriginal()) as Record<string, unknown>;
   return {
     ...original,
     checkDatabaseConnection: async () => {
@@ -73,7 +73,7 @@ vi.mock('../src/server.js', async (importOriginal) => {
 });
 
 describe('buildApp', () => {
-  let app: Awaited<ReturnType<typeof import('../src/server.js').then>>;
+  let app: any;
 
   beforeAll(async () => {
     vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');

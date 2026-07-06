@@ -17,7 +17,7 @@ describe('Template Dimension Service', () => {
     expect(result.dimensions).not.toBeNull();
     const parsed = result.dimensions as unknown as Array<Record<string, unknown>>;
     expect(parsed).toHaveLength(1);
-    expect(parsed[0].label).toBe('稳定性');
+    expect(parsed[0]['label']).toBe('稳定性');
 
     await prisma.template.delete({ where: { id: t.id } });
   });

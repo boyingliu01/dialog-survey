@@ -37,10 +37,15 @@ async function processStreamMessageFull(
     return { success: false, error: 'Missing userId or content' };
   }
 
-  let state = await repo.findActiveInterview(parsed.userId);
+  let state: InterviewState | null = (await (
+    repo.findActiveInterview as unknown as (...args: unknown[]) => unknown
+  )(parsed.userId)) as InterviewState | null;
 
   if (!state) {
-    const interviewId = await repo.createInterview(parsed.userId, 'test-template');
+    const interviewId = (await (repo.createInterview as unknown as (...args: unknown[]) => unknown)(
+      parsed.userId,
+      'test-template'
+    )) as string;
     state = {
       userId: parsed.userId,
       interviewId,
@@ -56,6 +61,7 @@ async function processStreamMessageFull(
       originalVersion: 1,
       pendingMessages: [],
       pendingResponses: [],
+      nudgeCount: 0,
     };
   }
 
@@ -65,11 +71,13 @@ async function processStreamMessageFull(
     isVoice: false,
   });
 
-  const graphResult = await graph.runInterviewGraphFull(state, {
+  const graphResult = (await (
+    graph.runInterviewGraphFull as unknown as (...args: unknown[]) => unknown
+  )(state, {
     userId: parsed.userId,
     content: parsed.content,
     isVoice: false,
-  });
+  })) as { nextState: InterviewState; response: string };
 
   const nextState = graphResult.nextState;
   nextState.pendingMessages.push({
@@ -82,7 +90,10 @@ async function processStreamMessageFull(
     if (!state.interviewId) {
       return { success: false, error: 'Missing interviewId' };
     }
-    await repo.saveFullState(state.interviewId, nextState);
+    await (repo.saveFullState as unknown as (...args: unknown[]) => unknown)(
+      state.interviewId,
+      nextState
+    );
   } catch (err) {
     if (
       err instanceof Error &&
@@ -92,7 +103,10 @@ async function processStreamMessageFull(
       if (!state.interviewId) {
         return { success: false, error: 'Missing interviewId' };
       }
-      const freshState = await repo.loadFullState(state.interviewId, parsed.userId);
+      const freshState = (await (repo.loadFullState as unknown as (...args: unknown[]) => unknown)(
+        state.interviewId,
+        parsed.userId
+      )) as InterviewState | null;
       if (freshState) {
         return processStreamMessageFull(message, repo, graph, sender, retryCount + 1);
       }
@@ -104,7 +118,10 @@ async function processStreamMessageFull(
   }
 
   if (parsed.sessionWebhook) {
-    await sender.sendReply(parsed.sessionWebhook, graphResult.response);
+    await (sender.sendReply as unknown as (...args: unknown[]) => unknown)(
+      parsed.sessionWebhook,
+      graphResult.response
+    );
   }
 
   return { success: true, response: graphResult.response };
@@ -158,6 +175,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
           originalVersion: 1,
           pendingMessages: [],
           pendingResponses: [],
+          nudgeCount: 0,
         },
       });
 
@@ -212,6 +230,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
         originalVersion: 1,
         pendingMessages: [],
         pendingResponses: [],
+        nudgeCount: 0,
       };
 
       mockRepo.findActiveInterview.mockResolvedValue(existingState);
@@ -229,6 +248,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
           originalVersion: 1,
           pendingMessages: [],
           pendingResponses: [],
+          nudgeCount: 0,
         },
       });
 
@@ -274,6 +294,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
         originalVersion: 2,
         pendingMessages: [],
         pendingResponses: [],
+        nudgeCount: 0,
       };
 
       mockRepo.findActiveInterview.mockResolvedValue(existingState);
@@ -333,6 +354,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
         originalVersion: 1,
         pendingMessages: [],
         pendingResponses: [],
+        nudgeCount: 0,
       };
 
       mockRepo.findActiveInterview.mockResolvedValue(existingState);
@@ -394,6 +416,7 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
         originalVersion: 1,
         pendingMessages: [],
         pendingResponses: [],
+        nudgeCount: 0,
       };
 
       mockRepo.findActiveInterview.mockResolvedValue(existingState);

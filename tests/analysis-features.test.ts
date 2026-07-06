@@ -192,9 +192,9 @@ describe('Task-009: Statistical Analysis Features', () => {
 
       const clusters = service.clusterBySentiment(results);
 
-      expect(clusters.positive).toHaveLength(2);
-      expect(clusters.negative).toHaveLength(1);
-      expect(clusters.neutral).toHaveLength(1);
+      expect(clusters['positive']).toHaveLength(2);
+      expect(clusters['negative']).toHaveLength(1);
+      expect(clusters['neutral']).toHaveLength(1);
     });
   });
 
@@ -224,8 +224,8 @@ describe('Task-009: Statistical Analysis Features', () => {
       const stats = service.calculateStatistics(results);
 
       expect(stats.total).toBe(3);
-      expect(stats.sentimentBreakdown.positive).toBe(2);
-      expect(stats.sentimentBreakdown.negative).toBe(1);
+      expect(stats.sentimentBreakdown['positive']).toBe(2);
+      expect(stats.sentimentBreakdown['negative']).toBe(1);
       expect(stats.topTopics).toContain('产品');
     });
 

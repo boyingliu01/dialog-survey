@@ -47,7 +47,7 @@ const prisma = new PrismaClient();
 
 async function cleanPlan(planId: string) {
   await prisma.interview.deleteMany({ where: { planId } }).catch(() => {});
-  await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+  await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
 }
 
 async function cleanTemplate(templateId: string) {
@@ -145,7 +145,7 @@ describe('Phone member tests (real DB integration)', () => {
         const interview = await prisma.interview.findUnique({ where: { id: body.interviewId } });
         expect(interview?.userId).toBe('phone-test-1');
 
-        const plan = await prisma.interviewPlan.findUnique({ where: { id: planId } });
+        const plan = await prisma.interviewPlan.findUnique({ where: { id: planId as string } });
         const invitees = plan?.inviteeData as Array<{ userId: string; phone?: string }> | undefined;
         expect(invitees?.[0]?.userId).toBe('phone-test-1');
         expect(invitees?.[0]?.phone).toBeUndefined();
@@ -185,7 +185,7 @@ describe('Phone member tests (real DB integration)', () => {
         const interview = await prisma.interview.findUnique({ where: { id: body.interviewId } });
         expect(interview?.userId).toBe('user_zhangsan');
         // Name auto-populated from DingTalk (张三)
-        const plan = await prisma.interviewPlan.findUnique({ where: { id: planId } });
+        const plan = await prisma.interviewPlan.findUnique({ where: { id: planId as string } });
         const invitees = plan?.inviteeData as
           | Array<{ userId: string; name: string; phone?: string }>
           | undefined;
@@ -332,7 +332,7 @@ describe('Phone member tests (real DB integration)', () => {
         const interview = await prisma.interview.findUnique({ where: { id: body.interviewId } });
         expect(interview?.userId).toBe('phone-test-2');
         // Phone IS saved because it was provided in payload (even though DingTalk was not called)
-        const plan = await prisma.interviewPlan.findUnique({ where: { id: planId } });
+        const plan = await prisma.interviewPlan.findUnique({ where: { id: planId as string } });
         const invitees = plan?.inviteeData as Array<{ phone?: string }> | undefined;
         expect(invitees?.[0]?.phone).toBe('00000000000');
       } finally {

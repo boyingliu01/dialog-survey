@@ -79,7 +79,7 @@ log_info "Stopping existing service..."
 if [ "$IS_WINDOWS" = false ] && command -v pm2 &>/dev/null; then
   pm2 delete dialog-survey 2>/dev/null || true
 fi
-pkill -f "node dist/server" 2>/dev/null || true
+pkill -f "node dist/src/server" 2>/dev/null || true
 sleep 2
 log_info "✓ Existing service stopped"
 
@@ -117,7 +117,7 @@ export NODE_ENV="$ENV"
 if [ "$IS_WINDOWS" = true ]; then
   # Windows: direct node (PM2 is unstable)
   mkdir -p logs
-  nohup node dist/server.js > logs/server.log 2>&1 &
+  nohup node dist/src/server.js > logs/server.log 2>&1 &
   log_info "✓ Started directly (PID: $!, Windows mode)"
 elif command -v pm2 &>/dev/null && [ -f "ecosystem.config.cjs" ]; then
   # Linux: PM2 mode
@@ -126,7 +126,7 @@ elif command -v pm2 &>/dev/null && [ -f "ecosystem.config.cjs" ]; then
 else
   # Fallback: direct node mode
   mkdir -p logs
-  nohup node dist/server.js > logs/server.log 2>&1 &
+  nohup node dist/src/server.js > logs/server.log 2>&1 &
   log_info "✓ Started directly (PID: $!)"
   log_warn "Consider installing PM2 for production process management:"
   log_warn "  npm install -g pm2 && pm2 start ecosystem.config.cjs"

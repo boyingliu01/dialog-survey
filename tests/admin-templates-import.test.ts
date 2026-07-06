@@ -100,11 +100,11 @@ describe('Admin Templates Import', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    process.env.ADMIN_API_KEY = ADMIN_KEY;
+    process.env['ADMIN_API_KEY'] = ADMIN_KEY;
   });
 
   afterAll(() => {
-    process.env.ADMIN_API_KEY = undefined;
+    process.env['ADMIN_API_KEY'] = undefined;
   });
 
   beforeEach(() => {
@@ -116,15 +116,15 @@ describe('Admin Templates Import', () => {
       const now = new Date();
       const template: Template = {
         id,
-        name: String(args.data.name),
-        description: args.data.description as string | null,
-        content: args.data.content as string,
-        version: args.data.version as number,
-        status: args.data.status as TemplateStatus,
+        name: String(args.data['name']),
+        description: args.data['description'] as string | null,
+        content: args.data['content'] as string,
+        version: args.data['version'] as number,
+        status: args.data['status'] as TemplateStatus,
         createdAt: now,
         updatedAt: now,
-        createdBy: args.data.createdBy as string,
-        updatedBy: args.data.updatedBy as string,
+        createdBy: args.data['createdBy'] as string,
+        updatedBy: args.data['updatedBy'] as string,
         dimensions: null,
         analysisConfig: null,
       };

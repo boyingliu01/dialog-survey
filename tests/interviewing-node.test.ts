@@ -42,6 +42,7 @@ describe('interviewingNode', () => {
     originalVersion: 1,
     pendingMessages: [],
     pendingResponses: [],
+    nudgeCount: 0,
   };
 
   /**
@@ -192,7 +193,7 @@ describe('interviewingNode', () => {
   it('should preserve responses and stay on current question when smart response action is STAY', async () => {
     vi.mocked(generateSmartResponse).mockResolvedValueOnce({
       response: '请继续补充您的想法。',
-      action: 'STAY',
+      action: 'STAY' as 'NEXT' | 'FOLLOWUP' | 'END',
       shouldProceedToNext: false,
       shouldEndInterview: false,
     });

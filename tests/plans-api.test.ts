@@ -69,12 +69,13 @@ describe('Interview Plan API Endpoints', () => {
         expect(typeof body.id).toBe('string');
         planId = body.id;
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -163,12 +164,13 @@ describe('Interview Plan API Endpoints', () => {
         expect(plan).not.toBeNull();
         expect(plan?.targetDate).toEqual(new Date('2026-12-01T00:00:00Z'));
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -196,12 +198,13 @@ describe('Interview Plan API Endpoints', () => {
         expect(body.id).toBeDefined();
         planId = body.id;
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -230,12 +233,13 @@ describe('Interview Plan API Endpoints', () => {
         expect(Array.isArray(body.plans)).toBe(true);
         expect(body.plans.length).toBeGreaterThanOrEqual(1);
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -262,12 +266,13 @@ describe('Interview Plan API Endpoints', () => {
         const body = JSON.parse(res.body);
         expect(body.plans.every((p: { status: string }) => p.status === 'RUNNING')).toBe(true);
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -292,12 +297,13 @@ describe('Interview Plan API Endpoints', () => {
         expect(body.plans.length).toBeGreaterThanOrEqual(1);
         expect(body.total).toBeGreaterThanOrEqual(1);
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -322,12 +328,13 @@ describe('Interview Plan API Endpoints', () => {
         expect(typeof body.total).toBe('number');
         expect(body.total).toBeGreaterThanOrEqual(1);
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -359,12 +366,13 @@ describe('Interview Plan API Endpoints', () => {
         expect(body.template).toBeDefined();
         expect(body.interviews).toBeDefined();
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -407,12 +415,13 @@ describe('Interview Plan API Endpoints', () => {
         const updated = await prisma.interviewPlan.findUnique({ where: { id: plan.id } });
         expect(updated?.status).toBe(PlanStatus.PAUSED);
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -453,12 +462,13 @@ describe('Interview Plan API Endpoints', () => {
         const updated = await prisma.interviewPlan.findUnique({ where: { id: plan.id } });
         expect(updated?.status).toBe(PlanStatus.RUNNING);
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -490,12 +500,13 @@ describe('Interview Plan API Endpoints', () => {
         const updated = await prisma.interviewPlan.findUnique({ where: { id: plan.id } });
         expect(updated?.status).toBe(PlanStatus.CANCELLED);
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -522,12 +533,13 @@ describe('Interview Plan API Endpoints', () => {
 
         expect([200, 500]).toContain(res.statusCode);
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -567,14 +579,14 @@ describe('Interview Plan API Endpoints', () => {
         expect([200, 500]).toContain(res.statusCode);
 
         await prisma.interview.deleteMany({ where: { planId: planId } });
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
         if (planId) {
           await prisma.interview.deleteMany({ where: { planId: planId } }).catch(() => {});
-          await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         }
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
@@ -646,12 +658,13 @@ describe('Interview Plan API Endpoints', () => {
         expect(cancelRes.statusCode).toBe(200);
         expect(JSON.parse(cancelRes.body).status).toBe('cancelled');
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -684,12 +697,13 @@ describe('Interview Plan API Endpoints', () => {
         const updated = await prisma.interviewPlan.findUnique({ where: { id: plan.id } });
         expect(updated?.name).toBe('Updated Name');
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -720,12 +734,13 @@ describe('Interview Plan API Endpoints', () => {
         const body = JSON.parse(res.body);
         expect(body.id).toBe(plan.id);
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -790,14 +805,14 @@ describe('Interview Plan API Endpoints', () => {
         expect(interview?.planId).toBe(plan.id);
 
         await prisma.interview.deleteMany({ where: { planId: planId } });
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
         if (planId) {
           await prisma.interview.deleteMany({ where: { planId: planId } }).catch(() => {});
-          await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         }
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
@@ -825,12 +840,13 @@ describe('Interview Plan API Endpoints', () => {
 
         expect([400, 401, 500]).toContain(res.statusCode);
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -865,14 +881,14 @@ describe('Interview Plan API Endpoints', () => {
         expect(res2.statusCode).toBe(409);
 
         await prisma.interview.deleteMany({ where: { planId: planId } });
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
         if (planId) {
           await prisma.interview.deleteMany({ where: { planId: planId } }).catch(() => {});
-          await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         }
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
@@ -903,12 +919,13 @@ describe('Interview Plan API Endpoints', () => {
         expect(body.error).toContain('输入格式错误');
         expect(body.error).toContain('Invalid phone format');
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -937,12 +954,13 @@ describe('Interview Plan API Endpoints', () => {
         const body = JSON.parse(res.body);
         expect(body.error).toContain('输入格式错误');
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });
@@ -990,12 +1008,13 @@ describe('Interview Plan API Endpoints', () => {
         const body = JSON.parse(res.body);
         expect(body.error).toContain('输入格式错误');
 
-        await prisma.interviewPlan.delete({ where: { id: planId } });
+        await prisma.interviewPlan.delete({ where: { id: planId as string } });
         await prisma.template.delete({ where: { id: templateId } });
         planId = undefined;
         templateId = undefined;
       } finally {
-        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (planId)
+          await prisma.interviewPlan.delete({ where: { id: planId as string } }).catch(() => {});
         if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
       }
     });

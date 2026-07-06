@@ -138,6 +138,7 @@ describe('InterviewStateRepository - Missing Coverage Tests', () => {
           },
         ],
         pendingResponses: [],
+        nudgeCount: 0,
         interviewId: 'existing-interview',
         templateId: 'test-template',
       };
@@ -179,6 +180,7 @@ describe('InterviewStateRepository - Missing Coverage Tests', () => {
         messages: [],
         currentQuestion: 0,
         followupCount: 0,
+        nudgeCount: 0,
         maxFollowups: 2,
         responses: [],
         reportGenerated: false,
@@ -236,6 +238,7 @@ describe('InterviewStateRepository - Missing Coverage Tests', () => {
         originalVersion: 1, // this mismatches what's in DB (should be 5)
         pendingMessages: [],
         pendingResponses: [],
+        nudgeCount: 0,
         interviewId: 'existing-interview',
         templateId: 'test-template',
       };
@@ -390,6 +393,7 @@ describe('InterviewStateRepository - Missing Coverage Tests', () => {
         originalVersion: 1, // doesn't match DB
         pendingMessages: [],
         pendingResponses: [],
+        nudgeCount: 0,
         interviewId: 'existing-interview',
         templateId: 'test-template',
       };
@@ -430,6 +434,7 @@ describe('InterviewStateRepository - Missing Coverage Tests', () => {
         originalVersion: 1,
         pendingMessages: [],
         pendingResponses: [],
+        nudgeCount: 0,
         interviewId: 'existing-interview',
         templateId: 'test-template',
       };
