@@ -5,29 +5,26 @@
  * Prerequisites: PostgreSQL running + dialog_survey_test database
  * Run: npx vitest run tests/conversation-engine.integration.test.ts
  */
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { runInterviewGraph } from "../src/core/graph.js";
-import type { InterviewState } from "../src/core/types/index.js";
-import { InterviewStateRepository } from "../src/repositories/interview-state.repository.js";
-import { TestDatabase } from "./helpers/test-db.js";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { runInterviewGraph } from '../src/core/graph.js';
+import type { InterviewState } from '../src/core/types/index.js';
+import { InterviewStateRepository } from '../src/repositories/interview-state.repository.js';
+import { TestDatabase } from './helpers/test-db.js';
 
-vi.mock("../src/services/followup.service.js", () => ({
+vi.mock('../src/services/followup.service.js', () => ({
   generateSmartResponse: vi.fn(),
   polishFirstQuestion: vi.fn(),
   parseLLMResponse: vi.fn(),
   smartTruncate: vi.fn((text: string) => text),
-  FALLBACK_RESPONSE: "感谢您的回答，我们继续下一个话题。",
+  FALLBACK_RESPONSE: '感谢您的回答，我们继续下一个话题。',
 }));
 
-import {
-  generateSmartResponse,
-  polishFirstQuestion,
-} from "../src/services/followup.service.js";
+import { generateSmartResponse, polishFirstQuestion } from '../src/services/followup.service.js';
 
 const mockGenerateSmartResponse = generateSmartResponse as ReturnType<typeof vi.fn>;
 const mockPolishFirstQuestion = polishFirstQuestion as ReturnType<typeof vi.fn>;
 
-describe("ConversationEngine (Integration)", () => {
+describe('ConversationEngine (Integration)', () => {
   let testDb: TestDatabase;
   let repo: InterviewStateRepository;
   let createdIds: { templates: string[]; interviews: string[] };
@@ -56,33 +53,37 @@ describe("ConversationEngine (Integration)", () => {
   async function createTestTemplate(): Promise<string> {
     const template = await testDb.getPrisma().template.create({
       data: {
-        name: "集成测试模板",
+        name: '集成测试模板',
         content: JSON.stringify({
-          name: "集成测试模板",
-          description: "用于集成测试的模板",
-          invitationPrompt: "欢迎参加本次集成测试访谈！",
+          name: '集成测试模板',
+          description: '用于集成测试的模板',
+          invitationPrompt: '欢迎参加本次集成测试访谈！',
           questions: [
-            "请简单介绍一下您的工作经历？",
-            "您在工作中遇到过最大的挑战是什么？",
-            "您是如何解决这个挑战的？",
+            '请简单介绍一下您的工作经历？',
+            '您在工作中遇到过最大的挑战是什么？',
+            '您是如何解决这个挑战的？',
           ],
-          closingMessage: "感谢您的参与，访谈到此结束！",
+          closingMessage: '感谢您的参与，访谈到此结束！',
         }),
-        status: "PUBLISHED",
-        createdBy: "test-admin",
-        updatedBy: "test-admin",
+        status: 'PUBLISHED',
+        createdBy: 'test-admin',
+        updatedBy: 'test-admin',
       },
     });
     createdIds.templates.push(template.id);
     return template.id;
   }
 
-  function createPendingState(userId: string, interviewId: string, templateId: string): InterviewState {
+  function createPendingState(
+    userId: string,
+    interviewId: string,
+    templateId: string
+  ): InterviewState {
     return {
       userId,
       interviewId,
       templateId,
-      status: "PENDING",
+      status: 'PENDING',
       messages: [],
       currentQuestion: 0,
       followupCount: 0,
@@ -97,12 +98,12 @@ describe("ConversationEngine (Integration)", () => {
     };
   }
 
-  describe("Full interview lifecycle", () => {
-    it("should complete PENDING → ACTIVE → COMPLETED via all questions", async () => {
+  describe('Full interview lifecycle', () => {
+    it('should complete PENDING → ACTIVE → COMPLETED via all questions', async () => {
       const templateId = await createTestTemplate();
-      const userId = "lifecycle-user-001";
+      const userId = 'lifecycle-user-001';
 
-      mockPolishFirstQuestion.mockResolvedValue("请简单介绍一下您的工作经历？");
+      mockPolishFirstQuestion.mockResolvedValue('请简单介绍一下您的工作经历？');
 
       // Step 1: Create interview
       const interviewId = await repo.createInterview(userId, templateId);
@@ -110,22 +111,26 @@ describe("ConversationEngine (Integration)", () => {
 
       // Step 2: Process PENDING → planningNode → ACTIVE
       const pendingState = createPendingState(userId, interviewId, templateId);
-      const result1 = await runInterviewGraph(pendingState, {
-        userId,
-        content: "",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const result1 = await runInterviewGraph(
+        pendingState,
+        {
+          userId,
+          content: '',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
-      expect(result1.response).toContain("欢迎");
-      expect(result1.nextState.status).toBe("ACTIVE");
+      expect(result1.response).toContain('欢迎');
+      expect(result1.nextState.status).toBe('ACTIVE');
       expect(result1.nextState.currentQuestion).toBe(0);
       expect(result1.nextState.messages.length).toBe(1);
-      expect(result1.nextState.messages[0].role).toBe("assistant");
+      expect(result1.nextState.messages[0].role).toBe('assistant');
 
       // Step 3: Answer Q1 → interviewingNode → advances to Q2
       mockGenerateSmartResponse.mockResolvedValue({
-        response: "感谢您的分享，非常有意思。",
-        action: "NEXT",
+        response: '感谢您的分享，非常有意思。',
+        action: 'NEXT',
         shouldProceedToNext: true,
         shouldEndInterview: false,
       });
@@ -136,22 +141,26 @@ describe("ConversationEngine (Integration)", () => {
         pendingMessages: [],
         pendingResponses: [],
       };
-      const result2 = await runInterviewGraph(stateAfterQ1, {
-        userId,
-        content: "我有5年软件开发经验",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const result2 = await runInterviewGraph(
+        stateAfterQ1,
+        {
+          userId,
+          content: '我有5年软件开发经验',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
       expect(result2.nextState.responses.length).toBe(1);
-      expect(result2.nextState.responses[0].questionId).toBe("q0");
+      expect(result2.nextState.responses[0].questionId).toBe('q0');
       expect(result2.nextState.currentQuestion).toBe(1);
-      expect(result2.nextState.status).toBe("ACTIVE");
-      expect(result2.response).toContain("感谢");
+      expect(result2.nextState.status).toBe('ACTIVE');
+      expect(result2.response).toContain('感谢');
 
       // Step 4: Answer Q2 → should continue to Q3
       mockGenerateSmartResponse.mockResolvedValue({
-        response: "很好的分享。",
-        action: "NEXT",
+        response: '很好的分享。',
+        action: 'NEXT',
         shouldProceedToNext: true,
         shouldEndInterview: false,
       });
@@ -162,20 +171,24 @@ describe("ConversationEngine (Integration)", () => {
         pendingMessages: [],
         pendingResponses: [],
       };
-      const result3 = await runInterviewGraph(stateAfterQ2, {
-        userId,
-        content: "最大的挑战是跨团队协作",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const result3 = await runInterviewGraph(
+        stateAfterQ2,
+        {
+          userId,
+          content: '最大的挑战是跨团队协作',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
       expect(result3.nextState.responses.length).toBe(2);
       expect(result3.nextState.currentQuestion).toBe(2);
-      expect(result3.nextState.status).toBe("ACTIVE");
+      expect(result3.nextState.status).toBe('ACTIVE');
 
       // Step 5: Answer Q3 (last question) → COMPLETED
       mockGenerateSmartResponse.mockResolvedValue({
-        response: "非常感谢您的分享，总结得很好。",
-        action: "NEXT",
+        response: '非常感谢您的分享，总结得很好。',
+        action: 'NEXT',
         shouldProceedToNext: true,
         shouldEndInterview: false,
       });
@@ -186,56 +199,64 @@ describe("ConversationEngine (Integration)", () => {
         pendingMessages: [],
         pendingResponses: [],
       };
-      const result4 = await runInterviewGraph(stateAfterQ3, {
-        userId,
-        content: "我通过沟通和建立信任解决了这个问题",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const result4 = await runInterviewGraph(
+        stateAfterQ3,
+        {
+          userId,
+          content: '我通过沟通和建立信任解决了这个问题',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
-      expect(result4.nextState.status).toBe("COMPLETED");
+      expect(result4.nextState.status).toBe('COMPLETED');
       const finalState = result4.nextState as InterviewState & { shouldContinue?: boolean };
       expect(finalState.shouldContinue).toBe(false);
-      expect(result4.response).toContain("感谢");
+      expect(result4.response).toContain('感谢');
 
       // Verify final state via direct save and DB read
       await repo.saveFullState(interviewId, result4.nextState);
       const dbInterview = await testDb.getPrisma().interview.findUnique({
         where: { id: interviewId },
         include: {
-          messages: { orderBy: { createdAt: "asc" } },
-          responses: { orderBy: { createdAt: "asc" } },
+          messages: { orderBy: { createdAt: 'asc' } },
+          responses: { orderBy: { createdAt: 'asc' } },
         },
       });
-      expect(dbInterview?.status).toBe("COMPLETED");
+      expect(dbInterview?.status).toBe('COMPLETED');
       expect(dbInterview?.currentQuestion).toBe(3);
     });
   });
 
-  describe("User response handling", () => {
-    it("should record user response and advance to next question", async () => {
+  describe('User response handling', () => {
+    it('should record user response and advance to next question', async () => {
       const templateId = await createTestTemplate();
-      const userId = "response-user-001";
+      const userId = 'response-user-001';
 
-      mockPolishFirstQuestion.mockResolvedValue("请简单介绍一下您的工作经历？");
+      mockPolishFirstQuestion.mockResolvedValue('请简单介绍一下您的工作经历？');
 
       const interviewId = await repo.createInterview(userId, templateId);
       createdIds.interviews.push(interviewId);
 
       // Initialize via PENDING
       const pendingState = createPendingState(userId, interviewId, templateId);
-      const initResult = await runInterviewGraph(pendingState, {
-        userId,
-        content: "",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const initResult = await runInterviewGraph(
+        pendingState,
+        {
+          userId,
+          content: '',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
       // Save initial state so version lines up for subsequent saves
       await repo.saveFullState(interviewId, initResult.nextState);
 
       // User responds to Q1
       mockGenerateSmartResponse.mockResolvedValue({
-        response: "谢谢您的回答，我们来看下一个问题。",
-        action: "NEXT",
+        response: '谢谢您的回答，我们来看下一个问题。',
+        action: 'NEXT',
         shouldProceedToNext: true,
         shouldEndInterview: false,
       });
@@ -244,7 +265,7 @@ describe("ConversationEngine (Integration)", () => {
         userId,
         interviewId,
         templateId,
-        status: "ACTIVE",
+        status: 'ACTIVE',
         messages: initResult.nextState.messages,
         currentQuestion: 0,
         followupCount: 0,
@@ -258,44 +279,52 @@ describe("ConversationEngine (Integration)", () => {
         pendingResponses: [],
       };
 
-      const result = await runInterviewGraph(activeState, {
-        userId,
-        content: "我是全栈工程师，工作了3年",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const result = await runInterviewGraph(
+        activeState,
+        {
+          userId,
+          content: '我是全栈工程师，工作了3年',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
       expect(result.nextState.responses.length).toBe(1);
       expect(result.nextState.responses[0]).toEqual({
-        questionId: "q0",
-        content: "我是全栈工程师，工作了3年",
+        questionId: 'q0',
+        content: '我是全栈工程师，工作了3年',
         isFollowup: false,
       });
       expect(result.nextState.currentQuestion).toBe(1);
       expect(result.nextState.followupCount).toBe(0);
     });
 
-    it("should increment followupCount on FOLLOWUP action", async () => {
+    it('should increment followupCount on FOLLOWUP action', async () => {
       const templateId = await createTestTemplate();
-      const userId = "followup-user-001";
+      const userId = 'followup-user-001';
 
-      mockPolishFirstQuestion.mockResolvedValue("请简单介绍一下您的工作经历？");
+      mockPolishFirstQuestion.mockResolvedValue('请简单介绍一下您的工作经历？');
 
       const interviewId = await repo.createInterview(userId, templateId);
       createdIds.interviews.push(interviewId);
 
       const pendingState = createPendingState(userId, interviewId, templateId);
-      const initResult = await runInterviewGraph(pendingState, {
-        userId,
-        content: "",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const initResult = await runInterviewGraph(
+        pendingState,
+        {
+          userId,
+          content: '',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
       await repo.saveFullState(interviewId, initResult.nextState);
 
       // LLM decides to ask a follow-up
       mockGenerateSmartResponse.mockResolvedValue({
-        response: "能再详细说说吗？",
-        action: "FOLLOWUP",
+        response: '能再详细说说吗？',
+        action: 'FOLLOWUP',
         shouldProceedToNext: false,
         shouldEndInterview: false,
       });
@@ -304,7 +333,7 @@ describe("ConversationEngine (Integration)", () => {
         userId,
         interviewId,
         templateId,
-        status: "ACTIVE",
+        status: 'ACTIVE',
         messages: initResult.nextState.messages,
         currentQuestion: 0,
         followupCount: 0,
@@ -318,11 +347,15 @@ describe("ConversationEngine (Integration)", () => {
         pendingResponses: [],
       };
 
-      const result = await runInterviewGraph(activeState, {
-        userId,
-        content: "我做了很多项目",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const result = await runInterviewGraph(
+        activeState,
+        {
+          userId,
+          content: '我做了很多项目',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
       expect(result.nextState.followupCount).toBe(1);
       expect(result.nextState.currentQuestion).toBe(0);
@@ -331,29 +364,33 @@ describe("ConversationEngine (Integration)", () => {
     });
   });
 
-  describe("Template-based interview flow", () => {
-    it("should load template questions correctly and use them in the flow", async () => {
+  describe('Template-based interview flow', () => {
+    it('should load template questions correctly and use them in the flow', async () => {
       const templateId = await createTestTemplate();
-      const userId = "template-user-001";
+      const userId = 'template-user-001';
 
-      mockPolishFirstQuestion.mockResolvedValue("请简单介绍一下您的工作经历？");
+      mockPolishFirstQuestion.mockResolvedValue('请简单介绍一下您的工作经历？');
 
       const interviewId = await repo.createInterview(userId, templateId);
       createdIds.interviews.push(interviewId);
 
       // PENDING → ACTIVE (planning node loads template)
       const pendingState = createPendingState(userId, interviewId, templateId);
-      const result = await runInterviewGraph(pendingState, {
-        userId,
-        content: "",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const result = await runInterviewGraph(
+        pendingState,
+        {
+          userId,
+          content: '',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
-      expect(result.nextState.status).toBe("ACTIVE");
+      expect(result.nextState.status).toBe('ACTIVE');
       // The greeting should contain the template's invitation
-      expect(result.response).toContain("集成测试");
+      expect(result.response).toContain('集成测试');
       // The first question should be from the template
-      expect(result.response).toContain("工作经历");
+      expect(result.response).toContain('工作经历');
 
       // Verify DB has correct template linkage
       const dbInterview = await testDb.getPrisma().interview.findUnique({
@@ -361,14 +398,14 @@ describe("ConversationEngine (Integration)", () => {
         include: { template: true },
       });
       expect(dbInterview?.templateId).toBe(templateId);
-      expect(dbInterview?.template.name).toBe("集成测试模板");
+      expect(dbInterview?.template.name).toBe('集成测试模板');
     });
 
-    it("should not load template content when prisma is not provided", async () => {
+    it('should not load template content when prisma is not provided', async () => {
       const templateId = await createTestTemplate();
-      const userId = "no-prisma-user-001";
+      const userId = 'no-prisma-user-001';
 
-      mockPolishFirstQuestion.mockResolvedValue("请简单介绍一下您的工作经历？");
+      mockPolishFirstQuestion.mockResolvedValue('请简单介绍一下您的工作经历？');
 
       const interviewId = await repo.createInterview(userId, templateId);
       createdIds.interviews.push(interviewId);
@@ -377,19 +414,19 @@ describe("ConversationEngine (Integration)", () => {
       const pendingState = createPendingState(userId, interviewId, templateId);
       const result = await runInterviewGraph(pendingState, {
         userId,
-        content: "",
+        content: '',
         isVoice: false,
       });
 
       // Falls back to default template, NOT the DB template content
-      expect(result.response).toContain("欢迎");
+      expect(result.response).toContain('欢迎');
     });
   });
 
-  describe("State machine guard conditions", () => {
-    it("should skip non-active states and return closing message", async () => {
+  describe('State machine guard conditions', () => {
+    it('should skip non-active states and return closing message', async () => {
       const templateId = await createTestTemplate();
-      const userId = "guard-user-001";
+      const userId = 'guard-user-001';
 
       const interviewId = await repo.createInterview(userId, templateId);
       createdIds.interviews.push(interviewId);
@@ -399,7 +436,7 @@ describe("ConversationEngine (Integration)", () => {
         userId,
         interviewId,
         templateId,
-        status: "COMPLETED",
+        status: 'COMPLETED',
         messages: [],
         currentQuestion: 3,
         followupCount: 0,
@@ -415,19 +452,19 @@ describe("ConversationEngine (Integration)", () => {
 
       const result = await runInterviewGraph(completedState, {
         userId,
-        content: "我再补充一句",
+        content: '我再补充一句',
         isVoice: false,
       });
 
-      expect(result.response).toContain("访谈已结束");
-      expect(result.nextState.status).toBe("COMPLETED");
+      expect(result.response).toContain('访谈已结束');
+      expect(result.nextState.status).toBe('COMPLETED');
       // Should NOT have called generateSmartResponse
       expect(mockGenerateSmartResponse).not.toHaveBeenCalled();
     });
 
-    it("should handle CANCELLED state gracefully", async () => {
+    it('should handle CANCELLED state gracefully', async () => {
       const templateId = await createTestTemplate();
-      const userId = "cancelled-user-001";
+      const userId = 'cancelled-user-001';
 
       const interviewId = await repo.createInterview(userId, templateId);
       createdIds.interviews.push(interviewId);
@@ -436,7 +473,7 @@ describe("ConversationEngine (Integration)", () => {
         userId,
         interviewId,
         templateId,
-        status: "CANCELLED",
+        status: 'CANCELLED',
         messages: [],
         currentQuestion: 0,
         followupCount: 0,
@@ -452,44 +489,52 @@ describe("ConversationEngine (Integration)", () => {
 
       const result = await runInterviewGraph(cancelledState, {
         userId,
-        content: "我还能回答吗？",
+        content: '我还能回答吗？',
         isVoice: false,
       });
 
-      expect(result.response).toContain("访谈已结束");
-      expect(result.nextState.status).toBe("CANCELLED");
+      expect(result.response).toContain('访谈已结束');
+      expect(result.nextState.status).toBe('CANCELLED');
     });
   });
 
-  describe("Multiple interview isolation", () => {
-    it("should keep two concurrent interviews independent", async () => {
+  describe('Multiple interview isolation', () => {
+    it('should keep two concurrent interviews independent', async () => {
       const templateId = await createTestTemplate();
 
-      mockPolishFirstQuestion.mockResolvedValue("请简单介绍一下您的工作经历？");
+      mockPolishFirstQuestion.mockResolvedValue('请简单介绍一下您的工作经历？');
 
       // User A
-      const userIdA = "isolation-user-A";
+      const userIdA = 'isolation-user-A';
       const interviewIdA = await repo.createInterview(userIdA, templateId);
       createdIds.interviews.push(interviewIdA);
 
       const pendingA = createPendingState(userIdA, interviewIdA, templateId);
-      const resultA = await runInterviewGraph(pendingA, {
-        userId: userIdA,
-        content: "",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const resultA = await runInterviewGraph(
+        pendingA,
+        {
+          userId: userIdA,
+          content: '',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
       // User B
-      const userIdB = "isolation-user-B";
+      const userIdB = 'isolation-user-B';
       const interviewIdB = await repo.createInterview(userIdB, templateId);
       createdIds.interviews.push(interviewIdB);
 
       const pendingB = createPendingState(userIdB, interviewIdB, templateId);
-      const resultB = await runInterviewGraph(pendingB, {
-        userId: userIdB,
-        content: "",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const resultB = await runInterviewGraph(
+        pendingB,
+        {
+          userId: userIdB,
+          content: '',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
       expect(resultA.nextState.interviewId).toBe(interviewIdA);
       expect(resultB.nextState.interviewId).toBe(interviewIdB);
@@ -499,8 +544,8 @@ describe("ConversationEngine (Integration)", () => {
       await repo.saveFullState(interviewIdA, resultA.nextState);
 
       mockGenerateSmartResponse.mockResolvedValue({
-        response: "谢谢！",
-        action: "NEXT",
+        response: '谢谢！',
+        action: 'NEXT',
         shouldProceedToNext: true,
         shouldEndInterview: false,
       });
@@ -509,7 +554,7 @@ describe("ConversationEngine (Integration)", () => {
         userId: userIdA,
         interviewId: interviewIdA,
         templateId,
-        status: "ACTIVE",
+        status: 'ACTIVE',
         messages: resultA.nextState.messages,
         currentQuestion: 0,
         followupCount: 0,
@@ -523,11 +568,15 @@ describe("ConversationEngine (Integration)", () => {
         pendingResponses: [],
       };
 
-      const advancedA = await runInterviewGraph(stateA, {
-        userId: userIdA,
-        content: "User A response",
-        isVoice: false,
-      }, testDb.getPrisma());
+      const advancedA = await runInterviewGraph(
+        stateA,
+        {
+          userId: userIdA,
+          content: 'User A response',
+          isVoice: false,
+        },
+        testDb.getPrisma()
+      );
 
       expect(advancedA.nextState.currentQuestion).toBe(1);
 

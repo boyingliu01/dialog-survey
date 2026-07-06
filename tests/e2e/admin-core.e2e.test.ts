@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { type Browser, type BrowserContext, type Page, chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createE2EServer } from './helpers/e2e-server.js';
 
@@ -32,7 +32,9 @@ describe('Admin Core Paths (Playwright E2E)', () => {
     await context.close();
     await browser.close();
 
-    const server = (globalThis as Record<string, unknown>).__E2E_SERVER as Awaited<ReturnType<typeof createE2EServer>>;
+    const server = (globalThis as Record<string, unknown>).__E2E_SERVER as Awaited<
+      ReturnType<typeof createE2EServer>
+    >;
     if (server) {
       await server.teardown();
     }
@@ -155,9 +157,7 @@ describe('Admin Core Paths (Playwright E2E)', () => {
       await page.waitForTimeout(1000);
 
       // No Alpine CDN load failures
-      const alpineErrors = consoleErrors.filter(
-        (e) => e.includes('alpine') || e.includes('cdn')
-      );
+      const alpineErrors = consoleErrors.filter((e) => e.includes('alpine') || e.includes('cdn'));
       expect(alpineErrors).toHaveLength(0);
 
       // Page structure is functional: sidebar exists

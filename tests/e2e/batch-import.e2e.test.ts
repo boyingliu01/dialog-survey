@@ -21,17 +21,31 @@ describe('Batch Import (E2E)', () => {
     if (Object.keys(cleanupIds).some((k) => cleanupIds[k as keyof typeof cleanupIds]?.length)) {
       const ids = { ...cleanupIds };
       if (ids.interviews?.length) {
-        await server.prisma.analysisReport.deleteMany({ where: { interviewId: { in: ids.interviews } } }).catch(() => {});
-        await server.prisma.analysisFailure.deleteMany({ where: { interviewId: { in: ids.interviews } } }).catch(() => {});
-        await server.prisma.response.deleteMany({ where: { interviewId: { in: ids.interviews } } }).catch(() => {});
-        await server.prisma.message.deleteMany({ where: { interviewId: { in: ids.interviews } } }).catch(() => {});
-        await server.prisma.interview.deleteMany({ where: { id: { in: ids.interviews } } }).catch(() => {});
+        await server.prisma.analysisReport
+          .deleteMany({ where: { interviewId: { in: ids.interviews } } })
+          .catch(() => {});
+        await server.prisma.analysisFailure
+          .deleteMany({ where: { interviewId: { in: ids.interviews } } })
+          .catch(() => {});
+        await server.prisma.response
+          .deleteMany({ where: { interviewId: { in: ids.interviews } } })
+          .catch(() => {});
+        await server.prisma.message
+          .deleteMany({ where: { interviewId: { in: ids.interviews } } })
+          .catch(() => {});
+        await server.prisma.interview
+          .deleteMany({ where: { id: { in: ids.interviews } } })
+          .catch(() => {});
       }
       if (ids.interviewPlans?.length) {
-        await server.prisma.interviewPlan.deleteMany({ where: { id: { in: ids.interviewPlans } } }).catch(() => {});
+        await server.prisma.interviewPlan
+          .deleteMany({ where: { id: { in: ids.interviewPlans } } })
+          .catch(() => {});
       }
       if (ids.templates?.length) {
-        await server.prisma.template.deleteMany({ where: { id: { in: ids.templates } } }).catch(() => {});
+        await server.prisma.template
+          .deleteMany({ where: { id: { in: ids.templates } } })
+          .catch(() => {});
       }
     }
   });
@@ -97,7 +111,11 @@ describe('Batch Import (E2E)', () => {
     const template = await prisma.template.create({
       data: {
         name: '导入流程测试模板',
-        content: JSON.stringify({ name: '导入流程测试', invitationPrompt: '欢迎！', questions: ['请介绍您的工作'] }),
+        content: JSON.stringify({
+          name: '导入流程测试',
+          invitationPrompt: '欢迎！',
+          questions: ['请介绍您的工作'],
+        }),
         status: 'PUBLISHED',
       },
     });
@@ -116,7 +134,12 @@ describe('Batch Import (E2E)', () => {
     await prisma.$transaction(async (tx) => {
       for (const invitee of invitees) {
         await tx.interview.create({
-          data: { userId: invitee.userId, templateId: template.id, planId: plan.id, status: 'PENDING' },
+          data: {
+            userId: invitee.userId,
+            templateId: template.id,
+            planId: plan.id,
+            status: 'PENDING',
+          },
         });
       }
       await tx.interviewPlan.update({

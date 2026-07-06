@@ -1,10 +1,10 @@
 import type { PrismaClient } from '@prisma/client';
-import { processStreamMessage } from '../../../src/services/stream-message.service.js';
 import type { StreamMessage } from '../../../src/services/stream-message-utils.js';
+import { processStreamMessage } from '../../../src/services/stream-message.service.js';
 
 const USER_MAP: Record<string, { name: string; mobile: string }> = {
-  'user_zhangsan': { name: '张三', mobile: '13800138000' },
-  'user_lisi': { name: '李四', mobile: '13900139000' },
+  user_zhangsan: { name: '张三', mobile: '13800138000' },
+  user_lisi: { name: '李四', mobile: '13900139000' },
 };
 
 export class MockDingTalk {
@@ -29,7 +29,7 @@ export class MockDingTalk {
     prisma: PrismaClient,
     userId: string,
     content: string,
-    sessionWebhook?: string,
+    sessionWebhook?: string
   ): Promise<{ success: boolean; response?: string; error?: string }> {
     const messageId = `msg-e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 

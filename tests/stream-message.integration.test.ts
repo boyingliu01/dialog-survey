@@ -254,9 +254,7 @@ describe('InterviewStateRepository (Integration)', () => {
         pendingResponses: [],
       };
 
-      await expect(
-        repo.saveState({ interviewId, state, version: 5 })
-      ).rejects.toThrow();
+      await expect(repo.saveState({ interviewId, state, version: 5 })).rejects.toThrow();
     });
   });
 

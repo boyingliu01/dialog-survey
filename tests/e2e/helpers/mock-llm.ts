@@ -19,7 +19,10 @@ export interface SmartResponseResult {
 
 export class MockLLMQueue {
   private queue: QueuedResponse[] = [];
-  private defaultResponse: QueuedResponse = { action: 'NEXT', response: '谢谢您的回答，我们继续。' };
+  private defaultResponse: QueuedResponse = {
+    action: 'NEXT',
+    response: '谢谢您的回答，我们继续。',
+  };
 
   enqueue(response: QueuedResponse) {
     this.queue.push(response);
@@ -30,7 +33,8 @@ export class MockLLMQueue {
   }
 
   dequeue(): SmartResponseResult {
-    const next = this.queue.length > 0 ? (this.queue.shift() ?? this.defaultResponse) : this.defaultResponse;
+    const next =
+      this.queue.length > 0 ? (this.queue.shift() ?? this.defaultResponse) : this.defaultResponse;
     return {
       action: next.action,
       response: next.response,

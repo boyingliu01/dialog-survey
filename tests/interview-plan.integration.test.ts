@@ -7,8 +7,7 @@
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { hashApiKey } from '../src/utils/security.js';
-import { TestDatabase } from './helpers/test-db.js';
-import { createTestServer, type TestServer } from './helpers/test-server.js';
+import { type TestServer, createTestServer } from './helpers/test-server.js';
 
 const TEST_API_KEY = 'test-api-key-for-integration';
 
@@ -123,11 +122,23 @@ describe('InterviewPlan API (Integration)', () => {
 
       // Create 2 plans
       const planA = await ctx.prisma.interviewPlan.create({
-        data: { name: '计划A', templateId, status: 'PENDING', createdBy: 'admin', updatedBy: 'admin' },
+        data: {
+          name: '计划A',
+          templateId,
+          status: 'PENDING',
+          createdBy: 'admin',
+          updatedBy: 'admin',
+        },
       });
       createdIds.interviewPlans.push(planA.id);
       const planB = await ctx.prisma.interviewPlan.create({
-        data: { name: '计划B', templateId, status: 'PENDING', createdBy: 'admin', updatedBy: 'admin' },
+        data: {
+          name: '计划B',
+          templateId,
+          status: 'PENDING',
+          createdBy: 'admin',
+          updatedBy: 'admin',
+        },
       });
       createdIds.interviewPlans.push(planB.id);
 
@@ -145,11 +156,23 @@ describe('InterviewPlan API (Integration)', () => {
 
     it('should filter plans by status', async () => {
       const pending = await ctx.prisma.interviewPlan.create({
-        data: { name: '待处理', templateId, status: 'PENDING', createdBy: 'admin', updatedBy: 'admin' },
+        data: {
+          name: '待处理',
+          templateId,
+          status: 'PENDING',
+          createdBy: 'admin',
+          updatedBy: 'admin',
+        },
       });
       createdIds.interviewPlans.push(pending.id);
       const running = await ctx.prisma.interviewPlan.create({
-        data: { name: '运行中', templateId, status: 'RUNNING', createdBy: 'admin', updatedBy: 'admin' },
+        data: {
+          name: '运行中',
+          templateId,
+          status: 'RUNNING',
+          createdBy: 'admin',
+          updatedBy: 'admin',
+        },
       });
       createdIds.interviewPlans.push(running.id);
 
@@ -169,7 +192,13 @@ describe('InterviewPlan API (Integration)', () => {
   describe('GET /api/plans/:id', () => {
     it('should return plan details with interviews', async () => {
       const plan = await ctx.prisma.interviewPlan.create({
-        data: { name: '详情测试', templateId, status: 'PENDING', createdBy: 'admin', updatedBy: 'admin' },
+        data: {
+          name: '详情测试',
+          templateId,
+          status: 'PENDING',
+          createdBy: 'admin',
+          updatedBy: 'admin',
+        },
       });
       createdIds.interviewPlans.push(plan.id);
 
@@ -200,7 +229,13 @@ describe('InterviewPlan API (Integration)', () => {
   describe('PUT /api/plans/:id', () => {
     it('should update plan name', async () => {
       const plan = await ctx.prisma.interviewPlan.create({
-        data: { name: '原始名称', templateId, status: 'PENDING', createdBy: 'admin', updatedBy: 'admin' },
+        data: {
+          name: '原始名称',
+          templateId,
+          status: 'PENDING',
+          createdBy: 'admin',
+          updatedBy: 'admin',
+        },
       });
       createdIds.interviewPlans.push(plan.id);
 
@@ -227,7 +262,13 @@ describe('InterviewPlan API (Integration)', () => {
   describe('POST /api/plans/:id/pause and resume', () => {
     it('should pause a running plan', async () => {
       const plan = await ctx.prisma.interviewPlan.create({
-        data: { name: '暂停测试', templateId, status: 'RUNNING', createdBy: 'admin', updatedBy: 'admin' },
+        data: {
+          name: '暂停测试',
+          templateId,
+          status: 'RUNNING',
+          createdBy: 'admin',
+          updatedBy: 'admin',
+        },
       });
       createdIds.interviewPlans.push(plan.id);
 
@@ -247,7 +288,13 @@ describe('InterviewPlan API (Integration)', () => {
 
     it('should resume a paused plan', async () => {
       const plan = await ctx.prisma.interviewPlan.create({
-        data: { name: '恢复测试', templateId, status: 'PAUSED', createdBy: 'admin', updatedBy: 'admin' },
+        data: {
+          name: '恢复测试',
+          templateId,
+          status: 'PAUSED',
+          createdBy: 'admin',
+          updatedBy: 'admin',
+        },
       });
       createdIds.interviewPlans.push(plan.id);
 

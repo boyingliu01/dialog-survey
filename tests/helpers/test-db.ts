@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
 import { execSync } from 'node:child_process';
+import { PrismaClient } from '@prisma/client';
 
 export class TestDatabase {
   private prisma: PrismaClient;
@@ -20,7 +20,7 @@ export class TestDatabase {
         stdio: 'pipe',
         env: { ...process.env, DATABASE_URL: this.databaseUrl },
       });
-    } catch (error) {
+    } catch (_error) {
       try {
         execSync('npx prisma db push --accept-data-loss', {
           stdio: 'pipe',
@@ -63,7 +63,9 @@ export class TestDatabase {
       await this.prisma.analysisFailure.deleteMany({ where: { id: { in: ids.analysisFailures } } });
     }
     if (ids.batchAnalysisReports?.length) {
-      await this.prisma.batchAnalysisReport.deleteMany({ where: { id: { in: ids.batchAnalysisReports } } });
+      await this.prisma.batchAnalysisReport.deleteMany({
+        where: { id: { in: ids.batchAnalysisReports } },
+      });
     }
     if (ids.interviews?.length) {
       await this.prisma.interview.deleteMany({ where: { id: { in: ids.interviews } } });
