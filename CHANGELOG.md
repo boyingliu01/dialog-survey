@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.7.4 - 2026-07-06
+
+- feat: add PR quality gates CI (6 gates: static-analysis, unit, integration, security, coverage, smoke)
+- feat: add Playwright E2E admin core tests (health, navigation, Templates CRUD, page rendering)
+- feat: add `npm run smoke` pre-acceptance command (~8s)
+- test: fix Zod validation tests — expect 400 instead of 500
+- test: add E2E test framework (helpers: e2e-server, mock-dingtalk, mock-llm)
+- style: apply Biome format to src/ and tests/
+- docs: update AGENTS.md with CI/E2E/smoke documentation
+- chore: update Biome config, package.json files field, enable test parallelism
+
 ## 1.7.3 - 2026-07-01
 
 - feat: 管理后台支持从 JSON 导入模板 (#136)
