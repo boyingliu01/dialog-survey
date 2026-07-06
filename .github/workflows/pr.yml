@@ -164,7 +164,9 @@ jobs:
 
   coverage:
     name: Coverage Check (80/80/70/80)
+    if: always()
     needs: [unit-tests, integration-tests]
+    # Run regardless of integration test failures (known pre-existing data residue issue)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
@@ -221,6 +223,7 @@ jobs:
 
   smoke:
     name: Smoke Test
+    if: always()
     needs: [static-analysis, unit-tests, integration-tests, security-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 5
