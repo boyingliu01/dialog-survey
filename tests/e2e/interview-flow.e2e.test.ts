@@ -1,8 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MockDingTalk } from './helpers/mock-dingtalk.js';
 import { createE2EServer } from './helpers/e2e-server.js';
+import { MockDingTalk } from './helpers/mock-dingtalk.js';
 import { MockLLMQueue } from './helpers/mock-llm.js';
-import type { StreamMessage } from '../../src/services/stream-message-utils.js';
 
 vi.mock('../../src/services/followup.service.js', () => ({
   generateSmartResponse: vi.fn(),
@@ -12,10 +11,7 @@ vi.mock('../../src/services/followup.service.js', () => ({
   FALLBACK_RESPONSE: '感谢您的回答，我们继续下一个话题。',
 }));
 
-import {
-  generateSmartResponse,
-  polishFirstQuestion,
-} from '../../src/services/followup.service.js';
+import { generateSmartResponse, polishFirstQuestion } from '../../src/services/followup.service.js';
 
 vi.mock('../../src/utils/logger.js', () => ({
   info: vi.fn(),
@@ -54,7 +50,9 @@ describe('Interview Flow (E2E)', () => {
     llmQueue = new MockLLMQueue();
     cleanupIds = {};
 
-    mockPolishFirstQuestion.mockResolvedValue('您好！欢迎参与测试访谈。请简单介绍一下您的工作经历？');
+    mockPolishFirstQuestion.mockResolvedValue(
+      '您好！欢迎参与测试访谈。请简单介绍一下您的工作经历？'
+    );
 
     mockGenerateSmartResponse.mockImplementation(() => {
       return Promise.resolve(llmQueue.dequeue());
@@ -64,21 +62,35 @@ describe('Interview Flow (E2E)', () => {
   afterEach(async () => {
     const ids = { ...cleanupIds };
     if (ids.responses?.length) {
-      await server.prisma.response.deleteMany({ where: { id: { in: ids.responses } } }).catch(() => {});
+      await server.prisma.response
+        .deleteMany({ where: { id: { in: ids.responses } } })
+        .catch(() => {});
     }
     if (ids.messages?.length) {
-      await server.prisma.message.deleteMany({ where: { id: { in: ids.messages } } }).catch(() => {});
+      await server.prisma.message
+        .deleteMany({ where: { id: { in: ids.messages } } })
+        .catch(() => {});
     }
     if (ids.interviews?.length) {
-      await server.prisma.analysisReport.deleteMany({ where: { interviewId: { in: ids.interviews } } }).catch(() => {});
-      await server.prisma.analysisFailure.deleteMany({ where: { interviewId: { in: ids.interviews } } }).catch(() => {});
-      await server.prisma.interview.deleteMany({ where: { id: { in: ids.interviews } } }).catch(() => {});
+      await server.prisma.analysisReport
+        .deleteMany({ where: { interviewId: { in: ids.interviews } } })
+        .catch(() => {});
+      await server.prisma.analysisFailure
+        .deleteMany({ where: { interviewId: { in: ids.interviews } } })
+        .catch(() => {});
+      await server.prisma.interview
+        .deleteMany({ where: { id: { in: ids.interviews } } })
+        .catch(() => {});
     }
     if (ids.interviewPlans?.length) {
-      await server.prisma.interviewPlan.deleteMany({ where: { id: { in: ids.interviewPlans } } }).catch(() => {});
+      await server.prisma.interviewPlan
+        .deleteMany({ where: { id: { in: ids.interviewPlans } } })
+        .catch(() => {});
     }
     if (ids.templates?.length) {
-      await server.prisma.template.deleteMany({ where: { id: { in: ids.templates } } }).catch(() => {});
+      await server.prisma.template
+        .deleteMany({ where: { id: { in: ids.templates } } })
+        .catch(() => {});
     }
   });
 
@@ -103,76 +115,105 @@ describe('Interview Flow (E2E)', () => {
     return template.id;
   }
 
-  it('should complete a full interview lifecycle: 3 questions, all NEXT', { timeout: 30000 }, async () => {
-    const templateId = await createPublishedTemplate([
-      '问题一：请介绍您的工作经历',
-      '问题二：您最大的成就是什么？',
-      '问题三：您未来的计划是什么？',
-    ]);
+  it(
+    'should complete a full interview lifecycle: 3 questions, all NEXT',
+    { timeout: 30000 },
+    async () => {
+      const _templateId = await createPublishedTemplate([
+        '问题一：请介绍您的工作经历',
+        '问题二：您最大的成就是什么？',
+        '问题三：您未来的计划是什么？',
+      ]);
 
-    // Queue responses: NEXT for Q1+Q2, END for Q3 to complete the interview
-    llmQueue.enqueue({ action: 'NEXT', response: '感谢您的分享，让我们继续。下一个问题：您最大的成就是什么？' });
-    llmQueue.enqueue({ action: 'NEXT', response: '非常棒的成就！最后一个问题：您未来的计划是什么？' });
-    llmQueue.enqueue({ action: 'END', response: '非常感谢您的分享，访谈到此结束！' });
+      // Queue responses: NEXT for Q1+Q2, END for Q3 to complete the interview
+      llmQueue.enqueue({
+        action: 'NEXT',
+        response: '感谢您的分享，让我们继续。下一个问题：您最大的成就是什么？',
+      });
+      llmQueue.enqueue({
+        action: 'NEXT',
+        response: '非常棒的成就！最后一个问题：您未来的计划是什么？',
+      });
+      llmQueue.enqueue({ action: 'END', response: '非常感谢您的分享，访谈到此结束！' });
 
-    const userId = 'user_zhangsan';
+      const userId = 'user_zhangsan';
 
-    // Step 1: First message starts a new interview (goes through planning node)
-    const result1 = await mockDingtalk.simulateUserMessage(server.prisma, userId, '你好');
-    expect(result1.success).toBe(true);
+      // Step 1: First message starts a new interview (goes through planning node)
+      const result1 = await mockDingtalk.simulateUserMessage(server.prisma, userId, '你好');
+      expect(result1.success).toBe(true);
 
-    // Find the created interview
-    const interview = await server.prisma.interview.findFirst({
-      where: { userId, status: { in: ['ACTIVE', 'PROCESSING', 'PENDING'] } },
-    });
-    expect(interview).toBeDefined();
-    const interviewId = interview?.id;
-    expect(interviewId).toBeDefined();
-    if (interviewId) {
-      cleanupIds.interviews = [...(cleanupIds.interviews || []), interviewId];
+      // Find the created interview — retry with backoff to handle async processing
+      let interview = await server.prisma.interview.findFirst({
+        where: { userId, status: { in: ['ACTIVE', 'PROCESSING', 'PENDING'] } },
+      });
+      if (!interview) {
+        // Give async processing up to 3s to create the interview record
+        for (let attempt = 0; attempt < 6; attempt++) {
+          await new Promise((r) => setTimeout(r, 500));
+          interview = await server.prisma.interview.findFirst({
+            where: { userId, status: { in: ['ACTIVE', 'PROCESSING', 'PENDING'] } },
+          });
+          if (interview) break;
+        }
+      }
+      expect(interview).toBeDefined();
+      const interviewId = interview?.id;
+      expect(interviewId).toBeDefined();
+      if (interviewId) {
+        cleanupIds.interviews = [...(cleanupIds.interviews || []), interviewId];
+      }
+
+      // Step 2: Answer first question
+      const result2 = await mockDingtalk.simulateUserMessage(
+        server.prisma,
+        userId,
+        '我有五年的工作经验'
+      );
+      expect(result2.success).toBe(true);
+
+      // Step 3: Answer second question
+      const result3 = await mockDingtalk.simulateUserMessage(
+        server.prisma,
+        userId,
+        '我的最大成就是完成了大项目'
+      );
+      expect(result3.success).toBe(true);
+
+      // Step 4: Answer third (last) question → triggers completion path
+      const result4 = await mockDingtalk.simulateUserMessage(
+        server.prisma,
+        userId,
+        '未来计划继续深造'
+      );
+      expect(result4.success).toBe(true);
+
+      // Verify all 3 messages were processed (async analysis will set COMPLETED)
+      if (interviewId) {
+        const interview = await server.prisma.interview.findUnique({
+          where: { id: interviewId },
+        });
+        expect(['ACTIVE', 'COMPLETED', 'PROCESSING']).toContain(interview?.status);
+
+        // Verify all 3 responses are recorded
+        const responses = await server.prisma.response.findMany({
+          where: { interviewId },
+        });
+        expect(responses.length).toBeGreaterThanOrEqual(3);
+
+        // Verify messages include both user and assistant
+        const messages = await server.prisma.message.findMany({
+          where: { interviewId },
+          orderBy: { createdAt: 'asc' },
+        });
+        expect(messages.length).toBeGreaterThanOrEqual(6);
+        expect(messages.some((m) => m.role === 'user')).toBe(true);
+        expect(messages.some((m) => m.role === 'assistant')).toBe(true);
+      }
     }
-
-    // Step 2: Answer first question
-    const result2 = await mockDingtalk.simulateUserMessage(server.prisma, userId, '我有五年的工作经验');
-    expect(result2.success).toBe(true);
-
-    // Step 3: Answer second question
-    const result3 = await mockDingtalk.simulateUserMessage(server.prisma, userId, '我的最大成就是完成了大项目');
-    expect(result3.success).toBe(true);
-
-    // Step 4: Answer third (last) question → triggers completion path
-    const result4 = await mockDingtalk.simulateUserMessage(server.prisma, userId, '未来计划继续深造');
-    expect(result4.success).toBe(true);
-
-    // Verify all 3 messages were processed (async analysis will set COMPLETED)
-    if (interviewId) {
-      const interview = await server.prisma.interview.findUnique({
-        where: { id: interviewId },
-      });
-      expect(['ACTIVE', 'COMPLETED', 'PROCESSING']).toContain(interview?.status);
-
-      // Verify all 3 responses are recorded
-      const responses = await server.prisma.response.findMany({
-        where: { interviewId },
-      });
-      expect(responses.length).toBeGreaterThanOrEqual(3);
-
-      // Verify messages include both user and assistant
-      const messages = await server.prisma.message.findMany({
-        where: { interviewId },
-        orderBy: { createdAt: 'asc' },
-      });
-      expect(messages.length).toBeGreaterThanOrEqual(6);
-      expect(messages.some((m) => m.role === 'user')).toBe(true);
-      expect(messages.some((m) => m.role === 'assistant')).toBe(true);
-    }
-  });
+  );
 
   it('should handle a new interview via processStreamMessage', { timeout: 30000 }, async () => {
-    await createPublishedTemplate([
-      '请描述您的工作',
-      '您喜欢您的工作吗？',
-    ]);
+    await createPublishedTemplate(['请描述您的工作', '您喜欢您的工作吗？']);
 
     llmQueue.enqueue({ action: 'NEXT', response: '了解了，下一个问题：您喜欢您的工作吗？' });
     llmQueue.enqueue({ action: 'NEXT', response: '非常好的分享，访谈到此结束！' });
@@ -192,20 +233,28 @@ describe('Interview Flow (E2E)', () => {
     expect(result2.success).toBe(true);
   });
 
-  it('should prevent restarting a completed interview within cooldown', { timeout: 30000 }, async () => {
-    await createPublishedTemplate(['问题：请介绍您的经历']);
+  it(
+    'should prevent restarting a completed interview within cooldown',
+    { timeout: 30000 },
+    async () => {
+      await createPublishedTemplate(['问题：请介绍您的经历']);
 
-    llmQueue.enqueue({ action: 'NEXT', response: '感谢分享！' });
+      llmQueue.enqueue({ action: 'NEXT', response: '感谢分享！' });
 
-    const userId = 'user_cooldown_e2e';
+      const userId = 'user_cooldown_e2e';
 
-    const result1 = await mockDingtalk.simulateUserMessage(server.prisma, userId, '我的经历很丰富');
-    expect(result1.success).toBe(true);
+      const result1 = await mockDingtalk.simulateUserMessage(
+        server.prisma,
+        userId,
+        '我的经历很丰富'
+      );
+      expect(result1.success).toBe(true);
 
-    // Cleanup
-    const interviews = await server.prisma.interview.findMany({ where: { userId } });
-    cleanupIds.interviews = [...(cleanupIds.interviews || []), ...interviews.map((i) => i.id)];
-  });
+      // Cleanup
+      const interviews = await server.prisma.interview.findMany({ where: { userId } });
+      cleanupIds.interviews = [...(cleanupIds.interviews || []), ...interviews.map((i) => i.id)];
+    }
+  );
 
   it('should prevent restarting a completed interview within cooldown', async () => {
     await createPublishedTemplate(['问题：请介绍您的经历']);

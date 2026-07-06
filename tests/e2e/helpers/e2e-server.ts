@@ -19,7 +19,8 @@ export async function createE2EServer(port = 0): Promise<E2EServer> {
   process.env['NODE_ENV'] = 'test';
   // Set dummy DingTalk env vars so DingTalkStreamClient.fromEnv() doesn't throw
   if (!process.env['DINGTALK_CLIENT_ID']) process.env['DINGTALK_CLIENT_ID'] = 'e2e-dummy-client-id';
-  if (!process.env['DINGTALK_CLIENT_SECRET']) process.env['DINGTALK_CLIENT_SECRET'] = 'e2e-dummy-client-secret';
+  if (!process.env['DINGTALK_CLIENT_SECRET'])
+    process.env['DINGTALK_CLIENT_SECRET'] = 'e2e-dummy-client-secret';
 
   const testDb = new TestDatabase();
   await testDb.setup();
@@ -31,9 +32,10 @@ export async function createE2EServer(port = 0): Promise<E2EServer> {
 
   await app.listen({ port, host: '127.0.0.1' });
   const address = app.server.address();
-  const baseUrl = typeof address === 'object' && address
-    ? `http://127.0.0.1:${address.port}`
-    : 'http://127.0.0.1:3001';
+  const baseUrl =
+    typeof address === 'object' && address
+      ? `http://127.0.0.1:${address.port}`
+      : 'http://127.0.0.1:3001';
 
   return {
     app,
