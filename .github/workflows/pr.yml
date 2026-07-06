@@ -195,6 +195,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install Playwright for PDF export tests
+        run: npx playwright install --with-deps chromium
+
       - name: Push Prisma schema
         run: npx prisma db push
         env:
