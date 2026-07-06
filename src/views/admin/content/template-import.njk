@@ -28,8 +28,20 @@
       </label>
       <textarea id="json" name="json" required rows="14"
                 class="block w-full text-sm rounded-md border border-gray-300 px-2 py-1.5 focus:border-indigo-500 focus:ring-indigo-500 resize-none font-mono"
-                placeholder='{"name": "模板名称", "description": "可选描述", "content": {"invitationPrompt": "...", "questions": ["问题1", "问题2"]}}'></textarea>
-      <p class="text-xs text-gray-400 mt-1">粘贴从导出接口获取的模板 JSON，或手动构建符合 TemplateContent 格式的 JSON</p>
+                placeholder='{
+  "name": "模板名称",
+  "description": "可选描述",
+  "content": {
+    "invitationPrompt": "邀约提示词",
+    "questions": ["问题1", "问题2"],
+    "closingMessage": "结束语（可选）",
+    "llmPromptTemplate": "AI提示词模板（可选）"
+  },
+  "dimensions": [
+    {"id": "dim1", "label": "维度1", "keywords": ["关键词1", "关键词2"]}
+  ]
+}'></textarea>
+      <p class="text-xs text-gray-400 mt-1">粘贴从导出接口获取的模板 JSON，或按上方格式构建。支持邀约提示词、问题列表、结束语、AI提示词模板和维度标签。</p>
     </div>
     <div class="flex justify-end gap-2 pt-1">
       <button type="submit" id="submit-btn"
