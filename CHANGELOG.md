@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.6 - 2026-07-06
+
+- fix: admin UI broken — Alpine.js CDN unreachable (jsdelivr ERR_CONNECTION_CLOSED)
+- fix: register @fastify/static for public/ so local JS assets serve correctly
+- fix: followup-branches test — add nextQuestion param to generateSmartResponse calls
+- e2e: add Static Assets test suite — verify local JS/CDN security
+
 ## 1.7.5 - 2026-07-06
 
 - fix: #131 — LLM NEXT transition now sees next question, generates natural transition

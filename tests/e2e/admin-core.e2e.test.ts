@@ -125,4 +125,44 @@ describe('Admin Core Paths (Playwright E2E)', () => {
       }
     });
   });
+
+  describe('Static Assets', () => {
+    it('should serve Alpine.js locally (no CDN dependency)', async () => {
+      const response = await page.request.get(`${baseUrl}/js/alpine.min.js`);
+      expect(response.status()).toBe(200);
+      const body = await response.body();
+      expect(body.length).toBeGreaterThan(50000);
+      expect(body[0]).toBe(40); // '(' — Alpine.js starts with IIFE wrapper
+    });
+
+    it('should serve HTMX locally (local fallback works)', async () => {
+      const response = await page.request.get(`${baseUrl}/js/htmx.min.js`);
+      expect(response.status()).toBe(200);
+      const body = await response.body();
+      expect(body.length).toBeGreaterThan(50000);
+    });
+
+    it('should render admin page with Alpine.js loaded (no CDN errors)', async () => {
+      // Collect console errors during page load
+      const consoleErrors: string[] = [];
+      page.on('console', (msg) => {
+        if (msg.type() === 'error') {
+          consoleErrors.push(msg.text());
+        }
+      });
+
+      await page.goto(`${baseUrl}/admin`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(1000);
+
+      // No Alpine CDN load failures
+      const alpineErrors = consoleErrors.filter(
+        (e) => e.includes('alpine') || e.includes('cdn')
+      );
+      expect(alpineErrors).toHaveLength(0);
+
+      // Page structure is functional: sidebar exists
+      const sidebarText = await page.textContent('aside');
+      expect(sidebarText).toBeTruthy();
+    });
+  });
 });
