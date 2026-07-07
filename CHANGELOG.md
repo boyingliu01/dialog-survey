@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.9 - 2026-07-07
+
+- fix: redact real DINGTALK_CLIENT_SECRET from .speckit/specify.md and DEPLOY.md
+- fix: replace sample placeholders with <YOUR_...> to reduce gitleaks noise
+- fix: flaky template-repository integration test (parallel DB race → use existence checks)
+- chore: delete stale .env.bak
+
 ## 1.7.8 - 2026-07-06
 
 - feat: unified tsconfig.json — single `npx tsc --noEmit` checks src/ + tests/
