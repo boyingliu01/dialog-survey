@@ -66,7 +66,10 @@ describe('Admin Core Paths (Playwright E2E)', () => {
       await gotoAdmin();
 
       await Promise.all([
-        page.waitForResponse((res) => res.url().includes('/admin/content/dashboard') && res.status() === 200, { timeout: 10000 }),
+        page.waitForResponse(
+          (res) => res.url().includes('/admin/content/dashboard') && res.status() === 200,
+          { timeout: 10000 }
+        ),
         page.click('button:has-text("进度仪表板")'),
       ]).catch((err) => {
         // If waitForResponse times out, check if the click actually happened
@@ -92,7 +95,9 @@ describe('Admin Core Paths (Playwright E2E)', () => {
 
       const newTemplateBtn = page.locator('button[title="新建模板"]');
       await Promise.all([
-        page.waitForResponse((res) => res.url().includes('/admin/content/templates/new') && res.status() === 200),
+        page.waitForResponse(
+          (res) => res.url().includes('/admin/content/templates/new') && res.status() === 200
+        ),
         newTemplateBtn.click(),
       ]);
 
@@ -105,7 +110,9 @@ describe('Admin Core Paths (Playwright E2E)', () => {
 
       const importBtn = page.locator('button[title="导入模板"]');
       await Promise.all([
-        page.waitForResponse((res) => res.url().includes('/admin/content/templates/import') && res.status() === 200),
+        page.waitForResponse(
+          (res) => res.url().includes('/admin/content/templates/import') && res.status() === 200
+        ),
         importBtn.click(),
       ]);
 

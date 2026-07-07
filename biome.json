@@ -27,15 +27,15 @@
         "useNamingConvention": {
           "level": "off"
         },
-        "useImportType": "off"
+        "useImportType": "error"
       },
       "complexity": {
-        "noForEach": "off",
+        "noForEach": "error",
         "useLiteralKeys": "off"
       },
       "correctness": {
         "noUnusedVariables": "warn",
-        "noUnusedImports": "warn"
+        "noUnusedImports": "error"
       }
     }
   },
@@ -62,7 +62,7 @@
       "linter": {
         "rules": {
           "suspicious": {
-            "noExplicitAny": "off"
+            "noExplicitAny": "warn"
           },
           "performance": {
             "noDelete": "off"

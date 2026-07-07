@@ -1,4 +1,4 @@
-import { PlanStatus, type PrismaClient } from '@prisma/client';
+import type { PlanStatus, PrismaClient } from '@prisma/client';
 import { parse } from 'csv-parse/sync';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -6,7 +6,7 @@ import { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { adminAuth } from '../middleware/admin-auth.js';
 import {
   InterviewNotFoundError,
-  InterviewPlanService,
+  type InterviewPlanService,
   InvalidMemberInputError,
   InvalidStateError,
   MemberConflictError,

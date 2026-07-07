@@ -1,4 +1,4 @@
-import { Message, PrismaClient } from '@prisma/client';
+import type { Message, PrismaClient } from '@prisma/client';
 
 export class MessageRepository {
   private prisma: PrismaClient;

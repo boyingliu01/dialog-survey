@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { info } from '../utils/logger.js';
 
 export class AuditCleanupService {

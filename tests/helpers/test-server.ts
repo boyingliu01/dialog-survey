@@ -4,7 +4,7 @@ import cors from '@fastify/cors';
 import fastifyFormbody from '@fastify/formbody';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyView from '@fastify/view';
-import { type PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import Fastify, { type FastifyInstance } from 'fastify';
 import nunjucks from 'nunjucks';
 

@@ -151,12 +151,12 @@ describe('InterviewRepository', () => {
       );
       expect(foundInterviews).toHaveLength(3);
 
-      foundInterviews.forEach((i) => {
+      for (const i of foundInterviews) {
         expect(i.id).toBeDefined();
         expect(i.userId).toBeDefined();
         expect(i.status).toBeDefined();
         expect(i.completedAt).toBeNull(); // Not completed yet
-      });
+      }
 
       // Clean up additional interviews
       await prisma.interview.deleteMany({
