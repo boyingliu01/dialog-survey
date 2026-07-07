@@ -111,6 +111,7 @@ describe('InterviewStateRepository', () => {
           status: 'ACTIVE',
           currentQuestion: 2,
           followupCount: 1,
+          maxFollowups: 2,
           version: { increment: 1 },
           messages: {
             deleteMany: { interviewId: 'interview-123' },

@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { runInterviewGraph } from '../core/graph.js';
 import type { GraphResult } from '../core/graph.js';
-import type { InterviewState } from '../core/types/index.js';
+import { DEFAULT_MAX_FOLLOWUPS, type InterviewState } from '../core/types/index.js';
 import { InterviewStateRepository } from '../repositories/interview-state.repository.js';
 import { TemplateRepository } from '../repositories/template.repository.js';
 import { error, info } from '../utils/logger.js';
@@ -158,7 +158,7 @@ export class StreamMessageService {
         messages: [],
         currentQuestion: 0,
         followupCount: 0,
-        maxFollowups: 2,
+        maxFollowups: DEFAULT_MAX_FOLLOWUPS,
         nudgeCount: 0,
         responses: [],
         reportGenerated: false,
@@ -230,6 +230,14 @@ export class StreamMessageService {
       prisma
     );
 
+    info('[DIAG] runInterviewGraph returned', {
+      userId: parsed.userId,
+      responsePreview: graphResult.response.substring(0, 60),
+      nextStateStatus: graphResult.nextState.status,
+      nextStateShouldContinue: (graphResult.nextState as unknown as Record<string, unknown>)['shouldContinue'],
+      nextStateCurrentQ: graphResult.nextState.currentQuestion,
+    });
+
     const nextState = graphResult.nextState;
     const existingCount = state.responses.length;
     const newResponses = nextState.responses.slice(existingCount);
@@ -244,10 +252,17 @@ export class StreamMessageService {
     // Preserve COMPLETED status from graph (don't overwrite when interview ends)
     if (nextState.status !== 'COMPLETED') {
       nextState.status = 'ACTIVE';
+    } else {
+      info('[DIAG] COMPLETED status preserved', { userId: parsed.userId });
     }
 
     try {
       await this.repo.saveFullState(state.interviewId as string, nextState);
+      info('[DIAG] saveFullState succeeded', {
+        userId: parsed.userId,
+        savedStatus: nextState.status,
+        newVersion: nextState.version,
+      });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';
       if (errorMsg.includes('Version conflict') && retryCount < MAX_RETRIES) {

@@ -20,6 +20,8 @@ export async function planningNode(
     greeting = `欢迎参加「${content.name}」访谈调查。\n\n${greeting}`;
   }
 
+  const fullMessage = `${greeting}\n\n${refinedFirstQuestion}`;
+
   return {
     status: 'ACTIVE',
     currentQuestion: 0,
@@ -27,11 +29,11 @@ export async function planningNode(
       ...state.messages,
       {
         role: 'assistant',
-        content: greeting,
+        content: fullMessage,
         timestamp: new Date(),
       },
     ],
-    response: `${greeting}\n\n${refinedFirstQuestion}`,
+    response: fullMessage,
     shouldContinue: true,
   };
 }

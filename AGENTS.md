@@ -253,6 +253,34 @@ npx vitest --run                        # 确认数据库可连接后再跑
 
 **判定规则**: `PrismaClientInitializationError` 或 `ECONNREFUSED` → 先查数据库，不盲目改代码。
 
+### 复现 Bug: 重启服务前必须先清理旧进程（CRITICAL — 反复踩坑）
+
+`tsx --watch` 的多进程残留会导致热更新互相干扰，表现为页面样式失效、元素巨大、布局错乱。
+**这不是代码问题，是进程污染。** 遇到此类界面问题，第一反应不是查代码，而是查进程。
+
+```bash
+# 1) 查端口占用
+fuser 3001/tcp  # 3001 是默认端口，视 .env 中 PORT 而定
+fuser 3002/tcp
+
+# 2) 有残留进程则先杀死
+fuser -k 3001/tcp
+fuser -k 3002/tcp
+
+# 3) 确认无残留
+ps aux | grep 'src/server.ts' | grep -v grep || echo "clean"
+
+# 4) 再启动
+npm run dev
+```
+
+**判断流程：**
+1. 页面样式失效 / 元素巨大 / 布局错乱 → **先查端口占用**，不要怀疑代码
+2. `fuser` 有输出 → 杀掉旧进程再重启
+3. `fuser` 无输出 → 才是代码或依赖问题
+
+**何时最易触发：** 多次 `Ctrl+C` 后马上重新 `npm run dev`，或多个终端/会话同时运行了 `npm run dev`。
+
 ### Commands
 
 | Command                 | Purpose                             |
@@ -530,11 +558,39 @@ llm-clustering → integrations/llm/base.ts
 3. Test Prisma via `/health` endpoint
 4. Check DingTalk webhook signature
 
+### API 类 Bug 排查原则（Register: 2026-07-07）
+
+前端 API 报错类 bug（"操作成功但实际没生效"）的最快排查路径：
+
+1. **先 curl 隔离后端**：用 curl 模拟相同输入，确认后端返回的状态码和 body 是否正确。后端正确 → 问题在前端
+2. **再读前端代码**：直接看 API 调用处的错误处理逻辑，省去所有猜测
+3. **不依赖假设**：对第三方库（htmx.ajax、fetch 等）的 Promise 返回值不熟悉时，第一时间 `console.log` 看真实值，不要假设 `.then()` 参数的结构
+4. **最小化验证**：修复后只测变动的代码路径。不要每次全流程浏览器点一遍——curl 确认后端行为不变 + 看一眼模板逻辑正确即可
+5. **前后端隔离**：浏览器验证的每轮成本很高（导航、等待、ref 失效）。能用 curl 确认的绝不用浏览器
+
+常见陷阱：htmx.ajax() 的 Promise 在非 2xx 响应时仍然触发 `.then()` 而非 `.catch()`，且 `.then()` 参数并非标准 XHR 对象（实际为 `undefined`）。
+
 ---
 
 ## 人工验收效率原则（2026-05-24 生效）
 
 AI 自动化所有能自动化的，用户只确认意图。AI 必须预先完成：DB 启动、服务启动、curl 验证、类型检查、lint。缺工具时只列一次操作清单。
+
+### 验收前自测要求（2026-07-07 更新）
+
+**在请求用户进行人工验收之前，AI 必须先使用 `/browse` 或 `/qa` 模拟端到端验收测试，确保基本功能正常。**
+
+**强制检查清单：**
+1. 清理残留进程（见上方"复现 Bug"节）→ 启动一个干净服务
+2. 用 `/browse` 打开管理后台首页 → 截图确认页面渲染正常（无样式失效/元素巨大）
+3. 用 `/browse` 检查 F12 Console → 确认无 JS 报错
+4. 关键页面各点一次（模板列表、计划列表、分析报告）→ 确认 HTMX 加载正常
+5. 确认后才告知用户"可以验收"
+
+**无需用户帮忙截图的场景：**
+- 页面显示异常（样式丢失、布局错乱）→ 先怀疑进程残留，不要怀疑代码
+- F12 报错 → 用 browse 的 `page_evaluate` 自己捕获，不要等用户截图
+- 功能不响应 → 先怀疑服务挂了，curl /health 确认
 
 ## Karpathy 工程原则
 

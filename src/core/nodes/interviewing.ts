@@ -39,24 +39,22 @@ function routeAction(
     action = 'NEXT';
   }
 
-  // Rule 2: END / shouldEndInterview
+  // Rule 2: END / shouldEndInterview — always complete the interview
   if (action === 'END' || action === 'shouldEndInterview') {
     if (currentQ < totalQuestions - 1) {
-      warn('LLM tried to END prematurely — forcing NEXT', {
+      warn('User requested to end interview early (current question not last)', {
         currentQ,
         totalQuestions,
         remainingQuestions: totalQuestions - currentQ - 1,
       });
-      action = 'NEXT';
-    } else {
-      return {
-        followupCount: 0,
-        currentQuestion: currentQ,
-        shouldContinue: false,
-        status: 'COMPLETED',
-        response: `${smartResponse}\n\n${closing}`,
-      };
     }
+    return {
+      followupCount: 0,
+      currentQuestion: currentQ,
+      shouldContinue: false,
+      status: 'COMPLETED',
+      response: `${smartResponse}\n\n${closing}`,
+    };
   }
 
   // Rule 3: FOLLOWUP (not exceeded limit)
@@ -156,6 +154,16 @@ export async function interviewingNode(
       response: smartResult.response.substring(0, 50),
     });
 
+    info('[DIAG] routeAction input', {
+      action: smartResult.action,
+      shouldEndInterview: smartResult.shouldEndInterview,
+      followupCount: state.followupCount,
+      maxFollowups: state.maxFollowups,
+      currentQ,
+      totalQuestions: content.questions.length,
+      isLastQuestion: currentQ >= content.questions.length - 1,
+    });
+
     const handled = smartResult.shouldEndInterview
       ? routeAction(
           'END',
@@ -175,6 +183,12 @@ export async function interviewingNode(
           smartResult.response,
           content.closingMessage
         );
+
+    info('[DIAG] routeAction result', {
+      handledStatus: handled.status,
+      handledShouldContinue: handled.shouldContinue,
+      handledCurrentQ: handled.currentQuestion,
+    });
 
     return {
       responses: newResponses,

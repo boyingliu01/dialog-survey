@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export const DEFAULT_MAX_FOLLOWUPS = 5;
+
 /**
  * InterviewState - 多轮对话完整状态
  *
@@ -26,7 +28,7 @@ export const InterviewStateSchema = z.object({
   ),
   currentQuestion: z.number().default(0),
   followupCount: z.number().default(0),
-  maxFollowups: z.number().default(2),
+  maxFollowups: z.number().default(DEFAULT_MAX_FOLLOWUPS),
   responses: z.array(
     z.object({
       questionId: z.string(),

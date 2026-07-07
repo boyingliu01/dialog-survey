@@ -68,6 +68,7 @@ export class InterviewStateRepository {
             status: state.status,
             currentQuestion: state.currentQuestion,
             followupCount: state.followupCount,
+            maxFollowups: state.maxFollowups,
             version: { increment: 1 },
             messages: {
               deleteMany: { interviewId },
@@ -205,6 +206,7 @@ export class InterviewStateRepository {
             status: state.status,
             currentQuestion: state.currentQuestion,
             followupCount: state.followupCount,
+            maxFollowups: state.maxFollowups,
             nudgeCount: state.nudgeCount,
             version: { increment: 1 },
           },

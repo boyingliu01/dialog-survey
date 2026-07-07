@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { AnalysisService } from '../services/analysis.service.js';
 import { getDb } from '../utils/db.js';
-import { error } from '../utils/logger.js';
+import { error, info } from '../utils/logger.js';
 import { interviewingNode } from './nodes/interviewing.js';
 import { planningNode } from './nodes/planning.js';
 import { DEFAULT_CLOSING_MESSAGE, type InterviewState, type NodeInput } from './types/index.js';
@@ -49,6 +49,13 @@ export async function runInterviewGraph(
     });
 
     const nextState = mergeState(initialState, result);
+
+    info('[DIAG] interviewingNode result', {
+      status: nextState.status,
+      shouldContinue: result.shouldContinue,
+      currentQ: nextState.currentQuestion,
+      responsePreview: (result.response || '').substring(0, 50),
+    });
 
     // If interview completed, trigger async analysis (fire-and-forget)
     if (result.shouldContinue === false && initialState.interviewId) {

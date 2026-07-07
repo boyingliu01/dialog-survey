@@ -405,20 +405,22 @@
         @click="
           if (!newUserId && !newPhone) { alert('请填写钉钉 ID 或手机号'); return; }
           if (!newName) { alert('请填写姓名'); return; }
-          var values = { name: newName };
-          if (newUserId) { values.userId = newUserId; }
-          if (newPhone) { values.phone = newPhone; }
-          htmx.ajax('POST', '/api/plans/{{ plan.id }}/members', {
-            swap: 'none',
-            values: values,
-            headers: { 'X-Admin-Key': '{{ adminApiKey | default('') }}' }
-          }).then(function() {
+          var payload = {};
+          if (newUserId) payload.userId = newUserId;
+          if (newPhone) payload.phone = newPhone;
+          if (newName) payload.name = newName;
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', '/api/plans/{{ plan.id }}/members', false);
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.setRequestHeader('X-Admin-Key', '{{ adminApiKey | default('') }}');
+          xhr.send(JSON.stringify(payload));
+          if (xhr.status >= 200 && xhr.status < 300) {
             htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', '#main-content');
-          }).catch(function(err) {
+          } else {
             var msg = '添加成员失败';
-            try { var body = JSON.parse(err.xhr.responseText); if (body.error) msg = body.error; } catch (_) {}
+            try { var body = JSON.parse(xhr.responseText); if (body.error) msg = body.error; } catch (_) {}
             alert(msg);
-          });
+          }
         "
         class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 mt-[22px]"
       >确认添加</button>
