@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { runInterviewGraph } from '../core/graph.js';
 import type { GraphResult } from '../core/graph.js';
 import type { InterviewState } from '../core/types/index.js';

@@ -2,7 +2,7 @@ import { SendStatus } from '@prisma/client';
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
-import { DingTalkStreamClient } from '../integrations/dingtalk/stream-client.js';
+import type { DingTalkStreamClient } from '../integrations/dingtalk/stream-client.js';
 import type { TokenManager } from '../integrations/dingtalk/token-manager.js';
 import { error, info } from '../utils/logger.js';
 import type { InviteeData } from './interview-plan-base.service.js';

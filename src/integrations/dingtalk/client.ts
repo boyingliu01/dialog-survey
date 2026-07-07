@@ -91,9 +91,9 @@ export class DingTalkClient {
   private buildUrl(path: string, query?: Record<string, string>): string {
     const url = new URL(`${API_BASE}${path}`);
     if (query) {
-      Object.entries(query).forEach(([key, value]) => {
+      for (const [key, value] of Object.entries(query)) {
         url.searchParams.append(key, value);
-      });
+      }
     }
     return url.toString();
   }
