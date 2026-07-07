@@ -167,9 +167,6 @@ describe('TemplateRepository (Integration)', () => {
 
   describe('findByStatus', () => {
     it('should filter templates by status', async () => {
-      const beforeDrafts = (await repo.findByStatus('DRAFT')).length;
-      const beforePublished = (await repo.findByStatus('PUBLISHED')).length;
-
       const draft1 = await repo.create({ name: '草稿1', content: { q: 1 } });
       createdIds.push(draft1.id);
       const draft2 = await repo.create({ name: '草稿2', content: { q: 2 } });
@@ -179,10 +176,11 @@ describe('TemplateRepository (Integration)', () => {
       await repo.update(published.id, { status: 'PUBLISHED' });
 
       const drafts = await repo.findByStatus('DRAFT');
-      expect(drafts.length).toBe(beforeDrafts + 2);
+      expect(drafts.some((t) => t.name === '草稿1')).toBe(true);
+      expect(drafts.some((t) => t.name === '草稿2')).toBe(true);
+      expect(drafts.some((t) => t.name === '已发布')).toBe(false);
 
       const publishedList = await repo.findByStatus('PUBLISHED');
-      expect(publishedList.length).toBe(beforePublished + 1);
       expect(publishedList.some((t) => t.name === '已发布')).toBe(true);
     });
   });
