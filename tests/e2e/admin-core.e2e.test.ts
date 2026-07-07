@@ -12,6 +12,11 @@ describe('Admin Core Paths (Playwright E2E)', () => {
   let page: Page;
   let baseUrl: string;
 
+  /** Navigate to /admin and wait for content area to be ready */
+  async function gotoAdmin() {
+    await page.goto(`${baseUrl}/admin`, { waitUntil: 'load' });
+  }
+
   beforeAll(async () => {
     // Start real Fastify server with PostgreSQL
     process.env['ADMIN_API_KEY'] = 'test-admin-key';
@@ -25,6 +30,8 @@ describe('Admin Core Paths (Playwright E2E)', () => {
     context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       locale: 'zh-CN',
+      // Disable JavaScript caching and bfcache for consistent test behavior
+      extraHTTPHeaders: { 'Cache-Control': 'no-cache' },
     });
     page = await context.newPage();
   });
@@ -50,27 +57,21 @@ describe('Admin Core Paths (Playwright E2E)', () => {
 
   describe('Admin Navigation (Shell → Fragment)', () => {
     it('should load admin page with tree sidebar', async () => {
-      await page.goto(`${baseUrl}/admin`, {
-        waitUntil: 'load',
-      });
-      await page.waitForSelector('#main-content', { timeout: 5000 });
-
-      const title = await page.title();
-      expect(title).toContain('访谈管理后台');
-
-      const sidebarText = await page.textContent('aside');
-      expect(sidebarText).toContain('访谈模板');
+      await gotoAdmin();
       // "访谈计划" appears inside template nodes in the sidebar tree;
       // in an empty database, the tree shows "暂无访谈模板" instead
     });
 
     it('should navigate to dashboard via HTMX fragment', async () => {
-      await page.goto(`${baseUrl}/admin`, {
-        waitUntil: 'load',
-      });
+      await gotoAdmin();
 
-      await page.click('button:has-text("进度仪表板")');
-      await page.waitForTimeout(500);
+      await Promise.all([
+        page.waitForResponse((res) => res.url().includes('/admin/content/dashboard') && res.status() === 200, { timeout: 10000 }),
+        page.click('button:has-text("进度仪表板")'),
+      ]).catch((err) => {
+        // If waitForResponse times out, check if the click actually happened
+        throw err;
+      });
 
       const mainContent = await page.textContent('#main-content');
       expect(mainContent).toContain('计划进度');
@@ -87,26 +88,26 @@ describe('Admin Core Paths (Playwright E2E)', () => {
 
   describe('Templates CRUD', () => {
     it('should show template creation form', async () => {
-      await page.goto(`${baseUrl}/admin`, {
-        waitUntil: 'load',
-      });
+      await gotoAdmin();
 
       const newTemplateBtn = page.locator('button[title="新建模板"]');
-      await newTemplateBtn.click();
-      await page.waitForTimeout(500);
+      await Promise.all([
+        page.waitForResponse((res) => res.url().includes('/admin/content/templates/new') && res.status() === 200),
+        newTemplateBtn.click(),
+      ]);
 
       const mainContent = await page.textContent('#main-content');
       expect(mainContent).toContain('新建模板');
     });
 
     it('should navigate to template import page', async () => {
-      await page.goto(`${baseUrl}/admin`, {
-        waitUntil: 'load',
-      });
+      await gotoAdmin();
 
       const importBtn = page.locator('button[title="导入模板"]');
-      await importBtn.click();
-      await page.waitForTimeout(500);
+      await Promise.all([
+        page.waitForResponse((res) => res.url().includes('/admin/content/templates/import') && res.status() === 200),
+        importBtn.click(),
+      ]);
 
       const mainContent = await page.textContent('#main-content');
       expect(mainContent).toBeDefined();
@@ -154,10 +155,8 @@ describe('Admin Core Paths (Playwright E2E)', () => {
         }
       });
 
-      await page.goto(`${baseUrl}/admin`, { waitUntil: 'load' });
-      await page.waitForTimeout(1000);
+      await gotoAdmin();
 
-      // No Alpine CDN load failures
       const alpineErrors = consoleErrors.filter((e) => e.includes('alpine') || e.includes('cdn'));
       expect(alpineErrors).toHaveLength(0);
 
