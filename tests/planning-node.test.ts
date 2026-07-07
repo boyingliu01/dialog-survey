@@ -65,7 +65,7 @@ describe('planningNode', () => {
     const msgs = result.messages as NonNullable<typeof result.messages>;
     expect(msgs).toHaveLength(1);
     expect(msgs[0].role).toBe('assistant');
-    expect(msgs[0].content).toBe('您好！欢迎参与本次访谈。');
+    expect(msgs[0].content).toBe('您好！欢迎参与本次访谈。\n\n请简单介绍一下您的工作经历？');
     expect(msgs[0].timestamp).toBeDefined();
   });
 

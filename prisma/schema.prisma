@@ -37,7 +37,7 @@ model Interview {
   status          InterviewStatus @default(PENDING)
   currentQuestion Int              @default(0)
   followupCount   Int              @default(0)
-  maxFollowups    Int              @default(2)
+  maxFollowups    Int              @default(5)
   version         Int              @default(1) // Optimistic locking
   sendStatus      SendStatus       @default(NOT_SENT)
   sentAt          DateTime?

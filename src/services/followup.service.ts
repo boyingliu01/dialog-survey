@@ -4,6 +4,13 @@ import { info, warn } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
 
+function buildForcedNextTransition(nextQuestion?: string): string {
+  if (!nextQuestion) {
+    return '好的，关于这个话题我们已经聊得比较深入了。我们继续看下一个问题。';
+  }
+  return `好的，关于这个话题我们已经聊得比较深入了。那我们聊聊：${nextQuestion}`;
+}
+
 export interface StructuredResponse {
   thinking: string;
   strategy: number;
@@ -19,7 +26,6 @@ export interface SmartResponseResult {
 }
 
 export const FALLBACK_RESPONSE = '感谢您的回答，我们继续下一个话题。';
-const FORCED_NEXT_TRANSITION = '好的，关于这个话题我们已经聊得比较深入了。我们继续看下一个问题。';
 
 export async function polishFirstQuestion(rawText: string): Promise<string> {
   const llm = OpenAICompatibleLLM.fromEnv();
@@ -54,10 +60,14 @@ export function parseLLMResponse(rawContent: string): StructuredResponse | null 
   try {
     const parsed = JSON.parse(content);
     if (!parsed.action || !parsed.response) return null;
-    const validActions = ['NEXT', 'FOLLOWUP', 'END'];
-    const action: 'NEXT' | 'FOLLOWUP' | 'END' = validActions.includes(parsed.action)
-      ? parsed.action
-      : 'NEXT';
+    const endActions = ['END', 'FINISH', 'COMPLETE'];
+    const validActions = ['NEXT', 'FOLLOWUP', 'END', 'FINISH', 'COMPLETE'];
+    let action: 'NEXT' | 'FOLLOWUP' | 'END';
+    if (validActions.includes(parsed.action)) {
+      action = endActions.includes(parsed.action) ? 'END' : parsed.action;
+    } else {
+      action = 'NEXT';
+    }
     return {
       thinking: parsed.thinking || '',
       strategy: parsed.strategy || 1,
@@ -95,7 +105,7 @@ export async function generateSmartResponse(
 
   const nextQuestionFlag =
     !isLastQuestion && nextQuestion
-      ? `\n【下一问题】：${nextQuestion}\n（如果你决定NEXT，请先总结用户的回答，然后自然地引出下一问题）\n`
+      ? `\n【下一问题】：${nextQuestion}\n（如果你决定NEXT，你的回复中必须直接说出下一问题的具体内容，不能说"我们继续下一题"这种空话）\n`
       : '';
 
   if (customPrompt) {
@@ -127,7 +137,7 @@ export async function generateSmartResponse(
       }
       if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups) {
         parsed.action = 'NEXT';
-        parsed.response = FORCED_NEXT_TRANSITION;
+        parsed.response = buildForcedNextTransition(nextQuestion);
       }
       return {
         response: parsed.response,
@@ -176,7 +186,7 @@ export async function generateSmartResponse(
     if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups) {
       info('Followup limit exceeded, forcing NEXT');
       return {
-        response: FORCED_NEXT_TRANSITION,
+        response: buildForcedNextTransition(nextQuestion),
         action: 'NEXT',
         shouldProceedToNext: true,
         shouldEndInterview: false,
