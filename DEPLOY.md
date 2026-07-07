@@ -85,12 +85,12 @@ pm2 save     # save current process list
 NODE_ENV=production              # Must be "production"
 PORT=3001                        # HTTP port (default)
 DATABASE_URL="postgresql://..."  # Full connection string
-DASHSCOPE_API_KEY=sk-xxx         # LLM API key
-DINGTALK_CLIENT_ID=xxx           # DingTalk Stream credentials
-DINGTALK_CLIENT_SECRET=xxx
-DINGTALK_AGENT_ID=xxx
-ENCRYPTION_KEY=your-32-byte-hex  # Generate: node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
-ADMIN_API_KEY=your-secret        # Admin dashboard auth
+DASHSCOPE_API_KEY=<YOUR_LLM_API_KEY>  # LLM API key
+DINGTALK_CLIENT_ID=<YOUR_CLIENT_ID>   # DingTalk Stream credentials
+DINGTALK_CLIENT_SECRET=<YOUR_CLIENT_SECRET>
+DINGTALK_AGENT_ID=<YOUR_AGENT_ID>
+ENCRYPTION_KEY=<YOUR_32_BYTE_HEX>     # Generate: node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
+ADMIN_API_KEY=<YOUR_ADMIN_API_KEY>    # Admin dashboard auth
 LOG_LEVEL=info                   # info | warn | error (debug for troubleshooting)
 ```
 
