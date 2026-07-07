@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { dimensionsArraySchema } from '../schemas/dimensions.js';
 
 export async function updateTemplateDimensions(

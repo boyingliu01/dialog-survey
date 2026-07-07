@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import Fastify, { FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { analysisRoutes } from '../src/api/analysis.js';
 

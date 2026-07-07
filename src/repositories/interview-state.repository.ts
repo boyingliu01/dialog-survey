@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import type { InterviewState } from '../core/types/index.js';
 import { error, info } from '../utils/logger.js';
 import { mapInterviewToInterviewState } from './interview-state-mapper.js';

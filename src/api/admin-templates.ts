@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
@@ -7,7 +7,7 @@ import type { InterviewRepository } from '../repositories/interview.repository.j
 import type { TemplateRepository } from '../repositories/template.repository.js';
 import type { AnalysisService } from '../services/analysis.service.js';
 import type { AnalyticsService } from '../services/analytics.service.js';
-import { ExportService } from '../services/export.service.js';
+import type { ExportService } from '../services/export.service.js';
 import type { InterviewPlanService } from '../services/interview-plan.service.js';
 import { updateTemplateDimensions } from '../services/template-dimension.service.js';
 import { error, info } from '../utils/logger.js';

@@ -1,4 +1,4 @@
-import { LLMOptions, LLMRequest, LLMResponse, LLMService } from './base.js';
+import type { LLMOptions, LLMRequest, LLMResponse, LLMService } from './base.js';
 
 const CHAT_API_URL =
   'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation';

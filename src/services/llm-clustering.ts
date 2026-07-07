@@ -1,4 +1,4 @@
-import { type LLMService } from '../integrations/llm/base.js';
+import type { LLMService } from '../integrations/llm/base.js';
 
 export interface SubTheme {
   subTopicName: string;

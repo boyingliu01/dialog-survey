@@ -1,6 +1,6 @@
 import { error, info } from '../../utils/logger.js';
 import { RetryError } from '../../utils/retry.js';
-import { LLMOptions, LLMRequest, LLMResponse, LLMService } from './base.js';
+import type { LLMOptions, LLMRequest, LLMResponse, LLMService } from './base.js';
 
 // 支持的模型列表：doubao-seed-2.0-code, doubao-seed-2.0-pro, doubao-seed-2.0-lite,
 // doubao-seed-code, minimax-m2.5, glm-4.7, deepseek-v3.2, kimi-k2.5
