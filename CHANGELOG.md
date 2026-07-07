@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.8.0 - 2026-07-07
+
+### Fixed
+- fix: COMPLETED interviews stuck in CONTINUE loop (Rule 2 evaluation missing for COMPLETED status in interviewing node)
+- fix: FINISH/COMPLETE → END transition (follow-up engine marks interview as COMPLETED when end signal received)
+- fix: maxFollowups cap not persisted to DB (schema default=5 + repository handles full/partial/empty updates)
+- fix: add-member modal silently swallows errors (htmx.ajax `.then()` fires on non-2xx with `undefined` arg — replaced with sync XHR)
+
+### Changed
+- refactor: stream-message service uses `_runWithTimer` naming for internal methods
+- docs: AGENTS.md — API bug triage principles (curl-first isolate, read code, console.log, minimize verification)
+
 ## 1.7.9 - 2026-07-07
 
 - fix: redact real DINGTALK_CLIENT_SECRET from .speckit/specify.md and DEPLOY.md

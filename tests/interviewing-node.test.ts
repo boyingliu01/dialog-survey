@@ -312,12 +312,12 @@ describe('interviewingNode', () => {
     const multiState = { ...baseState, currentQuestion: 1 };
     const result = await interviewingNode(multiState, { content: '我的回答' });
 
-    // END on non-last question → should NOT be COMPLETED
-    expect(result.status).not.toBe('COMPLETED');
-    expect(result.shouldContinue).toBe(true);
-    // Should advance to next question
-    expect(result.currentQuestion).toBe(2);
+    // END on non-last question → interview completes (user said goodbye)
+    expect(result.status).toBe('COMPLETED');
+    expect(result.shouldContinue).toBe(false);
+    expect(result.currentQuestion).toBe(1);
     expect(result.followupCount).toBe(0);
+    expect(result.response).toContain('感谢您的参与');
   });
 
   it('should allow END on the actual last question', async () => {
@@ -348,9 +348,10 @@ describe('interviewingNode', () => {
     const multiState = { ...baseState, currentQuestion: 0 };
     const result = await interviewingNode(multiState, { content: '回答' });
 
-    expect(result.status).not.toBe('COMPLETED');
-    expect(result.shouldContinue).toBe(true);
-    expect(result.currentQuestion).toBe(1);
+    // END on non-last question → interview completes (user said goodbye)
+    expect(result.status).toBe('COMPLETED');
+    expect(result.shouldContinue).toBe(false);
+    expect(result.currentQuestion).toBe(0);
   });
 
   /**
