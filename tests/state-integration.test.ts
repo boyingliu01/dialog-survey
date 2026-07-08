@@ -134,7 +134,6 @@ describe('InterviewStateRepository - Missing Coverage Tests', () => {
           {
             role: 'user',
             content: 'New message pending',
-            isVoice: false,
           },
         ],
         pendingResponses: [],
@@ -153,7 +152,6 @@ describe('InterviewStateRepository - Missing Coverage Tests', () => {
             interviewId: 'existing-interview',
             role: 'user',
             content: 'New message pending',
-            isVoice: false,
           },
         ],
       });

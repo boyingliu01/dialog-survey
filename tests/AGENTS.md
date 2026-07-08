@@ -11,7 +11,7 @@ Vitest 4.x test suite with 80%+ coverage thresholds. Flat structure in `tests/` 
 | Prisma mock | `interview-plan-members.test.ts`, `state-persistence.test.ts` | Nested `vi.fn()` structure |
 | Module mock | `interviewing-node.test.ts`, `plans-api.test.ts` | `vi.mock('../src/...')` |
 | Env stubbing | `volcengine.test.ts`, `dingtalk-stream.test.ts` | `vi.stubEnv()` / `vi.unstubAllEnvs()` |
-| Fetch mock | `volcengine.test.ts`, `asr.service.test.ts` | `global.fetch = vi.fn()` |
+| Fetch mock | `volcengine.test.ts`, `dingtalk-stream.test.ts` | `global.fetch = vi.fn()` |
 | Service tests | `analytics.service.test.ts`, `followup.service.test.ts` | Mock dependencies, test logic |
 | Phone member | `interview-plan-members-phone.test.ts`, `dingtalk-client-get-by-mobile.test.ts` | New phone number support tests |
 | Admin templates | `admin-templates.test.ts` (747 lines), `admin-templates-integration.test.ts` | Extensive admin UI tests |

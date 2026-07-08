@@ -172,7 +172,6 @@ export class StreamMessageService {
     state.pendingMessages.push({
       role: 'user',
       content: parsed.content,
-      isVoice: false,
     });
 
     if (!state.userName && prisma) {
@@ -225,7 +224,6 @@ export class StreamMessageService {
       {
         userId: parsed.userId,
         content: parsed.content,
-        isVoice: false,
       },
       prisma
     );
@@ -234,7 +232,9 @@ export class StreamMessageService {
       userId: parsed.userId,
       responsePreview: graphResult.response.substring(0, 60),
       nextStateStatus: graphResult.nextState.status,
-      nextStateShouldContinue: (graphResult.nextState as unknown as Record<string, unknown>)['shouldContinue'],
+      nextStateShouldContinue: (graphResult.nextState as unknown as Record<string, unknown>)[
+        'shouldContinue'
+      ],
       nextStateCurrentQ: graphResult.nextState.currentQuestion,
     });
 
@@ -247,7 +247,6 @@ export class StreamMessageService {
     nextState.pendingMessages.push({
       role: 'assistant',
       content: graphResult.response,
-      isVoice: false,
     });
     // Preserve COMPLETED status from graph (don't overwrite when interview ends)
     if (nextState.status !== 'COMPLETED') {
@@ -275,13 +274,12 @@ export class StreamMessageService {
           parsed.userId
         );
         if (freshState) {
-          freshState.pendingMessages = [{ role: 'user', content: parsed.content, isVoice: false }];
+          freshState.pendingMessages = [{ role: 'user', content: parsed.content }];
           const retryGraphResult = await runInterviewGraph(
             freshState,
             {
               userId: parsed.userId,
               content: parsed.content,
-              isVoice: false,
             },
             prisma
           );
@@ -293,7 +291,6 @@ export class StreamMessageService {
           retryGraphResult.nextState.pendingMessages.push({
             role: 'assistant',
             content: retryGraphResult.response,
-            isVoice: false,
           });
           if (retryGraphResult.nextState.status !== 'COMPLETED') {
             retryGraphResult.nextState.status = 'ACTIVE';

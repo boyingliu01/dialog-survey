@@ -19,9 +19,8 @@ Application services layer: business logic orchestration for interview flow, rep
 | Analytics | `analytics.service.ts` | KPI aggregation + distribution stats |
 | Batch aggregation | `batch-aggregation.service.ts` | Pipeline with checkpoint recovery |
 | LLM clustering | `llm-clustering.ts` | Sub-theme extraction via LLM |
-| Intelligent follow-ups | `followup.service.ts` | LLM-generated追问 based on responses |
+| Intelligent follow-ups | `followup.service.ts` | LLM-generated 追问 based on responses |
 | DingTalk messaging | `dingtalk.service.ts` | Send/receive via DingTalk API |
-| ASR | `asr.service.ts` | Fun-ASR audio→text |
 | LLM prompts | `prompt.service.ts` | Prompt templates |
 | Template dimensions | `template-dimension.service.ts` | Dimension tag analysis |
 | PDF/Excel export | `export.service.ts` | Report export to PDF + Excel |

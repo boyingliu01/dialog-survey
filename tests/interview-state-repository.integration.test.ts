@@ -306,8 +306,8 @@ describe('InterviewStateRepository (Integration)', () => {
         version: 1,
         originalVersion: 1,
         pendingMessages: [
-          { role: 'assistant' as const, content: 'New question', isVoice: false },
-          { role: 'user' as const, content: 'Voice answer', isVoice: true },
+          { role: 'assistant' as const, content: 'New question' },
+          { role: 'user' as const, content: 'Voice answer' },
         ],
       });
 
@@ -321,9 +321,7 @@ describe('InterviewStateRepository (Integration)', () => {
       });
       expect(messages).toHaveLength(2);
       expect(messages[0].content).toBe('New question');
-      expect(messages[0].isVoice).toBe(false);
       expect(messages[1].content).toBe('Voice answer');
-      expect(messages[1].isVoice).toBe(true);
     });
 
     it('should persist pendingResponses', async () => {
@@ -388,7 +386,7 @@ describe('InterviewStateRepository (Integration)', () => {
         status: 'ACTIVE' as const,
         version: 1,
         originalVersion: 1,
-        pendingMessages: [{ role: 'assistant' as const, content: 'msg', isVoice: false }],
+        pendingMessages: [{ role: 'assistant' as const, content: 'msg' }],
         pendingResponses: [{ questionId: 'q1', content: 'resp', isFollowup: false }],
       });
 

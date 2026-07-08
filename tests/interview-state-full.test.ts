@@ -44,8 +44,8 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         version: 2,
         originalVersion: 1,
         pendingMessages: [
-          { role: 'user', content: 'Hello', isVoice: false },
-          { role: 'assistant', content: 'Hi there!', isVoice: false },
+          { role: 'user', content: 'Hello' },
+          { role: 'assistant', content: 'Hi there!' },
         ],
         pendingResponses: [],
         nudgeCount: 0,
@@ -146,7 +146,7 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         reportGenerated: false,
         version: 2,
         originalVersion: 1,
-        pendingMessages: [{ role: 'user', content: 'Test', isVoice: false }],
+        pendingMessages: [{ role: 'user', content: 'Test' }],
         pendingResponses: [],
         nudgeCount: 0,
       };
@@ -194,7 +194,7 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         reportGenerated: false,
         version: 2,
         originalVersion: 1,
-        pendingMessages: [{ role: 'user', content: 'Test', isVoice: false }],
+        pendingMessages: [{ role: 'user', content: 'Test' }],
         pendingResponses: [],
         nudgeCount: 0,
       };
