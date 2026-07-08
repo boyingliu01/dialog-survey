@@ -116,7 +116,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId,
           content: '',
-          isVoice: false,
         },
         testDb.getPrisma()
       );
@@ -146,7 +145,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId,
           content: '我有5年软件开发经验',
-          isVoice: false,
         },
         testDb.getPrisma()
       );
@@ -176,7 +174,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId,
           content: '最大的挑战是跨团队协作',
-          isVoice: false,
         },
         testDb.getPrisma()
       );
@@ -204,7 +201,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId,
           content: '我通过沟通和建立信任解决了这个问题',
-          isVoice: false,
         },
         testDb.getPrisma()
       );
@@ -245,7 +241,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId,
           content: '',
-          isVoice: false,
         },
         testDb.getPrisma()
       );
@@ -284,7 +279,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId,
           content: '我是全栈工程师，工作了3年',
-          isVoice: false,
         },
         testDb.getPrisma()
       );
@@ -314,7 +308,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId,
           content: '',
-          isVoice: false,
         },
         testDb.getPrisma()
       );
@@ -352,7 +345,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId,
           content: '我做了很多项目',
-          isVoice: false,
         },
         testDb.getPrisma()
       );
@@ -381,7 +373,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId,
           content: '',
-          isVoice: false,
         },
         testDb.getPrisma()
       );
@@ -415,7 +406,6 @@ describe('ConversationEngine (Integration)', () => {
       const result = await runInterviewGraph(pendingState, {
         userId,
         content: '',
-        isVoice: false,
       });
 
       // Falls back to default template, NOT the DB template content
@@ -453,7 +443,6 @@ describe('ConversationEngine (Integration)', () => {
       const result = await runInterviewGraph(completedState, {
         userId,
         content: '我再补充一句',
-        isVoice: false,
       });
 
       expect(result.response).toContain('访谈已结束');
@@ -490,7 +479,6 @@ describe('ConversationEngine (Integration)', () => {
       const result = await runInterviewGraph(cancelledState, {
         userId,
         content: '我还能回答吗？',
-        isVoice: false,
       });
 
       expect(result.response).toContain('访谈已结束');
@@ -515,7 +503,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId: userIdA,
           content: '',
-          isVoice: false,
         },
         testDb.getPrisma()
       );
@@ -531,7 +518,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId: userIdB,
           content: '',
-          isVoice: false,
         },
         testDb.getPrisma()
       );
@@ -573,7 +559,6 @@ describe('ConversationEngine (Integration)', () => {
         {
           userId: userIdA,
           content: 'User A response',
-          isVoice: false,
         },
         testDb.getPrisma()
       );

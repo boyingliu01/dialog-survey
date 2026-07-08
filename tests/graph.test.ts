@@ -54,7 +54,6 @@ describe('runInterviewGraph', () => {
     const result = await runInterviewGraph(initialState, {
       userId: 'user-123',
       content: '',
-      isVoice: false,
     });
 
     expect(result.response).toBe('开场问题');
@@ -72,7 +71,6 @@ describe('runInterviewGraph', () => {
     const result = await runInterviewGraph(initialState, {
       userId: 'user-123',
       content: '我的回答',
-      isVoice: false,
     });
 
     expect(result.response).toBe('下一个问题');
@@ -88,8 +86,7 @@ describe('runInterviewGraph', () => {
 
     const result = await runInterviewGraph(initialState, {
       userId: 'user-123',
-      content: '回答内容',
-      isVoice: false,
+      content: '',
     });
 
     expect(result.nextState).toBeDefined();
@@ -105,12 +102,11 @@ describe('runInterviewGraph', () => {
    */
   it('should preserve pendingMessages and pendingResponses in nextState', async () => {
     initialState.status = 'ACTIVE';
-    initialState.pendingMessages = [{ role: 'user', content: 'Test', isVoice: false }];
+    initialState.pendingMessages = [{ role: 'user', content: 'Test' }];
 
     const result = await runInterviewGraph(initialState, {
       userId: 'user-123',
       content: '回答',
-      isVoice: false,
     });
 
     expect(result.nextState.pendingMessages).toBeDefined();
@@ -136,7 +132,6 @@ describe('runInterviewGraph', () => {
     const result = await runInterviewGraph(initialState, {
       userId: 'user-123',
       content: '最终回答',
-      isVoice: false,
     });
 
     expect(result.response).toContain('访谈已完成');
@@ -153,7 +148,6 @@ describe('runInterviewGraph', () => {
     const result = await runInterviewGraph(initialState, {
       userId: 'user-123',
       content: '',
-      isVoice: false,
     });
 
     expect(interviewingNode).not.toHaveBeenCalled();
@@ -171,7 +165,6 @@ describe('runInterviewGraph', () => {
     const result = await runInterviewGraph(initialState, {
       userId: 'user-123',
       content: '我的回答',
-      isVoice: false,
     });
 
     expect(planningNode).toHaveBeenCalled();
@@ -190,7 +183,6 @@ describe('runInterviewGraph', () => {
     const result = await runInterviewGraph(initialState, {
       userId: 'user-123',
       content: '',
-      isVoice: false,
     });
 
     expect(planningNode).toHaveBeenCalled();
@@ -214,7 +206,6 @@ describe('runInterviewGraph', () => {
     const result = await runInterviewGraph(cancelledState, {
       userId: 'user-123',
       content: '不应该被处理',
-      isVoice: false,
     });
 
     expect(planningNode).not.toHaveBeenCalled();

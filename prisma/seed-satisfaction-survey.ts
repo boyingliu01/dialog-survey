@@ -1,4 +1,4 @@
-import { PrismaClient, TemplateStatus } from '@prisma/client';
+import { PrismaClient, type TemplateStatus } from '@prisma/client';
 import { info } from '../src/utils/logger.js';
 
 const prisma = new PrismaClient();

@@ -1159,7 +1159,7 @@ describe('StreamMessageService', () => {
       reportGenerated: false,
       version: 5,
       originalVersion: 5,
-      pendingMessages: [{ role: 'user', content: '我的回答', isVoice: false }],
+      pendingMessages: [{ role: 'user', content: '我的回答' }],
       pendingResponses: [],
     };
 

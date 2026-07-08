@@ -102,7 +102,6 @@ LOG_LEVEL=info                   # info | warn | error (debug for troubleshootin
 | `REPORTS_DIR` | `./reports` | Report storage path |
 | `MAX_LLM_RETRIES` | `2` | LLM retry attempts |
 | `LLM_TIMEOUT` | `30000` | LLM request timeout (ms) |
-| `FUN_ASR_API_KEY` | — | Speech-to-text API key |
 | `PUBLIC_URL` | — | Public callback URL |
 
 ## Deployment Modes

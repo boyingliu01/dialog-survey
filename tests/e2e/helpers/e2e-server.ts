@@ -13,7 +13,7 @@ export interface E2EServer {
 /**
  * Create a full E2E test server with real database and HTTP listener.
  * Used by Playwright E2E tests that need a real HTTP server.
- * External services (DingTalk, LLM, ASR) must have dummy env vars configured.
+ * External services (DingTalk, LLM) must have dummy env vars configured.
  */
 export async function createE2EServer(port = 0): Promise<E2EServer> {
   process.env['NODE_ENV'] = 'test';

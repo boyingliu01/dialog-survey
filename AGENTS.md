@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-**Dialog Survey** - AI-powered interview robot that conducts async multi-turn interviews via DingTalk with intelligent follow-up questions, multi-turn context memory, and voice input support.
+**Dialog Survey** - AI-powered interview robot that conducts async multi-turn interviews via DingTalk with intelligent follow-up questions and multi-turn context memory.
 
 ### Tech Stack
 
@@ -12,7 +12,6 @@
 | ------------------ | ------------------------------ |
 | Dialog Engine      | Custom LangGraph-inspired workflow (not StateGraph API) |
 | LLM Service        | OpenAI-compatible API (supports locally-deployed ollama / vLLM / LocalAI) |
-| Speech Recognition | Alibaba Fun-ASR                |
 | Message Platform   | DingTalk Stream Mode (WebSocket) |
 | Database           | PostgreSQL (Prisma ORM)        |
 | Web Framework      | Fastify 5.x                    |
@@ -100,7 +99,6 @@ src/
 │   ├── conversation-engine.ts        # LangGraph orchestration
 │   ├── dingtalk.service.ts           # Message handling
 │   ├── followup.service.ts           # Intelligent follow-ups
-│   ├── asr.service.ts                # Audio-to-text
 │   ├── report.service.ts             # Markdown reports
 │   ├── prompt.service.ts             # LLM prompt templates
 │   ├── template-dimension.service.ts # Dimension tag analysis
@@ -203,7 +201,6 @@ Required env vars (see `.env.example`):
 - `LLM_MODEL` - Model name (default: deepseek-v3.2)
 - `VOLCENGINE_API_KEY` / `VOLCENGINE_BASE_URL` / `VOLCENGINE_MODEL` - Fallback env vars (if LLM_ prefix not set)
 - `DINGTALK_CLIENT_ID`, `DINGTALK_CLIENT_SECRET` - DingTalk Stream
-- `FUN_ASR_API_KEY` - Speech recognition
 - `ENCRYPTION_KEY` - AES-256 encryption
 - `ADMIN_API_KEY` - Admin UI authentication
 
@@ -413,7 +410,7 @@ See `tests/AGENTS.md` for detailed patterns
 
 ## Code Quality Warnings (MEDIUM)
 
-**Magic numbers**: Encryption IV=16, retry=3, timestamp window=300000ms, health timeout=5000ms, ASR timeout=30000ms, rate limit window=1000ms, default temperature=0.7, default max tokens=2000.
+**Magic numbers**: Encryption IV=16, retry=3, timestamp window=300000ms, health timeout=5000ms, rate limit window=1000ms, default temperature=0.7, default max tokens=2000.
 
 **TODO Comments**: `tests/template-crud.test.ts:30` — `// TODO: Implement with real Prisma` (intentional - mock class uses in-memory Map)
 
@@ -506,15 +503,6 @@ These constraints are machine-enforced by the pre-commit hook (Gate 1) AND must 
 
 ### LLM Integration
 - **Interface**: `src/integrations/llm/base.ts`
-- **OpenAI-compatible**: `src/integrations/llm/openai-compatible.ts` (new default, supports doubao/minimax/glm/deepseek/kimi)
-- **Volcengine Ark**: `src/integrations/llm/volcengine.ts` (legacy)
-- **DashScope**: `src/integrations/llm/alibaba.ts`
-- **Env prefix**: `LLM_API_KEY`/`LLM_BASE_URL`/`LLM_MODEL` takes priority over `VOLCENGINE_` prefix
-- **Deployment flexibility**: Any OpenAI-compatible service works — local (ollama, vLLM, LocalAI) or cloud
-
-### ASR Integration
-- **Service**: `src/services/asr.service.ts`
-- **Provider**: Alibaba Fun-ASR for voice messages
 
 ---
 

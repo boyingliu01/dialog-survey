@@ -1,12 +1,12 @@
 # Dialog Survey
 
-AI-powered interview robot that conducts async multi-turn interviews via DingTalk with intelligent follow-up questions, multi-turn context memory, and voice input support.
+AI-powered interview robot that conducts async multi-turn interviews via DingTalk with intelligent follow-up questions and multi-turn context memory.
 
 ## Features
 
 - **AI 智能追问**: 基于 LLM 的完全智能型追问能力
 - **多轮上下文记忆**: 支持跨多天、多条消息的对话连贯性
-- **语音输入**: 支持语音消息回答
+
 - **异步消息式访谈**: 被访谈者可以在碎片时间回答
 - **自动生成报告**: 访谈结束后自动生成 Markdown 报告
 - **私有部署**: 数据全留存，确保安全性
@@ -15,7 +15,7 @@ AI-powered interview robot that conducts async multi-turn interviews via DingTal
 
 - **对话引擎**: Custom LangGraph-inspired workflow (not StateGraph API)
 - **LLM**: OpenAI-compatible API（支持本地部署：如 ollama / vLLM / LocalAI；也可对接云服务）
-- **语音识别**: 阿里云 Fun-ASR
+
 - **消息平台**: DingTalk Stream Mode (WebSocket)
 - **数据存储**: PostgreSQL (Prisma ORM)
 - **Web 框架**: Fastify 5.x
@@ -110,7 +110,7 @@ dialog-survey/
 ├── src/
 │   ├── api/          # API 层 (Fastify routes)
 │   ├── core/         # 核心逻辑 (LangGraph StateGraph)
-│   ├── services/     # 服务层 (LLM, ASR, 钉钉)
+│   ├── services/     # 服务层 (LLM, 钉钉)
 │   ├── repositories/ # 数据访问层 (Prisma)
 │   ├── integrations/ # 外部服务集成
 │   ├── domains/      # 领域实体
@@ -231,7 +231,6 @@ node dist/src/server.ts
 | `DINGTALK_APP_KEY` | 钉钉 AppKey | 开放平台获取 |
 | `DINGTALK_APP_SECRET` | 钉钉 AppSecret | 开放平台获取 |
 | `PUBLIC_URL` | 公网回调地址 | `https://your-domain.com` |
-| `FUN_ASR_API_KEY` | 阿里云 Fun-ASR API Key | 语音识别用 |
 | `ENCRYPTION_KEY` | AES 加密密钥 | 32 字节 hex 字符串 |
 | `ADMIN_API_KEY` | 管理后台 API Key | 自定义密钥 |
 | `REPORTS_DIR` | 报告存储目录 | `./reports` |
@@ -257,7 +256,7 @@ curl http://localhost:3001/health
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入 DingTalk、LLM、ASR 等实际配置值
+# 编辑 .env，填入 DingTalk、LLM 等实际配置值
 ```
 
 #### 2. 启动服务

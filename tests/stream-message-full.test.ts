@@ -68,7 +68,6 @@ async function processStreamMessageFull(
   state.pendingMessages.push({
     role: 'user',
     content: parsed.content,
-    isVoice: false,
   });
 
   const graphResult = (await (
@@ -76,14 +75,12 @@ async function processStreamMessageFull(
   )(state, {
     userId: parsed.userId,
     content: parsed.content,
-    isVoice: false,
   })) as { nextState: InterviewState; response: string };
 
   const nextState = graphResult.nextState;
   nextState.pendingMessages.push({
     role: 'assistant',
     content: graphResult.response,
-    isVoice: false,
   });
 
   try {
@@ -328,8 +325,8 @@ describe('processStreamMessageFull - 完整多轮对话', () => {
 
       const savedState = mockRepo.saveFullState.mock.calls[0][1];
       expect(savedState.pendingMessages).toEqual([
-        { role: 'user', content: '挑战是团队合作', isVoice: false },
-        { role: 'assistant', content: '感谢回答', isVoice: false },
+        { role: 'user', content: '挑战是团队合作' },
+        { role: 'assistant', content: '感谢回答' },
       ]);
     });
   });
