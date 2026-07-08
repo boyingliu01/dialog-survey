@@ -143,7 +143,6 @@ Smoke test 只运行关键路径的少量测试（~50 个以下），目标是 *
 Playwright E2E 测试中使用 Fastify 测试服务器，对以下外部依赖进行 mock：
 - DingTalk webhook：`tests/e2e/helpers/mock-dingtalk.ts`（已有实现）
 - LLM 调用：stub LLM API 返回固定响应
-- Fun-ASR：stub 语音识别返回固定文本
 
 **Step 1.4**: 创建 `npm run test:e2e` 快捷命令
 

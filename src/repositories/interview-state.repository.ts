@@ -75,7 +75,6 @@ export class InterviewStateRepository {
               create: state.messages.map((m) => ({
                 role: m.role,
                 content: m.content,
-                isVoice: false,
               })),
             },
             responses: {
@@ -184,7 +183,6 @@ export class InterviewStateRepository {
               interviewId,
               role: m.role,
               content: m.content,
-              isVoice: m.isVoice,
             })),
           });
         }

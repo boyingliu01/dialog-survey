@@ -46,7 +46,6 @@ export const InterviewStateSchema = z.object({
       z.object({
         role: z.enum(['user', 'assistant', 'system']),
         content: z.string(),
-        isVoice: z.boolean().default(false),
       })
     )
     .default([]), // 待保存消息列表
@@ -66,7 +65,6 @@ export type InterviewState = z.infer<typeof InterviewStateSchema>;
 export interface NodeInput {
   userId: string;
   content: string;
-  isVoice: boolean;
 }
 
 export interface NodeOutput {

@@ -51,7 +51,6 @@
 - **D7**: getConnectionToken 无重试
 - **D9**: Token 过期无时钟偏差补偿（severity underrated — 应为 MEDIUM）
 - **D10**: 无 graph execution timeout
-- **D12**: ASR timeout 已处理但不区分错误类型
 
 ### ❌ 误报
 

@@ -15,8 +15,6 @@ export class MessageRepository {
     role: 'user' | 'assistant' | 'system';
     content: string;
     messageId?: string;
-    isVoice?: boolean;
-    voiceText?: string;
   }): Promise<Message> {
     return this.prisma.message.create({
       data: {
@@ -24,8 +22,6 @@ export class MessageRepository {
         role: data.role,
         content: data.content,
         ...(data.messageId != null ? { messageId: data.messageId } : {}),
-        isVoice: data.isVoice || false,
-        ...(data.voiceText != null ? { voiceText: data.voiceText } : {}),
       },
     });
   }

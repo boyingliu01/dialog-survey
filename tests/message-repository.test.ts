@@ -65,44 +65,7 @@ describe('MessageRepository', () => {
       expect(message.interviewId).toBe(interviewId);
       expect(message.role).toBe('user');
       expect(message.content).toBe('Hello, this is a test message');
-      expect(message.isVoice).toBe(false);
       expect(message.createdAt).toBeDefined();
-    });
-
-    /**
-     * @test REQ-MESSAGE-CREATE-02
-     * @intent 验证创建消息时包含可选字段的功能（messageId、isVoice、voiceText）
-     */
-    it('should create a message with optional fields', async () => {
-      const testMessageId = 'test-message-id-123';
-
-      const message = await repo.create({
-        interviewId,
-        role: 'assistant',
-        content: 'This is an assistant message',
-        messageId: testMessageId,
-        isVoice: true,
-        voiceText: 'Spoken form of the message',
-      });
-
-      expect(message).toBeDefined();
-      expect(message.messageId).toBe(testMessageId);
-      expect(message.isVoice).toBe(true);
-      expect(message.voiceText).toBe('Spoken form of the message');
-    });
-
-    /**
-     * @test REQ-MESSAGE-CREATE-03
-     * @intent 验证创建消息时省略isVoice字段使用默认值false的功能
-     */
-    it('should create a message with isVoice defaulting to false', async () => {
-      const message = await repo.create({
-        interviewId,
-        role: 'system',
-        content: 'System message',
-      });
-
-      expect(message.isVoice).toBe(false);
     });
   });
 

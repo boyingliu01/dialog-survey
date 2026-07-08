@@ -26,8 +26,6 @@ const mockInterview = {
       interviewId: 'interview-123',
       role: 'assistant',
       content: 'hello',
-      isVoice: false,
-      voiceText: null,
       messageId: null,
       createdAt: new Date(),
     },
@@ -115,7 +113,7 @@ describe('InterviewStateRepository', () => {
           version: { increment: 1 },
           messages: {
             deleteMany: { interviewId: 'interview-123' },
-            create: [{ role: 'assistant', content: 'hello', isVoice: false }],
+            create: [{ role: 'assistant', content: 'hello' }],
           },
           responses: {
             deleteMany: { interviewId: 'interview-123' },
@@ -254,7 +252,7 @@ describe('InterviewStateRepository', () => {
       mockPrisma.interview.update.mockResolvedValue({ ...mockInterview, version: 6 });
 
       const state = makeState({
-        pendingMessages: [{ role: 'user' as const, content: 'new message', isVoice: false }],
+        pendingMessages: [{ role: 'user' as const, content: 'new message' }],
         pendingResponses: [{ questionId: 'q1', content: 'new answer', isFollowup: false }],
       });
 
@@ -262,9 +260,7 @@ describe('InterviewStateRepository', () => {
 
       expect(result).toEqual({ success: true, newVersion: 6 });
       expect(mockPrisma.message.createMany).toHaveBeenCalledWith({
-        data: [
-          { interviewId: 'interview-123', role: 'user', content: 'new message', isVoice: false },
-        ],
+        data: [{ interviewId: 'interview-123', role: 'user', content: 'new message' }],
       });
       expect(mockPrisma.response.createMany).toHaveBeenCalledWith({
         data: [

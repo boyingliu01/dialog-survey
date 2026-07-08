@@ -29,11 +29,10 @@
 | ------------------------- | ------------ | ------- | ---------- |
 | Task-001: 基础设施搭建    | 8            | 8       | 100%       |
 | Task-002: 钉钉集成        | 12           | 12      | 100%       |
-| Task-003: LLM集成         | 10           | 10      | 100%       |
-| Task-004: LangGraph状态机 | 14           | 14      | 100%       |
+| Task-003: LLM 集成         | 10           | 10      | 100%       |
+| Task-004: LangGraph 状态机 | 14           | 14      | 100%       |
 | Task-005: 智能追问系统    | 16           | 12      | 75%        |
 | Task-006: 多轮对话记忆    | 10           | 8       | 80%        |
-| Task-007: ASR语音识别     | 8            | 8       | 100%       |
 | Task-008: 访谈模板管理    | 14           | 10      | 71.4%      |
 | Task-009: 分析报告生成    | 24           | 16      | 66.7%      |
 | Task-010: 批量访谈计划    | 12           | 8       | 66.7%      |
@@ -65,7 +64,6 @@ Requirements without @test annotations:
 | tests/state-persistence.test.ts      | 8                 | REQ-006-1 through REQ-006-3 |
 | tests/retry.test.ts                  | 9                 | REQ-001-4 through REQ-001-5 |
 | tests/report.test.ts                 | 8                 | REQ-009-6 through REQ-009-8 |
-| tests/asr.test.ts                    | 10                | REQ-007-1 through REQ-007-4 |
 
 ---
 

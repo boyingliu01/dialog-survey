@@ -162,9 +162,6 @@ DINGTALK_APP_SECRET=your-dingtalk-app-secret
 DINGTALK_AGENT_ID=your-dingtalk-agent-id
 PUBLIC_URL=http://your-internal-ip:3001
 
-# Fun-ASR Configuration
-FUN_ASR_API_KEY=your-fun-asr-api-key
-
 # Security
 ENCRYPTION_KEY=your-32-byte-hex-key
 ADMIN_API_KEY=your-admin-api-key

@@ -2,6 +2,9 @@
 
 ## 1.8.0 - 2026-07-07
 
+### Removed
+- remove: ASR/Fun-ASR voice recognition — no actual use case (钉钉不支持语音消息), fully stripped from code, schema, tests, and docs
+
 ### Fixed
 - fix: COMPLETED interviews stuck in CONTINUE loop (Rule 2 evaluation missing for COMPLETED status in interviewing node)
 - fix: FINISH/COMPLETE → END transition (follow-up engine marks interview as COMPLETED when end signal received)
@@ -159,7 +162,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Maintenance
 - **删除 ESLint/Prettier 冗余依赖**: 移除 7 个已由 Biome 覆盖的 devDependencies (eslint, prettier, eslint-config-prettier, eslint-plugin-prettier, @typescript-eslint/eslint-plugin, @typescript-eslint/parser, eslint-plugin-unused-imports) — 删除 `.eslintrc.json`
-- **修复 `.env.example` 文档**: 去重 3 处重复变量，新增 `LLM_BASE_URL`/`FUN_ASR_API_KEY`/`REPORTS_DIR`，删除 4 个废弃变量 (`PUBLIC_URL`/`OAUTH_APP_KEY`/`OAUTH_APP_SECRET`/`API_KEY`)
+- **修复 `.env.example` 文档**: 去重 3 处重复变量，新增 `LLM_BASE_URL`/`REPORTS_DIR`，删除 4 个废弃变量 (`PUBLIC_URL`/`OAUTH_APP_KEY`/`OAUTH_APP_SECRET`/`API_KEY`)
 - **修复 HTMX shell URL 违规**: `template-new.njk` 的 `hx-get="/admin"` 改为 `/admin/content/dashboard`
 - **删除未使用的 DDD 层**: 移除 `src/domains/` 下 4 个文件 (interview.entity.ts, message.entity.ts, response.entity.ts, interview.domain.ts) — 项目已迁移至 Repository 模式
 - **CI 安全加固**: `publish.yml` 硬编码密码替换为 GitHub Secrets (`${{ secrets.POSTGRES_PASSWORD }}`, `${{ secrets.DATABASE_URL }}`)
