@@ -38,19 +38,17 @@ githooks/
 .delphi/
 .xp-gate/
 .speckit/
-.ast-grep/
 .worktrees/
+.codegraph/
+.code-walkthrough-result.json
+.quality-history.jsonl
+learnings.jsonl
+LEARNINGS/
 
-# Config files
-biome.json
-tsconfig.json
-vitest.config.ts
-.eslintrc*
-.prettierrc*
-stryker.config.mjs
-jscpd.conf.json
-opencode.json
-architecture.yaml
+# Tooling configuration
+tools/opencode.json
+tools/jscpd.conf.json
+.gitleaks.toml
 
 # Scripts (keep cli.mjs, exclude others)
 scripts/deploy.sh
@@ -66,19 +64,10 @@ docker-compose.yml
 ecosystem.config.cjs
 Dockerfile
 .dockerignore
-.gitleaks.toml
-.code-walkthrough-result.json
-.quality-history.jsonl
-architecture-report.sarif.json
-learnings.jsonl
-specification.yaml
-alignment-report.md
-test-specification-alignment-report.md
-specification-validation.md
+.gstack/
 
 # Reports and analytics
 reports/
-LEARNINGS/
 
 # Prisma seeds (keep schema)
 prisma/seed-*.ts

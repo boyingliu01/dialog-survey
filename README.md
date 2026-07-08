@@ -107,21 +107,23 @@ npm run dev
 
 ```
 dialog-survey/
-├── src/
+├── src/              # 应用源码
 │   ├── api/          # API 层 (Fastify routes)
-│   ├── core/         # 核心逻辑 (LangGraph StateGraph)
-│   ├── services/     # 服务层 (LLM, 钉钉)
+│   ├── core/         # 核心逻辑 (LangGraph workflow)
+│   ├── services/     # 业务逻辑层 (18 services)
 │   ├── repositories/ # 数据访问层 (Prisma)
-│   ├── integrations/ # 外部服务集成
-│   ├── domains/      # 领域实体
+│   ├── integrations/ # 外部服务 (DingTalk, LLM)
 │   ├── middleware/   # Fastify 中间件
-│   ├── views/        # Nunjucks 模板
+│   ├── views/        # Nunjucks 模板 (admin UI)
 │   └── utils/        # 工具函数
-├── tests/            # 测试 (Vitest)
-├── scripts/          # CLI 脚本和部署脚本
-├── prisma/           # Prisma schema 和迁移
-├── templates/        # 访谈模板
-├── reports/          # 生成的报告
+├── tests/            # 测试 (Vitest, 92 files, ~930 tests)
+├── scripts/          # CLI 入口 + 部署脚本
+├── prisma/           # Prisma schema + 迁移 + 种子数据
+├── tools/            # 工具链配置 (Biome, ast-grep, etc.)
+├── docs/             # 文档 + 报告存档
+│   └── reports/      # 归档的报告/分析输出
+├── reports/          # 运行时生成的访谈报告 (PDF/Excel)
+├── public/           # 静态资源 (CSS, JS)
 ├── package.json
 ├── tsconfig.json
 └── vitest.config.ts
