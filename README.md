@@ -2,7 +2,7 @@
 
 > **Turn DingTalk conversations into structured intelligence.**
 >
-> An AI-powered interview robot that conducts async multi-turn interviews via DingTalk — with LLM-driven follow-ups, context memory, and automated report generation.
+> An AI-powered survey dialog bot that conducts async multi-turn conversations via DingTalk — with LLM-driven follow-ups, context memory, and automated report generation.
 
 [![Version](https://img.shields.io/badge/version-1.8.1-blue)](https://github.com/boyingliu01/dialog-survey)
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)]()
@@ -19,7 +19,7 @@ npx dialog-survey install
 # Start the service
 npx dialog-survey start
 
-# That's it. Your interview robot is live on DingTalk.
+# That's it. Your dialog bot is live on DingTalk.
 ```
 
 **Prerequisites:** Node.js >= 20, PostgreSQL 14+, a DingTalk application (Client ID/Secret/Agent ID).
@@ -28,19 +28,17 @@ npx dialog-survey start
 
 ## Why — 为什么做这个项目？
 
-**Traditional surveys suck.** Response rates are low, answers are shallow, and rigid questionnaires can't probe deeper when someone says something interesting.
+**One-on-one interviews are great.** People enjoy real conversations — a skilled interviewer builds rapport, reads between the lines, and asks exactly the right follow-up. But interviewing hundreds or thousands of people is expensive and doesn't scale.
 
-We built Dialog Survey to solve one problem: **how do you get honest, thorough, high-quality responses at scale?**
+**Surveys scale beautifully**, but they're shallow. A fixed questionnaire can't pivot when a respondent says something unexpected.
 
-The answer: make the interview feel human. Let an AI interviewer ask follow-ups like a real person would. Let people respond on their own time (async, via DingTalk, in their spare moments). And when the conversation is done, turn it all into a structured report automatically — no manual transcription, no analysis paralysis.
-
-This is not a survey tool. It's an **interview-as-a-service** platform.
+Dialog Survey fills the gap between these two. It's **deeper than a form, broader than a human.** An AI-powered dialog bot probes interesting responses like a human would, while reaching hundreds of participants in parallel via DingTalk. It won't replace a great interviewer — but when you need structured, first-hand insights from a large group, it's the closest thing without hiring an army of researchers.
 
 ---
 
 ## What — 这个项目是什么？
 
-Dialog Survey is an **async interview robot** that lives inside DingTalk. You design a survey template, invite participants, and the AI conducts a multi-turn conversation with each person — asking initial questions, probing deeper on interesting answers, and remembering context across days and messages.
+Dialog Survey is an **async survey dialog bot** that lives inside DingTalk. You design a survey template, invite participants, and the AI conducts a multi-turn conversation with each person — asking initial questions, probing deeper on interesting answers, and remembering context across days and messages.
 
 ### Key Capabilities
 
@@ -48,14 +46,14 @@ Dialog Survey is an **async interview robot** that lives inside DingTalk. You de
 |-----------|-------------|
 | **AI-driven follow-ups** | LLM-powered intelligent probing — when a participant says something interesting, the bot digs deeper automatically |
 | **Multi-turn context memory** | Coherent conversations that span days and multiple messages, not isolated Q&A rounds |
-| **Async message interviewing** | Participants answer in their spare time on DingTalk — no scheduled calls, no pressure |
+| **Async messaging** | Participants answer in their spare time on DingTalk — no scheduled calls, no pressure |
 | **Auto report generation** | Markdown reports generated automatically after interviews complete — PDF/Excel export via Playwright |
 | **Self-hosted** | All data stays on your infrastructure. PostgreSQL, your LLM (ollama / vLLM / cloud), your DingTalk app |
 
 ### What's New (v1.8.x)
 
 - **v1.8.1** — Full project doc refresh: compressed AGENTS.md to 88 lines, added subdirectory AGENTS.md for repositories/integrations/utils
-- **v1.8.0** — Removed unused ASR/voice recognition. Fixed COMPLETED interviews stuck in CONTINUE loop. Fixed maxFollowups not persisted to DB. Fixed add-member modal swallowing errors silently.
+- **v1.8.0** — Removed unused ASR/voice recognition. Fixed COMPLETED dialogs stuck in CONTINUE loop. Fixed maxFollowups not persisted to DB. Fixed add-member modal swallowing errors silently.
 - **v1.7.9** — CI stability: fixed flaky integration tests, cleaned up secrets from sample configs
 - **v1.7.8** — Unified tsconfig.json, fixed 81 type errors across 35 files
 
