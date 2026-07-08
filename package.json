@@ -2,7 +2,7 @@
   "name": "dialog-survey",
   "version": "1.8.1",
   "type": "module",
-  "description": "AI-powered interview robot that conducts async multi-turn interviews via DingTalk",
+  "description": "AI-powered survey dialog bot that conducts async multi-turn conversations via DingTalk",
   "repository": {
     "type": "git",
     "url": "https://github.com/boyingliu01/dialog-survey"
