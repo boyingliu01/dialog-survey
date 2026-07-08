@@ -44,6 +44,15 @@ env/
  !.env.sample
  !.env.production.example
 
+# AI tooling workspaces
+.speckit/
+.codegraph/
+.code-walkthrough-result.json
+
+# AI learning artifacts
+LEARNINGS/
+learnings.jsonl
+
 # Database
 *.db
 *.sqlite3
@@ -116,9 +125,8 @@ worktrees/
 # Delphi review artifacts (contain colons in filenames, break Windows git)
 .delphi/
 
-# XP-gate generated reports
-.xp-gate/reports/
-.xp-gate/quality-status/
+# XP-gate generated artifacts
+.xp-gate/
 
 # Quality history (auto-generated)
 .quality-history.jsonl

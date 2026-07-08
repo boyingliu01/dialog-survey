@@ -32,7 +32,7 @@ jobs:
         run: npx tsc --noEmit
 
       - name: ast-grep lint (no raw Prisma in API, advisory only)
-        run: npx --package=@ast-grep/cli sg scan --rule .ast-grep/rules/no-raw-prisma-in-api.yml || true
+        run: npx --package=@ast-grep/cli sg scan --rule tools/.ast-grep/rules/no-raw-prisma-in-api.yml || true
 
   unit-tests:
     name: Unit Tests (mock, PrismaClient init needs DB)
