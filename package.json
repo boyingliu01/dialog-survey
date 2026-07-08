@@ -25,7 +25,7 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "format": "biome format --write .",
-    "lint:prisma": "ast-grep scan --rule .ast-grep/rules/no-raw-prisma-in-api.yml",
+    "lint:prisma": "ast-grep scan --rule tools/.ast-grep/rules/no-raw-prisma-in-api.yml",
     "test:e2e": "vitest run tests/e2e/*.e2e.test.ts --reporter=verbose",
     "smoke": "npm run type-check && npm run lint && vitest run tests/health-check.test.ts tests/project-structure.test.ts tests/env-config.test.ts tests/health-api.test.ts tests/server-api.test.ts",
     "start": "node dist/src/server.js",
