@@ -4,7 +4,7 @@
 
 ## Overview
 
-AI-powered interview robot — async multi-turn interviews via DingTalk with LLM-driven follow-ups and context memory. Fastify 5 + PostgreSQL + Prisma + custom LangGraph workflow.
+AI-powered survey dialog bot — async multi-turn conversations via DingTalk with LLM-driven follow-ups and context memory. Fastify 5 + PostgreSQL + Prisma + custom LangGraph workflow.
 
 ## Where to Look
 
@@ -25,7 +25,7 @@ AI-powered interview robot — async multi-turn interviews via DingTalk with LLM
 |--------|------|------|------|
 | `buildApp()` | fn | `src/server.ts` | Fastify app factory |
 | `checkDatabaseConnection()` | fn | `src/server.ts` | Health check DB probe |
-| `runInterviewGraph()` | fn | `src/core/graph.ts` | State machine entry point |
+| `runInterviewGraph()` | fn | `src/core/graph.ts` | Dialog state machine entry point |
 | `InterviewStateSchema` | zod | `src/core/types/index.ts` | Zod schema → TS type |
 | `StreamMessageService` | class | `src/services/stream-message.service.ts` | Message dispatch + dedup |
 | `InterviewStateRepository` | class | `src/repositories/interview-state.repository.ts` | Optimistic locking persistence |

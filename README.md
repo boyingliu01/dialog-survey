@@ -28,11 +28,11 @@ npx dialog-survey start
 
 ## Why — 为什么做这个项目？
 
-**One-on-one interviews are great.** People enjoy real conversations — a skilled interviewer builds rapport, reads between the lines, and asks exactly the right follow-up. But interviewing hundreds or thousands of people is expensive and doesn't scale.
+**One-on-one conversations are great.** People enjoy real dialogue — a skilled facilitator builds rapport, reads between the lines, and asks exactly the right follow-up. But sitting down with hundreds or thousands of people one by one is expensive and doesn't scale.
 
 **Surveys scale beautifully**, but they're shallow. A fixed questionnaire can't pivot when a respondent says something unexpected.
 
-Dialog Survey fills the gap between these two. It's **deeper than a form, broader than a human.** An AI-powered dialog bot probes interesting responses like a human would, while reaching hundreds of participants in parallel via DingTalk. It won't replace a great interviewer — but when you need structured, first-hand insights from a large group, it's the closest thing without hiring an army of researchers.
+Dialog Survey fills the gap between these two. It's **deeper than a form, broader than a human-led session.** An AI-powered dialog bot probes interesting responses like a skilled facilitator would, while reaching hundreds of participants in parallel via DingTalk. It won't replace a great human conversation — but when you need structured, first-hand insights from a large group, it's the closest thing without hiring an army of researchers.
 
 ---
 
@@ -47,7 +47,7 @@ Dialog Survey is an **async survey dialog bot** that lives inside DingTalk. You 
 | **AI-driven follow-ups** | LLM-powered intelligent probing — when a participant says something interesting, the bot digs deeper automatically |
 | **Multi-turn context memory** | Coherent conversations that span days and multiple messages, not isolated Q&A rounds |
 | **Async messaging** | Participants answer in their spare time on DingTalk — no scheduled calls, no pressure |
-| **Auto report generation** | Markdown reports generated automatically after interviews complete — PDF/Excel export via Playwright |
+| **Auto report generation** | Markdown reports generated automatically after dialogs complete — PDF/Excel export via Playwright |
 | **Self-hosted** | All data stays on your infrastructure. PostgreSQL, your LLM (ollama / vLLM / cloud), your DingTalk app |
 
 ### What's New (v1.8.x)
