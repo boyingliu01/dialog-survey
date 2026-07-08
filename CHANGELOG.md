@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.1 - 2026-07-08
+
+### Changed
+- docs: full project doc refresh — root AGENTS.md compressed 597→88 lines, 3 new subdir AGENTS.md (repositories/integrations/utils), all stats synced to v1.8.0 reality
+
 ## 1.8.0 - 2026-07-07
 
 ### Removed
