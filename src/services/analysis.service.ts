@@ -50,19 +50,24 @@ export class AnalysisService {
   async analyzeInterview(interviewId: string): Promise<AnalysisResult> {
     const interview = await this._prisma.interview.findUnique({
       where: { id: interviewId },
-      include: { responses: true, messages: true },
+      include: { responses: true, messages: true, template: true },
     });
 
     if (!interview) {
       throw new Error('Interview not found');
     }
 
+    // Build question map from template content: "q0" → actual question text
+    const questionMap = this.buildQuestionMap(interview.template?.content);
+    const topic = interview.template?.name || interview.templateId;
+
     const qaPairs = interview.responses.map((r) => ({
-      question: r.questionId,
+      question: questionMap[r.questionId] || r.questionId,
       answer: r.content,
     }));
 
-    const topic = interview.templateId;
+    info('Starting interview analysis', { interviewId, topic, qaCount: qaPairs.length });
+
     const report = await generateReport(interviewId, topic, qaPairs);
 
     const metrics = this.calculateMetrics(interview.responses);
@@ -108,6 +113,12 @@ export class AnalysisService {
       );
     }
 
+    // Delete old reports for this interview to ensure only one report exists
+    const deleted = await this._prisma.analysisReport.deleteMany({
+      where: { interviewId },
+    });
+    info('Deleted old analysis reports', { interviewId, count: deleted.count });
+
     await this._prisma.analysisReport.create({
       data: {
         interviewId,
@@ -121,6 +132,13 @@ export class AnalysisService {
           ? { interviewerRating: dimResult.interviewerRating }
           : {}),
       },
+    });
+
+    info('Analysis completed successfully', {
+      interviewId,
+      sentiment: report.sentiment,
+      keyFindingsCount: report.keyFindings.length,
+      recommendationsCount: report.recommendations.length,
     });
 
     return { interviewId, report, metrics };
@@ -214,6 +232,21 @@ export class AnalysisService {
     }
 
     return Array.from(topics);
+  }
+
+  private buildQuestionMap(contentJson: string | null | undefined): Record<string, string> {
+    if (!contentJson) return {};
+    try {
+      const parsed = JSON.parse(contentJson) as { questions?: string[] };
+      const questions = parsed.questions || [];
+      const map: Record<string, string> = {};
+      for (let i = 0; i < questions.length; i++) {
+        map[`q${i}`] = questions[i];
+      }
+      return map;
+    } catch {
+      return {};
+    }
   }
 
   async compareClusters(clusterIds: string[]): Promise<ClusterAnalysis[]> {

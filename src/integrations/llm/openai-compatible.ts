@@ -20,65 +20,82 @@ export class OpenAICompatibleLLM implements LLMService {
 
   async chat(request: LLMRequest): Promise<LLMResponse> {
     const url = this.baseUrl;
+    const timeoutMs = Number.parseInt(process.env['LLM_TIMEOUT'] || '120000', 10);
 
     info('LLM request', {
       model: request.model || this.model,
       messageCount: request.messages.length,
+      timeoutMs,
     });
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: request.model || this.model,
-        messages: request.messages,
-        temperature: request.temperature ?? 0.7,
-        max_tokens: request.max_tokens ?? 2000,
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!response.ok) {
-      const errText = await response.text();
-      error('LLM API error', { status: response.status, body: errText });
-      throw new RetryError(
-        `LLM API error: ${response.status} - ${errText}`,
-        response.status,
-        response.status >= 500 || response.status === 429
-      );
-    }
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: request.model || this.model,
+          messages: request.messages,
+          temperature: request.temperature ?? 0.7,
+          max_tokens: request.max_tokens ?? 2000,
+        }),
+        signal: controller.signal,
+      });
 
-    const data = (await response.json()) as {
-      choices?: Array<{
-        message?: { content?: string };
-        finish_reason?: string;
-      }>;
-      usage?: {
-        prompt_tokens?: number;
-        completion_tokens?: number;
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        error('LLM API error', { status: response.status, body: errText });
+        throw new RetryError(
+          `LLM API error: ${response.status} - ${errText}`,
+          response.status,
+          response.status >= 500 || response.status === 429
+        );
+      }
+
+      const data = (await response.json()) as {
+        choices?: Array<{
+          message?: { content?: string };
+          finish_reason?: string;
+        }>;
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+        };
       };
-    };
 
-    const choice = data.choices?.[0];
-    const content = choice?.message?.content || '';
-    const finishReason = choice?.finish_reason || 'stop';
+      const choice = data.choices?.[0];
+      const content = choice?.message?.content || '';
+      const finishReason = choice?.finish_reason || 'stop';
 
-    info('LLM response', {
-      contentLength: content.length,
-      finishReason,
-      usage: data.usage,
-    });
+      info('LLM response', {
+        contentLength: content.length,
+        finishReason,
+        usage: data.usage,
+      });
 
-    return {
-      content,
-      finishReason,
-      usage: {
-        promptTokens: data.usage?.prompt_tokens || 0,
-        completionTokens: data.usage?.completion_tokens || 0,
-      },
-    };
+      return {
+        content,
+        finishReason,
+        usage: {
+          promptTokens: data.usage?.prompt_tokens || 0,
+          completionTokens: data.usage?.completion_tokens || 0,
+        },
+      };
+    } catch (e) {
+      clearTimeout(timeoutId);
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        error('LLM request timeout', { timeoutMs, model: request.model || this.model });
+        throw new RetryError(`LLM request timeout after ${timeoutMs}ms`, 408, false);
+      }
+      throw e;
+    }
   }
 
   async embeddings(_text: string): Promise<number[]> {

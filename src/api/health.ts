@@ -54,7 +54,11 @@ async function checkLLM(): Promise<{
       process.env['LLM_BASE_URL'] ||
       process.env['VOLCENGINE_BASE_URL'] ||
       'https://ark.cn-beijing.volces.com/api/coding';
-    const model = process.env['LLM_MODEL'] || process.env['VOLCENGINE_MODEL'] || 'deepseek-v3.2';
+    const model = process.env['LLM_MODEL'] || process.env['VOLCENGINE_MODEL'];
+    
+    if (!model) {
+      return { status: 'degraded', error: 'LLM model not configured' };
+    }
 
     const start = Date.now();
     const response = await fetch(baseUrl, {

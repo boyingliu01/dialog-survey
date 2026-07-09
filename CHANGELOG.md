@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.9.0 - 2026-07-09
+
+### Added
+- feat: re-analyze button on both admin and public report detail pages with real-time timer and toast feedback
+- feat: invitee name/phone display in PDF export and report detail pages (loaded from InterviewPlan)
+- feat: custom `.report-content` CSS styles to fix markdown rendering without `@tailwindcss/typography` dependency
+- feat: delete old reports before re-analysis to ensure idempotency (one report per interview)
+
+### Changed
+- refactor: redesigned analysis summary card — gradient indigo→purple header with AI-generated badge, 3-column card grid (sentiment / keyFindings / recommendations) with emoji icons
+- refactor: PDF export now shows full dialog history (role-labeled bubbles) instead of flat response table
+- refactor: improved `generateReport` prompt with structured output requirements (overview, findings, sentiment, pain points, recommendations, highlights)
+- refactor: `cleanText()` and `isTableOrFormatting()` helpers to strip raw markdown/HTML from keyFindings and recommendations extraction
+- refactor: `report.service.ts` uses `error()` instead of `info()` for LLM failures, adds `usedLLM` flag, checks for empty LLM responses
+
+### Fixed
+- fix: sentiment displayed in Chinese (积极/中性/消极) and with emoji icon on report detail pages
+- fix: health API tests now set `LLM_MODEL=test-model` to avoid config-dependent failures
+
 ## 1.8.1 - 2026-07-08
 
 ### Changed

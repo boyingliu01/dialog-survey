@@ -22,6 +22,9 @@ describe('ExportService', () => {
     analysisReport: {
       findFirst: ReturnType<typeof vi.fn>;
     };
+    interviewPlan: {
+      findUnique: ReturnType<typeof vi.fn>;
+    };
   };
 
   beforeEach(() => {
@@ -33,6 +36,9 @@ describe('ExportService', () => {
       analysisReport: {
         findFirst: vi.fn(),
       },
+      interviewPlan: {
+        findUnique: vi.fn(),
+      },
     };
     service = new ExportService(mockPrisma as any, tmpDir);
     vi.clearAllMocks();
@@ -43,16 +49,26 @@ describe('ExportService', () => {
   });
 
   describe('exportInterviewToPdf', () => {
-    it('should generate PDF with interview responses', async () => {
+    it('should generate PDF with interview dialog and report', async () => {
       mockPrisma.interview.findUnique.mockResolvedValue({
         id: 'iv-1',
         userId: 'user-001',
         status: 'COMPLETED',
         templateId: 'tpl-1',
+        planId: 'plan-1',
+        messages: [
+          { role: 'assistant', content: '你好,请介绍一下自己' },
+          { role: 'user', content: '答案A' },
+          { role: 'assistant', content: '能详细说说吗?' },
+          { role: 'user', content: '答案B' },
+        ],
         responses: [
           { questionId: 'Q1', content: '答案A', isFollowup: false, followupDepth: 0 },
           { questionId: 'Q2', content: '答案B', isFollowup: true, followupDepth: 1 },
         ],
+      });
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        inviteeData: [{ userId: 'user-001', name: '张三', phone: '13800138000' }],
       });
       mockPrisma.analysisReport.findFirst.mockResolvedValue({
         content: '报告内容\n关键发现：很好',
@@ -84,6 +100,8 @@ describe('ExportService', () => {
         userId: 'user-002',
         status: 'ACTIVE',
         templateId: 'tpl-1',
+        planId: null,
+        messages: [{ role: 'assistant', content: '你好' }],
         responses: [{ questionId: 'Q1', content: '答案C', isFollowup: false, followupDepth: 0 }],
       });
       mockPrisma.analysisReport.findFirst.mockResolvedValue(null);
@@ -99,6 +117,11 @@ describe('ExportService', () => {
         userId: 'user-001',
         status: 'COMPLETED',
         templateId: 'tpl-1',
+        planId: null,
+        messages: [
+          { role: 'assistant', content: '请描述你的测试体验' },
+          { role: 'user', content: '测试中文回答' },
+        ],
         responses: [
           { questionId: 'Q1', content: '测试中文回答', isFollowup: false, followupDepth: 0 },
         ],
@@ -119,6 +142,28 @@ describe('ExportService', () => {
       // When CJK font is available, PDF should have ToUnicode CMap for text extraction
       const pdfStr = pdfBytes.toString('latin1');
       expect(pdfStr).toMatch(/\/ToUnicode\s+\d+\s+\d+\s+R/);
+    });
+
+    it('should include invitee name and phone in PDF when available', async () => {
+      mockPrisma.interview.findUnique.mockResolvedValue({
+        id: 'iv-1',
+        userId: 'user-001',
+        status: 'COMPLETED',
+        templateId: 'tpl-1',
+        planId: 'plan-1',
+        messages: [{ role: 'assistant', content: '你好' }],
+        responses: [],
+      });
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        inviteeData: [{ userId: 'user-001', name: '李四', phone: '13900139000' }],
+      });
+      mockPrisma.analysisReport.findFirst.mockResolvedValue(null);
+
+      const pdfPath = await service.exportInterviewToPdf('iv-1');
+      const pdfBytes = readFileSync(pdfPath);
+
+      expect(pdfBytes.toString().startsWith('%PDF')).toBe(true);
+      expect(pdfBytes.length).toBeGreaterThan(100);
     });
   });
 

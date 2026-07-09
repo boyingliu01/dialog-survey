@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_MODEL, OpenAICompatibleLLM } from '../integrations/llm/openai-compatible.js';
-import { info } from '../utils/logger.js';
+import { OpenAICompatibleLLM } from '../integrations/llm/openai-compatible.js';
+import { info, error } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
 
@@ -12,6 +12,7 @@ export interface Report {
   sentiment: string;
   recommendations: string[];
   generatedAt: Date;
+  usedLLM?: boolean;
 }
 
 export interface ReportWithDimensions extends Report {
@@ -43,13 +44,18 @@ export async function generateReport(
   try {
     const response = await withRetry(() =>
       llm.chat({
-        model: DEFAULT_MODEL,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 3000,
       })
     );
 
     const content = response.content;
+    
+    if (!content || content.trim().length === 0) {
+      error('LLM returned empty content, using fallback', { interviewId });
+      return createFallbackReport(interviewId, topic, qaPairs);
+    }
+    
     const parsed = parseReportContent(content);
 
     const report: Report = {
@@ -59,14 +65,24 @@ export async function generateReport(
       sentiment: parsed.sentiment,
       recommendations: parsed.recommendations,
       generatedAt: new Date(),
+      usedLLM: true,
     };
+
+    info('LLM report generated successfully', {
+      interviewId,
+      contentLength: content.length,
+      keyFindingsCount: parsed.keyFindings.length,
+      recommendationsCount: parsed.recommendations.length,
+    });
 
     await saveReport(report);
     return report;
   } catch (e) {
     const errorMsg = e instanceof Error ? e.message : 'Unknown error';
-    info('Report generation failed, using fallback', { error: errorMsg });
-    return createFallbackReport(interviewId, topic, qaPairs);
+    error('LLM report generation FAILED, using fallback', { interviewId, error: errorMsg });
+    const fallbackReport = createFallbackReport(interviewId, topic, qaPairs);
+    fallbackReport.usedLLM = false;
+    return fallbackReport;
   }
 }
 
@@ -79,12 +95,33 @@ function parseReportContent(content: string): {
   let sentiment = 'neutral';
   const recommendations: string[] = [];
 
+  const cleanText = (text: string): string => {
+    return text
+      .replace(/^#+\s*/, '')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/`(.+?)`/g, '$1')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\|/g, ' ')
+      .replace(/^[-=]{3,}$/, '')
+      .replace(/^\s*[-*+]\s*$/, '')
+      .trim();
+  };
+
+  const isTableOrFormatting = (line: string): boolean => {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) return true;
+    if (/^[-=|:\s]+$/.test(trimmed)) return true;
+    if (/^\|?[\s-|:]+\|?$/.test(trimmed)) return true;
+    return false;
+  };
+
   // Support both "### 1. 关键发现" (Markdown header) and "关键发现:" formats
   const findingMatch =
     content.match(/[##\s]*关键发现[:：]?\s*\n?([\s\S]*?)(?=情感分析|行动建议|### .*建议|$)/i) ||
     content.match(/关键发现[\s:：]*([\s\S]*?)(?=情感分析|行动建议|$)/i);
   if (findingMatch) {
-    // Split by newlines or markdown list markers, filter out empty/heading lines
     const findings = findingMatch[1]
       .split(/[\n]+/)
       .map((f) =>
@@ -93,7 +130,8 @@ function parseReportContent(content: string): {
           .replace(/^\d+\.\s*/, '')
           .trim()
       )
-      .filter((f) => f.length > 0);
+      .map(cleanText)
+      .filter((f) => f.length > 0 && !isTableOrFormatting(f));
     keyFindings.push(...findings.slice(0, 5));
   }
 
@@ -127,7 +165,8 @@ function parseReportContent(content: string): {
           .replace(/^\d+\.\s*/, '')
           .trim()
       )
-      .filter((r) => r.length > 0);
+      .map(cleanText)
+      .filter((r) => r.length > 0 && !isTableOrFormatting(r));
     recommendations.push(...recs.slice(0, 5));
   }
 
@@ -178,7 +217,6 @@ export async function generateReportWithDimensions(
   try {
     const response = await withRetry(() =>
       llm.chat({
-        model: DEFAULT_MODEL,
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 2000,
         temperature: 0.1,
