@@ -16,7 +16,9 @@ describe('DingTalkTokenManager', () => {
     process.env['DINGTALK_CLIENT_SECRET'] = 'test_client_secret';
     vi.clearAllMocks();
     // Replace the real delay (2s/4s exponential backoff) with 1ms for tests
-    (tokenManager as any).delay = vi.fn().mockResolvedValue(undefined);
+    (tokenManager as unknown as { delay: ReturnType<typeof vi.fn> }).delay = vi
+      .fn()
+      .mockResolvedValue(undefined);
   });
 
   afterEach(() => {

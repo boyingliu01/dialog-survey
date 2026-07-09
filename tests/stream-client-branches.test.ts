@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-let lastMockInstance: any = null;
+let lastMockInstance: unknown = null;
 
 vi.mock('ws', () => {
   const mockSend = vi.fn();
   const mockClose = vi.fn();
-  const callbacks = new Map<string, (...args: any[]) => void>();
+  const callbacks = new Map<string, (...args: unknown[]) => void>();
 
   class MockWs {
     static OPEN = 1;
@@ -14,7 +14,7 @@ vi.mock('ws', () => {
     static CLOSED = 3;
     send = mockSend;
     close = mockClose;
-    on = vi.fn((event: string, cb: (...args: any[]) => void) => {
+    on = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       callbacks.set(event, cb);
     });
     _callbacks = callbacks;
@@ -32,8 +32,8 @@ interface WsMock {
   send: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
-  _callbacks: Map<string, (...args: any[]) => void>;
-  _trigger: (event: string, ...args: any[]) => void;
+  _callbacks: Map<string, (...args: unknown[]) => void>;
+  _trigger: (event: string, ...args: unknown[]) => void;
 }
 
 function getWsMock(): WsMock {
@@ -60,7 +60,7 @@ describe('DingTalkStreamClient Branch Coverage', () => {
         ok: true,
         json: () => Promise.resolve(mockConnectionResponse),
       })
-    ) as any;
+    ) as unknown as typeof fetch;
   });
 
   afterEach(() => {
@@ -124,7 +124,9 @@ describe('DingTalkStreamClient Branch Coverage', () => {
     const goodHandler = vi.fn();
     client.on('test-event', goodHandler);
 
-    (client as any).emit('test-event', { data: 'test' });
+    (client as unknown as { emit: (event: string, data: unknown) => void }).emit('test-event', {
+      data: 'test',
+    });
 
     expect(goodHandler).toHaveBeenCalledWith({ data: 'test' });
   });
@@ -147,11 +149,11 @@ describe('DingTalkStreamClient Branch Coverage', () => {
 
   it('should handle sendAck with null WebSocket gracefully', async () => {
     const client = new DingTalkStreamClient(mockConfig);
-    (client as any).ws = null;
+    (client as unknown as { ws: null }).ws = null;
     expect(() => {
-      (client as any).sendAck('test-message-id');
+      (client as unknown as { sendAck: (id: string) => void }).sendAck('test-message-id');
     }).not.toThrow();
-    expect((client as any).ws).toBeNull();
+    expect((client as unknown as { ws: null }).ws).toBeNull();
   });
 });
 

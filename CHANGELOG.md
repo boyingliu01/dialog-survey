@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.5 - 2026-07-09
+
+### Changed
+- chore: eliminate all `noExplicitAny` biome lint warnings across 25 test files
+  - Replaced `any` type assertions with proper typed casts (`as unknown as PrismaClient`, `as unknown as LLMService`, etc.)
+  - Added inline type definitions for PrismaClient mocks
+  - Typed transaction callback signatures
+  - Result: 0 `noExplicitAny` warnings in entire codebase (src/ + tests/)
+
 ## 1.8.4 - 2026-07-09
 
 ### Fixed

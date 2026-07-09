@@ -5,7 +5,13 @@ import { InterviewStateRepository } from '../src/repositories/interview-state.re
 
 describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => {
   let repository: InterviewStateRepository;
-  let mockPrisma: any;
+  let mockPrisma: {
+    $transaction: ReturnType<typeof vi.fn>;
+    interview: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+    message: { createMany: ReturnType<typeof vi.fn> };
+    response: { createMany: ReturnType<typeof vi.fn> };
+    $disconnect: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     mockPrisma = {
@@ -51,29 +57,31 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         nudgeCount: 0,
       };
 
-      mockPrisma.$transaction.mockImplementation(async (callback: any) => {
-        const mockTx = {
-          interview: {
-            findUnique: vi.fn().mockResolvedValue({
-              id: 'interview-456',
-              version: 1,
-              userId: 'user-123',
-            }),
-            update: vi.fn().mockResolvedValue({
-              id: 'interview-456',
-              version: 2,
-              status: 'ACTIVE',
-            }),
-          },
-          message: {
-            createMany: vi.fn().mockResolvedValue({ count: 2 }),
-          },
-          response: {
-            createMany: vi.fn().mockResolvedValue({ count: 0 }),
-          },
-        };
-        return callback(mockTx);
-      });
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const mockTx = {
+            interview: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'interview-456',
+                version: 1,
+                userId: 'user-123',
+              }),
+              update: vi.fn().mockResolvedValue({
+                id: 'interview-456',
+                version: 2,
+                status: 'ACTIVE',
+              }),
+            },
+            message: {
+              createMany: vi.fn().mockResolvedValue({ count: 2 }),
+            },
+            response: {
+              createMany: vi.fn().mockResolvedValue({ count: 0 }),
+            },
+          };
+          return callback(mockTx);
+        }
+      );
 
       const result = await repository.saveFullState('interview-456', state);
 
@@ -104,24 +112,26 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         nudgeCount: 0,
       };
 
-      mockPrisma.$transaction.mockImplementation(async (callback: any) => {
-        const mockTx = {
-          interview: {
-            findUnique: vi.fn().mockResolvedValue({
-              id: 'interview-456',
-              version: 1,
-            }),
-            update: vi.fn().mockResolvedValue({ version: 2 }),
-          },
-          message: {
-            createMany: vi.fn().mockResolvedValue({ count: 0 }),
-          },
-          response: {
-            createMany: vi.fn().mockResolvedValue({ count: 1 }),
-          },
-        };
-        return callback(mockTx);
-      });
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const mockTx = {
+            interview: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'interview-456',
+                version: 1,
+              }),
+              update: vi.fn().mockResolvedValue({ version: 2 }),
+            },
+            message: {
+              createMany: vi.fn().mockResolvedValue({ count: 0 }),
+            },
+            response: {
+              createMany: vi.fn().mockResolvedValue({ count: 1 }),
+            },
+          };
+          return callback(mockTx);
+        }
+      );
 
       const result = await repository.saveFullState('interview-456', state);
 
@@ -151,21 +161,23 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         nudgeCount: 0,
       };
 
-      mockPrisma.$transaction.mockImplementation(async (callback: any) => {
-        const mockTx = {
-          interview: {
-            findUnique: vi.fn().mockResolvedValue({ version: 1 }),
-            update: vi.fn().mockResolvedValue({ version: 2 }),
-          },
-          message: {
-            createMany: vi.fn().mockResolvedValue({ count: 1 }),
-          },
-          response: {
-            createMany: vi.fn().mockResolvedValue({ count: 0 }),
-          },
-        };
-        return callback(mockTx);
-      });
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const mockTx = {
+            interview: {
+              findUnique: vi.fn().mockResolvedValue({ version: 1 }),
+              update: vi.fn().mockResolvedValue({ version: 2 }),
+            },
+            message: {
+              createMany: vi.fn().mockResolvedValue({ count: 1 }),
+            },
+            response: {
+              createMany: vi.fn().mockResolvedValue({ count: 0 }),
+            },
+          };
+          return callback(mockTx);
+        }
+      );
 
       await repository.saveFullState('interview-456', state);
 
@@ -199,17 +211,19 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         nudgeCount: 0,
       };
 
-      mockPrisma.$transaction.mockImplementation(async (callback: any) => {
-        const mockTx = {
-          interview: {
-            findUnique: vi.fn().mockResolvedValue({
-              id: 'interview-456',
-              version: 3,
-            }),
-          },
-        };
-        return callback(mockTx);
-      });
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const mockTx = {
+            interview: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'interview-456',
+                version: 3,
+              }),
+            },
+          };
+          return callback(mockTx);
+        }
+      );
 
       await expect(repository.saveFullState('interview-456', state)).rejects.toThrow(
         'Version conflict'
@@ -240,14 +254,16 @@ describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => 
         nudgeCount: 0,
       };
 
-      mockPrisma.$transaction.mockImplementation(async (callback: any) => {
-        const mockTx = {
-          interview: {
-            findUnique: vi.fn().mockResolvedValue(null),
-          },
-        };
-        return callback(mockTx);
-      });
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<unknown>) => {
+          const mockTx = {
+            interview: {
+              findUnique: vi.fn().mockResolvedValue(null),
+            },
+          };
+          return callback(mockTx);
+        }
+      );
 
       await expect(repository.saveFullState('interview-456', state)).rejects.toThrow(
         'Interview not found'

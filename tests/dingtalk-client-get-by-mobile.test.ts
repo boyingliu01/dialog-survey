@@ -22,7 +22,9 @@ describe('DingTalkClient.getUserIdByMobile', () => {
       } as Response);
 
       // Access private method for testing
-      const getAccessToken = (client as any).getAccessToken.bind(client);
+      const getAccessToken = (
+        client as unknown as { getAccessToken: () => Promise<string> }
+      ).getAccessToken.bind(client);
       const token = await getAccessToken();
 
       expect(token).toBe('test-token-123');
@@ -44,7 +46,9 @@ describe('DingTalkClient.getUserIdByMobile', () => {
         }),
       } as Response);
 
-      const getAccessToken = (client as any).getAccessToken.bind(client);
+      const getAccessToken = (
+        client as unknown as { getAccessToken: () => Promise<string> }
+      ).getAccessToken.bind(client);
       await getAccessToken(); // First call - fetch
       await getAccessToken(); // Second call - cache
 
@@ -60,7 +64,9 @@ describe('DingTalkClient.getUserIdByMobile', () => {
         }),
       } as Response);
 
-      const getAccessToken = (client as any).getAccessToken.bind(client);
+      const getAccessToken = (
+        client as unknown as { getAccessToken: () => Promise<string> }
+      ).getAccessToken.bind(client);
       await expect(getAccessToken()).rejects.toThrow('invalid app key');
     });
   });

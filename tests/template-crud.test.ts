@@ -1,4 +1,4 @@
-import { TemplateStatus } from '@prisma/client';
+import { type PrismaClient, TemplateStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TemplateRepository } from '../src/repositories/template.repository.js';
 
@@ -40,7 +40,7 @@ let repo: TemplateRepository;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  repo = new TemplateRepository(mockPrisma as any);
+  repo = new TemplateRepository(mockPrisma as unknown as PrismaClient);
 });
 
 describe('TemplateRepository', () => {

@@ -1,12 +1,29 @@
 import { PlanStatus } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { DingTalkClient } from '../src/integrations/dingtalk/client.js';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
 
 describe('InterviewPlanService', () => {
   let service: InterviewPlanService;
-  let mockPrisma: any;
-  let mockDingtalkClient: any;
+  let mockPrisma: {
+    interviewPlan: {
+      create: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
+      count: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+    interview: {
+      findMany: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+      createMany: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+      deleteMany: ReturnType<typeof vi.fn>;
+    };
+    $disconnect: ReturnType<typeof vi.fn>;
+  };
+  let mockDingtalkClient: { getUserIdByMobile: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
     mockPrisma = {
@@ -31,7 +48,7 @@ describe('InterviewPlanService', () => {
     };
     service = new InterviewPlanService(
       mockPrisma as unknown as PrismaClient,
-      mockDingtalkClient as any
+      mockDingtalkClient as unknown as DingTalkClient
     );
   });
 
