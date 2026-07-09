@@ -328,7 +328,7 @@ describe('StreamMessageService', () => {
       messages: [],
       currentQuestion: 0,
       followupCount: 0,
-      maxFollowups: 2,
+      maxFollowups: 5,
       nudgeCount: 0,
       responses: [],
       reportGenerated: false,
@@ -1150,7 +1150,7 @@ describe('StreamMessageService', () => {
       messages: [],
       currentQuestion: 2,
       followupCount: 1,
-      maxFollowups: 2,
+      maxFollowups: 5,
       nudgeCount: 0,
       responses: [
         { questionId: 'q0', content: '回答1', isFollowup: false },
@@ -1171,7 +1171,7 @@ describe('StreamMessageService', () => {
       messages: [],
       currentQuestion: currentQ,
       followupCount: 0,
-      maxFollowups: 2,
+      maxFollowups: 5,
       nudgeCount: 0,
       responses: [
         { questionId: 'q0', content: '回答1', isFollowup: false },

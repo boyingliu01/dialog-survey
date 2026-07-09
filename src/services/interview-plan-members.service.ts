@@ -1,5 +1,6 @@
 import { SendStatus } from '@prisma/client';
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { DEFAULT_MAX_FOLLOWUPS } from '../core/types/index.js';
 import { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import type { DingTalkStreamClient } from '../integrations/dingtalk/stream-client.js';
@@ -171,6 +172,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
           templateId: plan.templateId,
           planId,
           status: 'PENDING' as const,
+          maxFollowups: DEFAULT_MAX_FOLLOWUPS,
         },
       });
 
