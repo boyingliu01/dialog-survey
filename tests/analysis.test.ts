@@ -25,6 +25,7 @@ describe('AnalysisService', () => {
       analysisReport: {
         create: vi.fn(),
         findFirst: vi.fn(),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
       template: {
         findUnique: vi.fn(),

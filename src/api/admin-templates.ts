@@ -131,6 +131,40 @@ function buildInviteeNameMap(inviteeData: unknown): Record<string, string> {
   return map;
 }
 
+function findInviteeInfo(
+  inviteeData: unknown,
+  userId: string
+): { name?: string; phone?: string } {
+  if (!Array.isArray(inviteeData)) return {};
+  for (const entry of inviteeData) {
+    if (entry && typeof entry === 'object') {
+      const obj = entry as Record<string, unknown>;
+      if (obj['userId'] === userId) {
+        const result: { name?: string; phone?: string } = {};
+        if (typeof obj['name'] === 'string') result.name = obj['name'];
+        if (typeof obj['phone'] === 'string') result.phone = obj['phone'];
+        return result;
+      }
+    }
+  }
+  return {};
+}
+
+function buildQuestionMapFromTemplate(contentJson: string | null | undefined): Record<string, string> {
+  if (!contentJson) return {};
+  try {
+    const parsed = JSON.parse(contentJson) as { questions?: string[] };
+    const questions = parsed.questions || [];
+    const map: Record<string, string> = {};
+    for (let i = 0; i < questions.length; i++) {
+      map[`q${i}`] = questions[i];
+    }
+    return map;
+  } catch {
+    return {};
+  }
+}
+
 const getAdminApiKey = () => process.env['ADMIN_API_KEY'] || '';
 
 export async function adminTemplatesRoutes(
@@ -409,13 +443,46 @@ export async function adminTemplatesRoutes(
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { interviewId } = request.params as { interviewId: string };
-      const interview = await interviewRepo.findByIdForReport(interviewId);
+      const interview = await prisma.interview.findUnique({
+        where: { id: interviewId },
+        select: {
+          id: true,
+          userId: true,
+          status: true,
+          planId: true,
+          createdAt: true,
+          completedAt: true,
+          template: { select: { content: true } },
+          messages: {
+            select: { role: true, content: true },
+            orderBy: { createdAt: 'asc' },
+          },
+          responses: {
+            select: { questionId: true, content: true, isFollowup: true, followupDepth: true },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
       if (!interview) return reply.status(404).type('text/html').send('访谈不存在');
       const report = await analysisService.getReportByInterviewId(interviewId);
+
+      const questionMap = buildQuestionMapFromTemplate(interview.template?.content);
+
+      let inviteeInfo: { name?: string; phone?: string } = {};
+      if (interview.planId) {
+        const plan = await prisma.interviewPlan.findUnique({
+          where: { id: interview.planId },
+          select: { inviteeData: true },
+        });
+        inviteeInfo = findInviteeInfo(plan?.inviteeData, interview.userId);
+      }
+
       return reply.view('admin/content/report-detail.njk', {
         adminApiKey: getAdminApiKey(),
         interview,
         report,
+        inviteeInfo,
+        questionMap,
       });
     }
   );
@@ -426,15 +493,95 @@ export async function adminTemplatesRoutes(
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { interviewId } = request.params as { interviewId: string };
-      const report = await analysisService.getReportByInterviewId(interviewId);
-      if (!report) {
-        return reply.status(404).type('text/plain').send('Report not found');
+      const interview = await prisma.interview.findUnique({
+        where: { id: interviewId },
+        select: {
+          id: true,
+          userId: true,
+          status: true,
+          planId: true,
+          messages: {
+            select: { role: true, content: true },
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+      if (!interview) {
+        return reply.status(404).type('text/plain').send('Interview not found');
       }
+
+      const report = await analysisService.getReportByInterviewId(interviewId);
+
+      let inviteeInfo: { name?: string; phone?: string } = {};
+      if (interview.planId) {
+        const plan = await prisma.interviewPlan.findUnique({
+          where: { id: interview.planId },
+          select: { inviteeData: true },
+        });
+        inviteeInfo = findInviteeInfo(plan?.inviteeData, interview.userId);
+      }
+
+      const lines: string[] = [];
+      lines.push('# 访谈报告');
+      lines.push('');
+      lines.push(`- **用户**: ${interview.userId}`);
+      if (inviteeInfo.name) lines.push(`- **姓名**: ${inviteeInfo.name}`);
+      if (inviteeInfo.phone) lines.push(`- **电话**: ${inviteeInfo.phone}`);
+      lines.push(`- **状态**: ${interview.status}`);
+      lines.push('');
+      lines.push('---');
+      lines.push('');
+      lines.push('## 访谈对话记录');
+      lines.push('');
+
+      for (const m of interview.messages) {
+        const roleLabel = m.role === 'assistant' ? '🤖 机器人' : '👤 受访者';
+        lines.push(`**${roleLabel}**：`);
+        lines.push('');
+        lines.push(m.content);
+        lines.push('');
+      }
+
+      if (report) {
+        lines.push('---');
+        lines.push('');
+        lines.push('## 访谈分析总结');
+        lines.push('');
+        lines.push(report.content ?? '');
+        lines.push('');
+        if (report.sentiment) {
+          const sentimentMap: Record<string, string> = {
+            positive: '积极',
+            negative: '消极',
+            neutral: '中性',
+          };
+          lines.push(`**情感分析**: ${sentimentMap[report.sentiment] ?? report.sentiment}`);
+          lines.push('');
+        }
+        if (report.keyFindings?.length) {
+          lines.push('**关键发现**：');
+          lines.push('');
+          for (const f of report.keyFindings) {
+            lines.push(`- ${f}`);
+          }
+          lines.push('');
+        }
+        if (report.recommendations?.length) {
+          lines.push('**建议**：');
+          lines.push('');
+          for (const r of report.recommendations) {
+            lines.push(`- ${r}`);
+          }
+          lines.push('');
+        }
+      }
+
+      const markdown = lines.join('\n');
       const filename = `interview-report-${interviewId}.md`;
       return reply
         .header('Content-Type', 'text/markdown; charset=utf-8')
         .header('Content-Disposition', `attachment; filename="${filename}"`)
-        .send(report.content ?? '');
+        .send(markdown);
     }
   );
 
@@ -487,6 +634,31 @@ export async function adminTemplatesRoutes(
         const errMsg = e instanceof Error ? e.message : 'Excel export failed';
         error('Excel export failed', { interviewId, error: errMsg });
         return reply.status(500).type('text/plain').send(errMsg);
+      }
+    }
+  );
+
+  // POST /admin/api/reports/:interviewId/reanalyze - regenerate analysis report
+  fastify.post(
+    '/admin/api/reports/:interviewId/reanalyze',
+    { preHandler: adminAuth },
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const { interviewId } = request.params as { interviewId: string };
+      try {
+        const result = await analysisService.analyzeInterview(interviewId);
+        return reply.send({
+          success: true,
+          interviewId: result.interviewId,
+          sentiment: result.report.sentiment,
+          keyFindingsCount: result.report.keyFindings.length,
+          recommendationsCount: result.report.recommendations.length,
+          usedLLM: result.report.usedLLM ?? false,
+          contentLength: result.report.content.length,
+        });
+      } catch (e) {
+        const errMsg = e instanceof Error ? e.message : 'Analysis failed';
+        error('Reanalysis failed', { interviewId, error: errMsg });
+        return reply.status(500).send({ error: errMsg });
       }
     }
   );
@@ -887,12 +1059,36 @@ export async function adminTemplatesRoutes(
       const { interviewId } = request.params as { interviewId: string };
       try {
         const report = await analysisService.getReportByInterviewId(interviewId);
-        const interview = await interviewRepo.findByIdForReportPage(interviewId);
-        if (!interview)
+        const interviewData = await prisma.interview.findUnique({
+          where: { id: interviewId },
+          select: {
+            id: true,
+            userId: true,
+            status: true,
+            planId: true,
+            createdAt: true,
+            messages: {
+              select: { role: true, content: true },
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        });
+        if (!interviewData)
           return reply.status(404).view('error.njk', { message: 'Interview not found' });
+
+        let inviteeInfo: { name?: string; phone?: string } = {};
+        if (interviewData.planId) {
+          const plan = await prisma.interviewPlan.findUnique({
+            where: { id: interviewData.planId },
+            select: { inviteeData: true },
+          });
+          inviteeInfo = findInviteeInfo(plan?.inviteeData, interviewData.userId);
+        }
+
         return reply.view('reports/detail.njk', {
           adminApiKey: getAdminApiKey(),
-          interview: { ...interview, createdAtFormatted: fmtDate(interview.createdAt) },
+          interview: { ...interviewData, createdAtFormatted: fmtDate(interviewData.createdAt) },
+          inviteeInfo,
           report: report
             ? { ...report, createdAtFormatted: fmtDate((report as { createdAt?: Date }).createdAt) }
             : null,
