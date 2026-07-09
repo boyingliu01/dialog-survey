@@ -45,6 +45,7 @@ export class AlibabaLLM implements LLMService {
   }
 
   async embeddings(text: string): Promise<number[]> {
+    const embeddingModel = process.env['DASHSCOPE_EMBEDDING_MODEL'] || 'text-embedding-v3';
     const response = await fetch(EMBEDDINGS_URL, {
       method: 'POST',
       headers: {
@@ -52,7 +53,7 @@ export class AlibabaLLM implements LLMService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'text-embedding-v3',
+        model: embeddingModel,
         input: text,
       }),
     });
@@ -70,7 +71,7 @@ export class AlibabaLLM implements LLMService {
   static fromEnv(): AlibabaLLM {
     return new AlibabaLLM({
       apiKey: process.env['DASHSCOPE_API_KEY'] || '',
-      model: 'qwen-turbo',
+      model: process.env['DASHSCOPE_MODEL'] || 'qwen-turbo',
     });
   }
 }

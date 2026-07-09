@@ -57,6 +57,7 @@ describe('GET /health', () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
+    vi.stubEnv('LLM_MODEL', 'test-model');
     vi.stubEnv('DINGTALK_CLIENT_ID', 'valid-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'valid-client-secret');
     vi.stubEnv('DINGTALK_AGENT_ID', 'valid-agent-id');
@@ -103,6 +104,7 @@ describe('GET /health', () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     mockFetch.mockResolvedValueOnce({ ok: false, status: 429 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
+    vi.stubEnv('LLM_MODEL', 'test-model');
     vi.stubEnv('DINGTALK_CLIENT_ID', 'valid-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'valid-client-secret');
     vi.stubEnv('DINGTALK_AGENT_ID', 'valid-agent-id');
@@ -123,6 +125,7 @@ describe('GET /health', () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     mockFetch.mockRejectedValueOnce(new DOMException('The operation was aborted', 'AbortError'));
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
+    vi.stubEnv('LLM_MODEL', 'test-model');
     vi.stubEnv('DINGTALK_CLIENT_ID', 'valid-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'valid-client-secret');
     vi.stubEnv('DINGTALK_AGENT_ID', 'valid-agent-id');
@@ -143,6 +146,7 @@ describe('GET /health', () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
+    vi.stubEnv('LLM_MODEL', 'test-model');
     vi.stubEnv('DINGTALK_CLIENT_ID', 'valid-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'valid-client-secret');
     vi.stubEnv('DINGTALK_AGENT_ID', 'valid-agent-id');
@@ -163,6 +167,7 @@ describe('GET /health', () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
+    vi.stubEnv('LLM_MODEL', 'test-model');
 
     await app.close();
     app = await rebuildApp();
@@ -182,6 +187,7 @@ describe('GET /health', () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
+    vi.stubEnv('LLM_MODEL', 'test-model');
     vi.stubEnv('DINGTALK_CLIENT_ID', 'xxx');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'valid-client-secret');
     vi.stubEnv('DINGTALK_AGENT_ID', 'valid-agent-id');
@@ -203,6 +209,7 @@ describe('GET /health', () => {
   it('should return unhealthy when DB fails', async () => {
     mockPrismaClient.mockRejectedValueOnce(new Error('Connection refused'));
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
+    vi.stubEnv('LLM_MODEL', 'test-model');
     vi.stubEnv('DINGTALK_CLIENT_ID', 'valid-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'valid-client-secret');
     vi.stubEnv('DINGTALK_AGENT_ID', 'valid-agent-id');
@@ -223,6 +230,7 @@ describe('GET /health', () => {
     mockPrismaClient.mockResolvedValue([{ '1': 1 }]);
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
     vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
+    vi.stubEnv('LLM_MODEL', 'test-model');
     vi.stubEnv('DINGTALK_CLIENT_ID', 'valid-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'valid-client-secret');
     vi.stubEnv('DINGTALK_AGENT_ID', 'valid-agent-id');
@@ -242,6 +250,7 @@ describe('GET /health', () => {
   it('should degrade when placeholder API key is provided (LLM request will fail)', async () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     vi.stubEnv('VOLCENGINE_API_KEY', 'your-dashscope-api-key');
+    vi.stubEnv('LLM_MODEL', 'test-model');
     vi.stubEnv('DINGTALK_CLIENT_ID', 'valid-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'valid-client-secret');
     vi.stubEnv('DINGTALK_AGENT_ID', 'valid-agent-id');
