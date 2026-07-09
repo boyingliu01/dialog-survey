@@ -5,10 +5,7 @@ import { chromium } from 'playwright';
 import * as XLSX from 'xlsx';
 import { info, warn } from '../utils/logger.js';
 
-function loadInviteeInfo(
-  inviteeData: unknown,
-  userId: string
-): { name?: string; phone?: string } {
+function loadInviteeInfo(inviteeData: unknown, userId: string): { name?: string; phone?: string } {
   if (!Array.isArray(inviteeData)) return {};
   for (const entry of inviteeData) {
     if (entry && typeof entry === 'object') {

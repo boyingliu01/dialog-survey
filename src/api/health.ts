@@ -55,7 +55,7 @@ async function checkLLM(): Promise<{
       process.env['VOLCENGINE_BASE_URL'] ||
       'https://ark.cn-beijing.volces.com/api/coding';
     const model = process.env['LLM_MODEL'] || process.env['VOLCENGINE_MODEL'];
-    
+
     if (!model) {
       return { status: 'degraded', error: 'LLM model not configured' };
     }

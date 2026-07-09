@@ -179,7 +179,7 @@ describe('Smart Response System', () => {
           { role: 'assistant', content: '欢迎参与访谈' },
         ],
         followupCount: 0,
-        maxFollowups: 2,
+        maxFollowups: 5,
         responses: [],
         currentQuestion: 0,
         reportGenerated: false,
