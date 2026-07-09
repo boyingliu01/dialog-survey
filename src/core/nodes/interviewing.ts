@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import { generateSmartResponse, stripExtraQuestions } from '../../services/followup.service.js';
+import { generateSmartResponse } from '../../services/followup.service.js';
 import { info, warn } from '../../utils/logger.js';
 import {
   DEFAULT_CLOSING_MESSAGE,
@@ -193,7 +193,6 @@ export async function interviewingNode(
     return {
       responses: newResponses,
       ...handled,
-      response: stripExtraQuestions(handled.response),
     };
   } catch (e) {
     info('Smart response generation failed, falling back to next question', {
