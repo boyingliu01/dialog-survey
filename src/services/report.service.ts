@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { OpenAICompatibleLLM } from '../integrations/llm/openai-compatible.js';
-import { info, error } from '../utils/logger.js';
+import { error, info } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
 
@@ -50,12 +50,12 @@ export async function generateReport(
     );
 
     const content = response.content;
-    
+
     if (!content || content.trim().length === 0) {
       error('LLM returned empty content, using fallback', { interviewId });
       return createFallbackReport(interviewId, topic, qaPairs);
     }
-    
+
     const parsed = parseReportContent(content);
 
     const report: Report = {

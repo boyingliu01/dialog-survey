@@ -19,7 +19,7 @@ function makeState(overrides: Partial<InterviewState> = {}): InterviewState {
     messages: [],
     currentQuestion: 0,
     followupCount: 0,
-    maxFollowups: 2,
+    maxFollowups: 5,
     nudgeCount: 0,
     responses: [],
     reportGenerated: false,
