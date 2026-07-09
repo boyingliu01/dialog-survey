@@ -3,15 +3,11 @@ import { interviewingNode } from '../src/core/nodes/interviewing.js';
 import { DEFAULT_CLOSING_MESSAGE, type InterviewState } from '../src/core/types/index.js';
 import { generateSmartResponse } from '../src/services/followup.service.js';
 
-vi.mock('../src/services/followup.service.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../src/services/followup.service.js')>();
-  return {
-    generateSmartResponse: vi.fn(),
-    isFollowupNeeded: vi.fn().mockResolvedValue(false),
-    generateFollowup: vi.fn().mockResolvedValue(null),
-    stripExtraQuestions: actual.stripExtraQuestions,
-  };
-});
+vi.mock('../src/services/followup.service.js', () => ({
+  generateSmartResponse: vi.fn(),
+  isFollowupNeeded: vi.fn().mockResolvedValue(false),
+  generateFollowup: vi.fn().mockResolvedValue(null),
+}));
 
 vi.mock('../src/repositories/template.repository.js', () => {
   return {
