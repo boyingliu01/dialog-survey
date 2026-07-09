@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.8.4 - 2026-07-09
+
+### Fixed
+- fix: revert stripExtraQuestions() post-processing, trust LLM response instead
+  - The aggressive question-stripping logic was cutting off valid follow-up content
+  - Example: "能否请您再补充以下几个方面？1. ... 2. ... 3. ..." was truncated at the first "?"
+  - Now relying on prompt engineering ("one question per turn" rule) to guide LLM behavior
+  - stripExtraQuestions() function retained as utility for potential future use
+
 ## 1.8.3 - 2026-07-09
 
 ### Fixed

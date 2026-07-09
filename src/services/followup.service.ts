@@ -158,7 +158,7 @@ export async function generateSmartResponse(
         parsed.response = buildForcedNextTransition(nextQuestion);
       }
       return {
-        response: stripExtraQuestions(parsed.response),
+        response: parsed.response,
         action: parsed.action,
         shouldProceedToNext: parsed.action === 'NEXT',
         shouldEndInterview: parsed.action === 'END',
@@ -211,7 +211,7 @@ export async function generateSmartResponse(
       };
     }
     return {
-      response: stripExtraQuestions(parsed.response),
+      response: parsed.response,
       action: parsed.action,
       shouldProceedToNext: parsed.action === 'NEXT',
       shouldEndInterview: parsed.action === 'END',
