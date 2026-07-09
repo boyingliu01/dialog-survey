@@ -15,7 +15,23 @@ vi.mock('../src/integrations/dingtalk/message-sender.js', () => ({
 
 describe('InterviewPlanService - Additional Coverage', () => {
   let service: InterviewPlanService;
-  let mockPrisma: any;
+  let mockPrisma: {
+    interviewPlan: {
+      create: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
+      count: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+    interview: {
+      findMany: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+      findFirst: ReturnType<typeof vi.fn>;
+      createMany: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+    $disconnect: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     mockPrisma = {

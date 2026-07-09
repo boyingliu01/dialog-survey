@@ -338,7 +338,7 @@ describe('DingTalkStreamClient', () => {
         return this;
       });
 
-      vi.spyOn(WebSocket.prototype as any, 'send').mockImplementation(mockSend);
+      vi.spyOn(WebSocket.prototype, 'send').mockImplementation(mockSend);
 
       const client = new DingTalkStreamClient(mockConfig);
       await client.connect();

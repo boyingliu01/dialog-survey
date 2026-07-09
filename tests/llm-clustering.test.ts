@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { LLMService } from '../src/integrations/llm/base.js';
 import { clusterDimensionQuotes, discoverEmergentIssues } from '../src/services/llm-clustering.js';
 
 /** @test REQ-BATCH-003 @intent verify LLM clusters quotes into sub-themes @covers AC-BATCH-003-01 */
@@ -41,7 +42,7 @@ describe('LLM Topic Clustering', () => {
       }),
     };
 
-    const result = await clusterDimensionQuotes(quotes, '稳定性', mockLLM as any);
+    const result = await clusterDimensionQuotes(quotes, '稳定性', mockLLM as unknown as LLMService);
 
     expect(result).toHaveLength(3);
     expect(result[0].subTopicName).toBe('升级不可靠');
@@ -51,7 +52,7 @@ describe('LLM Topic Clustering', () => {
   /** @test REQ-BATCH-003 @intent verify returns empty array when no quotes @covers AC-BATCH-003-01 */
   it('returns empty array when no quotes provided', async () => {
     const mockLLM = { chat: vi.fn() };
-    const result = await clusterDimensionQuotes([], '稳定性', mockLLM as any);
+    const result = await clusterDimensionQuotes([], '稳定性', mockLLM as unknown as LLMService);
     expect(result).toHaveLength(0);
     expect(mockLLM.chat).not.toHaveBeenCalled();
   });
@@ -60,7 +61,7 @@ describe('LLM Topic Clustering', () => {
   it('returns empty array when LLM fails', async () => {
     const quotes = ['some quote'];
     const mockLLM = { chat: vi.fn().mockRejectedValue(new Error('LLM error')) };
-    const result = await clusterDimensionQuotes(quotes, '稳定性', mockLLM as any);
+    const result = await clusterDimensionQuotes(quotes, '稳定性', mockLLM as unknown as LLMService);
     expect(result).toEqual([]);
   });
 
@@ -102,7 +103,7 @@ describe('LLM Emergent Discovery', () => {
       }),
     };
 
-    const result = await discoverEmergentIssues(allEmergents, mockLLM as any);
+    const result = await discoverEmergentIssues(allEmergents, mockLLM as unknown as LLMService);
 
     expect(result.length).toBeLessThanOrEqual(5);
     expect(result[0].name).toBe('数据安全担忧');
@@ -112,7 +113,7 @@ describe('LLM Emergent Discovery', () => {
   /** @test REQ-BATCH-004 @intent verify returns empty when no emergents @covers AC-BATCH-004-01 */
   it('returns empty array when no emergent tags', async () => {
     const mockLLM = { chat: vi.fn() };
-    const result = await discoverEmergentIssues([], mockLLM as any);
+    const result = await discoverEmergentIssues([], mockLLM as unknown as LLMService);
     expect(result).toEqual([]);
     expect(mockLLM.chat).not.toHaveBeenCalled();
   });

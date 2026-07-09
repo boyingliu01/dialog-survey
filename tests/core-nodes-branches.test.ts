@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { interviewingNode } from '../src/core/nodes/interviewing.js';
 import type { InterviewState } from '../src/core/types/index.js';
-import { generateSmartResponse } from '../src/services/followup.service.js';
+import {
+  type SmartResponseResult,
+  generateSmartResponse,
+} from '../src/services/followup.service.js';
 
 // Mock FollowUp service
 vi.mock('../src/services/followup.service.js', async () => {
@@ -59,7 +62,7 @@ describe('Core Nodes Branch Coverage', () => {
     };
 
     it('should handle generateSmartResponse service error and use fallback path', async () => {
-      (generateSmartResponse as any).mockRejectedValueOnce(new Error('LLM service error'));
+      vi.mocked(generateSmartResponse).mockRejectedValueOnce(new Error('LLM service error'));
 
       const result = await interviewingNode(baseState, { content: '我的回答' });
 
@@ -68,9 +71,10 @@ describe('Core Nodes Branch Coverage', () => {
     });
 
     it('should handle closing message when LLM reaches last question', async () => {
-      (generateSmartResponse as any).mockResolvedValueOnce({
+      vi.mocked(generateSmartResponse).mockResolvedValueOnce({
         action: 'NEXT',
         response: '很好的总结。这是我的反馈。',
+        shouldProceedToNext: true,
         shouldEndInterview: false,
       });
 
@@ -84,9 +88,10 @@ describe('Core Nodes Branch Coverage', () => {
     });
 
     it('should end interview when LLM indicates shouldEndInterview', async () => {
-      (generateSmartResponse as any).mockResolvedValueOnce({
-        action: 'FINISH',
+      vi.mocked(generateSmartResponse).mockResolvedValueOnce({
+        action: 'END',
         response: '非常感谢您的分享，访谈到此结束！',
+        shouldProceedToNext: false,
         shouldEndInterview: true,
       });
 
@@ -101,9 +106,10 @@ describe('Core Nodes Branch Coverage', () => {
     });
 
     it('should handle FOLLOWUP action from LLM', async () => {
-      (generateSmartResponse as any).mockResolvedValueOnce({
+      vi.mocked(generateSmartResponse).mockResolvedValueOnce({
         action: 'FOLLOWUP',
         response: '基于您的回答，请再详细说明一下...',
+        shouldProceedToNext: false,
         shouldEndInterview: false,
       });
 
@@ -116,11 +122,12 @@ describe('Core Nodes Branch Coverage', () => {
     });
 
     it('should handle STAY action from LLM', async () => {
-      (generateSmartResponse as any).mockResolvedValueOnce({
+      vi.mocked(generateSmartResponse).mockResolvedValueOnce({
         action: 'STAY',
         response: '请继续说明您的想法。',
+        shouldProceedToNext: false,
         shouldEndInterview: false,
-      });
+      } as unknown as SmartResponseResult);
 
       const result = await interviewingNode(baseState, { content: '部分回答' });
 

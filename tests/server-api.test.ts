@@ -1,3 +1,4 @@
+import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/utils/logger.js', () => ({
@@ -73,7 +74,7 @@ vi.mock('../src/server.js', async (importOriginal) => {
 });
 
 describe('buildApp', () => {
-  let app: any;
+  let app: { fastify: FastifyInstance; prisma: unknown };
 
   beforeAll(async () => {
     vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
