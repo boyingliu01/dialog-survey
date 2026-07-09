@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -29,7 +30,7 @@ async function rebuildApp(): Promise<FastifyInstance> {
   const { default: Fastify } = await import('fastify');
   const app = Fastify({ logger: false });
   const { healthRoutes } = await import('../src/api/health.js');
-  await app.register(healthRoutes, { prisma: new MockPrismaClient() as any });
+  await app.register(healthRoutes, { prisma: new MockPrismaClient() as unknown as PrismaClient });
   await app.ready();
   await app.ready();
   return app;

@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisService } from '../src/services/analysis.service.js';
 
@@ -14,7 +15,22 @@ vi.mock('../src/services/report.service.js', () => ({
 
 describe('AnalysisService', () => {
   let service: AnalysisService;
-  let mockPrisma: any;
+  let mockPrisma: {
+    interview: { findUnique: ReturnType<typeof vi.fn>; findMany: ReturnType<typeof vi.fn> };
+    analysisReport: {
+      create: ReturnType<typeof vi.fn>;
+      findFirst: ReturnType<typeof vi.fn>;
+      deleteMany: ReturnType<typeof vi.fn>;
+    };
+    template: { findUnique: ReturnType<typeof vi.fn> };
+    batchAnalysisReport: {
+      findFirst: ReturnType<typeof vi.fn>;
+      create: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+    };
+    interviewPlan: { findUnique: ReturnType<typeof vi.fn> };
+    analysisFailure: { upsert: ReturnType<typeof vi.fn> };
+  };
 
   beforeEach(() => {
     mockPrisma = {
@@ -42,7 +58,7 @@ describe('AnalysisService', () => {
         upsert: vi.fn(),
       },
     };
-    service = new AnalysisService(mockPrisma);
+    service = new AnalysisService(mockPrisma as unknown as PrismaClient);
     vi.clearAllMocks();
   });
 

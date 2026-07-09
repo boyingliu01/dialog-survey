@@ -7,7 +7,15 @@ import {
 
 describe('InterviewStateRepository', () => {
   let repository: InterviewStateRepository;
-  let mockPrisma: any;
+  let mockPrisma: {
+    $transaction: ReturnType<typeof vi.fn>;
+    interview: {
+      findUnique: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+      create: ReturnType<typeof vi.fn>;
+    };
+    $disconnect: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     mockPrisma = {
@@ -23,8 +31,13 @@ describe('InterviewStateRepository', () => {
   });
 
   it('should throw if no PrismaClient is provided', () => {
-    expect(() => new (InterviewStateRepository as any)(undefined)).toThrow();
-    expect(() => new (InterviewStateRepository as any)()).toThrow();
+    expect(
+      () =>
+        new (InterviewStateRepository as unknown as new (prisma?: unknown) => unknown)(undefined)
+    ).toThrow();
+    expect(
+      () => new (InterviewStateRepository as unknown as new (prisma?: unknown) => unknown)()
+    ).toThrow();
   });
 
   describe('loadState', () => {

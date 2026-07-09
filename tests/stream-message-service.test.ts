@@ -30,7 +30,13 @@ global.fetch = mockFetch;
 
 describe('StreamMessageService', () => {
   let service: StreamMessageService;
-  let mockRepo: any;
+  let mockRepo: {
+    findActiveInterview: ReturnType<typeof vi.fn>;
+    findCompletedInterview: ReturnType<typeof vi.fn>;
+    createInterview: ReturnType<typeof vi.fn>;
+    loadFullState: ReturnType<typeof vi.fn>;
+    saveFullState: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -43,8 +49,10 @@ describe('StreamMessageService', () => {
       saveFullState: vi.fn(),
     };
 
-    vi.mocked(InterviewStateRepository).mockImplementation(() => mockRepo);
-    service = new StreamMessageService(mockRepo);
+    vi.mocked(InterviewStateRepository).mockImplementation(
+      () => mockRepo as unknown as InterviewStateRepository
+    );
+    service = new StreamMessageService(mockRepo as unknown as InterviewStateRepository);
   });
 
   afterEach(() => {
@@ -1204,7 +1212,7 @@ describe('StreamMessageService', () => {
             text: { content: '继续回答' },
           }),
           headers: { messageId: 'msg-1' },
-        } as any,
+        },
         0
       );
 
@@ -1233,7 +1241,7 @@ describe('StreamMessageService', () => {
             text: { content: '新消息' },
           }),
           headers: { messageId: 'msg-2' },
-        } as any,
+        },
         0
       );
 
@@ -1265,7 +1273,7 @@ describe('StreamMessageService', () => {
             text: { content: '消息' },
           }),
           headers: { messageId: 'msg-3' },
-        } as any,
+        },
         0
       );
 

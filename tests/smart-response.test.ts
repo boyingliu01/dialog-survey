@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
+import type { InterviewState } from '../src/core/types/index.js';
 import { promptService } from '../src/services/prompt.service.js';
 
 describe('Smart Response System', () => {
@@ -202,7 +203,7 @@ describe('Smart Response System', () => {
       }));
 
       const result = await module.generateSmartResponse(
-        mockState as any,
+        mockState as unknown as InterviewState,
         '我在科技公司工作了5年',
         '请介绍一下你的工作经历'
       );

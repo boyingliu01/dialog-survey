@@ -1,9 +1,11 @@
+import type { PrismaClient } from '@prisma/client';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { anonymizeData, generateApiKey } from '../src/utils/security.js';
 
 vi.mock('@prisma/client', () => {
   const mockFindFirst = vi.fn();
-  (globalThis as any).__mockFindFirst = mockFindFirst;
+  (globalThis as Record<string, unknown>)['__mockFindFirst'] = mockFindFirst;
   return {
     PrismaClient: class MockPrismaClient {
       auditLog = { findFirst: mockFindFirst };
@@ -94,8 +96,16 @@ describe('generateApiKey', () => {
  * @test Tests for verifyApiKey middleware
  */
 describe('verifyApiKey', () => {
-  let ReplyClass: any;
-  let mockPrisma: any;
+  let ReplyClass: new () => {
+    status: (code: number) => unknown;
+    send: (body: unknown) => unknown;
+    _statusCode: number | undefined;
+    _body: unknown;
+  };
+  let mockPrisma: {
+    auditLog: { findFirst: ReturnType<typeof vi.fn> };
+    apiKey: { findFirst: ReturnType<typeof vi.fn> };
+  };
 
   beforeEach(async () => {
     vi.resetModules();
@@ -110,16 +120,16 @@ describe('verifyApiKey', () => {
     };
 
     ReplyClass = class MockReply {
-      status(code: number) {
-        (this as any)._statusCode = code;
-        return this;
-      }
-      send(body: any) {
-        (this as any)._body = body;
-        return this;
-      }
       _statusCode: number | undefined;
-      _body: any;
+      _body: unknown;
+      status(code: number) {
+        (this as { _statusCode: number })._statusCode = code;
+        return this;
+      }
+      send(body: unknown) {
+        (this as { _body: unknown })._body = body;
+        return this;
+      }
     };
   });
 
@@ -130,11 +140,11 @@ describe('verifyApiKey', () => {
 
   it('should return 401 when no API key header is present', async () => {
     const { createVerifyApiKey } = await import('../src/utils/security.js');
-    const verifyApiKey = createVerifyApiKey(mockPrisma);
-    const request = { headers: {} } as any;
+    const verifyApiKey = createVerifyApiKey(mockPrisma as unknown as PrismaClient);
+    const request = { headers: {} } as unknown as FastifyRequest;
     const reply = new ReplyClass();
 
-    const result = await verifyApiKey(request, reply);
+    const result = await verifyApiKey(request, reply as unknown as FastifyReply);
 
     expect(result).toBe(reply);
     expect(reply._statusCode).toBe(401);
@@ -150,11 +160,13 @@ describe('verifyApiKey', () => {
       role: 'user',
     });
 
-    const verifyApiKey = createVerifyApiKey(mockPrisma);
-    const request = { headers: { 'x-api-key': 'ib_abcdef1234567890' } } as any;
+    const verifyApiKey = createVerifyApiKey(mockPrisma as unknown as PrismaClient);
+    const request = {
+      headers: { 'x-api-key': 'ib_abcdef1234567890' },
+    } as unknown as FastifyRequest;
     const reply = new ReplyClass();
 
-    const result = await verifyApiKey(request, reply);
+    const result = await verifyApiKey(request, reply as unknown as FastifyReply);
 
     expect(result).toBeUndefined();
     expect(request.user).toEqual({ userId: 'user-123', role: 'user', apiKeyId: 'key-456' });
@@ -167,11 +179,11 @@ describe('verifyApiKey', () => {
     const { createVerifyApiKey } = await import('../src/utils/security.js');
     mockPrisma.apiKey.findFirst.mockResolvedValue(null);
 
-    const verifyApiKey = createVerifyApiKey(mockPrisma);
-    const request = { headers: { 'x-api-key': 'ib_invalid_key' } } as any;
+    const verifyApiKey = createVerifyApiKey(mockPrisma as unknown as PrismaClient);
+    const request = { headers: { 'x-api-key': 'ib_invalid_key' } } as unknown as FastifyRequest;
     const reply = new ReplyClass();
 
-    const result = await verifyApiKey(request, reply);
+    const result = await verifyApiKey(request, reply as unknown as FastifyReply);
 
     expect(result).toBe(reply);
     expect(reply._statusCode).toBe(401);
@@ -182,11 +194,11 @@ describe('verifyApiKey', () => {
     const { createVerifyApiKey } = await import('../src/utils/security.js');
     mockPrisma.apiKey.findFirst.mockResolvedValue({ id: 'key-789', userId: null, role: 'user' });
 
-    const verifyApiKey = createVerifyApiKey(mockPrisma);
-    const request = { headers: { 'x-api-key': 'ib_xyz98765' } } as any;
+    const verifyApiKey = createVerifyApiKey(mockPrisma as unknown as PrismaClient);
+    const request = { headers: { 'x-api-key': 'ib_xyz98765' } } as unknown as FastifyRequest;
     const reply = new ReplyClass();
 
-    await verifyApiKey(request, reply);
+    await verifyApiKey(request, reply as unknown as FastifyReply);
 
     expect(request.user).toEqual({ userId: 'unknown', role: 'user', apiKeyId: 'key-789' });
   });

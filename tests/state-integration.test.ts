@@ -8,7 +8,18 @@ import {
 
 describe('InterviewStateRepository - Missing Coverage Tests', () => {
   let repository: InterviewStateRepository;
-  let mockPrisma: any;
+  let mockPrisma: {
+    $transaction: ReturnType<typeof vi.fn>;
+    interview: {
+      findUnique: ReturnType<typeof vi.fn>;
+      findFirst: ReturnType<typeof vi.fn>;
+      create: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+    message: { createMany: ReturnType<typeof vi.fn> };
+    response: { createMany: ReturnType<typeof vi.fn> };
+    $disconnect: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     mockPrisma = {

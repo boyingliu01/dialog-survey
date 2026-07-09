@@ -1,3 +1,4 @@
+import type { PrismaClient } from '@prisma/client';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { adminAuth } from '../src/middleware/admin-auth.js';
@@ -27,7 +28,7 @@ describe('TemplateRepository - updateWithVersion', () => {
         findUnique: vi.fn(),
       },
     };
-    repo = new TemplateRepository(mockPrisma as any);
+    repo = new TemplateRepository(mockPrisma as unknown as PrismaClient);
   });
 
   afterEach(() => {
@@ -143,7 +144,7 @@ describe('TemplateRepository - findAllPaginated', () => {
         count: vi.fn(),
       },
     };
-    repo = new TemplateRepository(mockPrisma as any);
+    repo = new TemplateRepository(mockPrisma as unknown as PrismaClient);
   });
 
   afterEach(() => {
@@ -268,7 +269,7 @@ describe('TemplateRepository - getUsageStats', () => {
         count: vi.fn(),
       },
     };
-    repo = new TemplateRepository(mockPrisma as any);
+    repo = new TemplateRepository(mockPrisma as unknown as PrismaClient);
   });
 
   afterEach(() => {

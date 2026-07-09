@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { PrismaClient } from '@prisma/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as XLSX from 'xlsx';
 import { ExportService } from '../src/services/export.service.js';
@@ -40,7 +41,7 @@ describe('ExportService', () => {
         findUnique: vi.fn(),
       },
     };
-    service = new ExportService(mockPrisma as any, tmpDir);
+    service = new ExportService(mockPrisma as unknown as PrismaClient, tmpDir);
     vi.clearAllMocks();
   });
 

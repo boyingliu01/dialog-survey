@@ -22,7 +22,19 @@ vi.mock('../src/utils/logger.js', () => ({
 describe('InterviewPlanService - Member Management (Issue #10)', () => {
   let service: InterviewPlanService;
 
-  let mockPrisma: any;
+  let mockPrisma: {
+    interviewPlan: { findUnique: ReturnType<typeof vi.fn>; update: ReturnType<typeof vi.fn> };
+    interview: {
+      findUnique: ReturnType<typeof vi.fn>;
+      findFirst: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
+      create: ReturnType<typeof vi.fn>;
+      delete: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+    $disconnect: ReturnType<typeof vi.fn>;
+    $transaction: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     mockPrisma = {

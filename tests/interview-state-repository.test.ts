@@ -65,7 +65,18 @@ function makeState(overrides: Partial<InterviewState> = {}): InterviewState {
 
 describe('InterviewStateRepository', () => {
   let repository: InterviewStateRepository;
-  let mockPrisma: any;
+  let mockPrisma: {
+    interview: {
+      findUnique: ReturnType<typeof vi.fn>;
+      findFirst: ReturnType<typeof vi.fn>;
+      create: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+    message: { createMany: ReturnType<typeof vi.fn> };
+    response: { createMany: ReturnType<typeof vi.fn> };
+    $transaction: ReturnType<typeof vi.fn>;
+    $disconnect: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     mockPrisma = {
@@ -77,7 +88,7 @@ describe('InterviewStateRepository', () => {
       },
       message: { createMany: vi.fn() },
       response: { createMany: vi.fn() },
-      $transaction: vi.fn((cb: (tx: any) => any) => cb(mockPrisma)),
+      $transaction: vi.fn((cb: (tx: unknown) => unknown) => cb(mockPrisma)),
       $disconnect: vi.fn(),
     };
     repository = new InterviewStateRepository(mockPrisma as unknown as PrismaClient);
@@ -85,12 +96,17 @@ describe('InterviewStateRepository', () => {
 
   describe('constructor', () => {
     it('should throw if no PrismaClient is provided', () => {
-      expect(() => new (InterviewStateRepository as any)(undefined)).toThrow(
-        'PrismaClient is required for InterviewStateRepository'
-      );
-      expect(() => new (InterviewStateRepository as any)()).toThrow(
-        'PrismaClient is required for InterviewStateRepository'
-      );
+      expect(
+        () =>
+          new (
+            InterviewStateRepository as unknown as new (
+              prisma?: unknown
+            ) => InterviewStateRepository
+          )(undefined)
+      ).toThrow('PrismaClient is required for InterviewStateRepository');
+      expect(
+        () => new (InterviewStateRepository as unknown as new () => InterviewStateRepository)()
+      ).toThrow('PrismaClient is required for InterviewStateRepository');
     });
   });
 

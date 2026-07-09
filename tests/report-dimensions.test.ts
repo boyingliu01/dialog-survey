@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { OpenAICompatibleLLM } from '../src/integrations/llm/openai-compatible.js';
 import { generateReportWithDimensions } from '../src/services/report.service.js';
 
 describe('Report Generation with Dimensions', () => {
@@ -15,7 +16,7 @@ describe('Report Generation with Dimensions', () => {
       '测试',
       [{ question: '满意度?', answer: '不太稳定，经常崩溃' }],
       '[{"id":"stability","label":"稳定性","keywords":["崩溃"]}]',
-      mockLLM as any
+      mockLLM as unknown as OpenAICompatibleLLM
     );
 
     expect(result.dimensionTags).toHaveLength(1);
@@ -35,8 +36,8 @@ describe('Report Generation with Dimensions', () => {
       'test-456',
       '测试',
       [{ question: '你好', answer: '还行' }],
-      null as any,
-      mockLLM as any
+      null,
+      mockLLM as unknown as OpenAICompatibleLLM
     );
 
     expect(result.dimensionTags).toEqual([]);
