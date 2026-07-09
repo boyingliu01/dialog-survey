@@ -1,6 +1,6 @@
 {
   "name": "dialog-survey",
-  "version": "1.8.1",
+  "version": "1.8.2",
   "type": "module",
   "description": "AI-powered survey dialog bot that conducts async multi-turn conversations via DingTalk",
   "repository": {
