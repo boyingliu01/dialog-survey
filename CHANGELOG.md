@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.8.2 - 2026-07-09
+
+### Fixed
+- fix: enforce maxFollowups=5 across all interview creation paths
+  - Root cause: Interview creation endpoints did not explicitly set `maxFollowups`, relying on database default
+  - When schema default changed from 2 to 5 in v1.8.0, existing records and some creation paths still used old value
+  - Explicitly set `maxFollowups=5` in all interview creation paths (plans API, member service, state repository)
+  - Updated PostgreSQL column default constraint to 5
+  - Updated 8 existing interview records from maxFollowups=2 to 5
+  - Added fix script for future reference
+
 ## 1.9.0 - 2026-07-09
 
 ### Added
