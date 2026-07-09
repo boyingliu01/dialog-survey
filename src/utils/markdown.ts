@@ -3,17 +3,22 @@ import { error } from './logger.js';
 
 const marked = new Marked({
   gfm: true,
-  breaks: false,
+  breaks: true, // Convert single newlines to <br>
 });
 
-// Strip raw HTML tokens to prevent XSS from attacker-influenced LLM output.
-// marked@14 has no built-in sanitizer; we convert `html` block/inline tokens
-// to escaped text so they render visibly but never execute.
+// Strip dangerous HTML tokens (script, iframe, etc.) but allow safe tags like <br>.
+// marked@14 has no built-in sanitizer; we selectively escape dangerous HTML.
+const ALLOWED_HTML_TAGS = /^(br|hr)$/i;
+
 marked.use({
   walkTokens(token: Token) {
     if (token.type === 'html') {
-      token.type = 'text' as 'html';
-      token.text = escapeHtml(token.text ?? '');
+      const text = token.text ?? '';
+      // Allow safe tags like <br>, <hr>; escape everything else
+      if (!ALLOWED_HTML_TAGS.test(text.trim().replace(/[\/\s>].*$/, ''))) {
+        token.type = 'text' as 'html';
+        token.text = escapeHtml(text);
+      }
     }
   },
 });

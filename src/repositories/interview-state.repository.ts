@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import type { InterviewState } from '../core/types/index.js';
+import { DEFAULT_MAX_FOLLOWUPS, type InterviewState } from '../core/types/index.js';
 import { error, info } from '../utils/logger.js';
 import { mapInterviewToInterviewState } from './interview-state-mapper.js';
 
@@ -254,6 +254,7 @@ export class InterviewStateRepository {
         userId,
         templateId,
         status: 'PENDING',
+        maxFollowups: DEFAULT_MAX_FOLLOWUPS,
         version: 1,
       },
     });

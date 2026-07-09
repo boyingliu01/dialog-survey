@@ -2,6 +2,7 @@ import type { PlanStatus, PrismaClient } from '@prisma/client';
 import { parse } from 'csv-parse/sync';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { DEFAULT_MAX_FOLLOWUPS } from '../core/types/index.js';
 import { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { adminAuth } from '../middleware/admin-auth.js';
 import {
@@ -463,6 +464,7 @@ export async function interviewPlanRoutes(
                 templateId,
                 planId: id,
                 status: 'PENDING',
+                maxFollowups: DEFAULT_MAX_FOLLOWUPS,
               },
             });
             ids.push(interview.id);
