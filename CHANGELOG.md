@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.8.3 - 2026-07-09
+
+### Fixed
+- fix: enforce one-question-per-turn rule in interview dialog (#148)
+  - Root cause: LLM prompt did not explicitly forbid multiple questions per turn, and no post-processing existed to strip extra questions
+  - Added explicit "one question per turn" rule to generateSmartResponse prompt
+  - Added guidance to provide reference info as statements, not questions
+  - Added stripExtraQuestions() function to detect and strip extra questions from LLM responses
+  - Supports both Chinese (？) and English (?) question marks
+
 ## 1.8.2 - 2026-07-09
 
 ### Fixed
