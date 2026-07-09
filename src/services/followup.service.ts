@@ -27,6 +27,24 @@ export interface SmartResponseResult {
 
 export const FALLBACK_RESPONSE = '感谢您的回答，我们继续下一个话题。';
 
+/**
+ * Strip extra questions from LLM response to enforce "one question per turn" rule.
+ * If the response contains multiple question marks, keep only the first question.
+ */
+export function stripExtraQuestions(response: string): string {
+  const questionMarks = response.match(/[?？]/g);
+  if (!questionMarks || questionMarks.length <= 1) {
+    return response;
+  }
+
+  const firstQuestionMarkIndex = response.search(/[?？]/);
+  if (firstQuestionMarkIndex === -1) {
+    return response;
+  }
+
+  return response.substring(0, firstQuestionMarkIndex + 1).trim();
+}
+
 export async function polishFirstQuestion(rawText: string): Promise<string> {
   const llm = OpenAICompatibleLLM.fromEnv();
   try {
@@ -140,7 +158,7 @@ export async function generateSmartResponse(
         parsed.response = buildForcedNextTransition(nextQuestion);
       }
       return {
-        response: parsed.response,
+        response: stripExtraQuestions(parsed.response),
         action: parsed.action,
         shouldProceedToNext: parsed.action === 'NEXT',
         shouldEndInterview: parsed.action === 'END',
@@ -193,7 +211,7 @@ export async function generateSmartResponse(
       };
     }
     return {
-      response: parsed.response,
+      response: stripExtraQuestions(parsed.response),
       action: parsed.action,
       shouldProceedToNext: parsed.action === 'NEXT',
       shouldEndInterview: parsed.action === 'END',

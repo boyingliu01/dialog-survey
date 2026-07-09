@@ -11,13 +11,17 @@ import type { InterviewState } from '../src/core/types/index.js';
 import { InterviewStateRepository } from '../src/repositories/interview-state.repository.js';
 import { TestDatabase } from './helpers/test-db.js';
 
-vi.mock('../src/services/followup.service.js', () => ({
-  generateSmartResponse: vi.fn(),
-  polishFirstQuestion: vi.fn(),
-  parseLLMResponse: vi.fn(),
-  smartTruncate: vi.fn((text: string) => text),
-  FALLBACK_RESPONSE: '感谢您的回答，我们继续下一个话题。',
-}));
+vi.mock('../src/services/followup.service.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/services/followup.service.js')>();
+  return {
+    generateSmartResponse: vi.fn(),
+    polishFirstQuestion: vi.fn(),
+    parseLLMResponse: vi.fn(),
+    smartTruncate: vi.fn((text: string) => text),
+    FALLBACK_RESPONSE: '感谢您的回答，我们继续下一个话题。',
+    stripExtraQuestions: actual.stripExtraQuestions,
+  };
+});
 
 import { generateSmartResponse, polishFirstQuestion } from '../src/services/followup.service.js';
 

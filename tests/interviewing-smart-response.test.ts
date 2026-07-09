@@ -2,9 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { interviewingNode } from '../src/core/nodes/interviewing.js';
 import type { InterviewState } from '../src/core/types/index.js';
 
-vi.mock('../src/services/followup.service.js', () => ({
-  generateSmartResponse: vi.fn(),
-}));
+vi.mock('../src/services/followup.service.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/services/followup.service.js')>();
+  return {
+    generateSmartResponse: vi.fn(),
+    stripExtraQuestions: actual.stripExtraQuestions,
+  };
+});
 
 vi.mock('../src/repositories/template.repository.js', () => {
   const MockTemplateRepository = class {
