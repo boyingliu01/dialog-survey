@@ -30,7 +30,7 @@ describe('interviewingNode - Smart Response Branches', () => {
     ],
     currentQuestion,
     followupCount,
-    maxFollowups: 2,
+    maxFollowups: 5,
     responses: [],
     reportGenerated: false,
     version: 1,

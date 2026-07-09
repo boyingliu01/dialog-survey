@@ -131,10 +131,7 @@ function buildInviteeNameMap(inviteeData: unknown): Record<string, string> {
   return map;
 }
 
-function findInviteeInfo(
-  inviteeData: unknown,
-  userId: string
-): { name?: string; phone?: string } {
+function findInviteeInfo(inviteeData: unknown, userId: string): { name?: string; phone?: string } {
   if (!Array.isArray(inviteeData)) return {};
   for (const entry of inviteeData) {
     if (entry && typeof entry === 'object') {
@@ -150,7 +147,9 @@ function findInviteeInfo(
   return {};
 }
 
-function buildQuestionMapFromTemplate(contentJson: string | null | undefined): Record<string, string> {
+function buildQuestionMapFromTemplate(
+  contentJson: string | null | undefined
+): Record<string, string> {
   if (!contentJson) return {};
   try {
     const parsed = JSON.parse(contentJson) as { questions?: string[] };

@@ -35,7 +35,7 @@ describe('runInterviewGraph', () => {
       messages: [],
       currentQuestion: 0,
       followupCount: 0,
-      maxFollowups: 2,
+      maxFollowups: 5,
       responses: [],
       reportGenerated: false,
       version: 1,
