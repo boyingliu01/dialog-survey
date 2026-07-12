@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.8.6 - 2026-07-12
+
+### Changed
+- feat: strengthen "one question per turn" rule with self-check and negative/positive examples
+  - Added 🚨 iron rule marker to prompt with explicit counting instruction (count question marks, must be ≤1)
+  - Added negative example showing wrong behavior (5 questions in one turn)
+  - Added positive example showing correct behavior (1 question with two angles)
+  - `thinking` field now includes self-check: "自检：我的response中是否只包含一个问题？（计数问号数量，必须≤1）"
+  - Follow-up to v1.8.3/1.8.4 prompt engineering improvements
+
 ## 1.8.5 - 2026-07-09
 
 ### Changed
