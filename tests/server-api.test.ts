@@ -1,6 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { mockCronSchedule, scheduledTasks } = vi.hoisted(() => {
+  const tasks: Array<{ destroy: ReturnType<typeof vi.fn> }> = [];
+  return {
+    mockCronSchedule: vi.fn(),
+    scheduledTasks: tasks,
+  };
+});
+
+vi.mock('node-cron', () => ({
+  default: {
+    schedule: mockCronSchedule,
+  },
+}));
+
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),
   error: vi.fn(),
@@ -77,8 +91,13 @@ describe('buildApp', () => {
   let app: { fastify: FastifyInstance; prisma: unknown };
 
   beforeAll(async () => {
+    mockCronSchedule.mockImplementation(() => {
+      const task = { destroy: vi.fn() };
+      scheduledTasks.push(task);
+      return task;
+    });
     vi.stubEnv('SESSION_SECRET', 'a'.repeat(32));
-    vi.stubEnv('SESSION_SALT', 'b'.repeat(16));
+    vi.stubEnv('SESSION_SALT', 'b'.repeat(32));
     vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
     const { buildApp } = await import('../src/server.js');
@@ -155,6 +174,24 @@ describe('buildApp', () => {
       url: '/nonexistent-route-xyz',
     });
     expect(response.statusCode).toBe(404);
+  });
+
+  it('releases build-owned resources once when the caller closes after listen failure', async () => {
+    const listenError = new Error('listen failed');
+    const listen = vi.spyOn(app.fastify, 'listen').mockRejectedValueOnce(listenError);
+    const scheduledTask = scheduledTasks[0];
+    if (!scheduledTask) throw new Error('Expected buildApp to schedule the audit cleanup task');
+
+    await expect(app.fastify.listen({ port: 0 })).rejects.toBe(listenError);
+    await app.fastify.close();
+    await app.fastify.close();
+
+    expect(listen).toHaveBeenCalledTimes(1);
+    expect(scheduledTask.destroy).toHaveBeenCalledTimes(1);
+    expect(mockPrismaInstance.$disconnect).toHaveBeenCalledTimes(1);
+    expect(scheduledTask.destroy.mock.invocationCallOrder[0]).toBeLessThan(
+      mockPrismaInstance.$disconnect.mock.invocationCallOrder[0]
+    );
   });
 });
 
