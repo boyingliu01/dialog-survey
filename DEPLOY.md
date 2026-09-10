@@ -18,12 +18,13 @@ The installer will:
 3. ✓ Check port availability (3001)
 4. ✓ Install PM2 process manager
 5. ✓ Copy application files to `~/.dialog-survey/`
-6. ✓ Generate `.env` from your configuration
-7. ✓ Install production dependencies
-8. ✓ Generate Prisma client and sync schema
-9. ✓ Build the production bundle
-10. ✓ Start the service via PM2
-11. ✓ Verify health endpoint
+6. ✓ Generate admin credentials (auto-generated password shown once)
+7. ✓ Generate `.env` from your configuration (including session keys)
+8. ✓ Install production dependencies
+9. ✓ Generate Prisma client and sync schema
+10. ✓ Build the production bundle
+11. ✓ Start the service via PM2
+12. ✓ Verify health endpoint
 
 ## Prerequisites
 
@@ -90,8 +91,13 @@ DINGTALK_CLIENT_ID=<YOUR_CLIENT_ID>   # DingTalk Stream credentials
 DINGTALK_CLIENT_SECRET=<YOUR_CLIENT_SECRET>
 DINGTALK_AGENT_ID=<YOUR_AGENT_ID>
 ENCRYPTION_KEY=<YOUR_32_BYTE_HEX>     # Generate: node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
-ADMIN_API_KEY=<YOUR_ADMIN_API_KEY>    # Admin dashboard auth
 LOG_LEVEL=info                   # info | warn | error (debug for troubleshooting)
+
+# Admin browser login (required for the admin UI)
+ADMIN_USERNAME=admin                    # Admin UI username
+ADMIN_PASSWORD_HASH=<bcrypt-hash>       # Generate: node -e "const bcrypt = require('bcryptjs'); bcrypt.hash('your-password', 12).then(console.log)"
+SESSION_SECRET=<YOUR_64_CHAR_HEX>       # Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+SESSION_SALT=<YOUR_32_CHAR_HEX>         # Generate: node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
 ```
 
 ### Optional Variables
@@ -99,10 +105,30 @@ LOG_LEVEL=info                   # info | warn | error (debug for troubleshootin
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `HOST` | `0.0.0.0` | Bind address |
+| `SESSION_MAX_AGE` | `28800` | Admin session inactivity limit (seconds; 28800 = 8 hours) |
+| `ADMIN_API_KEY` | — | Optional header-based admin access (`X-Admin-Key`) for automation only |
 | `REPORTS_DIR` | `./reports` | Report storage path |
 | `MAX_LLM_RETRIES` | `2` | LLM retry attempts |
 | `LLM_TIMEOUT` | `30000` | LLM request timeout (ms) |
 | `PUBLIC_URL` | — | Public callback URL |
+
+### Admin Authentication
+
+The admin UI authenticates via a browser login at `/admin/login` using
+`ADMIN_USERNAME` + `ADMIN_PASSWORD_HASH`. The password is deployment-managed:
+there is no online password-change route. To rotate it, see
+[Rotate the Admin Password](./README.md#rotate-the-admin-password) in the README.
+
+`ADMIN_API_KEY` is **not** required for the admin UI. Set it only when scripts
+or integrations need header-based admin access:
+
+```bash
+curl -H "X-Admin-Key: <admin-api-key>" http://localhost:3001/admin
+```
+
+`npx dialog-survey install` generates all session/admin variables
+automatically and prints the auto-generated admin password once — store it
+when the installer shows it.
 
 ## Deployment Modes
 
@@ -303,7 +329,9 @@ For >100 concurrent interviews:
 ## Security Checklist
 
 - [ ] `ENCRYPTION_KEY` is 32-byte random hex (not default)
-- [ ] `ADMIN_API_KEY` is strong and unique
+- [ ] `ADMIN_PASSWORD_HASH` is a bcrypt hash (cost 12) of a strong password; password not committed anywhere
+- [ ] `SESSION_SECRET` is 32 random bytes and `SESSION_SALT` is 16 random bytes — regenerate per environment
+- [ ] `ADMIN_API_KEY` (optional) is set only when automation needs it, and is strong and unique
 - [ ] Database user has minimal privileges (no superuser)
 - [ ] PostgreSQL password is strong
 - [ ] HTTPS enabled (reverse proxy or certbot)

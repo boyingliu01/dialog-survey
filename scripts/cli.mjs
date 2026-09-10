@@ -4,7 +4,8 @@
  * dialog-survey CLI — npx-based install and lifecycle management
  *
  * Commands: install, uninstall, start, stop, status, help
- * Zero external dependencies — pure Node.js ESM
+ * Uses only Node.js builtins plus bcryptjs (pure JS, already a runtime dependency)
+ * for admin password hashing.
  */
 
 import { execSync } from 'node:child_process';
@@ -17,6 +18,7 @@ import { homedir, platform } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import bcrypt from 'bcryptjs';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -138,6 +140,8 @@ export function generateConfigFromFlags(flags) {
     DINGTALK_CLIENT_ID: flags['dingtalk-client-id'] || '',
     DINGTALK_CLIENT_SECRET: flags['dingtalk-client-secret'] || '',
     DINGTALK_AGENT_ID: flags['dingtalk-agent-id'] || '',
+    ADMIN_USERNAME: flags['admin-username'] || '',
+    ADMIN_PASSWORD: flags['admin-password'] || '',
   };
 }
 
@@ -197,12 +201,30 @@ export async function collectConfigInteractive() {
       DINGTALK_CLIENT_ID: await prompt('DingTalk Client ID: ', rl),
       DINGTALK_CLIENT_SECRET: await prompt('DingTalk Client Secret: ', rl),
       DINGTALK_AGENT_ID: await prompt('DingTalk Agent ID: ', rl),
+      ADMIN_USERNAME: (await prompt('Admin username (press Enter for "admin"): ', rl)) || 'admin',
+      ADMIN_PASSWORD: await prompt('Admin password (press Enter to auto-generate): ', rl),
     };
 
     return config;
   } finally {
     rl.close();
   }
+}
+
+/**
+ * Resolve admin credentials for .env generation.
+ * Username defaults to "admin"; password defaults to a random generated value.
+ * The plaintext password is never written to disk — only the bcrypt hash.
+ *
+ * @param {Record<string, string>} config
+ * @returns {Promise<{ username: string, password: string, generated: boolean, hash: string }>}
+ */
+export async function resolveAdminCredentials(config = {}) {
+  const username = config.ADMIN_USERNAME || 'admin';
+  const generated = !config.ADMIN_PASSWORD;
+  const password = config.ADMIN_PASSWORD || crypto.randomBytes(12).toString('base64url');
+  const hash = await bcrypt.hash(password, 12);
+  return { username, password, generated, hash };
 }
 
 // ─── Prerequisites ───────────────────────────────────────────────────────────
@@ -514,7 +536,15 @@ export function generateEnvContent(config) {
     '',
     '# Security',
     `ENCRYPTION_KEY=${crypto.randomBytes(16).toString('hex')}`,
+    '# Optional: header-based admin automation via X-Admin-Key (browser login works without it)',
     `ADMIN_API_KEY=${crypto.randomBytes(16).toString('hex')}`,
+    '',
+    '# Admin authentication (browser login at /admin/login)',
+    `ADMIN_USERNAME=${config.ADMIN_USERNAME || 'admin'}`,
+    `ADMIN_PASSWORD_HASH=${config.ADMIN_PASSWORD_HASH || ''}`,
+    `SESSION_SECRET=${crypto.randomBytes(32).toString('hex')}`,
+    `SESSION_SALT=${crypto.randomBytes(16).toString('hex')}`,
+    'SESSION_MAX_AGE=28800',
     '',
     '# Logging',
     'LOG_LEVEL=info',
@@ -553,6 +583,8 @@ export async function installCommand(flags) {
       'dingtalk-client-id',
       'dingtalk-client-secret',
       'dingtalk-agent-id',
+      'admin-username',
+      'admin-password',
     ];
     const anyFlagProvided = PROVIDED_FLAGS.some((f) => flags[f] !== undefined);
 
@@ -585,6 +617,12 @@ export async function installCommand(flags) {
 
   // Step 2: Check prerequisites
   log('Checking prerequisites...');
+  const credentials = await resolveAdminCredentials(config);
+  config = {
+    ...config,
+    ADMIN_USERNAME: credentials.username,
+    ADMIN_PASSWORD_HASH: credentials.hash,
+  };
   const prereqs = await checkPrerequisites(config.DATABASE_URL, {
     skipPortCheck: flags['skip-port-check'] === 'true',
   });
@@ -696,6 +734,12 @@ export async function installCommand(flags) {
     log('\n✅ dialog-survey installed and running successfully!');
     log(`   Install dir: ${INSTALL_DIR}`);
     log(`   Health:      ${HEALTH_URL}`);
+    log('   Admin UI:    http://localhost:3001/admin');
+    log(`   Admin user:  ${credentials.username}`);
+    if (credentials.generated) {
+      log(`   Admin pass:  ${credentials.password}`);
+      log('                Store it now — it is shown only once and never written to disk.');
+    }
     if (platformCheck.serviceManager === 'pm2') {
       log(`   Logs:        pm2 logs ${PM2_APP_NAME}`);
     }
@@ -889,6 +933,8 @@ Install Options:
   --dingtalk-client-id <id>       DingTalk client ID (required)
   --dingtalk-client-secret <sec>  DingTalk client secret (required)
   --dingtalk-agent-id <id>        DingTalk agent ID (required)
+  --admin-username <name>         Admin UI username (default: admin)
+  --admin-password <pass>         Admin UI password (default: auto-generated, shown once)
 
 Uninstall Options:
   --remove-db                     Also print instructions to drop the database
@@ -928,6 +974,8 @@ Options:
   --dingtalk-client-id <id>       DingTalk client ID (required)
   --dingtalk-client-secret <sec>  DingTalk client secret (required)
   --dingtalk-agent-id <id>        DingTalk agent ID (required)
+  --admin-username <name>         Admin UI username (default: admin)
+  --admin-password <pass>         Admin UI password (default: auto-generated, shown once)
   --skip-port-check               Skip port availability check
   --help                          Show this help message
 

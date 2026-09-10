@@ -155,7 +155,7 @@ The admin UI requires authentication. Configure the following environment variab
 ```bash
 # Admin credentials
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD_HASH=$2a$12$...  # Generate with bcrypt
+ADMIN_PASSWORD_HASH=<bcrypt-hash>  # Generate with bcrypt
 
 # Session configuration
 SESSION_SECRET=<32-char-random-string>
@@ -170,6 +170,17 @@ node -e "const bcrypt = require('bcryptjs'); bcrypt.hash('your-password', 12).th
 ```
 
 Copy the output hash and set it as `ADMIN_PASSWORD_HASH`.
+
+#### Rotate the Admin Password
+
+Password changes are deployment-managed. There is no online password-change route. To rotate the password:
+
+1. Generate a new bcrypt hash with the command above.
+2. Update `ADMIN_PASSWORD_HASH` in the deployment secret or configuration. Do not commit the password or hash to the repository.
+3. Restart or roll the application so it loads the updated configuration.
+4. Verify that the new password logs in at `/admin` and that the old password no longer works.
+
+The application reads its configuration at runtime and never writes `.env` files.
 
 #### Generate Session Secret and Salt
 
@@ -191,14 +202,15 @@ node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
 
 - Sessions expire after 8 hours of inactivity (configurable via `SESSION_MAX_AGE`)
 - Session data is stored in encrypted cookies (no server-side storage)
-- To logout, navigate to `/admin/logout` or clear your browser cookies
+- To log out, submit the logout form, which sends a `POST` request to `/admin/logout`; clearing the browser cookie also removes the session from that browser
+- Because sessions are stateless encrypted cookies, logout removes the browser's cookie but cannot revoke a copied old cookie without a server-side session store. A copied cookie still expires after the inactivity limit
 
 #### API Key Backward Compatibility
 
-API access via `X-Admin-Key` header is still supported for backward compatibility with existing scripts and integrations:
+The `ADMIN_API_KEY` environment variable is optional. Configure it only when automation or an existing integration needs header-based admin access. API access via the `X-Admin-Key` header is supported for those scripts and integrations:
 
 ```bash
-curl -H "X-Admin-Key: your-api-key" http://localhost:3001/admin
+curl -H "X-Admin-Key: <admin-api-key>" http://localhost:3001/admin
 ```
 
 #### Security Features

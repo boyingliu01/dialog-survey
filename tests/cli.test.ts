@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import bcrypt from 'bcryptjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   checkNodeVersion,
@@ -14,6 +15,7 @@ import {
   isWindows,
   main,
   parseArgs,
+  resolveAdminCredentials,
   startViaNode,
   stopDirectService,
   validateConfig,
@@ -313,6 +315,38 @@ describe('CLI', () => {
       expect(adminMatch?.[1]).toHaveLength(32);
     });
 
+    it('should generate admin auth and session config required by the server', () => {
+      const config = {
+        DATABASE_URL: 'postgresql://localhost/db',
+        DINGTALK_CLIENT_ID: 'dt-id',
+        DINGTALK_CLIENT_SECRET: 'dt-secret',
+        DINGTALK_AGENT_ID: 'dt-agent',
+      };
+      const content = generateEnvContent(config);
+
+      const sessionSecret = content.match(/SESSION_SECRET=(\w+)/)?.[1];
+      const sessionSalt = content.match(/SESSION_SALT=(\w+)/)?.[1];
+      expect(sessionSecret).toHaveLength(64); // 32 bytes = 64 hex chars (server requires >= 32 chars)
+      expect(sessionSalt).toHaveLength(32); // 16 bytes = 32 hex chars
+      expect(content).toMatch(/SESSION_MAX_AGE=28800/);
+      expect(content).toMatch(/ADMIN_USERNAME=admin/);
+      // installCommand fills the hash via resolveAdminCredentials before rendering
+      expect(content).toContain('ADMIN_PASSWORD_HASH=');
+    });
+
+    it('should honor a provided admin username', () => {
+      const content = generateEnvContent({
+        DATABASE_URL: 'postgresql://localhost/db',
+        DINGTALK_CLIENT_ID: 'dt-id',
+        DINGTALK_CLIENT_SECRET: 'dt-secret',
+        DINGTALK_AGENT_ID: 'dt-agent',
+        ADMIN_USERNAME: 'ops-admin',
+        ADMIN_PASSWORD_HASH: '$2a$12$examplehashvalue',
+      });
+      expect(content).toMatch(/ADMIN_USERNAME=ops-admin/);
+      expect(content).toContain('ADMIN_PASSWORD_HASH=$2a$12$examplehashvalue');
+    });
+
     it('should handle empty LLM_API_KEY gracefully', () => {
       const config = {
         DATABASE_URL: 'postgresql://localhost/db',
@@ -323,6 +357,37 @@ describe('CLI', () => {
       };
       const content = generateEnvContent(config);
       expect(content).toContain('LLM_API_KEY=');
+    });
+  });
+
+  describe('resolveAdminCredentials', () => {
+    it('should default the username to admin and auto-generate a password', async () => {
+      const credentials = await resolveAdminCredentials({});
+
+      expect(credentials.username).toBe('admin');
+      expect(credentials.generated).toBe(true);
+      expect(credentials.password).toBeTruthy();
+      expect(await bcrypt.compare(credentials.password, credentials.hash)).toBe(true);
+    });
+
+    it('should honor a provided username and password', async () => {
+      const credentials = await resolveAdminCredentials({
+        ADMIN_USERNAME: 'ops-admin',
+        ADMIN_PASSWORD: 's3cret-password',
+      });
+
+      expect(credentials.username).toBe('ops-admin');
+      expect(credentials.generated).toBe(false);
+      expect(credentials.password).toBe('s3cret-password');
+      expect(await bcrypt.compare('s3cret-password', credentials.hash)).toBe(true);
+    });
+
+    it('should generate a distinct password on each call', async () => {
+      const first = await resolveAdminCredentials({});
+      const second = await resolveAdminCredentials({});
+
+      expect(first.password).not.toBe(second.password);
+      expect(first.hash).not.toBe(second.hash);
     });
   });
 
