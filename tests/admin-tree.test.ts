@@ -11,7 +11,7 @@ describe('Admin Tree Routes', () => {
 
   beforeAll(async () => {
     vi.stubEnv('SESSION_SECRET', 'a'.repeat(32));
-    vi.stubEnv('SESSION_SALT', 'b'.repeat(16));
+    vi.stubEnv('SESSION_SALT', 'bb'.repeat(16));
     vi.stubEnv('ADMIN_API_KEY', ADMIN_KEY);
     vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
@@ -22,7 +22,7 @@ describe('Admin Tree Routes', () => {
 
   afterAll(async () => {
     vi.unstubAllEnvs();
-    await app.close();
+    if (app) await app.close();
     await prisma.$disconnect();
   });
 

@@ -206,7 +206,7 @@ function reanalyzeInterview(interviewId) {
 
   fetch('/admin/api/reports/' + interviewId + '/reanalyze', {
     method: 'POST',
-    headers: {},
+    headers: { 'x-csrf-token': adminCsrfToken() },
     signal: controller.signal
   }).then(function(res) {
     clearTimeout(timeoutId);

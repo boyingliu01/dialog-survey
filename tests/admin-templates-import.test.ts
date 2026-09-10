@@ -1,6 +1,8 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import csrfProtection from '@fastify/csrf-protection';
 import fastifyFormbody from '@fastify/formbody';
+import secureSession from '@fastify/secure-session';
 import fastifyView from '@fastify/view';
 import type { Template, TemplateStatus } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
@@ -139,12 +141,15 @@ describe('Admin Templates Import', () => {
     mockTemplateFindMany.mockImplementation(() => Promise.resolve(Array.from(mockStore.values())));
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await app?.close();
     vi.restoreAllMocks();
   });
 
   async function buildApp() {
     const app = Fastify();
+    await app.register(secureSession, { secret: 'a'.repeat(32), salt: 'b'.repeat(16) });
+    await app.register(csrfProtection);
     await app.register(fastifyFormbody);
     await app.register(fastifyView, {
       engine: { nunjucks },
