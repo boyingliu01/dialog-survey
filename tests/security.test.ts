@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { anonymizeData, generateApiKey } from '../src/utils/security.js';
+import { anonymizeData, generateApiKey, timingSafeEqualStrings } from '../src/utils/security.js';
 
 vi.mock('@prisma/client', () => {
   const mockFindFirst = vi.fn();
@@ -84,6 +84,21 @@ describe('generateApiKey', () => {
     const key2 = generateApiKey();
 
     expect(key1).not.toBe(key2);
+  });
+});
+
+describe('timingSafeEqualStrings', () => {
+  it('should return true for identical strings', () => {
+    expect(timingSafeEqualStrings('ib_same_key_value', 'ib_same_key_value')).toBe(true);
+  });
+
+  it('should return false for different strings of the same length', () => {
+    expect(timingSafeEqualStrings('ib_key_aaaaaaaaaaaa', 'ib_key_bbbbbbbbbbbb')).toBe(false);
+  });
+
+  it('should return false without throwing for strings of different lengths', () => {
+    expect(() => timingSafeEqualStrings('short', 'a-much-longer-different-value')).not.toThrow();
+    expect(timingSafeEqualStrings('short', 'a-much-longer-different-value')).toBe(false);
   });
 });
 
