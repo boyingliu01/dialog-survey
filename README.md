@@ -158,8 +158,8 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD_HASH=<bcrypt-hash>  # Generate with bcrypt
 
 # Session configuration
-SESSION_SECRET=<32-char-random-string>
-SESSION_SALT=<16-char-random-string>
+SESSION_SECRET=<64-char-hex>     # 32 random bytes — hex string of at least 32 characters
+SESSION_SALT=<32-char-hex>       # exactly 16 random bytes — must be 32 hex chars or startup fails
 SESSION_MAX_AGE=28800  # 8 hours in seconds
 ```
 

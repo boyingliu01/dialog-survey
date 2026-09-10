@@ -193,6 +193,14 @@ sudo apt-get install -y certbot python3-certbot-nginx
 sudo certbot --nginx -d interview.example.com
 ```
 
+> **Proxy caveat**: the app does not enable Fastify `trustProxy`, so behind Nginx every
+> client shares the proxy's IP. This affects the admin-login rate limiter (5 failed
+> attempts lock out logins for 15 minutes for everyone behind that proxy) and audit-log
+> client IPs. Enabling `trustProxy` is deliberately deferred: unless the proxy strips
+> client-supplied `X-Forwarded-For`, trusting that header lets callers spoof IPs and
+> bypass the limiter entirely. Keep Mode 2 (direct/PM2) for production admin access, or
+> harden the proxy before enabling `trustProxy`.
+
 ## Health Checks
 
 ```bash
@@ -323,7 +331,8 @@ cat prisma/schema.prisma
 For >100 concurrent interviews:
 1. Use pgBouncer for connection pooling
 2. Increase PM2 `max_memory_restart` to `1G`
-3. Run multiple PM2 instances behind a load balancer
+3. Run multiple PM2 instances behind a load balancer (note: the login rate limiter is
+   in-memory per process — each instance tracks failures independently)
 4. Use Redis for session sharing (future)
 
 ## Security Checklist
