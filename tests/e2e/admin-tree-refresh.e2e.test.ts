@@ -1,29 +1,39 @@
 import { type Browser, type BrowserContext, type Page, chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createE2EServer } from './helpers/e2e-server.js';
+import {
+  E2E_ADMIN_API_KEY,
+  loginAdminViaForm,
+  stubE2EAdminCredentials,
+} from './helpers/admin-login.js';
+import { closeE2EResources, createE2EServer } from './helpers/e2e-server.js';
 
 // E2E tests need extra time for browser startup, page navigation, and HTMX async swaps
-vi.setConfig({ testTimeout: 60000, hookTimeout: 30000 });
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 describe('Admin Tree Refresh After Plan Creation (E2E - #159 follow-up)', () => {
+  let cleanupServer: Awaited<ReturnType<typeof createE2EServer>> | undefined;
   let browser: Browser;
+  let cleanupBrowser: Browser | undefined;
   let context: BrowserContext;
+  let cleanupContext: BrowserContext | undefined;
   let page: Page;
   let baseUrl: string;
   let templateId: string;
 
   beforeAll(async () => {
-    process.env['ADMIN_API_KEY'] = 'test-admin-key';
+    stubE2EAdminCredentials();
     const server = await createE2EServer(0);
+    cleanupServer = server;
     baseUrl = server.baseUrl;
-    (globalThis as Record<string, unknown>)['__E2E_SERVER'] = server;
 
     browser = await chromium.launch({ headless: true });
+    cleanupBrowser = browser;
     context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       locale: 'zh-CN',
-      extraHTTPHeaders: { 'X-Admin-Key': 'test-admin-key' },
+      extraHTTPHeaders: { 'X-Admin-Key': E2E_ADMIN_API_KEY },
     });
+    cleanupContext = context;
     page = await context.newPage();
 
     // === Data setup: create a template via API ===
@@ -48,13 +58,10 @@ describe('Admin Tree Refresh After Plan Creation (E2E - #159 follow-up)', () => 
   });
 
   afterAll(async () => {
-    await context.close();
-    await browser.close();
-    const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as Awaited<
-      ReturnType<typeof createE2EServer>
-    >;
-    if (server) {
-      await server.teardown();
+    try {
+      await closeE2EResources(cleanupServer, cleanupBrowser, cleanupContext);
+    } finally {
+      vi.unstubAllEnvs();
     }
   });
 
@@ -79,14 +86,7 @@ describe('Admin Tree Refresh After Plan Creation (E2E - #159 follow-up)', () => 
   describe('Section 1: Login-based E2E (real user flow)', () => {
     it('should login, create plan via HTMX form, and verify tree updates', async () => {
       // Step 1: Login via browser form (CSRF handled by _csrf hidden field now in login.njk)
-      await page.goto(`${baseUrl}/admin/login`, { waitUntil: 'load' });
-      await page.fill('#username', 'e2e-admin');
-      await page.fill('#password', 'e2e-test-password');
-
-      await Promise.all([
-        page.waitForURL('**/admin', { timeout: 10000 }),
-        page.click('button[type="submit"]'),
-      ]);
+      await loginAdminViaForm(page, baseUrl);
 
       // Step 2: Verify sidebar tree loaded with the template name
       await page.waitForFunction(

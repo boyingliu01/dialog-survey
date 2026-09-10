@@ -1,14 +1,18 @@
 import { type Browser, type BrowserContext, type Page, chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createE2EServer } from './helpers/e2e-server.js';
+import { loginAdminViaForm, stubE2EAdminCredentials } from './helpers/admin-login.js';
+import { closeE2EResources, createE2EServer } from './helpers/e2e-server.js';
 
 // E2E tests need extra time for browser startup and page navigation
 // Coverage mode adds significant overhead (instrumentation, slower DB queries)
-vi.setConfig({ testTimeout: 30000, hookTimeout: 20000 });
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 60_000 });
 
 describe('Admin Core Paths (Playwright E2E)', () => {
+  let cleanupServer: Awaited<ReturnType<typeof createE2EServer>> | undefined;
   let browser: Browser;
+  let cleanupBrowser: Browser | undefined;
   let context: BrowserContext;
+  let cleanupContext: BrowserContext | undefined;
   let page: Page;
   let baseUrl: string;
 
@@ -19,32 +23,29 @@ describe('Admin Core Paths (Playwright E2E)', () => {
 
   beforeAll(async () => {
     // Start real Fastify server with PostgreSQL
-    process.env['ADMIN_API_KEY'] = 'test-admin-key';
+    stubE2EAdminCredentials();
     const server = await createE2EServer(0);
+    cleanupServer = server;
     baseUrl = server.baseUrl;
 
-    // Store reference for cleanup
-    (globalThis as Record<string, unknown>)['__E2E_SERVER'] = server;
-
     browser = await chromium.launch({ headless: true });
+    cleanupBrowser = browser;
     context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       locale: 'zh-CN',
       // Disable JavaScript caching and bfcache for consistent test behavior
       extraHTTPHeaders: { 'Cache-Control': 'no-cache' },
     });
+    cleanupContext = context;
     page = await context.newPage();
+    await loginAdminViaForm(page, baseUrl);
   });
 
   afterAll(async () => {
-    await context.close();
-    await browser.close();
-
-    const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as Awaited<
-      ReturnType<typeof createE2EServer>
-    >;
-    if (server) {
-      await server.teardown();
+    try {
+      await closeE2EResources(cleanupServer, cleanupBrowser, cleanupContext);
+    } finally {
+      vi.unstubAllEnvs();
     }
   });
 
