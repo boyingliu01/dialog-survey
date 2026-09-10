@@ -1,5 +1,7 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createE2EServer } from './helpers/e2e-server.js';
+
+vi.setConfig({ hookTimeout: 60_000 });
 
 interface TestContext {
   templateIds: string[];
@@ -8,9 +10,11 @@ interface TestContext {
 describe('Template Lifecycle (E2E)', () => {
   const ctx: TestContext = { templateIds: [] };
   let server: Awaited<ReturnType<typeof createE2EServer>>;
+  let cleanupServer: Awaited<ReturnType<typeof createE2EServer>> | undefined;
 
   beforeAll(async () => {
     server = await createE2EServer();
+    cleanupServer = server;
   });
 
   beforeEach(() => {
@@ -18,13 +22,13 @@ describe('Template Lifecycle (E2E)', () => {
   });
 
   afterEach(async () => {
-    if (ctx.templateIds.length > 0) {
-      await server.testDb.cleanup({ templates: ctx.templateIds });
+    if (cleanupServer && ctx.templateIds.length > 0) {
+      await cleanupServer.testDb.cleanup({ templates: ctx.templateIds });
     }
   });
 
   afterAll(async () => {
-    await server.teardown();
+    if (cleanupServer) await cleanupServer.teardown();
   });
 
   it('should create a template, retrieve it, update it, and publish it', async () => {

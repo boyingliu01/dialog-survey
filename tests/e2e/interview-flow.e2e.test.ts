@@ -3,6 +3,8 @@ import { createE2EServer } from './helpers/e2e-server.js';
 import { MockDingTalk } from './helpers/mock-dingtalk.js';
 import { MockLLMQueue } from './helpers/mock-llm.js';
 
+vi.setConfig({ hookTimeout: 60_000 });
+
 vi.mock('../../src/services/followup.service.js', () => ({
   generateSmartResponse: vi.fn(),
   polishFirstQuestion: vi.fn(),
@@ -30,6 +32,7 @@ const mockPolishFirstQuestion = polishFirstQuestion as ReturnType<typeof vi.fn>;
 
 describe('Interview Flow (E2E)', () => {
   let server: Awaited<ReturnType<typeof createE2EServer>>;
+  let cleanupServer: Awaited<ReturnType<typeof createE2EServer>> | undefined;
   let mockDingtalk: MockDingTalk;
   let llmQueue: MockLLMQueue;
   let cleanupIds: {
@@ -42,6 +45,7 @@ describe('Interview Flow (E2E)', () => {
 
   beforeAll(async () => {
     server = await createE2EServer();
+    cleanupServer = server;
   });
 
   beforeEach(async () => {
@@ -60,42 +64,43 @@ describe('Interview Flow (E2E)', () => {
   });
 
   afterEach(async () => {
+    if (!cleanupServer) return;
     const ids = { ...cleanupIds };
     if (ids.responses?.length) {
-      await server.prisma.response
+      await cleanupServer.prisma.response
         .deleteMany({ where: { id: { in: ids.responses } } })
         .catch(() => {});
     }
     if (ids.messages?.length) {
-      await server.prisma.message
+      await cleanupServer.prisma.message
         .deleteMany({ where: { id: { in: ids.messages } } })
         .catch(() => {});
     }
     if (ids.interviews?.length) {
-      await server.prisma.analysisReport
+      await cleanupServer.prisma.analysisReport
         .deleteMany({ where: { interviewId: { in: ids.interviews } } })
         .catch(() => {});
-      await server.prisma.analysisFailure
+      await cleanupServer.prisma.analysisFailure
         .deleteMany({ where: { interviewId: { in: ids.interviews } } })
         .catch(() => {});
-      await server.prisma.interview
+      await cleanupServer.prisma.interview
         .deleteMany({ where: { id: { in: ids.interviews } } })
         .catch(() => {});
     }
     if (ids.interviewPlans?.length) {
-      await server.prisma.interviewPlan
+      await cleanupServer.prisma.interviewPlan
         .deleteMany({ where: { id: { in: ids.interviewPlans } } })
         .catch(() => {});
     }
     if (ids.templates?.length) {
-      await server.prisma.template
+      await cleanupServer.prisma.template
         .deleteMany({ where: { id: { in: ids.templates } } })
         .catch(() => {});
     }
   });
 
   afterAll(async () => {
-    await server.teardown();
+    if (cleanupServer) await cleanupServer.teardown();
   });
 
   async function createPublishedTemplate(questions: string[]): Promise<string> {

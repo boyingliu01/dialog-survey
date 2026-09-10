@@ -1,9 +1,16 @@
+import type { PlanStatus } from '@prisma/client';
 import { type Browser, type BrowserContext, type Page, chromium } from 'playwright';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createE2EServer } from './helpers/e2e-server.js';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  E2E_ADMIN_API_KEY,
+  loginAdminViaForm,
+  renderedShellCsrfToken,
+  stubE2EAdminCredentials,
+} from './helpers/admin-login.js';
+import { closeE2EResources, createE2EServer } from './helpers/e2e-server.js';
 
 // E2E tests need extra time for browser startup, page navigation, and HTMX async swaps
-vi.setConfig({ testTimeout: 60000, hookTimeout: 30000 });
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 interface TestContext {
   templateIds: string[];
@@ -13,18 +20,19 @@ interface TestContext {
 describe('Plan Lifecycle (Playwright E2E)', () => {
   const ctx: TestContext = { templateIds: [], planIds: [] };
   let browser: Browser;
+  let cleanupBrowser: Browser | undefined;
   let context: BrowserContext;
+  let cleanupContext: BrowserContext | undefined;
   let page: Page;
   let baseUrl: string;
+  let server: Awaited<ReturnType<typeof createE2EServer>>;
+  let cleanupServer: Awaited<ReturnType<typeof createE2EServer>> | undefined;
 
   /** Create a template via Prisma API and track its ID for cleanup */
   async function createTemplate(
     name: string,
     status: 'DRAFT' | 'PUBLISHED' = 'PUBLISHED'
   ): Promise<string> {
-    const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as {
-      prisma: { template: { create: (args: Record<string, unknown>) => Promise<{ id: string }> } };
-    };
     const template = await server.prisma.template.create({
       data: {
         name,
@@ -46,15 +54,8 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
   async function createPlanViaDb(
     name: string,
     templateId: string,
-    status = 'PENDING'
+    status: PlanStatus = 'PENDING'
   ): Promise<string> {
-    const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as {
-      prisma: {
-        interviewPlan: {
-          create: (args: Record<string, unknown>) => Promise<{ id: string }>;
-        };
-      };
-    };
     const plan = await server.prisma.interviewPlan.create({
       data: { name, templateId, status },
     });
@@ -62,59 +63,34 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
     return plan.id;
   }
 
-  /** Perform browser-based login via form submission */
-  async function loginViaBrowser(): Promise<void> {
-    await page.goto(`${baseUrl}/admin/login`, { waitUntil: 'load' });
-    await page.fill('#username', 'e2e-admin');
-    await page.fill('#password', 'e2e-test-password');
-    await Promise.all([
-      page.waitForURL('**/admin', { timeout: 10000 }),
-      page.click('button[type="submit"]'),
-    ]);
-  }
-
   beforeAll(async () => {
-    process.env['ADMIN_API_KEY'] = 'test-admin-key';
-    const server = await createE2EServer(0);
+    stubE2EAdminCredentials();
+    server = await createE2EServer(0);
+    cleanupServer = server;
     baseUrl = server.baseUrl;
-    (globalThis as Record<string, unknown>)['__E2E_SERVER'] = server;
 
     browser = await chromium.launch({ headless: true });
+    cleanupBrowser = browser;
     context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       locale: 'zh-CN',
-      extraHTTPHeaders: { 'Cache-Control': 'no-cache', 'X-Admin-Key': 'test-admin-key' },
+      extraHTTPHeaders: { 'Cache-Control': 'no-cache', 'X-Admin-Key': E2E_ADMIN_API_KEY },
     });
+    cleanupContext = context;
     page = await context.newPage();
+  });
+
+  beforeEach(async () => {
+    await context.clearCookies();
   });
 
   afterAll(async () => {
     // Clean up in dependency order: interviews → plans → templates
-    const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as {
-      prisma: {
-        analysisReport: { deleteMany: (args: Record<string, unknown>) => Promise<unknown> };
-        analysisFailure: { deleteMany: (args: Record<string, unknown>) => Promise<unknown> };
-        response: { deleteMany: (args: Record<string, unknown>) => Promise<unknown> };
-        message: { deleteMany: (args: Record<string, unknown>) => Promise<unknown> };
-        batchAnalysisReport: { deleteMany: (args: Record<string, unknown>) => Promise<unknown> };
-        interview: { deleteMany: (args: Record<string, unknown>) => Promise<unknown> };
-        interviewPlan: { deleteMany: (args: Record<string, unknown>) => Promise<unknown> };
-        template: { deleteMany: (args: Record<string, unknown>) => Promise<unknown> };
-      };
-    };
-
     // Find and delete interviews linked to our plans
     if (ctx.planIds.length > 0) {
       // Find all interviews linked to our plans
       try {
-        const server2 = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as {
-          prisma: {
-            interview: {
-              findMany: (args: Record<string, unknown>) => Promise<Array<{ id: string }>>;
-            };
-          };
-        };
-        const interviews = await server2.prisma.interview.findMany({
+        const interviews = await server.prisma.interview.findMany({
           where: { planId: { in: ctx.planIds } },
           select: { id: true },
         });
@@ -152,13 +128,10 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
         .catch(() => {});
     }
 
-    await context.close();
-    await browser.close();
-    const e2eServer = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as Awaited<
-      ReturnType<typeof createE2EServer>
-    >;
-    if (e2eServer) {
-      await e2eServer.teardown();
+    try {
+      await closeE2EResources(cleanupServer, cleanupBrowser, cleanupContext);
+    } finally {
+      vi.unstubAllEnvs();
     }
   });
 
@@ -167,7 +140,7 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
       // Setup: create a template
       await createTemplate('E2E UI Create Template');
 
-      await loginViaBrowser();
+      await loginAdminViaForm(page, baseUrl);
 
       await page.waitForSelector('text=E2E UI Create Template', { timeout: 8000 });
       await page.click('text=E2E UI Create Template');
@@ -224,7 +197,7 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
       const apiResp = await page.context().request.post(`${baseUrl}/api/plans`, {
         headers: {
           'Content-Type': 'application/json',
-          'X-Admin-Key': 'test-admin-key',
+          'X-Admin-Key': E2E_ADMIN_API_KEY,
         },
         data: {},
         failOnStatusCode: false,
@@ -270,7 +243,7 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
 
       // Pause the plan via API
       const pauseResp = await page.context().request.post(`${baseUrl}/api/plans/${planId}/pause`, {
-        headers: { 'X-Admin-Key': 'test-admin-key' },
+        headers: { 'X-Admin-Key': E2E_ADMIN_API_KEY },
         failOnStatusCode: false,
       });
       expect(pauseResp.status()).toBe(200);
@@ -429,13 +402,6 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
       const planId = await createPlanViaDb('E2E 删除拒绝计划', templateId, 'PENDING');
 
       // Create an interview linked to the plan
-      const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as {
-        prisma: {
-          interview: {
-            create: (args: Record<string, unknown>) => Promise<{ id: string }>;
-          };
-        };
-      };
       await server.prisma.interview.create({
         data: {
           userId: 'e2e-test-user-delete',
@@ -476,18 +442,15 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
 
   describe('Plan Lifecycle via Login Session', () => {
     it('should create a plan after browser login and verify via both UI and API', async () => {
-      await page.goto(`${baseUrl}/admin`, { waitUntil: 'load' });
-      const currentUrl = page.url();
-      // If already redirected to /admin (already logged in), skip login
-      if (!currentUrl.includes('/admin') || currentUrl.includes('/login')) {
-        await loginViaBrowser();
-      }
+      await loginAdminViaForm(page, baseUrl);
+      const csrfToken = await renderedShellCsrfToken(page);
 
       // Step 2: Create template via API (using page context which has session cookies)
       const templateResp = await page.context().request.post(`${baseUrl}/api/templates`, {
         headers: {
           'Content-Type': 'application/json',
           'X-Admin-Key': 'test-admin-key',
+          'X-CSRF-Token': csrfToken,
         },
         data: {
           name: 'E2E Session Lifecycle Template',
@@ -507,7 +470,7 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
       const planResp = await page.context().request.post(`${baseUrl}/api/plans`, {
         headers: {
           'Content-Type': 'application/json',
-          'X-Admin-Key': 'test-admin-key',
+          'X-CSRF-Token': csrfToken,
         },
         data: {
           name: 'E2E 会话流程计划',
@@ -530,26 +493,26 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
 
       // Step 5: Pause, resume, then cancel via API (session-based auth)
       let resp = await page.context().request.post(`${baseUrl}/api/plans/${planBody.id}/pause`, {
-        headers: { 'X-Admin-Key': 'test-admin-key' },
+        headers: { 'X-CSRF-Token': csrfToken },
       });
       expect(resp.status()).toBe(200);
 
       // Verify PAUSED
       let getResp = await page.request.get(`${baseUrl}/api/plans/${planBody.id}`, {
-        headers: { 'X-Admin-Key': 'test-admin-key' },
+        headers: { 'X-CSRF-Token': csrfToken },
       });
       let plan: { status: string } = await getResp.json();
       expect(plan.status).toBe('PAUSED');
 
       // Resume
       resp = await page.context().request.post(`${baseUrl}/api/plans/${planBody.id}/resume`, {
-        headers: { 'X-Admin-Key': 'test-admin-key' },
+        headers: { 'X-CSRF-Token': csrfToken },
       });
       expect(resp.status()).toBe(200);
 
       // Cancel
       resp = await page.context().request.post(`${baseUrl}/api/plans/${planBody.id}/cancel`, {
-        headers: { 'X-Admin-Key': 'test-admin-key' },
+        headers: { 'X-CSRF-Token': csrfToken },
       });
       expect(resp.status()).toBe(200);
 

@@ -1,83 +1,13 @@
 import { type Browser, type BrowserContext, type Page, chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createE2EServer } from './helpers/e2e-server.js';
+import {
+  loginAdmin,
+  renderedShellCsrfToken,
+  stubE2EAdminCredentials,
+} from './helpers/admin-login.js';
+import { closeE2EResources, createE2EServer } from './helpers/e2e-server.js';
 
-vi.setConfig({ testTimeout: 30000, hookTimeout: 20000 });
-
-const TEST_USERNAME = 'e2e-admin';
-const TEST_PASSWORD = 'e2e-test-password';
-
-interface LoginResponse {
-  status: number;
-  body: string;
-  location: string | null;
-  setCookie: string | null;
-}
-
-async function getCsrfToken(page: Page): Promise<string> {
-  const cookies = await page.context().cookies();
-  const csrfCookie = cookies.find((c) => c.name === 'csrf-token');
-  if (csrfCookie?.value) return csrfCookie.value;
-
-  const pageCookies = (await page.evaluate(
-    '(() => { const m = document.cookie.match(/csrf-token=([^;]+)/); return m ? m[1] : ""; })()'
-  )) as string;
-  return pageCookies;
-}
-
-async function doLogin(
-  page: Page,
-  baseUrl: string,
-  username: string,
-  password: string,
-  maxRedirects?: number
-): Promise<LoginResponse> {
-  const csrfToken = await getCsrfToken(page);
-  const resp = await page.context().request.post(`${baseUrl}/admin/login`, {
-    headers: {
-      'content-type': 'application/x-www-form-urlencoded',
-      'x-csrf-token': csrfToken,
-    },
-    form: { username, password },
-    maxRedirects: maxRedirects ?? 0,
-  });
-  const body = await resp.text();
-  return {
-    status: resp.status(),
-    body,
-    location: resp.headers()['location'] || null,
-    setCookie: resp.headers()['set-cookie'] || null,
-  };
-}
-
-async function applySetCookie(context: BrowserContext, setCookie: string | null): Promise<void> {
-  if (!setCookie) return;
-  const cookieStr = setCookie.split(';')[0];
-  if (!cookieStr) return;
-  const eq = cookieStr.indexOf('=');
-  if (eq <= 0) return;
-  await context.addCookies([
-    {
-      name: cookieStr.slice(0, eq),
-      value: cookieStr.slice(eq + 1),
-      domain: '127.0.0.1',
-      path: '/',
-    },
-  ]);
-}
-
-async function loginAndApplySession(
-  page: Page,
-  context: BrowserContext,
-  baseUrl: string
-): Promise<void> {
-  await page.goto(`${baseUrl}/admin/login`, { waitUntil: 'load' });
-  const result = await doLogin(page, baseUrl, TEST_USERNAME, TEST_PASSWORD);
-  if (result.status !== 302) {
-    throw new Error(`Login failed with status ${result.status}: ${result.body}`);
-  }
-  await applySetCookie(context, result.setCookie);
-}
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 60_000 });
 
 interface CleanupIds {
   responses: string[];
@@ -87,29 +17,32 @@ interface CleanupIds {
 }
 
 describe('Report Viewing (Playwright E2E)', () => {
+  let server: Awaited<ReturnType<typeof createE2EServer>>;
+  let cleanupServer: Awaited<ReturnType<typeof createE2EServer>> | undefined;
   let browser: Browser;
+  let cleanupBrowser: Browser | undefined;
   let context: BrowserContext;
+  let cleanupContext: BrowserContext | undefined;
   let page: Page;
   let baseUrl: string;
-  let cleanupIds: CleanupIds;
+  const cleanupIds: CleanupIds = { responses: [], interviews: [], plans: [], templates: [] };
 
   beforeAll(async () => {
-    const server = await createE2EServer(0);
+    stubE2EAdminCredentials();
+    server = await createE2EServer(0);
+    cleanupServer = server;
     baseUrl = server.baseUrl;
 
-    (globalThis as Record<string, unknown>)['__E2E_SERVER'] = server;
-
     browser = await chromium.launch({ headless: true });
+    cleanupBrowser = browser;
     context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       locale: 'zh-CN',
       extraHTTPHeaders: { 'Cache-Control': 'no-cache' },
     });
+    cleanupContext = context;
     page = await context.newPage();
-
-    cleanupIds = { responses: [], interviews: [], plans: [], templates: [] };
-
-    await loginAndApplySession(page, context, baseUrl);
+    await loginAdmin(page, baseUrl);
 
     const template = await server.prisma.template.create({
       data: {
@@ -199,10 +132,6 @@ describe('Report Viewing (Playwright E2E)', () => {
   });
 
   afterAll(async () => {
-    const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as Awaited<
-      ReturnType<typeof createE2EServer>
-    >;
-
     // Cleanup: delete in FK-safe order
     if (server?.prisma) {
       const prisma = server.prisma;
@@ -227,11 +156,10 @@ describe('Report Viewing (Playwright E2E)', () => {
       }
     }
 
-    await context.close();
-    await browser.close();
-
-    if (server) {
-      await server.teardown();
+    try {
+      await closeE2EResources(cleanupServer, cleanupBrowser, cleanupContext);
+    } finally {
+      vi.unstubAllEnvs();
     }
   });
 
@@ -285,7 +213,7 @@ describe('Report Viewing (Playwright E2E)', () => {
   describe('Report download', () => {
     it('should download markdown report for interview with data', async () => {
       const interviewId = cleanupIds.interviews[0];
-      await loginAndApplySession(page, context, baseUrl);
+      await loginAdmin(page, baseUrl);
 
       const response = await page.request.get(
         `${baseUrl}/admin/api/reports/${interviewId}/download`,
@@ -304,7 +232,7 @@ describe('Report Viewing (Playwright E2E)', () => {
     });
 
     it('should return 404 for nonexistent interview download', async () => {
-      await loginAndApplySession(page, context, baseUrl);
+      await loginAdmin(page, baseUrl);
 
       const response = await page.request.get(
         `${baseUrl}/admin/api/reports/nonexistent-id/download`,
@@ -320,7 +248,7 @@ describe('Report Viewing (Playwright E2E)', () => {
   describe('Report export', () => {
     it('should handle PDF export request', async () => {
       const interviewId = cleanupIds.interviews[0];
-      await loginAndApplySession(page, context, baseUrl);
+      await loginAdmin(page, baseUrl);
 
       const response = await page.request.get(
         `${baseUrl}/admin/api/reports/${interviewId}/export/pdf`,
@@ -337,7 +265,7 @@ describe('Report Viewing (Playwright E2E)', () => {
 
     it('should handle Excel export request', async () => {
       const interviewId = cleanupIds.interviews[0];
-      await loginAndApplySession(page, context, baseUrl);
+      await loginAdmin(page, baseUrl);
 
       const response = await page.request.get(
         `${baseUrl}/admin/api/reports/${interviewId}/export/excel`,
@@ -354,9 +282,10 @@ describe('Report Viewing (Playwright E2E)', () => {
   describe('Report reanalysis', () => {
     it('should accept reanalysis POST for interview with responses', async () => {
       const interviewId = cleanupIds.interviews[0];
-      await loginAndApplySession(page, context, baseUrl);
+      await loginAdmin(page, baseUrl);
 
-      const csrfToken = await getCsrfToken(page);
+      await page.goto(`${baseUrl}/admin`);
+      const csrfToken = await renderedShellCsrfToken(page);
       const response = await page.request.post(
         `${baseUrl}/admin/api/reports/${interviewId}/reanalyze`,
         {
@@ -378,7 +307,7 @@ describe('Report Viewing (Playwright E2E)', () => {
 
   describe('Nonexistent report', () => {
     it('should return 404 for nonexistent interview report page', async () => {
-      await loginAndApplySession(page, context, baseUrl);
+      await loginAdmin(page, baseUrl);
 
       const response = await page.goto(`${baseUrl}/admin/content/reports/nonexistent-id`, {
         waitUntil: 'load',
@@ -388,9 +317,10 @@ describe('Report Viewing (Playwright E2E)', () => {
     });
 
     it('should return error for nonexistent interview reanalyze POST', async () => {
-      await loginAndApplySession(page, context, baseUrl);
+      await loginAdmin(page, baseUrl);
 
-      const csrfToken = await getCsrfToken(page);
+      await page.goto(`${baseUrl}/admin`);
+      const csrfToken = await renderedShellCsrfToken(page);
       const response = await page.request.post(
         `${baseUrl}/admin/api/reports/nonexistent-id/reanalyze`,
         {
