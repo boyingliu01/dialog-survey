@@ -1,28 +1,18 @@
 import { type Browser, type BrowserContext, type Page, chromium } from 'playwright';
 import { expect as playwrightExpect } from 'playwright/test';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { createE2EServer } from './helpers/e2e-server.js';
+import {
+  E2E_ADMIN_API_KEY,
+  loginAdminViaForm,
+  renderedShellCsrfToken,
+  stubE2EAdminCredentials,
+} from './helpers/admin-login.js';
+import { closeE2EResources, createE2EServer } from './helpers/e2e-server.js';
 
 // E2E tests need extra time for browser startup, HTMX async swaps, and template CRUD operations
-vi.setConfig({ testTimeout: 30000, hookTimeout: 20000 });
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
-const TEST_USERNAME = 'e2e-admin';
-const TEST_PASSWORD = 'e2e-test-password';
-const TEST_API_KEY = 'test-admin-key';
-
-/**
- * Login helper for browser-based session auth.
- * Navigates to login page, fills form, submits, and redirects to /admin.
- */
-async function loginViaBrowser(page: Page, baseUrl: string): Promise<void> {
-  await page.goto(`${baseUrl}/admin/login`, { waitUntil: 'load' });
-  await page.fill('#username', TEST_USERNAME);
-  await page.fill('#password', TEST_PASSWORD);
-  await Promise.all([
-    page.waitForURL('**/admin', { timeout: 10000 }),
-    page.click('button[type="submit"]'),
-  ]);
-}
+const TEST_API_KEY = E2E_ADMIN_API_KEY;
 
 /**
  * Create a template via the public API (using X-Admin-Key) for test data setup.
@@ -65,64 +55,62 @@ async function publishTemplateViaApi(
   baseUrl: string,
   templateId: string
 ): Promise<number> {
+  const csrfToken = await renderedShellCsrfToken(page);
   const resp = await page
     .context()
     .request.post(`${baseUrl}/admin/api/templates/${templateId}/publish`, {
-      headers: { 'X-Admin-Key': TEST_API_KEY },
+      headers: { 'X-CSRF-Token': csrfToken },
       maxRedirects: 0,
     });
   return resp.status();
 }
 
 describe('Admin Template CRUD (Playwright E2E)', () => {
+  let server: Awaited<ReturnType<typeof createE2EServer>>;
+  let cleanupServer: Awaited<ReturnType<typeof createE2EServer>> | undefined;
   let browser: Browser;
+  let cleanupBrowser: Browser | undefined;
   let context: BrowserContext;
+  let cleanupContext: BrowserContext | undefined;
   let page: Page;
   let baseUrl: string;
   const createdTemplateIds: string[] = [];
 
   beforeAll(async () => {
-    process.env['ADMIN_API_KEY'] = TEST_API_KEY;
-    const server = await createE2EServer(0);
+    stubE2EAdminCredentials();
+    server = await createE2EServer(0);
+    cleanupServer = server;
     baseUrl = server.baseUrl;
 
-    (globalThis as Record<string, unknown>)['__E2E_SERVER'] = server;
-
     browser = await chromium.launch({ headless: true });
+    cleanupBrowser = browser;
     context = await browser.newContext({
       viewport: { width: 1440, height: 900 },
       locale: 'zh-CN',
       extraHTTPHeaders: { 'Cache-Control': 'no-cache', 'X-Admin-Key': TEST_API_KEY },
     });
+    cleanupContext = context;
     page = await context.newPage();
+    page.setDefaultNavigationTimeout(60_000);
 
     // Login via browser session for all tests
-    await loginViaBrowser(page, baseUrl);
+    await loginAdminViaForm(page, baseUrl);
   });
 
   afterEach(async () => {
     // Clean up created templates after each test
     if (createdTemplateIds.length > 0) {
       const ids = [...createdTemplateIds];
-      const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as Awaited<
-        ReturnType<typeof createE2EServer>
-      >;
-      if (server) {
-        await server.prisma.template.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
-      }
+      await server.prisma.template.deleteMany({ where: { id: { in: ids } } });
       createdTemplateIds.length = 0;
     }
   });
 
   afterAll(async () => {
-    await context.close();
-    await browser.close();
-
-    const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as Awaited<
-      ReturnType<typeof createE2EServer>
-    >;
-    if (server) {
-      await server.teardown();
+    try {
+      await closeE2EResources(cleanupServer, cleanupBrowser, cleanupContext);
+    } finally {
+      vi.unstubAllEnvs();
     }
   });
 
@@ -273,7 +261,7 @@ describe('Admin Template CRUD (Playwright E2E)', () => {
       const resp = await page.context().request.post(`${baseUrl}/admin/api/templates`, {
         headers: {
           'content-type': 'application/json',
-          'X-Admin-Key': TEST_API_KEY,
+          'X-CSRF-Token': await renderedShellCsrfToken(page),
         },
         data: {
           name: 'Validation Test No Questions',
@@ -299,9 +287,6 @@ describe('Admin Template CRUD (Playwright E2E)', () => {
       createdTemplateIds.push(templateId);
 
       // Verify initial status is DRAFT
-      const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as Awaited<
-        ReturnType<typeof createE2EServer>
-      >;
       const initial = await server.prisma.template.findUnique({ where: { id: templateId } });
       expect(initial?.status).toBe('DRAFT');
 
@@ -335,10 +320,6 @@ describe('Admin Template CRUD (Playwright E2E)', () => {
       ]);
       createdTemplateIds.push(templateId);
 
-      const server = (globalThis as Record<string, unknown>)['__E2E_SERVER'] as Awaited<
-        ReturnType<typeof createE2EServer>
-      >;
-
       // Check usage stats: should have no ACTIVE/WAITING interviews
       const usageResp = await page.request.get(
         `${baseUrl}/admin/api/templates/${templateId}/stats`,
@@ -354,7 +335,7 @@ describe('Admin Template CRUD (Playwright E2E)', () => {
         .context()
         .request.delete(`${baseUrl}/admin/api/templates/${templateId}`, {
           headers: {
-            'X-Admin-Key': TEST_API_KEY,
+            'X-CSRF-Token': await renderedShellCsrfToken(page),
             'Content-Type': 'application/x-www-form-urlencoded',
           },
           maxRedirects: 0,

@@ -2,10 +2,13 @@ import { execSync } from 'node:child_process';
 import { PrismaClient } from '@prisma/client';
 
 export class TestDatabase {
-  private prisma: PrismaClient;
-  private databaseUrl: string;
+  private readonly prisma: PrismaClient;
+  private readonly databaseUrl: string;
+  private readonly previousDatabaseUrl: string | undefined;
+  private isClosed = false;
 
   constructor() {
+    this.previousDatabaseUrl = process.env['DATABASE_URL'];
     this.databaseUrl =
       process.env['TEST_DATABASE_URL'] ||
       'postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test';
@@ -35,7 +38,17 @@ export class TestDatabase {
   }
 
   async teardown(): Promise<void> {
-    await this.prisma.$disconnect();
+    if (this.isClosed) return;
+    this.isClosed = true;
+    try {
+      await this.prisma.$disconnect();
+    } finally {
+      if (this.previousDatabaseUrl === undefined) {
+        delete process.env['DATABASE_URL'];
+      } else {
+        process.env['DATABASE_URL'] = this.previousDatabaseUrl;
+      }
+    }
   }
 
   async cleanup(ids: {
@@ -47,6 +60,7 @@ export class TestDatabase {
     interviews?: string[];
     interviewPlans?: string[];
     templates?: string[];
+    templateNames?: string[];
     auditLogs?: string[];
     apiKeys?: string[];
   }): Promise<void> {
@@ -75,6 +89,9 @@ export class TestDatabase {
     }
     if (ids.templates?.length) {
       await this.prisma.template.deleteMany({ where: { id: { in: ids.templates } } });
+    }
+    if (ids.templateNames?.length) {
+      await this.prisma.template.deleteMany({ where: { name: { in: ids.templateNames } } });
     }
     if (ids.auditLogs?.length) {
       await this.prisma.auditLog.deleteMany({ where: { id: { in: ids.auditLogs } } });

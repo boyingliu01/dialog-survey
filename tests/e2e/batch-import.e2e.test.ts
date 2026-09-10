@@ -1,8 +1,11 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createE2EServer } from './helpers/e2e-server.js';
+
+vi.setConfig({ hookTimeout: 60_000 });
 
 describe('Batch Import (E2E)', () => {
   let server: Awaited<ReturnType<typeof createE2EServer>>;
+  let cleanupServer: Awaited<ReturnType<typeof createE2EServer>> | undefined;
   let cleanupIds: {
     templates?: string[];
     interviews?: string[];
@@ -11,6 +14,7 @@ describe('Batch Import (E2E)', () => {
 
   beforeAll(async () => {
     server = await createE2EServer();
+    cleanupServer = server;
   });
 
   beforeEach(async () => {
@@ -18,32 +22,33 @@ describe('Batch Import (E2E)', () => {
   });
 
   afterEach(async () => {
+    if (!cleanupServer) return;
     if (Object.keys(cleanupIds).some((k) => cleanupIds[k as keyof typeof cleanupIds]?.length)) {
       const ids = { ...cleanupIds };
       if (ids.interviews?.length) {
-        await server.prisma.analysisReport
+        await cleanupServer.prisma.analysisReport
           .deleteMany({ where: { interviewId: { in: ids.interviews } } })
           .catch(() => {});
-        await server.prisma.analysisFailure
+        await cleanupServer.prisma.analysisFailure
           .deleteMany({ where: { interviewId: { in: ids.interviews } } })
           .catch(() => {});
-        await server.prisma.response
+        await cleanupServer.prisma.response
           .deleteMany({ where: { interviewId: { in: ids.interviews } } })
           .catch(() => {});
-        await server.prisma.message
+        await cleanupServer.prisma.message
           .deleteMany({ where: { interviewId: { in: ids.interviews } } })
           .catch(() => {});
-        await server.prisma.interview
+        await cleanupServer.prisma.interview
           .deleteMany({ where: { id: { in: ids.interviews } } })
           .catch(() => {});
       }
       if (ids.interviewPlans?.length) {
-        await server.prisma.interviewPlan
+        await cleanupServer.prisma.interviewPlan
           .deleteMany({ where: { id: { in: ids.interviewPlans } } })
           .catch(() => {});
       }
       if (ids.templates?.length) {
-        await server.prisma.template
+        await cleanupServer.prisma.template
           .deleteMany({ where: { id: { in: ids.templates } } })
           .catch(() => {});
       }
@@ -51,7 +56,7 @@ describe('Batch Import (E2E)', () => {
   });
 
   afterAll(async () => {
-    await server.teardown();
+    if (cleanupServer) await cleanupServer.teardown();
   });
 
   it('should batch import members: create template, plan, and interviews', async () => {

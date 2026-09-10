@@ -23,6 +23,7 @@ import { ExportService } from '../../src/services/export.service.js';
 import { InterviewPlanService } from '../../src/services/interview-plan.service.js';
 import { renderMarkdown } from '../../src/utils/markdown.js';
 import { createVerifyApiKey, securityMiddleware } from '../../src/utils/security.js';
+import { registerTestAdminAuth } from './admin-auth.js';
 import { TestDatabase } from './test-db.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -52,6 +53,8 @@ export async function createTestServer(): Promise<TestServer> {
   const fastify = Fastify({
     logger: false, // Disable logging in tests for cleaner output
   });
+
+  await registerTestAdminAuth(fastify);
 
   // Security: limit content-type parsing
   fastify.addContentTypeParser(
