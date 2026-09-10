@@ -1,9 +1,4 @@
-import type { FastifyReply } from 'fastify';
-import type { FastifyRequest } from 'fastify/types/request.js';
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type {} from '@fastify/secure-session';
-import { DEFAULT_SESSION_MAX_AGE } from '../config/constants.js';
 
 export interface AdminSession {
   userId: string;
@@ -23,31 +18,11 @@ export function validateSession(
   const now = Date.now();
   const maxAgeMs = maxAgeSeconds * 1000;
 
-  if (now - session.loginTime > maxAgeMs) {
+  if (now - session.lastActivity > maxAgeMs) {
     return false;
   }
 
   session.lastActivity = now;
 
   return true;
-}
-
-export async function sessionAuth(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-  const session = request.session.get('admin') as AdminSession | undefined;
-  const maxAge = Number(process.env['SESSION_MAX_AGE']) || DEFAULT_SESSION_MAX_AGE;
-
-  if (!validateSession(session, maxAge)) {
-    // Session invalid or expired
-    // reply.send() terminates the request; return ensures no further middleware executes
-    if (session) {
-      request.session.delete();
-    }
-    reply.status(401).send({ error: 'Authentication required' });
-    return;
-  }
-
-  request.user = {
-    userId: session.userId,
-    role: session.role,
-  };
 }
