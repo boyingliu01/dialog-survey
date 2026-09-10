@@ -479,6 +479,82 @@ describe('DingTalkStreamClient', () => {
       expect(client.isConnected()).toBe(false);
     });
 
+    it('does not schedule reconnect after terminal disconnect', () => {
+      vi.useFakeTimers();
+      const timeout = vi.spyOn(global, 'setTimeout');
+      const client = new DingTalkStreamClient(mockConfig);
+
+      client.disconnect();
+      client.reconnect();
+
+      expect(timeout).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('does not open a WebSocket when disconnected during token acquisition', async () => {
+      let resolveFetch: ((response: Response) => void) | undefined;
+      global.fetch = vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve;
+          })
+      );
+      const on = vi.spyOn(WebSocket.prototype, 'on');
+      const client = new DingTalkStreamClient(mockConfig);
+
+      const connect = client.connect();
+      client.disconnect();
+      resolveFetch?.(
+        new Response(JSON.stringify(mockConnectionResponse), {
+          headers: { 'content-type': 'application/json' },
+          status: 200,
+        })
+      );
+      await connect;
+
+      expect(on).not.toHaveBeenCalled();
+    });
+
+    it('blocks late message delivery and awaits socket close during disconnect', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => mockConnectionResponse,
+      });
+      let closeHandler: (() => void) | undefined;
+      let messageHandler: ((data: Buffer) => void) | undefined;
+      vi.spyOn(WebSocket.prototype, 'on').mockImplementation(function (
+        this: WebSocket,
+        event,
+        handler
+      ) {
+        if (event === 'close') {
+          closeHandler = () => handler.call(this, 1000, Buffer.from('closed'));
+        }
+        if (event === 'message') {
+          messageHandler = (data) => handler.call(this, data, false);
+        }
+        return this;
+      });
+      vi.spyOn(WebSocket.prototype, 'close').mockImplementation(() => undefined);
+      const client = new DingTalkStreamClient(mockConfig);
+      const delivered = vi.fn();
+      client.on('message', delivered);
+      await client.connect();
+
+      let disconnected = false;
+      const disconnect = Promise.resolve(client.disconnect()).then(() => {
+        disconnected = true;
+      });
+      messageHandler?.(Buffer.from(JSON.stringify(mockMessage)));
+      await Promise.resolve();
+
+      expect(delivered).not.toHaveBeenCalled();
+      expect(disconnected).toBe(false);
+      closeHandler?.();
+      await disconnect;
+      expect(disconnected).toBe(true);
+    });
+
     /**
      * @test REQ-002-8-07
      * @intent 验证最大重连尝试次数设置
