@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { registerTestAdminAuth } from './helpers/admin-auth.js';
 
 // Mock DingTalk client — phone lookup returns controlled results without real API calls
 class MockDingTalkClient {
@@ -62,6 +63,7 @@ describe('Phone member tests (real DB integration)', () => {
     const { interviewPlanRoutes } = await import('../src/api/plans.js');
     const { InterviewPlanService } = await import('../src/services/interview-plan.service.js');
     fastify = Fastify({ logger: false });
+    await registerTestAdminAuth(fastify, 'test-admin-key');
     await interviewPlanRoutes(fastify, {
       interviewPlanService: new InterviewPlanService(prisma),
       prisma,
@@ -71,7 +73,7 @@ describe('Phone member tests (real DB integration)', () => {
 
   afterAll(async () => {
     vi.unstubAllEnvs();
-    await fastify.close();
+    if (fastify) await fastify.close();
     await prisma.$disconnect();
   });
 

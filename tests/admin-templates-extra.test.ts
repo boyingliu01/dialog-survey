@@ -1,3 +1,5 @@
+import csrfProtection from '@fastify/csrf-protection';
+import secureSession from '@fastify/secure-session';
 import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -17,6 +19,20 @@ async function createTestApp() {
 
   const viewsDir = resolve(import.meta.dirname, '..', 'src', 'views');
   const app = Fastify({ logger: false });
+
+  await app.register(secureSession, {
+    secret: 'a'.repeat(32),
+    salt: 'b'.repeat(16),
+  });
+  await app.register(csrfProtection);
+  app.addHook('onRequest', async (request) => {
+    if (
+      request.headers['x-test-anonymous'] !== 'true' &&
+      request.headers['x-admin-key'] === undefined
+    ) {
+      request.headers['x-admin-key'] = 'test-secret-key';
+    }
+  });
 
   await app.register(fastifyStatic, {
     root: resolve(import.meta.dirname, '..', 'public'),
@@ -462,6 +478,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
       const response = await ctx.app.inject({
         method: 'DELETE',
         url: `/admin/api/plans/${planWithBatchReport.id}`,
+        headers: { 'x-test-anonymous': 'true' },
       });
 
       expect(response.statusCode).toBe(401);
@@ -604,7 +621,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
       const response = await ctx.app.inject({
         method: 'POST',
         url: '/admin/api/templates',
-        headers: {},
+        headers: { 'x-test-anonymous': 'true' },
         body: '{}',
       });
       expect(response.statusCode).toBe(401);
@@ -628,7 +645,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
       const response = await ctx.app.inject({
         method: 'POST',
         url: '/admin/api/templates',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-test-anonymous': 'true' },
         body: JSON.stringify({ name: 'test', content: {} }),
       });
 
@@ -715,7 +732,7 @@ describe('Admin Templates Routes - Extra Coverage', () => {
       const response = await ctx.app.inject({
         method: 'PUT',
         url: `/admin/api/templates/${templateToUpdate.id}?version=1`,
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-test-anonymous': 'true' },
         body: JSON.stringify({ name: 'test', content: {} }),
       });
 

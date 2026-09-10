@@ -4,6 +4,7 @@ import fastifyView from '@fastify/view';
 import { PrismaClient } from '@prisma/client';
 import nunjucks from 'nunjucks';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { registerTestAdminAuth } from './helpers/admin-auth.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),
@@ -18,6 +19,8 @@ const prisma = new PrismaClient();
 async function createTestApp() {
   const { default: Fastify } = await import('fastify');
   const app = Fastify({ logger: false });
+
+  await registerTestAdminAuth(app);
 
   await app.register(fastifyStatic, {
     root: resolve(__dirname, '..', 'public'),
@@ -56,14 +59,14 @@ describe('DELETE /admin/api/templates/:id', () => {
 
   beforeAll(async () => {
     vi.resetModules();
-    process.env['ADMIN_API_KEY'] = 'test-secret-key';
+    vi.stubEnv('ADMIN_API_KEY', 'test-secret-key');
     app = await createTestApp();
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) await app.close();
     await prisma.$disconnect();
-    process.env['ADMIN_API_KEY'] = undefined;
+    vi.unstubAllEnvs();
   });
 
   it('should delete a draft template and verify it is gone from DB', async () => {
@@ -87,7 +90,7 @@ describe('DELETE /admin/api/templates/:id', () => {
       headers: { 'x-admin-key': 'test-secret-key' },
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode, response.body).toBe(200);
 
     // Verify it is actually deleted from DB
     const after = await prisma.template.findUnique({ where: { id: template.id } });

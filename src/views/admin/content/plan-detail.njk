@@ -10,7 +10,7 @@
     this.deleteStep = 3;
     fetch('/admin/api/plans/' + planId + '?force=true', {
       method: 'DELETE',
-      headers: { 'HX-Request': 'true' },
+      headers: { 'HX-Request': 'true', 'x-csrf-token': adminCsrfToken() },
     })
     .then(r => {
       if (!r.ok) {
@@ -264,6 +264,7 @@
                     formData.append('file', importFile);
                     fetch('/api/plans/{{ plan.id }}/import-preview', {
                       method: 'POST',
+                      headers: { 'x-csrf-token': adminCsrfToken() },
                       body: formData,
                     })
                     .then(r => {
@@ -337,7 +338,7 @@
                     const rows = importResults.results.filter(r => r.status === 'ok');
                     fetch('/api/plans/{{ plan.id }}/import-commit', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
+                      headers: { 'Content-Type': 'application/json', 'x-csrf-token': adminCsrfToken() },
                       body: JSON.stringify({ rows }),
                     })
                     .then(r => {
@@ -404,6 +405,7 @@
           var xhr = new XMLHttpRequest();
           xhr.open('POST', '/api/plans/{{ plan.id }}/members', false);
           xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.setRequestHeader('x-csrf-token', adminCsrfToken());
           xhr.send(JSON.stringify(payload));
           if (xhr.status >= 200 && xhr.status < 300) {
             htmx.ajax('GET', '/admin/content/plans/{{ plan.id }}', '#main-content');

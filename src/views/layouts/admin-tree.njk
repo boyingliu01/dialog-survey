@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="csrf-token" content="{{ csrfToken }}">
   <title>{{ title | default('访谈管理后台') }}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" onerror="this.src='/js/htmx.min.js'"></script>
@@ -38,12 +39,6 @@
     <div class="ml-auto flex items-center gap-3 text-xs">
       {% if adminUser %}
       <span class="text-gray-400">{{ adminUser }}</span>
-      <button
-        hx-get="/admin/content/change-password"
-        hx-target="#main-content"
-        hx-swap="innerHTML"
-        class="text-gray-400 hover:text-indigo-600 transition-colors"
-      >修改密码</button>
       <form method="post" action="/admin/logout" class="inline">
         <input type="hidden" name="_csrf" value="{{ csrfToken }}" />
         <button type="submit" class="text-gray-400 hover:text-red-600 transition-colors">退出</button>
@@ -84,8 +79,12 @@
 
   <!-- Global HTMX: inject CSRF token into ALL requests -->
   <script>
+  function adminCsrfToken() {
+    var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+    return csrfMeta ? csrfMeta.content : '';
+  }
   document.body.addEventListener('htmx:configRequest', function(evt) {
-    var csrfToken = document.cookie.match(/csrf-token=([^;]+)/)?.[1];
+    var csrfToken = adminCsrfToken();
     if (csrfToken) {
       evt.detail.headers['x-csrf-token'] = csrfToken;
     }

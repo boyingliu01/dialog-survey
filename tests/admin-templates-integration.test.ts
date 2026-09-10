@@ -1,6 +1,8 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import csrfProtection from '@fastify/csrf-protection';
 import fastifyFormbody from '@fastify/formbody';
+import secureSession from '@fastify/secure-session';
 import fastifyView from '@fastify/view';
 /**
  * @intent Integration tests for admin template CRUD — save → load → render flow
@@ -210,6 +212,11 @@ describe('Admin Templates Integration — save → load → render', () => {
 
   async function createApp() {
     app = Fastify();
+    await app.register(secureSession, {
+      secret: 'a'.repeat(32),
+      salt: 'b'.repeat(16),
+    });
+    await app.register(csrfProtection);
     app.register(fastifyFormbody);
     await app.register(fastifyView, {
       engine: { nunjucks },
