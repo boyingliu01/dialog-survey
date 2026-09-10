@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { registerTestAdminAuth } from './helpers/admin-auth.js';
 
 // Mock DingTalk client — phone lookup returns controlled results without real API calls
 const MockDingTalkClient = class {
@@ -64,6 +65,7 @@ describe('Batch Import API', () => {
     const { interviewPlanRoutes } = await import('../src/api/plans.js');
     const { InterviewPlanService } = await import('../src/services/interview-plan.service.js');
     fastify = Fastify({ logger: false });
+    await registerTestAdminAuth(fastify, 'test-admin-key');
     await fastify.register((await import('@fastify/multipart')).default, {
       limits: { fileSize: 1 * 1024 * 1024, parts: 1 },
     });
@@ -76,7 +78,7 @@ describe('Batch Import API', () => {
 
   afterAll(async () => {
     vi.unstubAllEnvs();
-    await fastify.close();
+    if (fastify) await fastify.close();
     await prisma.$disconnect();
   });
 
@@ -278,7 +280,7 @@ describe('Batch Import API', () => {
       const res = await fastify.inject({
         method: 'POST',
         url: '/api/plans/00000000-0000-0000-0000-000000000000/import-preview',
-        headers: { 'content-type': 'multipart/form-data' },
+        headers: { 'content-type': 'multipart/form-data', 'x-test-anonymous': 'true' },
         body: formData,
       });
 

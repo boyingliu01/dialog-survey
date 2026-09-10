@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { registerTestAdminAuth } from './helpers/admin-auth.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),
@@ -17,6 +18,8 @@ async function createAdminApp() {
 
   const viewsDir = resolve(import.meta.dirname, '..', 'src', 'views');
   const app = Fastify({ logger: false });
+
+  await registerTestAdminAuth(app, 'test-secret-key');
 
   await app.register(fastifyStatic, {
     root: resolve(import.meta.dirname, '..', 'public'),
@@ -99,6 +102,8 @@ async function createPlansApp() {
   const { default: Fastify } = await import('fastify');
   const app = Fastify({ logger: false });
 
+  await registerTestAdminAuth(app, 'test-secret-key');
+
   app.addContentTypeParser(
     'application/json',
     { parseAs: 'string' },
@@ -147,7 +152,13 @@ interface Scenario2Fixtures {
   batchReportId: string;
 }
 
-const s2 = {} as Scenario2Fixtures;
+const s2: Scenario2Fixtures = {
+  templateId: '',
+  planId: '',
+  interviewId: '',
+  reportId: '',
+  batchReportId: '',
+};
 
 describe('Workflow: Interview Plan Maintenance', () => {
   let adminApp: Awaited<ReturnType<typeof createAdminApp>>;
@@ -162,8 +173,8 @@ describe('Workflow: Interview Plan Maintenance', () => {
   });
 
   afterAll(async () => {
-    await adminApp.close();
-    await plansApp.close();
+    if (adminApp) await adminApp.close();
+    if (plansApp) await plansApp.close();
     await prisma.$disconnect();
     vi.unstubAllEnvs();
   });
@@ -367,9 +378,9 @@ describe('Workflow: Interview Analysis', () => {
     await prisma.interviewPlan.deleteMany({ where: { id: s2.planId } }).catch(() => {});
     await prisma.template.deleteMany({ where: { id: s2.templateId } }).catch(() => {});
 
-    await adminApp.close();
-    await plansApp.close();
-    await analysisApp.close();
+    if (adminApp) await adminApp.close();
+    if (plansApp) await plansApp.close();
+    if (analysisApp) await analysisApp.close();
     await prisma.$disconnect();
     vi.unstubAllEnvs();
   });

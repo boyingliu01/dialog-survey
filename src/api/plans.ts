@@ -1,10 +1,10 @@
 import type { PlanStatus, PrismaClient } from '@prisma/client';
 import { parse } from 'csv-parse/sync';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, preHandlerAsyncHookHandler } from 'fastify';
 import { z } from 'zod';
 import { DEFAULT_MAX_FOLLOWUPS } from '../core/types/index.js';
 import { DingTalkClient } from '../integrations/dingtalk/client.js';
-import { adminAuth } from '../middleware/admin-auth.js';
+import { createAdminMutationGuard } from '../middleware/admin-csrf.js';
 import {
   InterviewNotFoundError,
   type InterviewPlanService,
@@ -42,6 +42,19 @@ const remindSchema = z.object({
   interviewId: z.string().min(1).optional(),
 });
 
+const administrativePlanPostPattern =
+  /^\/api\/plans\/[^/?]+\/(?:send|pause|resume|cancel|remind|members|import-(?:preview|commit)|interviews\/[^/?]+\/send)(?:\?.*)?$/;
+const administrativePlanDeletePattern = /^\/api\/plans\/[^/?]+\/members\/[^/?]+(?:\?.*)?$/;
+
+export function isAdministrativePlanMutation(method: string, url: string): boolean {
+  return (
+    (method === 'POST' && /^\/api\/plans(?:\?.*)?$/.test(url)) ||
+    (method === 'PUT' && /^\/api\/plans\/[^/?]+(?:\?.*)?$/.test(url)) ||
+    (method === 'POST' && administrativePlanPostPattern.test(url)) ||
+    (method === 'DELETE' && administrativePlanDeletePattern.test(url))
+  );
+}
+
 function mapServiceErrorToStatus(err: unknown): { status: number; message: string } {
   if (err instanceof PlanNotFoundError) {
     return { status: 404, message: '访谈计划不存在或已被删除' };
@@ -70,8 +83,17 @@ export async function interviewPlanRoutes(
   opts: { interviewPlanService: InterviewPlanService; prisma: PrismaClient }
 ) {
   const planService = opts.interviewPlanService;
+  const adminMutationGuard = createAdminMutationGuard(fastify.csrfProtection);
+  const browserPlanMutationGuard: preHandlerAsyncHookHandler = async function (request, reply) {
+    if (request.user?.apiKeyId && request.user.role === 'admin') return;
+    if (request.user?.apiKeyId) {
+      await reply.code(401).send({ error: 'Admin API key required' });
+      return;
+    }
+    await adminMutationGuard.call(this, request, reply);
+  };
 
-  fastify.post('/api/plans', async (request, reply) => {
+  fastify.post('/api/plans', { preHandler: browserPlanMutationGuard }, async (request, reply) => {
     let input: z.infer<typeof createPlanSchema>;
     try {
       input = createPlanSchema.parse(request.body);
@@ -115,71 +137,99 @@ export async function interviewPlanRoutes(
     return plan;
   });
 
-  fastify.put('/api/plans/:id', async (request, _reply) => {
-    const { id } = request.params as { id: string };
-    const input = createPlanSchema.parse(request.body);
-    await planService.updatePlan(id, {
-      name: input.name,
-      ...(input.description != null ? { description: input.description } : {}),
-      ...(input.targetDate != null ? { targetDate: input.targetDate } : {}),
-      ...(input.schedule != null ? { schedule: input.schedule } : {}),
-    });
-    return { id };
-  });
-
-  fastify.post('/api/plans/:id/send', async (request, _reply) => {
-    const { id } = request.params as { id: string };
-    const result = await planService.sendInvitations(id);
-    return result;
-  });
-
-  fastify.post('/api/plans/:id/interviews/:interviewId/send', async (request, _reply) => {
-    const { id, interviewId } = request.params as { id: string; interviewId: string };
-    const result = await planService.resendToInterview(id, interviewId);
-    return result;
-  });
-
-  fastify.post('/api/plans/:id/pause', async (request, _reply) => {
-    const { id } = request.params as { id: string };
-    await planService.pausePlan(id);
-    return { status: 'paused' };
-  });
-
-  fastify.post('/api/plans/:id/resume', async (request, _reply) => {
-    const { id } = request.params as { id: string };
-    await planService.resumePlan(id);
-    return { status: 'running' };
-  });
-
-  fastify.post('/api/plans/:id/cancel', async (request, _reply) => {
-    const { id } = request.params as { id: string };
-    await planService.cancelPlan(id);
-    return { status: 'cancelled' };
-  });
-
-  fastify.post('/api/plans/:id/members', { preHandler: adminAuth }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    try {
-      const input = addMemberSchema.parse(request.body);
-      const result = await planService.addMember(id, {
-        ...(input.userId != null ? { userId: input.userId } : {}),
-        ...(input.phone != null ? { phone: input.phone } : {}),
-        ...(input.name != null ? { name: input.name } : {}),
+  fastify.put(
+    '/api/plans/:id',
+    { preHandler: browserPlanMutationGuard },
+    async (request, _reply) => {
+      const { id } = request.params as { id: string };
+      const input = createPlanSchema.parse(request.body);
+      await planService.updatePlan(id, {
+        name: input.name,
+        ...(input.description != null ? { description: input.description } : {}),
+        ...(input.targetDate != null ? { targetDate: input.targetDate } : {}),
+        ...(input.schedule != null ? { schedule: input.schedule } : {}),
       });
-      return result;
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        const messages = e.issues.map((issue) => issue.message).join('；');
-        return reply.status(400).send({ error: `输入格式错误：${messages}` });
-      }
-      const { status, message } = mapServiceErrorToStatus(e);
-      return reply.status(status).send({ error: message });
+      return { id };
     }
-  });
+  );
+
+  fastify.post(
+    '/api/plans/:id/send',
+    { preHandler: browserPlanMutationGuard },
+    async (request, _reply) => {
+      const { id } = request.params as { id: string };
+      const result = await planService.sendInvitations(id);
+      return result;
+    }
+  );
+
+  fastify.post(
+    '/api/plans/:id/interviews/:interviewId/send',
+    { preHandler: browserPlanMutationGuard },
+    async (request, _reply) => {
+      const { id, interviewId } = request.params as { id: string; interviewId: string };
+      const result = await planService.resendToInterview(id, interviewId);
+      return result;
+    }
+  );
+
+  fastify.post(
+    '/api/plans/:id/pause',
+    { preHandler: browserPlanMutationGuard },
+    async (request, _reply) => {
+      const { id } = request.params as { id: string };
+      await planService.pausePlan(id);
+      return { status: 'paused' };
+    }
+  );
+
+  fastify.post(
+    '/api/plans/:id/resume',
+    { preHandler: browserPlanMutationGuard },
+    async (request, _reply) => {
+      const { id } = request.params as { id: string };
+      await planService.resumePlan(id);
+      return { status: 'running' };
+    }
+  );
+
+  fastify.post(
+    '/api/plans/:id/cancel',
+    { preHandler: browserPlanMutationGuard },
+    async (request, _reply) => {
+      const { id } = request.params as { id: string };
+      await planService.cancelPlan(id);
+      return { status: 'cancelled' };
+    }
+  );
+
+  fastify.post(
+    '/api/plans/:id/members',
+    { preHandler: browserPlanMutationGuard },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      try {
+        const input = addMemberSchema.parse(request.body);
+        const result = await planService.addMember(id, {
+          ...(input.userId != null ? { userId: input.userId } : {}),
+          ...(input.phone != null ? { phone: input.phone } : {}),
+          ...(input.name != null ? { name: input.name } : {}),
+        });
+        return result;
+      } catch (e) {
+        if (e instanceof z.ZodError) {
+          const messages = e.issues.map((issue) => issue.message).join('；');
+          return reply.status(400).send({ error: `输入格式错误：${messages}` });
+        }
+        const { status, message } = mapServiceErrorToStatus(e);
+        return reply.status(status).send({ error: message });
+      }
+    }
+  );
 
   fastify.delete(
     '/api/plans/:id/members/:interviewId',
-    { preHandler: adminAuth },
+    { preHandler: browserPlanMutationGuard },
     async (request, reply) => {
       const { id, interviewId } = request.params as { id: string; interviewId: string };
       try {
@@ -192,17 +242,21 @@ export async function interviewPlanRoutes(
     }
   );
 
-  fastify.post('/api/plans/:id/remind', { preHandler: adminAuth }, async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const { interviewId } = remindSchema.parse(request.body ?? {});
-    try {
-      const result = await planService.sendReminder(id, interviewId);
-      return result;
-    } catch (e) {
-      const { status, message } = mapServiceErrorToStatus(e);
-      return reply.status(status).send({ error: message });
+  fastify.post(
+    '/api/plans/:id/remind',
+    { preHandler: browserPlanMutationGuard },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const { interviewId } = remindSchema.parse(request.body ?? {});
+      try {
+        const result = await planService.sendReminder(id, interviewId);
+        return result;
+      } catch (e) {
+        const { status, message } = mapServiceErrorToStatus(e);
+        return reply.status(status).send({ error: message });
+      }
     }
-  });
+  );
 
   const PHONE_ALIASES = new Set(['phone', '手机号', 'phonenumber', 'mobile']);
   const NAME_ALIASES = new Set(['name', '姓名', 'fullname']);
@@ -278,7 +332,7 @@ export async function interviewPlanRoutes(
 
   fastify.post(
     '/api/plans/:id/import-preview',
-    { preHandler: adminAuth },
+    { preHandler: browserPlanMutationGuard },
     async (request, reply) => {
       const { id } = request.params as { id: string };
       try {
@@ -401,7 +455,7 @@ export async function interviewPlanRoutes(
 
   fastify.post(
     '/api/plans/:id/import-commit',
-    { preHandler: adminAuth },
+    { preHandler: browserPlanMutationGuard },
     async (request, reply) => {
       const { id } = request.params as { id: string };
 

@@ -3,6 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
+import { createAdminMutationGuard } from '../middleware/admin-csrf.js';
 import type { InterviewRepository } from '../repositories/interview.repository.js';
 import type { TemplateRepository } from '../repositories/template.repository.js';
 import type { AnalysisService } from '../services/analysis.service.js';
@@ -179,6 +180,7 @@ export async function adminTemplatesRoutes(
   } = opts;
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
+  const adminMutationGuard = createAdminMutationGuard(fastify.csrfProtection);
 
   // GET /admin — Tree view main entry (new hierarchical UI)
   fastify.get(
@@ -202,6 +204,7 @@ export async function adminTemplatesRoutes(
         return reply.view('layouts/admin-tree.njk', {
           templates: templatesWithPlans,
           adminUser: _request.user ? _request.user['userId'] : undefined,
+          csrfToken: reply.generateCsrf(),
         });
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : 'Failed to load admin tree';
@@ -249,7 +252,7 @@ export async function adminTemplatesRoutes(
   // GET /admin/content/plans/new — HTMX fragment for new plan form
   fastify.post(
     `${API_PATH}/templates/import`,
-    { preHandler: adminAuth },
+    { preHandler: adminMutationGuard },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const body = request.body as Record<string, unknown>;
@@ -627,7 +630,7 @@ export async function adminTemplatesRoutes(
   // POST /admin/api/reports/:interviewId/reanalyze - regenerate analysis report
   fastify.post(
     '/admin/api/reports/:interviewId/reanalyze',
-    { preHandler: adminAuth },
+    { preHandler: adminMutationGuard },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { interviewId } = request.params as { interviewId: string };
       try {
@@ -682,7 +685,7 @@ export async function adminTemplatesRoutes(
   // POST /admin/api/templates/:id/publish — Change template status to PUBLISHED
   fastify.post(
     `${API_PATH}/templates/:id/publish`,
-    { preHandler: adminAuth },
+    { preHandler: adminMutationGuard },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
       try {
@@ -705,7 +708,7 @@ export async function adminTemplatesRoutes(
 
   fastify.post(
     `${API_PATH}/templates`,
-    { preHandler: adminAuth },
+    { preHandler: adminMutationGuard },
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const rawBody = request.body as Record<string, unknown>;
@@ -736,7 +739,7 @@ export async function adminTemplatesRoutes(
 
   fastify.put(
     `${API_PATH}/templates/:id`,
-    { preHandler: adminAuth },
+    { preHandler: adminMutationGuard },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
       try {
@@ -786,7 +789,7 @@ export async function adminTemplatesRoutes(
 
   fastify.delete(
     `${API_PATH}/templates/:id`,
-    { preHandler: adminAuth },
+    { preHandler: adminMutationGuard },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
       try {
@@ -916,7 +919,7 @@ export async function adminTemplatesRoutes(
 
   fastify.delete(
     `${API_PATH}/plans/:id`,
-    { preHandler: adminAuth },
+    { preHandler: adminMutationGuard },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { id } = request.params as { id: string };
       const query = request.query as { force?: string };

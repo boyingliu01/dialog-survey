@@ -1,3 +1,5 @@
+import csrfProtection from '@fastify/csrf-protection';
+import secureSession from '@fastify/secure-session';
 import { PlanStatus, PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
@@ -30,6 +32,16 @@ describe('Interview Plan API Endpoints', () => {
   beforeAll(async () => {
     vi.stubEnv('ADMIN_API_KEY', 'test-admin-key');
     fastify = Fastify({ logger: false });
+    await fastify.register(secureSession, {
+      secret: 'a'.repeat(32),
+      salt: 'b'.repeat(16),
+    });
+    await fastify.register(csrfProtection);
+    fastify.addHook('onRequest', async (request) => {
+      if (request.headers['x-test-anonymous'] !== 'true') {
+        request.headers['x-admin-key'] = 'test-admin-key';
+      }
+    });
     await interviewPlanRoutes(fastify, {
       interviewPlanService: new InterviewPlanService(prisma),
       prisma,
@@ -751,6 +763,7 @@ describe('Interview Plan API Endpoints', () => {
       const res = await fastify.inject({
         method: 'DELETE',
         url: '/api/plans/non-existent/members/non-existent',
+        headers: { 'x-test-anonymous': 'true' },
       });
       expect(res.statusCode).toBe(401);
     });
@@ -759,6 +772,7 @@ describe('Interview Plan API Endpoints', () => {
       const res = await fastify.inject({
         method: 'POST',
         url: '/api/plans/non-existent/remind',
+        headers: { 'x-test-anonymous': 'true' },
         payload: {},
       });
       expect(res.statusCode).toBe(401);
@@ -768,6 +782,7 @@ describe('Interview Plan API Endpoints', () => {
       const res = await fastify.inject({
         method: 'POST',
         url: '/api/plans/non-existent/members',
+        headers: { 'x-test-anonymous': 'true' },
         payload: { userId: 'test-user', name: 'Test' },
       });
       expect(res.statusCode).toBe(401);
