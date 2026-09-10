@@ -22,6 +22,13 @@ export function hashApiKey(apiKey: string): string {
   return crypto.createHash('sha256').update(apiKey).digest('hex');
 }
 
+/** Hashing normalizes length first: timingSafeEqual throws on unequal lengths and length itself must not leak. */
+export function timingSafeEqualStrings(a: string, b: string): boolean {
+  const digestA = crypto.createHash('sha256').update(a).digest();
+  const digestB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(digestA, digestB);
+}
+
 function checkRateLimit(ipAddress: string): boolean {
   if (process.env['NODE_ENV'] === 'test') {
     return true;
@@ -36,6 +43,61 @@ function checkRateLimit(ipAddress: string): boolean {
   return entry.count <= MAX_FAILED_ATTEMPTS;
 }
 
+export interface LoginRateLimiterOptions {
+  readonly maxFailures?: number;
+  readonly windowMs?: number;
+  readonly now?: () => number;
+}
+
+export interface LoginRateLimiter {
+  isBlocked(ip: string): boolean;
+  recordFailure(ip: string): void;
+  reset(ip: string): void;
+  clear(): void;
+}
+
+const DEFAULT_LOGIN_MAX_FAILURES = 5;
+const DEFAULT_LOGIN_WINDOW_MS = 15 * 60_000;
+
+/** Security contract: only failed attempts count; a successful login resets the counter. */
+export function createLoginRateLimiter(options: LoginRateLimiterOptions = {}): LoginRateLimiter {
+  const maxFailures = options.maxFailures ?? DEFAULT_LOGIN_MAX_FAILURES;
+  const windowMs = options.windowMs ?? DEFAULT_LOGIN_WINDOW_MS;
+  const now = options.now ?? Date.now;
+  const failures = new Map<string, { count: number; windowStart: number }>();
+
+  return {
+    isBlocked(ip: string): boolean {
+      const entry = failures.get(ip);
+      if (!entry) {
+        return false;
+      }
+      if (now() - entry.windowStart > windowMs) {
+        failures.delete(ip);
+        return false;
+      }
+      return entry.count >= maxFailures;
+    },
+    recordFailure(ip: string): void {
+      const timestamp = now();
+      const entry = failures.get(ip);
+      if (!entry || timestamp - entry.windowStart > windowMs) {
+        failures.set(ip, { count: 1, windowStart: timestamp });
+        return;
+      }
+      entry.count += 1;
+    },
+    reset(ip: string): void {
+      failures.delete(ip);
+    },
+    clear(): void {
+      failures.clear();
+    },
+  };
+}
+
+export const loginRateLimiter: LoginRateLimiter = createLoginRateLimiter();
+
 export function createVerifyApiKey(prisma: PrismaClient) {
   return async function verifyApiKey(request: FastifyRequest, reply: FastifyReply) {
     // Only exempt public health endpoint from API key auth
@@ -47,11 +109,12 @@ export function createVerifyApiKey(prisma: PrismaClient) {
     }
 
     const apiKey = request.headers['x-api-key'] as string | undefined;
-    const adminKey = request.headers['x-admin-key'] as string | undefined;
+    const rawAdminKey = request.headers['x-admin-key'];
+    const adminKey = Array.isArray(rawAdminKey) ? rawAdminKey.join(',') : rawAdminKey;
 
     // Allow admin UI requests authenticated via X-Admin-Key header
     const expectedAdminKey = process.env['ADMIN_API_KEY'];
-    if (adminKey && expectedAdminKey && adminKey === expectedAdminKey) {
+    if (adminKey && expectedAdminKey && timingSafeEqualStrings(adminKey, expectedAdminKey)) {
       request.user = { userId: 'admin', role: 'admin' };
       return;
     }
