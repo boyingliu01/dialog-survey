@@ -55,6 +55,10 @@ export class DingTalkStreamClient {
   private circuitState: CircuitState = 'CLOSED';
   private circuitOpenedAt: number | null = null;
   private failureCount = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+  private shuttingDown = false;
+  private socketClosed: Promise<void> = Promise.resolve();
+  private resolveSocketClosed: (() => void) | undefined;
 
   constructor(config: DingTalkStreamConfig, options: StreamClientOptions = {}) {
     if (!config.clientId) {
@@ -145,6 +149,7 @@ export class DingTalkStreamClient {
    * Connect to DingTalk Stream
    */
   async connect(): Promise<void> {
+    if (this.shuttingDown) return;
     if (this.connected && this.ws) {
       info('Already connected');
       return;
@@ -156,11 +161,15 @@ export class DingTalkStreamClient {
     }
     this.isConnecting = true;
     const token = await this.getConnectionToken();
+    if (this.shuttingDown) return;
     const wsUrl = this.buildWebSocketUrl(token);
 
     info('Connecting to DingTalk Stream', { endpoint: token.endpoint });
 
     this.ws = new WebSocket(wsUrl);
+    this.socketClosed = new Promise<void>((resolve) => {
+      this.resolveSocketClosed = resolve;
+    });
 
     this.ws.on('open', () => {
       this.connected = true;
@@ -181,6 +190,8 @@ export class DingTalkStreamClient {
     });
 
     this.ws.on('close', (code: number, reason: Buffer) => {
+      this.resolveSocketClosed?.();
+      this.resolveSocketClosed = undefined;
       this.connected = false;
       this.isConnecting = false;
       this.failureCount++;
@@ -190,6 +201,8 @@ export class DingTalkStreamClient {
         failureCount: this.failureCount,
       });
       this.emit('disconnected', { code, reason: reason.toString() });
+
+      if (this.shuttingDown) return;
 
       if (this.circuitState === 'CLOSED' && this.failureCount >= FAILURE_THRESHOLD) {
         this.circuitState = 'OPEN';
@@ -215,6 +228,7 @@ export class DingTalkStreamClient {
    * Handle incoming WebSocket message
    */
   private handleMessage(data: Buffer): void {
+    if (this.shuttingDown) return;
     try {
       const message = this.parseMessage(data.toString());
       info('Received message', {
@@ -394,6 +408,7 @@ export class DingTalkStreamClient {
    * Reconnect to DingTalk Stream
    */
   reconnect(): void {
+    if (this.shuttingDown) return;
     if (this.circuitState === 'OPEN' && this.circuitOpenedAt) {
       const elapsed = Date.now() - this.circuitOpenedAt;
       if (elapsed < CIRCUIT_COOLDOWN_MS) {
@@ -407,7 +422,8 @@ export class DingTalkStreamClient {
     this.reconnectAttempts++;
     info('Reconnecting', { attempt: this.reconnectAttempts });
 
-    setTimeout(() => {
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
       this.connect().catch((err) => {
         const errMsg = err instanceof Error ? err.message : 'Unknown error';
         error('Reconnection failed', { error: errMsg });
@@ -418,12 +434,23 @@ export class DingTalkStreamClient {
   /**
    * Disconnect from DingTalk Stream
    */
-  disconnect(): void {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+  async disconnect(): Promise<void> {
+    this.shuttingDown = true;
+    this.isConnecting = false;
+    this.eventHandlers.delete('message');
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = undefined;
+    }
+    const socket = this.ws;
+    if (socket) {
       this.connected = false;
       this.reconnectAttempts = 0;
+      if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
+        socket.close();
+      }
+      if (socket.readyState !== WebSocket.CLOSED) await this.socketClosed;
+      this.ws = null;
       info('Disconnected from DingTalk Stream');
     }
   }
@@ -479,6 +506,7 @@ export class DingTalkStreamClient {
    * Emit event
    */
   private emit(event: string, data: unknown): void {
+    if (this.shuttingDown) return;
     const handlers = this.eventHandlers.get(event);
     if (handlers) {
       for (const handler of handlers) {
