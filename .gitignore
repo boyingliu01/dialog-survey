@@ -79,6 +79,7 @@ htmlcov/
 
 # Reports (generated)
 reports/*.md
+reports/*.xlsx
 !reports/.gitkeep
 
 # Local database
