@@ -114,4 +114,22 @@ describe('sync-version.sh', () => {
     expect(() => runSyncVersion(fixture.dir)).toThrow();
     expect(readPackageVersion(fixture.dir)).toBe('1.0.0');
   });
+
+  it('lists its fan-out targets for the pre-commit hook without touching anything', () => {
+    fixture.writePackageJson('package.json', '1.0.0');
+    fixture.writeAgentsHeader('1.8.0');
+    const versionBefore = readFileSync(join(fixture.dir, 'VERSION'), 'utf8');
+
+    const output = `${execSync(`bash "${scriptPath}" --list-targets`, {
+      cwd: fixture.dir,
+      env: { ...process.env, SYNC_VERSION_ROOT: fixture.dir },
+      stdio: ['pipe', 'pipe', 'ignore'],
+    })}`;
+
+    const targets = output.trim().split('\n');
+    expect(targets).toContain('package.json');
+    expect(targets).toContain('AGENTS.md');
+    expect(readPackageVersion(fixture.dir)).toBe('1.0.0');
+    expect(readFileSync(join(fixture.dir, 'VERSION'), 'utf8')).toBe(versionBefore);
+  });
 });
