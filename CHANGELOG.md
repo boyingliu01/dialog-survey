@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.9 - 2026-07-29
+
+### Added
+- E2E test coverage for admin CRUD, plan lifecycle, member management, and report viewing
+
 ## 1.8.7 - 2026-07-28
 
 ### Fixed
