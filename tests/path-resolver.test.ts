@@ -78,7 +78,7 @@ describe('resolveAssetRoots', () => {
     mkdirSync(join(root, 'public'), { recursive: true });
 
     const result = resolveAssetRoots(join(root, 'dist', 'src'));
-    expect(result.viewsDir).toContain('src/views');
+    expect(result.viewsDir).toBe(resolve(root, 'src', 'views'));
     expect(existsSync(result.viewsDir)).toBe(true);
   });
 });
