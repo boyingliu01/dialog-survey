@@ -1,11 +1,22 @@
 import { execSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const scriptPath = fileURLToPath(new URL('../scripts/sync-version.sh', import.meta.url));
+
+function resolveBashCommand(): string {
+  if (process.platform !== 'win32') {
+    return 'bash';
+  }
+  const programFiles = process.env['ProgramFiles'] ?? 'C:\\Program Files';
+  const gitBash = join(programFiles, 'Git', 'bin', 'bash.exe');
+  return existsSync(gitBash) ? `"${gitBash}"` : 'bash';
+}
+
+const bashCommand = resolveBashCommand();
 
 interface Fixture {
   dir: string;
@@ -40,7 +51,7 @@ function makeFixture(): Fixture {
 }
 
 function runSyncVersion(dir: string): void {
-  execSync(`bash "${scriptPath}"`, {
+  execSync(`${bashCommand} "${scriptPath}"`, {
     cwd: dir,
     env: { ...process.env, SYNC_VERSION_ROOT: dir },
     stdio: 'pipe',
@@ -120,7 +131,7 @@ describe('sync-version.sh', () => {
     fixture.writeAgentsHeader('1.8.0');
     const versionBefore = readFileSync(join(fixture.dir, 'VERSION'), 'utf8');
 
-    const output = `${execSync(`bash "${scriptPath}" --list-targets`, {
+    const output = `${execSync(`${bashCommand} "${scriptPath}" --list-targets`, {
       cwd: fixture.dir,
       env: { ...process.env, SYNC_VERSION_ROOT: fixture.dir },
       stdio: ['pipe', 'pipe', 'ignore'],

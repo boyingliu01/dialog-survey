@@ -1,8 +1,8 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import bcrypt from 'bcryptjs';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   checkNodeVersion,
   checkPlatformDeps,
@@ -22,6 +22,23 @@ import {
   verifyInstallation,
   // @ts-expect-error - cli.mjs has no type declarations
 } from '../scripts/cli.mjs';
+
+// Keep every CLI test away from the real user home: the uninstall command
+// deletes ~/.dialog-survey, so homedir() must resolve to a throwaway directory.
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const home = fs.mkdtempSync(path.join(actual.tmpdir(), 'dialog-survey-cli-home-'));
+  return { ...actual, homedir: () => home };
+});
+
+afterAll(() => {
+  const home = homedir();
+  if (home.startsWith(tmpdir()) && home.includes('dialog-survey-cli-home-')) {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
 
 describe('CLI', () => {
   beforeEach(() => {
