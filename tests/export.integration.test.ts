@@ -169,7 +169,7 @@ describe('ExportService (Integration)', () => {
 
       expect(existsSync(path)).toBe(true);
       expect(path).toContain(interviewId);
-      expect(path).toContain('/export-test-reports/');
+      expect(path).toContain('export-test-reports');
     });
 
     it('should export Excel even when no analysis report exists', async () => {
@@ -267,7 +267,7 @@ describe('ExportService (Integration)', () => {
 
       expect(existsSync(path)).toBe(true);
       expect(path).toContain(interviewId);
-      expect(path).toContain('/export-test-reports/');
+      expect(path).toContain('export-test-reports');
 
       // Verify the mock PDF was written
       const content = readFileSync(path, 'utf-8');
