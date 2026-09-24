@@ -275,14 +275,17 @@ describe('server.ts entry point (Windows path compatibility, Issue #63)', () => 
     expect(source).not.toContain('import.meta.url === `file://${process.argv[1]}`');
   });
 
-  it('should still work on Unix paths with the same pattern', async () => {
-    const { normalize } = await import('node:path');
-    const { pathToFileURL } = await import('node:url');
+  it.skipIf(process.platform === 'win32')(
+    'should still work on Unix paths with the same pattern',
+    async () => {
+      const { normalize } = await import('node:path');
+      const { pathToFileURL } = await import('node:url');
 
-    const unixPath = '/home/deploy/dialog-survey/dist/server.js';
-    const normalized = normalize(unixPath);
-    const fileUrl = pathToFileURL(normalized).href;
+      const unixPath = '/home/deploy/dialog-survey/dist/server.js';
+      const normalized = normalize(unixPath);
+      const fileUrl = pathToFileURL(normalized).href;
 
-    expect(fileUrl).toBe('file:///home/deploy/dialog-survey/dist/server.js');
-  });
+      expect(fileUrl).toBe('file:///home/deploy/dialog-survey/dist/server.js');
+    }
+  );
 });
