@@ -128,9 +128,13 @@ worktrees/
 
 # XP-gate generated artifacts
 .xp-gate/
+.architecture-baseline.json
 
 # Quality history (auto-generated)
 .quality-history.jsonl
 
 # Generated interview report PDFs
 reports/*.pdf
+
+# Code race 8th submission materials (private until published)
+docs/code-race-8th/
