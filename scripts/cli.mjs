@@ -27,7 +27,7 @@ const PM2_APP_NAME = 'dialog-survey';
 const HEALTH_URL = 'http://localhost:3001/health';
 const HEALTH_TIMEOUT_MS = 30_000;
 const HEALTH_POLL_INTERVAL_MS = 1_000;
-const MIN_NODE_MAJOR = 20;
+const MIN_NODE_VERSION = '20.19.0';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -230,15 +230,25 @@ export async function resolveAdminCredentials(config = {}) {
 // ─── Prerequisites ───────────────────────────────────────────────────────────
 
 /**
- * Check Node.js version >= 20.
+ * Check Node.js version >= MIN_NODE_VERSION (semver compare, not major-only).
  * @returns {{ ok: boolean, message: string }}
  */
 export function checkNodeVersion(version = process.versions.node) {
-  const major = Number.parseInt(version.split('.')[0], 10);
-  if (major < MIN_NODE_MAJOR) {
+  const current = version.split('.').map((part) => Number.parseInt(part, 10));
+  const minimum = MIN_NODE_VERSION.split('.').map((part) => Number.parseInt(part, 10));
+  let meetsMinimum = true;
+  for (let i = 0; i < minimum.length; i += 1) {
+    const cur = current[i] ?? 0;
+    const min = minimum[i] ?? 0;
+    if (cur !== min) {
+      meetsMinimum = cur > min;
+      break;
+    }
+  }
+  if (!meetsMinimum) {
     return {
       ok: false,
-      message: `Node.js >= ${MIN_NODE_MAJOR} required (current: ${process.versions.node})`,
+      message: `Node.js >= ${MIN_NODE_VERSION} required (current: ${process.versions.node})`,
     };
   }
   return { ok: true, message: `Node.js ${process.versions.node} ✓` };
@@ -350,7 +360,13 @@ export async function checkPrerequisites(databaseUrl, options = {}) {
  * @returns {{ ok: boolean, missing: string[] }}
  */
 export function verifyInstallation(installDir) {
-  const requiredFiles = ['ecosystem.config.cjs', 'dist/src/server.js', '.env', 'node_modules'];
+  const requiredFiles = [
+    'ecosystem.config.cjs',
+    'dist/src/server.js',
+    '.env',
+    'node_modules',
+    'prisma.config.ts',
+  ];
 
   const missing = [];
   for (const file of requiredFiles) {
@@ -658,6 +674,7 @@ export async function installCommand(flags) {
     'prisma',
     'src/views',
     'public',
+    'prisma.config.ts',
     'ecosystem.config.cjs',
   ];
   for (const file of filesToCopy) {
@@ -700,21 +717,17 @@ export async function installCommand(flags) {
     log("    Run 'npx playwright install chromium' manually if PDF export is needed.");
   }
 
-  // Step 8: prisma generate
-  log('Generating Prisma client...');
-  try {
-    exec('npx prisma generate', { cwd: INSTALL_DIR });
-    log('  Prisma client generated ✓');
-  } catch (err) {
-    logError(`prisma generate failed: ${err.message}`);
-    process.exitCode = 1;
-    return;
-  }
-
   // Step 9: prisma db push
+  // No generate step here: the package ships the compiled client
+  // (dist/src/generated/prisma) and devDeps are absent in the install.
+  // PRISMA_SKIP_GENERATE keeps the installed tree read-only — --no-generate
+  // does not exist in prisma@7.10.0 (spike #11 verified the env flag).
   log('Pushing schema to database...');
   try {
-    exec('npx prisma db push', { cwd: INSTALL_DIR });
+    exec('npx --yes prisma@7.10.0 db push', {
+      cwd: INSTALL_DIR,
+      env: { ...process.env, PRISMA_SKIP_GENERATE: '1' },
+    });
     log('  Schema pushed ✓');
   } catch (err) {
     logError(`prisma db push failed: ${err.message}`);

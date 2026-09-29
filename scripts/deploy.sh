@@ -5,7 +5,7 @@
 #   bash scripts/deploy.sh [production|staging]
 #
 # Prerequisites:
-#   - Node.js >= 20.0.0
+#   - Node.js >= 20.19.0
 #   - PostgreSQL running and accessible via DATABASE_URL
 #   - .env file configured (or .env.production / .env.staging)
 set -euo pipefail
@@ -39,13 +39,16 @@ cd "$PROJECT_DIR"
 # ── Phase 1: Prerequisites ──────────────────────────────────────────────
 log_info "Checking prerequisites for $ENV deployment..."
 
-# Node.js version check
-NODE_MAJOR=$(node -v | sed 's/v//' | cut -d. -f1)
-if [ "$NODE_MAJOR" -lt 20 ]; then
-  log_error "Node.js >= 20.0.0 required, got $(node -v)"
+# Node.js version check (semver >= 20.19.0, not major-only)
+NODE_VERSION_RAW=$(node -v | sed 's/^v//')
+NODE_MAJOR=${NODE_VERSION_RAW%%.*}
+NODE_REST=${NODE_VERSION_RAW#*.}
+NODE_MINOR=${NODE_REST%%.*}
+if [ "$NODE_MAJOR" -lt 20 ] || { [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -lt 19 ]; }; then
+  log_error "Node.js >= 20.19.0 required, got v$NODE_VERSION_RAW"
   exit 1
 fi
-log_info "✓ Node.js $(node -v)"
+log_info "✓ Node.js v$NODE_VERSION_RAW"
 
 # PostgreSQL check
 if ! command -v psql &>/dev/null; then
