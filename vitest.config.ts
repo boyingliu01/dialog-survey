@@ -11,6 +11,7 @@ export default defineConfig({
         'node_modules/',
         'dist/',
         'coverage/',
+        'src/generated/**',
         '**/*.config.ts',
         '**/*.test.ts',
         '**/*.spec.ts',

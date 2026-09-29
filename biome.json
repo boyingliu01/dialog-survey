@@ -9,6 +9,7 @@
       ".code-walkthrough-result.json",
       ".quality-history.jsonl",
       "docs/sprints/",
+      "src/generated/",
       "public/js/*.min.js"
     ]
   },
@@ -24,6 +25,7 @@
       ".omo/",
       "dist/",
       "build/",
+      "src/generated/",
       "docs/sprints/"
     ],
     "rules": {
@@ -62,6 +64,7 @@
       ".omo/",
       "dist/",
       "build/",
+      "src/generated/",
       "docs/sprints/"
     ]
   },
@@ -83,6 +86,16 @@
           },
           "performance": {
             "noDelete": "off"
+          }
+        }
+      }
+    },
+    {
+      "include": ["tools/**/*.mjs", "scripts/**/*.mjs"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
           }
         }
       }
