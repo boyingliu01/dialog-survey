@@ -1,30 +1,21 @@
-import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { PrismaClient } from '../../src/utils/prisma-client.js';
-import { PRISMA_CONNECT_TIMEOUT_MS } from '../../src/utils/prisma-factory.js';
+import { createTestPglite } from './pglite-template.js';
 
-function resolveTestDatabaseUrl(): string {
-  return (
-    process.env['TEST_DATABASE_URL'] ||
-    process.env['DATABASE_URL'] ||
-    'postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test'
-  );
+async function buildClient(): Promise<PrismaClient> {
+  const pglite = await createTestPglite();
+  return new PrismaClient({ adapter: new PrismaPGlite(pglite) });
 }
 
-function buildClient(): PrismaClient {
-  const adapter = new PrismaPg({
-    connectionString: resolveTestDatabaseUrl(),
-    connectionTimeoutMillis: PRISMA_CONNECT_TIMEOUT_MS,
-  });
-  return new PrismaClient({ adapter });
-}
-
-let shared: PrismaClient | undefined;
+let shared: Promise<PrismaClient> | undefined;
 
 /**
- * File-level singleton: repeated calls within one test file share one instance
- * (and, from Stage B on, one PGlite database). Disconnect ownership belongs to
- * the importing test file's `afterAll` / `TestDatabase.teardown()`; module
- * isolation is per test file, so that disconnect cannot affect other files.
+ * File-level singleton: repeated calls within one test file share one PGlite
+ * database and one client (promise-memoized, so concurrent first calls boot a
+ * single instance). Disconnect ownership belongs to the importing test file's
+ * `afterAll` / `TestDatabase.teardown()`; module isolation is per test file.
+ * `$disconnect()` only disposes the (no-op) adapter — the in-memory PGlite is
+ * reclaimed when the per-file worker process exits.
  */
 export async function getSharedTestPrisma(): Promise<PrismaClient> {
   shared ??= buildClient();
@@ -32,8 +23,9 @@ export async function getSharedTestPrisma(): Promise<PrismaClient> {
 }
 
 /**
- * Independent instance for genuinely isolated scenarios; the caller owns
- * `$disconnect()`.
+ * Independent instance backed by its own PGlite database; the caller owns
+ * `$disconnect()` (which, as above, does not release the PGlite — process exit
+ * does).
  */
 export async function createTestPrisma(): Promise<PrismaClient> {
   return buildClient();

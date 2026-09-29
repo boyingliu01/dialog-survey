@@ -86,7 +86,7 @@ export async function createE2EServer(port = 0): Promise<E2EServer> {
     await testDb.setup();
     const prisma = testDb.getPrisma();
     const { buildApp } = await import('../../../src/server.js');
-    const builtApp = await buildApp();
+    const builtApp = await buildApp({ prismaFactory: () => prisma });
     app = builtApp.fastify;
     await app.listen({ port, host: '127.0.0.1' });
     const address = app.server.address();

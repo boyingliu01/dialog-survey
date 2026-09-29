@@ -20,7 +20,7 @@ describe('Admin Tree Routes', () => {
     vi.stubEnv('ADMIN_API_KEY', ADMIN_KEY);
     vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
-    const result = await buildApp();
+    const result = await buildApp({ prismaFactory: () => prisma });
     app = result.fastify;
     await app.ready();
   });

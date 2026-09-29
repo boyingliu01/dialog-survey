@@ -229,6 +229,9 @@ describe('server resource lifecycle', () => {
     vi.stubEnv('SESSION_SALT', 'b'.repeat(32));
     vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    // createPrismaClient() requires DATABASE_URL; the facade is mocked in this
+    // file, so this only satisfies the guard — no database is used.
+    vi.stubEnv('DATABASE_URL', 'postgresql://test:test@localhost:5432/dialog_survey_test');
   });
 
   afterEach(() => {
