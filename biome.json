@@ -8,6 +8,7 @@
       ".xp-gate/",
       ".code-walkthrough-result.json",
       ".quality-history.jsonl",
+      "docs/sprints/",
       "public/js/*.min.js"
     ]
   },
@@ -16,7 +17,15 @@
   },
   "linter": {
     "enabled": true,
-    "ignore": ["coverage/", "node_modules/", ".stryker-tmp/", ".omo/", "dist/", "build/"],
+    "ignore": [
+      "coverage/",
+      "node_modules/",
+      ".stryker-tmp/",
+      ".omo/",
+      "dist/",
+      "build/",
+      "docs/sprints/"
+    ],
     "rules": {
       "recommended": true,
       "suspicious": {
@@ -46,7 +55,15 @@
     "indentWidth": 2,
     "lineEnding": "lf",
     "lineWidth": 100,
-    "ignore": ["coverage/", "node_modules/", ".stryker-tmp/", ".omo/", "dist/", "build/"]
+    "ignore": [
+      "coverage/",
+      "node_modules/",
+      ".stryker-tmp/",
+      ".omo/",
+      "dist/",
+      "build/",
+      "docs/sprints/"
+    ]
   },
   "javascript": {
     "formatter": {
