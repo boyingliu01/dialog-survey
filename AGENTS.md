@@ -66,7 +66,7 @@ AI-powered survey dialog bot — async multi-turn conversations via DingTalk wit
 ## Commands
 
 ```bash
-npx prisma generate   # generate src/generated/prisma (run after checkout; CI does it per job)
+npx prisma generate   # generate src/generated/prisma (run after checkout; CI runs it in each consuming job)
 npm run dev           # tsx --watch, port 3001
 npm run build         # tsc → dist/
 npm run test          # vitest (watch); CI uses npx vitest run
@@ -85,6 +85,6 @@ npm run check:fix     # biome check + auto-fix
 - **Vitest async suites**: Vitest 4 awaits async `describe` callbacks — several suites rely on a describe-level `await getSharedTestPrisma()`. Re-verify async-suite semantics when upgrading Vitest.
 - **Process pollution**: `tsx --watch` leaves orphan processes. Styling issues → find the PID (`netstat -ano | findstr :3001` on Windows, `fuser -k 3001/tcp` on WSL/Linux) and kill it first.
 - **Test layers**: Unit (mock Prisma) / Integration (PGlite in-process, parallel-safe) / E2E in `tests/e2e/` (11 files: in-process Fastify + real chromium via Playwright).
-- **CI**: PRs run 7 jobs (static-analysis, unit-tests, integration-tests, security-scan, coverage, smoke, e2e-tests). No PostgreSQL service; every job runs `npx prisma generate` (generated client is gitignored).
+- **CI**: PRs run 7 jobs (static-analysis, unit-tests, integration-tests, security-scan, coverage, smoke, e2e-tests). No PostgreSQL service; the 6 consuming jobs run `npx prisma generate` before tsc/vitest (security-scan is static-only; generated client is gitignored).
 - **API bug triage**: curl → isolate backend first. htmx.ajax() `.then()` fires on 4xx with `undefined` arg.
 

@@ -178,6 +178,9 @@ export async function createTestPglite(): Promise<PGlite> {
       await closeQuietly(preloaded);
       discardTemplate();
       templateDisabled = true;
+      process.stderr.write(
+        '[pglite-template] template init failed - falling back to DDL replay for the rest of this process\n'
+      );
     }
   }
 
