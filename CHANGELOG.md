@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- chore: upgrade Prisma 6 → 7 with driver adapters (#149)
+  - `prisma` / `@prisma/client` / `@prisma/adapter-pg` pinned to 7.10.0; client generated as TypeScript source into `src/generated/prisma` (gitignored, excluded from biome/vitest coverage)
+  - `src/utils/prisma-client.ts` facade (pure re-export) + `src/utils/prisma-factory.ts` factory (`createPrismaClient()`, sole `new PrismaClient()` site, 5s connect timeout, fails loudly when `DATABASE_URL` is missing)
+  - Node.js requirement raised to `>= 20.19.0` (engines, `.nvmrc`, CLI/deploy checks, CI `node-version-file`)
+
+### Added
+- test: PostgreSQL-free test suite via PGlite (per-file isolated WASM database, schema DDL + data-dir caches under `node_modules/.cache/dialog-survey/`)
+- ci: `npx prisma generate` step in all PR jobs (generated client is not committed)
+- docs: architecture.yaml declares the generated layer and utils dependency; AGENTS.md / README / README.zh-CN / DEPLOY / Windows setup guide refreshed for Prisma 7
+
+### Fixed
+- fix(release): Docker runner image ships `public/` and `prisma.config.ts`; CLI/deploy Node versions aligned to 20.19; `prisma db push` pinned with `PRISMA_SKIP_GENERATE=1`; healthcheck covers the full boot path
+
 ## 1.8.9 - 2026-07-29
 
 ### Added

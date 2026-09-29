@@ -8,6 +8,10 @@
       ".xp-gate/",
       ".code-walkthrough-result.json",
       ".quality-history.jsonl",
+      ".architecture-baseline.json",
+      "coverage/",
+      "dist/",
+      "build/",
       "docs/sprints/",
       "src/generated/",
       "public/js/*.min.js"
