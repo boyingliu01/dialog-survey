@@ -24,6 +24,7 @@ const TEMPLATE_FILE_SUFFIX = '.tar';
 let ddlPromise: Promise<string> | undefined;
 let templatePromise: Promise<Blob> | undefined;
 let activeTemplatePath: string | undefined;
+let templateDisabled = false;
 
 function sha256(content: string): string {
   return crypto.createHash('sha256').update(content).digest('hex');
@@ -130,7 +131,12 @@ async function loadOrBuildTemplate(): Promise<Blob> {
   );
   activeTemplatePath = templatePath;
   if (fs.existsSync(templatePath)) {
-    return new Blob([fs.readFileSync(templatePath)]);
+    try {
+      return new Blob([fs.readFileSync(templatePath)]);
+    } catch {
+      // A racing worker removed the template between the check and the read —
+      // fall through and rebuild.
+    }
   }
 
   const builder = new PGlite();
@@ -144,7 +150,8 @@ async function loadOrBuildTemplate(): Promise<Blob> {
       removeStaleTemplates(path.basename(templatePath));
     } catch {
       // Best effort: a racing worker may hold the path; the in-memory dump
-      // still serves this process.
+      // still serves this process, and stale-template cleanup is deferred
+      // to the next successful write.
     }
     return dump;
   } finally {
@@ -156,17 +163,22 @@ async function loadOrBuildTemplate(): Promise<Blob> {
  * Boots a fresh in-memory test database. Fast path loads the data-dir
  * template; a template that fails to initialize is discarded (forcing a
  * rebuild by the next process) and this instance falls back to a fresh PGlite
- * with the DDL replayed.
+ * with the DDL replayed. After a failure the rest of this process skips the
+ * template entirely, so later instances go straight to the replay path instead
+ * of re-failing on the memoized bad template.
  */
 export async function createTestPglite(): Promise<PGlite> {
-  const template = await getTemplateDataDir();
-  const preloaded = new PGlite({ loadDataDir: template });
-  try {
-    await preloaded.waitReady;
-    return preloaded;
-  } catch {
-    await closeQuietly(preloaded);
-    discardTemplate();
+  if (!templateDisabled) {
+    const template = await getTemplateDataDir();
+    const preloaded = new PGlite({ loadDataDir: template });
+    try {
+      await preloaded.waitReady;
+      return preloaded;
+    } catch {
+      await closeQuietly(preloaded);
+      discardTemplate();
+      templateDisabled = true;
+    }
   }
 
   const pglite = new PGlite();

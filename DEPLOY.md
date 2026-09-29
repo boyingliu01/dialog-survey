@@ -90,7 +90,6 @@ DASHSCOPE_API_KEY=<YOUR_LLM_API_KEY>  # LLM API key
 DINGTALK_CLIENT_ID=<YOUR_CLIENT_ID>   # DingTalk Stream credentials
 DINGTALK_CLIENT_SECRET=<YOUR_CLIENT_SECRET>
 DINGTALK_AGENT_ID=<YOUR_AGENT_ID>
-ENCRYPTION_KEY=<YOUR_32_BYTE_HEX>     # Generate: node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
 LOG_LEVEL=info                   # info | warn | error (debug for troubleshooting)
 
 # Admin browser login (required for the admin UI)
@@ -109,6 +108,7 @@ SESSION_SALT=<YOUR_32_CHAR_HEX>         # Generate: node -e "console.log(require
 | `ADMIN_API_KEY` | — | Optional header-based admin access (`X-Admin-Key`) for automation only |
 | `REPORTS_DIR` | `./reports` | Report storage path |
 | `LLM_TIMEOUT` | `30000` | LLM request timeout (ms) |
+| `ENCRYPTION_KEY` | — | **Deprecated** — not read at runtime (compatibility only; still emitted by `npx dialog-survey install`) |
 
 ### Admin Authentication
 
@@ -336,7 +336,6 @@ For >100 concurrent interviews:
 
 ## Security Checklist
 
-- [ ] `ENCRYPTION_KEY` is 32-byte random hex (not default)
 - [ ] `ADMIN_PASSWORD_HASH` is a bcrypt hash (cost 12) of a strong password; password not committed anywhere
 - [ ] `SESSION_SECRET` is 32 random bytes and `SESSION_SALT` is 16 random bytes — regenerate per environment
 - [ ] `ADMIN_API_KEY` (optional) is set only when automation needs it, and is strong and unique

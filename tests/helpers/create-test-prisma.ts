@@ -25,7 +25,8 @@ export async function getSharedTestPrisma(): Promise<PrismaClient> {
 /**
  * Independent instance backed by its own PGlite database; the caller owns
  * `$disconnect()` (which, as above, does not release the PGlite — process exit
- * does).
+ * does). Contrast: `TestDatabase` holds its PGlite reference and closes it
+ * explicitly in `teardown()`; use it when in-process reclamation matters.
  */
 export async function createTestPrisma(): Promise<PrismaClient> {
   return buildClient();
