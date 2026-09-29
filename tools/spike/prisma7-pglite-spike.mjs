@@ -42,6 +42,17 @@ function shouldRun(id) {
   return only.length === 0 || only.includes(String(id));
 }
 
+// Criteria expected to FAIL by design, accepted in the M1 report
+// (stage0-spike-report.md): PGlite serializes interactive transactions on its
+// single connection, so #6b's concurrent optimistic-lock race is physically
+// unreproducible — a carrier capability limit, not a PGlite correctness gap.
+//
+// Verdict semantics:
+//   PASS   all criteria pass                          -> exit 0
+//   PASS#  only expected fails (accepted)             -> exit 0
+//   FAIL   at least one unexpected failure            -> exit 1
+const EXPECTED_FAILS = new Set(['6b']);
+
 async function record(id, name, fn) {
   if (!shouldRun(id)) return;
   const started = Date.now();
@@ -886,13 +897,18 @@ async function main() {
     );
   }
 
+  const failed = RESULTS.filter((r) => r.status === 'FAIL');
+  const expected = failed.filter((r) => EXPECTED_FAILS.has(String(r.id)));
+  const unexpected = failed.filter((r) => !EXPECTED_FAILS.has(String(r.id)));
   const summary = {
     startedAt: startedAt.toISOString(),
     finishedAt: new Date().toISOString(),
     platform: `${process.platform}/${process.arch}`,
     node: process.version,
     results: RESULTS,
-    verdict: RESULTS.some((r) => r.status === 'FAIL') ? 'FAIL' : 'PASS',
+    expectedFails: expected.map((r) => String(r.id)),
+    unexpectedFails: unexpected.map((r) => String(r.id)),
+    verdict: unexpected.length > 0 ? 'FAIL' : expected.length > 0 ? 'PASS#' : 'PASS',
   };
   const jsonPath = arg('--json');
   if (jsonPath) {
@@ -900,9 +916,14 @@ async function main() {
     console.log(`\nJSON written: ${jsonPath}`);
   }
   console.log(
-    `\n=== verdict: ${summary.verdict} (${RESULTS.filter((r) => r.status === 'FAIL').length} failed / ${RESULTS.length} run) ===\n`
+    `\n=== verdict: ${summary.verdict} (${unexpected.length} unexpected failed / ${expected.length} expected / ${RESULTS.length} run) ===`
   );
-  process.exit(summary.verdict === 'PASS' ? 0 : 1);
+  if (expected.length > 0) {
+    console.log(
+      `expected fails (accepted): ${expected.map((r) => `#${r.id}`).join(', ')} — see stage0-spike-report.md`
+    );
+  }
+  process.exit(summary.verdict === 'FAIL' ? 1 : 0);
 }
 
 async function c11_freshInstall() {
@@ -944,7 +965,11 @@ async function c11_freshInstall() {
   if (hasConfig) fs.copyFileSync(path.join(pkgDir, 'prisma.config.ts'), shippedConfigBackup);
 
   // --no-generate existence probe (R4-T1 path 1)
-  const help = run('npx', ['--yes', 'prisma@7.10.0', 'db push', '--help'], {
+  // NOTE: 'db' and 'push' MUST be separate argv tokens — a single 'db push'
+  // string only works on Windows (shell:true joins+re-splits) and fails on
+  // Linux/macOS (shell:false passes it as one literal token → unknown command,
+  // help printed, exit 1). See M1 addendum (ubuntu run 36600066391).
+  const help = run('npx', ['--yes', 'prisma@7.10.0', 'db', 'push', '--help'], {
     cwd: prismaRunCwd,
     timeout: 240_000,
   });
@@ -1041,7 +1066,7 @@ export default {
       // fallback: the dedicated test database already exists — same schema, safe target
       const fallbackUrl =
         process.env.TEST_DATABASE_URL || baseUrl.replace(/\/[^/]+$/, '/dialog_survey_test');
-      const probe = run('npx', ['--yes', 'prisma@7.10.0', 'db push', '--help'], {
+      const probe = run('npx', ['--yes', 'prisma@7.10.0', 'db', 'push', '--help'], {
         cwd: prismaRunCwd,
         env: process.env,
         timeout: 120_000,
@@ -1054,7 +1079,7 @@ export default {
     }
   }
   if (created) {
-    const baseArgs = ['--yes', 'prisma@7.10.0', 'db push', '--schema', 'prisma/schema.prisma'];
+    const baseArgs = ['--yes', 'prisma@7.10.0', 'db', 'push', '--schema', 'prisma/schema.prisma'];
     const pushEnv = { ...process.env, DATABASE_URL: pushTarget };
     // default behavior: does db push auto-generate (write artifacts into the installed package)?
     const defaultPush = run('npx', baseArgs, { cwd: prismaRunCwd, env: pushEnv, timeout: 300_000 });
