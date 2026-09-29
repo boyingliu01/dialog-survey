@@ -6,6 +6,8 @@ import { DingTalkStreamClient } from '../src/integrations/dingtalk/stream-client
 // a real connection buys nothing — but it does open network I/O to
 // wss-open-connection.dingtalk.com, whose 400 lands as an unhandled 'error'
 // event (the tests replace WebSocket.prototype.on, so no listener ever attaches).
+// The fake below exports only `WebSocket`: stream-client.ts imports no other
+// `ws` symbol, so extend this mock if that import ever changes.
 vi.mock('ws', async () => {
   const { EventEmitter } = await import('node:events');
   class FakeWebSocket extends EventEmitter {

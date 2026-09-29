@@ -81,6 +81,8 @@ npm run check:fix     # biome check + auto-fix
 ## Notes
 
 - **PG required**: Full `vitest run` needs PostgreSQL. `PrismaClientInitializationError` = DB not running, not a code bug.
+- **Shared test DB (interim, until Stage B PGlite isolation)**: the full suite runs against one PostgreSQL database with `fileParallelism: true`. On a gate failure, rerun the failing file in isolation first; for suspected cross-file collisions triage with `npx vitest run <file> --no-file-parallelism`, then fix by scoping fixtures (file-unique ids, cleanup predicates) — never by weakening assertions.
+- **Vitest async suites**: Vitest 4 awaits async `describe` callbacks — several suites rely on a describe-level `await getSharedTestPrisma()`. Re-verify async-suite semantics when upgrading Vitest.
 - **Process pollution**: `tsx --watch` leaves orphan processes. Styling issues → `fuser -k 3001/tcp` first.
 - **Test layers**: Unit (mock Prisma, no DB) / Integration (real PG, 3+ files) / E2E (Playwright, future).
 - **CI**: PRs run 7 jobs (analysis, unit, integration, security, coverage, smoke).

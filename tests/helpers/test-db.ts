@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../../src/utils/prisma-client.js';
+import { PRISMA_CONNECT_TIMEOUT_MS } from '../../src/utils/prisma-factory.js';
 
 export class TestDatabase {
   private readonly prisma: PrismaClient;
@@ -17,7 +18,7 @@ export class TestDatabase {
     process.env['DATABASE_URL'] = this.databaseUrl;
     const adapter = new PrismaPg({
       connectionString: this.databaseUrl,
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: PRISMA_CONNECT_TIMEOUT_MS,
     });
     this.prisma = new PrismaClient({ adapter });
   }

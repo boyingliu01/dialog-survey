@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 // createPrismaClient() requires DATABASE_URL; this file never reaches a real
@@ -73,4 +73,8 @@ describe('shutdownDb', () => {
     await shutdownDb();
     expect(db.$disconnect).toHaveBeenCalled();
   });
+});
+
+afterAll(() => {
+  vi.unstubAllEnvs();
 });

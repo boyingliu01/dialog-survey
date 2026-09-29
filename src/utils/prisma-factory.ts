@@ -1,6 +1,9 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './prisma-client.js';
 
+/** pg connect timeout (v6 engine baseline); shared with test helpers to prevent drift. */
+export const PRISMA_CONNECT_TIMEOUT_MS = 5000;
+
 export interface PrismaFactoryOptions {
   connectionString?: string;
 }
@@ -20,6 +23,9 @@ export function createPrismaClient(options: PrismaFactoryOptions = {}): PrismaCl
   if (!connectionString) {
     throw new Error('DATABASE_URL is required to create a PrismaClient');
   }
-  const adapter = new PrismaPg({ connectionString, connectionTimeoutMillis: 5000 });
+  const adapter = new PrismaPg({
+    connectionString,
+    connectionTimeoutMillis: PRISMA_CONNECT_TIMEOUT_MS,
+  });
   return new PrismaClient({ adapter });
 }

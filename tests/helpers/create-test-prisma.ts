@@ -1,5 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../../src/utils/prisma-client.js';
+import { PRISMA_CONNECT_TIMEOUT_MS } from '../../src/utils/prisma-factory.js';
 
 function resolveTestDatabaseUrl(): string {
   return (
@@ -12,7 +13,7 @@ function resolveTestDatabaseUrl(): string {
 function buildClient(): PrismaClient {
   const adapter = new PrismaPg({
     connectionString: resolveTestDatabaseUrl(),
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: PRISMA_CONNECT_TIMEOUT_MS,
   });
   return new PrismaClient({ adapter });
 }
@@ -22,7 +23,8 @@ let shared: PrismaClient | undefined;
 /**
  * File-level singleton: repeated calls within one test file share one instance
  * (and, from Stage B on, one PGlite database). Disconnect ownership belongs to
- * `afterAll` / `TestDatabase.teardown()`.
+ * the importing test file's `afterAll` / `TestDatabase.teardown()`; module
+ * isolation is per test file, so that disconnect cannot affect other files.
  */
 export async function getSharedTestPrisma(): Promise<PrismaClient> {
   shared ??= buildClient();
