@@ -1,10 +1,10 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { PrismaClient } from '@prisma/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as XLSX from 'xlsx';
 import { ExportService } from '../src/services/export.service.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),

@@ -2,6 +2,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { DingTalkStreamClient } from '../src/integrations/dingtalk/stream-client.js';
 
+// Every test here drives the socket by invoking captured handlers directly, so
+// a real connection buys nothing — but it does open network I/O to
+// wss-open-connection.dingtalk.com, whose 400 lands as an unhandled 'error'
+// event (the tests replace WebSocket.prototype.on, so no listener ever attaches).
+vi.mock('ws', async () => {
+  const { EventEmitter } = await import('node:events');
+  class FakeWebSocket extends EventEmitter {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSING = 2;
+    static readonly CLOSED = 3;
+    readyState = 0;
+    send(): void {}
+    close(): void {
+      this.readyState = 3;
+      this.emit('close', 1000, Buffer.from(''));
+    }
+    terminate(): void {
+      this.readyState = 3;
+      this.emit('close', 1006, Buffer.from(''));
+    }
+  }
+  return { WebSocket: FakeWebSocket };
+});
+
 describe('DingTalkStreamClient', () => {
   const mockConfig = {
     clientId: 'test-client-id',

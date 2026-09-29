@@ -1,6 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// buildApp() and checkDatabaseConnection() resolve the real createPrismaClient(),
+// which requires DATABASE_URL; the facade is mocked below, so no real database is used.
+const DUMMY_DATABASE_URL = 'postgresql://test:test@localhost:5432/dialog_survey_test';
+
 const { mockCronSchedule, scheduledTasks } = vi.hoisted(() => {
   const tasks: Array<{ destroy: ReturnType<typeof vi.fn> }> = [];
   return {
@@ -56,33 +60,12 @@ mockPrismaInstance = {
   },
 };
 
-vi.mock('@prisma/client', () => ({
-  PrismaClient: function FakePrismaClient() {
-    return mockPrismaInstance;
-  },
-}));
-
-vi.mock('../src/server.js', async (importOriginal) => {
+vi.mock('../src/utils/prisma-client.js', async (importOriginal) => {
   const original = (await importOriginal()) as Record<string, unknown>;
   return {
     ...original,
-    checkDatabaseConnection: async () => {
-      const { PrismaClient } = await import('@prisma/client');
-      const prisma = new PrismaClient();
-      const DB_CHECK_TIMEOUT_MS = 5000;
-      try {
-        await Promise.race([
-          prisma.$queryRaw`SELECT 1`,
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Database connection timeout')), DB_CHECK_TIMEOUT_MS)
-          ),
-        ]);
-        return true;
-      } catch {
-        return false;
-      } finally {
-        await prisma.$disconnect();
-      }
+    PrismaClient: function FakePrismaClient() {
+      return mockPrismaInstance;
     },
   };
 });
@@ -100,6 +83,7 @@ describe('buildApp', () => {
     vi.stubEnv('SESSION_SALT', 'b'.repeat(32));
     vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    vi.stubEnv('DATABASE_URL', DUMMY_DATABASE_URL);
     const { buildApp } = await import('../src/server.js');
     app = await buildApp();
   });
@@ -197,6 +181,7 @@ describe('buildApp', () => {
 
 describe('checkDatabaseConnection', () => {
   beforeEach(() => {
+    vi.stubEnv('DATABASE_URL', DUMMY_DATABASE_URL);
     mockPrismaInstance = {
       $queryRaw: vi.fn(),
       $disconnect: vi.fn().mockResolvedValue(undefined),
@@ -249,6 +234,16 @@ describe('checkDatabaseConnection', () => {
     expect(result).toBe(false);
     expect(mockPrismaInstance.$queryRaw).toHaveBeenCalledTimes(1);
     expect(mockPrismaInstance.$disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('should return false when the factory itself throws (no client to disconnect)', async () => {
+    const { checkDatabaseConnection } = await import('../src/server.js');
+    const result = await checkDatabaseConnection(() => {
+      throw new Error('DATABASE_URL is required to create a PrismaClient');
+    });
+
+    expect(result).toBe(false);
+    expect(mockPrismaInstance.$disconnect).not.toHaveBeenCalled();
   });
 });
 

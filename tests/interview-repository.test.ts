@@ -1,9 +1,15 @@
-import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InterviewRepository } from '../src/repositories/interview.repository.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
-const prisma = new PrismaClient();
-const repo = new InterviewRepository(prisma);
+let prisma: PrismaClient;
+let repo: InterviewRepository;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+  repo = new InterviewRepository(prisma);
+});
 
 describe('InterviewRepository', () => {
   let templateId: string;

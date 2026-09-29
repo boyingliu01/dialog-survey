@@ -1,8 +1,13 @@
-import { PrismaClient } from '@prisma/client';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { getFailedAnalyses, recordAnalysisFailure } from '../src/services/dead-letter.service.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 describe('Analysis Dead-Letter Service', () => {
   beforeEach(async () => {

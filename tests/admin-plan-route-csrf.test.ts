@@ -1,10 +1,10 @@
 import csrfProtection from '@fastify/csrf-protection';
 import secureSession from '@fastify/secure-session';
-import { PrismaClient } from '@prisma/client';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { interviewPlanRoutes, isAdministrativePlanMutation } from '../src/api/plans.js';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 type BrowserState = {
   readonly cookie: string;
@@ -96,8 +96,8 @@ function cookieHeader(...setCookieHeaders: (string | string[] | undefined)[]): s
   return [...cookies.values()].join('; ');
 }
 
-describe('plan route session CSRF', () => {
-  const prisma = new PrismaClient();
+describe('plan route session CSRF', async () => {
+  const prisma = await getSharedTestPrisma();
   const apps: FastifyInstance[] = [];
 
   async function createApp(): Promise<FastifyInstance> {

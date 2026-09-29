@@ -7,9 +7,9 @@
  */
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import type { PrismaClient } from '@prisma/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ExportService } from '../src/services/export.service.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { TestDatabase } from './helpers/test-db.js';
 
 vi.mock('playwright', () => ({

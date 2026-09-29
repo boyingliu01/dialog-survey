@@ -1,7 +1,7 @@
-import type { BatchAnalysisReport } from '@prisma/client';
-import type { PrismaClient } from '@prisma/client';
 import { error, info } from '../utils/logger.js';
 import { anonymizePII } from '../utils/pii-anonymizer.js';
+import type { BatchAnalysisReport } from '../utils/prisma-client.js';
+import type { PrismaClient } from '../utils/prisma-client.js';
 import { recordAnalysisFailure } from './dead-letter.service.js';
 import {
   type Report,

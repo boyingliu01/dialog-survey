@@ -3,6 +3,7 @@ name: PR Quality Gates
 on:
   pull_request:
     branches: [master, main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -24,6 +25,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
 
       - name: Biome check
         run: npx biome check src/
@@ -63,6 +67,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
 
       - name: Install Playwright for PDF export tests
         run: npx playwright install --with-deps chromium
@@ -110,6 +117,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
 
       - name: Install Playwright for PDF export tests
         run: npx playwright install --with-deps chromium
@@ -195,6 +205,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: Install Playwright for PDF export tests
         run: npx playwright install --with-deps chromium
 
@@ -256,6 +269,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
 
@@ -293,6 +309,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
 
       - name: Run smoke test
         run: npm run smoke

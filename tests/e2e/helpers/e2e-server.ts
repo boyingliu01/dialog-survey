@@ -1,7 +1,7 @@
-// @no-test-required: E2E test infrastructure helper, exercised by E2E test files
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import type { Browser, BrowserContext } from 'playwright';
+// @no-test-required: E2E test infrastructure helper, exercised by E2E test files
+import type { PrismaClient } from '../../../src/utils/prisma-client.js';
 import { TestDatabase } from '../../helpers/test-db.js';
 
 const OWNED_ENV_KEYS = [

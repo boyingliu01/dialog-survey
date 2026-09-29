@@ -77,26 +77,30 @@ vi.mock('node-cron', () => ({
   },
 }));
 
-vi.mock('@prisma/client', () => ({
-  PrismaClient: function FakePrismaClient() {
-    return {
-      $disconnect: lifecycle.disconnect,
-      auditLog: { create: vi.fn().mockResolvedValue({}) },
-      interview: { findMany: vi.fn().mockResolvedValue([]) },
-      interviewPlan: {
-        create: vi.fn().mockResolvedValue({}),
-        findMany: vi.fn().mockResolvedValue([]),
-        findUnique: vi.fn().mockResolvedValue(null),
-      },
-      template: {
-        create: vi.fn().mockResolvedValue({}),
-        findMany: vi.fn().mockResolvedValue([]),
-        findUnique: vi.fn().mockResolvedValue(null),
-        update: vi.fn().mockResolvedValue({}),
-      },
-    };
-  },
-}));
+vi.mock('../src/utils/prisma-client.js', async (importOriginal) => {
+  const original = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...original,
+    PrismaClient: function FakePrismaClient() {
+      return {
+        $disconnect: lifecycle.disconnect,
+        auditLog: { create: vi.fn().mockResolvedValue({}) },
+        interview: { findMany: vi.fn().mockResolvedValue([]) },
+        interviewPlan: {
+          create: vi.fn().mockResolvedValue({}),
+          findMany: vi.fn().mockResolvedValue([]),
+          findUnique: vi.fn().mockResolvedValue(null),
+        },
+        template: {
+          create: vi.fn().mockResolvedValue({}),
+          findMany: vi.fn().mockResolvedValue([]),
+          findUnique: vi.fn().mockResolvedValue(null),
+          update: vi.fn().mockResolvedValue({}),
+        },
+      };
+    },
+  };
+});
 
 vi.mock('../src/services/audit-cleanup.service.js', () => ({
   AuditCleanupService: class FakeAuditCleanupService {

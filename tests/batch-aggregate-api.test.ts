@@ -1,9 +1,14 @@
-import { PrismaClient } from '@prisma/client';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { analysisRoutes } from '../src/api/analysis.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 /** @test REQ-BATCH-001 @intent verify POST aggregate triggers batch analysis @covers AC-BATCH-001-01 */
 describe('POST /api/analysis/aggregate/:planId', () => {

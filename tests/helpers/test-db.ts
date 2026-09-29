@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
-import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../../src/utils/prisma-client.js';
 
 export class TestDatabase {
   private readonly prisma: PrismaClient;
@@ -14,7 +15,11 @@ export class TestDatabase {
       'postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test';
 
     process.env['DATABASE_URL'] = this.databaseUrl;
-    this.prisma = new PrismaClient();
+    const adapter = new PrismaPg({
+      connectionString: this.databaseUrl,
+      connectionTimeoutMillis: 5000,
+    });
+    this.prisma = new PrismaClient({ adapter });
   }
 
   async setup(): Promise<void> {
@@ -37,6 +42,12 @@ export class TestDatabase {
     }
   }
 
+  /**
+   * Order contract: `isClosed` is set synchronously before any await, so a
+   * concurrent `cleanup()` can only hit its early-exit branch. After teardown,
+   * `cleanup()` is a silent no-op. Callers must not call `cleanup()` first and
+   * expect it to persist anything — it only deletes rows listed in `ids`.
+   */
   async teardown(): Promise<void> {
     if (this.isClosed) return;
     this.isClosed = true;
@@ -51,6 +62,11 @@ export class TestDatabase {
     }
   }
 
+  /**
+   * Deletes rows for the given ids (per-test isolation). Silent no-op after
+   * `teardown()` (see order contract above); before teardown it throws when the
+   * database is unreachable.
+   */
   async cleanup(ids: {
     responses?: string[];
     messages?: string[];
@@ -64,6 +80,7 @@ export class TestDatabase {
     auditLogs?: string[];
     apiKeys?: string[];
   }): Promise<void> {
+    if (this.isClosed) return;
     if (ids.responses?.length) {
       await this.prisma.response.deleteMany({ where: { id: { in: ids.responses } } });
     }

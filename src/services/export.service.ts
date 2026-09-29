@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { PrismaClient } from '@prisma/client';
 import { chromium } from 'playwright';
 import * as XLSX from 'xlsx';
 import { info, warn } from '../utils/logger.js';
+import type { PrismaClient } from '../utils/prisma-client.js';
 
 function loadInviteeInfo(inviteeData: unknown, userId: string): { name?: string; phone?: string } {
   if (!Array.isArray(inviteeData)) return {};

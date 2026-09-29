@@ -1,12 +1,14 @@
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { anonymizeData, generateApiKey, timingSafeEqualStrings } from '../src/utils/security.js';
 
-vi.mock('@prisma/client', () => {
+vi.mock('../src/utils/prisma-client.js', async (importOriginal) => {
   const mockFindFirst = vi.fn();
   (globalThis as Record<string, unknown>)['__mockFindFirst'] = mockFindFirst;
+  const original = (await importOriginal()) as Record<string, unknown>;
   return {
+    ...original,
     PrismaClient: class MockPrismaClient {
       auditLog = { findFirst: mockFindFirst };
     },

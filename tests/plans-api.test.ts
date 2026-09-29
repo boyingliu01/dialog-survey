@@ -1,11 +1,12 @@
 import csrfProtection from '@fastify/csrf-protection';
 import secureSession from '@fastify/secure-session';
-import { PlanStatus, PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { interviewPlanRoutes } from '../src/api/plans.js';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
+import { PlanStatus, type PrismaClient } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 vi.mock('../src/integrations/dingtalk/message-sender.js', () => ({
   messageSender: {
@@ -24,7 +25,11 @@ vi.mock('../src/utils/logger.js', () => ({
   debug: vi.fn(),
 }));
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 describe('Interview Plan API Endpoints', () => {
   let fastify: FastifyInstance;

@@ -1,9 +1,15 @@
-import { PrismaClient } from '@prisma/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { MessageRepository } from '../src/repositories/message.repository.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
-const prisma = new PrismaClient();
-const repo = new MessageRepository(prisma);
+let prisma: PrismaClient;
+let repo: MessageRepository;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+  repo = new MessageRepository(prisma);
+});
 
 describe('MessageRepository', () => {
   let interviewId: string;

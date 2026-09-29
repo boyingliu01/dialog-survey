@@ -1,10 +1,15 @@
-import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/server.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 const ADMIN_KEY = 'test-admin-key';
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 describe('Admin Tree Routes', () => {
   let app: FastifyInstance;

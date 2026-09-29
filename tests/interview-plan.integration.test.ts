@@ -5,7 +5,7 @@
  * Prerequisites: PostgreSQL running + dialog_survey_test database
  * Run: npx vitest run tests/interview-plan.integration.test.ts
  */
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { hashApiKey } from '../src/utils/security.js';
 import { type TestServer, createTestServer } from './helpers/test-server.js';
 
@@ -17,6 +17,8 @@ describe('InterviewPlan API (Integration)', () => {
   let createdIds: { apiKeys: string[]; templates: string[]; interviewPlans: string[] };
 
   beforeAll(async () => {
+    vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
     ctx = await createTestServer();
   });
 
@@ -54,6 +56,7 @@ describe('InterviewPlan API (Integration)', () => {
 
   afterAll(async () => {
     await ctx.teardown();
+    vi.unstubAllEnvs();
   });
 
   describe('POST /api/plans', () => {
