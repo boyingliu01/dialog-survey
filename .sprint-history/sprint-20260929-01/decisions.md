@@ -146,3 +146,11 @@
 - **Choice**: ③ 仅放行 `smoke-dummy-secret`、`your-dingtalk-client-secret`、`your-admin-api-key` 三个已核实占位值；不做目录级豁免
 - **Rationale**: ①会破坏 walkthrough 工件哈希；②会让未来真实泄漏在归档目录静默通过；③最小授权，且与 CI gitleaks-action 共用同一 .gitleaks.toml。
 - **Timestamp**: 2026-09-30T14:30:00+08:00
+
+## Decision DR-023
+- **Phase**: 6/6 CLOSE
+- **Question**: pre-push Gate 10（import 边界检查）与 DOC_ONLY 判定把归档内 10 个 .ts/.sh/.ps1 证据脚本当生产源码处理而阻塞推送（其相对 import 指向 worktree 时期路径，属预期）
+- **Options**: ① 保持散装、每次推送补走查 ② 改扩展名绕过正则 ③ 10 个脚本打包 `phase-outputs-scripts.tar.gz`，其余 87 个 md/json 保持散装
+- **Choice**: ③ tar 内路径与原相对路径一致；打包后解包逐文件 sha256 与原件全数一致（10/10 OK）后才 git rm 散装原件
+- **Rationale**: ①为纯文档归档反复跑 Delphi 是浪费门禁语义；②伪造扩展名破坏证据可追溯；③字节零改动、可复现解包，且推送恢复其"文档-only"的真实属性，门禁自然不适用。
+- **Timestamp**: 2026-09-30T15:40:00+08:00

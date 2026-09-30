@@ -8,7 +8,7 @@ timestamp: 2026-09-30
 
 - 来源：worktree `.worktrees/sprint-20260929-01/.sprint-state/`（gitignored，随 worktree 删除即丢失）+ worktree 根 `.code-walkthrough-result.json`。
 - 去处：本目录 `.sprint-history/sprint-20260929-01/`（仓库跟踪路径），随本分支提交并推送。
-- 完整性说明：文件为 worktree 原样字节拷贝，未做任何修改；sha256 可在合并前后复核。
+- 完整性说明：md/json 等 87 个证据文件为 worktree 原样字节拷贝；10 个源码扩展名脚本（.ts/.sh/.ps1，Gate 10/DOC_ONLY 会按生产源码对待）打包为 `phase-outputs-scripts.tar.gz`，打包后解包逐文件 sha256 与原件 10/10 一致（DR-023）。tar 内相对路径与原目录一致，`tar -xzf` 即可原样复原。
 - 配套配置变更（同一提交）：
   - `biome.json`：将 `.sprint-history/` 加入 files/linter/former ignore（归档证据脚本不是生产源码，与 `.sprint-state/` 同等处置）。
   - `.gitleaks.toml`：为 `your-dingtalk-client-secret`、`your-admin-api-key`、`smoke-dummy-secret` 三个已知占位值增加行级 allowlist（归档 walkthrough 工件含这些字面占位符；逐一人工核实为假阳性，无任何真实凭据入库）。
