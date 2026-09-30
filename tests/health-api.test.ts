@@ -1,6 +1,6 @@
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),
@@ -17,9 +17,10 @@ class MockPrismaClient {
   $disconnect = mockDisconnect;
 }
 
-vi.mock('@prisma/client', () => ({
-  PrismaClient: MockPrismaClient,
-}));
+vi.mock('../src/utils/prisma-client.js', async (importOriginal) => {
+  const original = (await importOriginal()) as Record<string, unknown>;
+  return { ...original, PrismaClient: MockPrismaClient };
+});
 
 const mockFetch = vi.fn();
 

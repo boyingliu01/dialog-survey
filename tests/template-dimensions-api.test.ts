@@ -1,8 +1,13 @@
-import { PrismaClient } from '@prisma/client';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { updateTemplateDimensions } from '../src/services/template-dimension.service.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 describe('Template Dimension Service', () => {
   /** @test REQ-TEMPLATE-001 @intent verify valid dimensions can be saved @covers AC-TEMPLATE-001-01 */

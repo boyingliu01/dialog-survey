@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from './prisma-client.js';
+import { createPrismaClient } from './prisma-factory.js';
 
 let _prisma: PrismaClient | null = null;
 
@@ -7,10 +8,13 @@ let _prisma: PrismaClient | null = null;
  * Use sparingly — prefer DI (constructor injection) for most cases.
  * This exists for fire-and-forget background tasks (e.g., analyzingNode)
  * where threading DI through the graph would be excessive.
+ *
+ * Delegates construction to createPrismaClient(), so it fails loudly when
+ * DATABASE_URL is missing instead of building a half-configured client.
  */
 export function getDb(): PrismaClient {
   if (!_prisma) {
-    _prisma = new PrismaClient();
+    _prisma = createPrismaClient();
   }
   return _prisma;
 }

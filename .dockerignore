@@ -25,6 +25,17 @@ env/
 .git/
 .gitignore
 
+# Node.js
+node_modules/
+coverage/
+playwright-report/
+test-results/
+.stryker-tmp/
+
+# Sprint artifacts
+.worktrees/
+.sprint-state/
+
 # Testing
 .pytest_cache/
 .coverage
@@ -33,8 +44,8 @@ htmlcov/
 
 # Environment files
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Docker
 Dockerfile

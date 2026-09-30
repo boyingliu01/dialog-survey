@@ -1,5 +1,5 @@
-import type { PrismaClient } from '@prisma/client';
 import { error, info } from '../utils/logger.js';
+import type { PrismaClient } from '../utils/prisma-client.js';
 
 export interface AnalyticsKPIs {
   totalInterviews: number;

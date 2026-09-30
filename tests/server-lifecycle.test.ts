@@ -77,26 +77,30 @@ vi.mock('node-cron', () => ({
   },
 }));
 
-vi.mock('@prisma/client', () => ({
-  PrismaClient: function FakePrismaClient() {
-    return {
-      $disconnect: lifecycle.disconnect,
-      auditLog: { create: vi.fn().mockResolvedValue({}) },
-      interview: { findMany: vi.fn().mockResolvedValue([]) },
-      interviewPlan: {
-        create: vi.fn().mockResolvedValue({}),
-        findMany: vi.fn().mockResolvedValue([]),
-        findUnique: vi.fn().mockResolvedValue(null),
-      },
-      template: {
-        create: vi.fn().mockResolvedValue({}),
-        findMany: vi.fn().mockResolvedValue([]),
-        findUnique: vi.fn().mockResolvedValue(null),
-        update: vi.fn().mockResolvedValue({}),
-      },
-    };
-  },
-}));
+vi.mock('../src/utils/prisma-client.js', async (importOriginal) => {
+  const original = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...original,
+    PrismaClient: function FakePrismaClient() {
+      return {
+        $disconnect: lifecycle.disconnect,
+        auditLog: { create: vi.fn().mockResolvedValue({}) },
+        interview: { findMany: vi.fn().mockResolvedValue([]) },
+        interviewPlan: {
+          create: vi.fn().mockResolvedValue({}),
+          findMany: vi.fn().mockResolvedValue([]),
+          findUnique: vi.fn().mockResolvedValue(null),
+        },
+        template: {
+          create: vi.fn().mockResolvedValue({}),
+          findMany: vi.fn().mockResolvedValue([]),
+          findUnique: vi.fn().mockResolvedValue(null),
+          update: vi.fn().mockResolvedValue({}),
+        },
+      };
+    },
+  };
+});
 
 vi.mock('../src/services/audit-cleanup.service.js', () => ({
   AuditCleanupService: class FakeAuditCleanupService {
@@ -225,6 +229,9 @@ describe('server resource lifecycle', () => {
     vi.stubEnv('SESSION_SALT', 'b'.repeat(32));
     vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
+    // createPrismaClient() requires DATABASE_URL; the facade is mocked in this
+    // file, so this only satisfies the guard — no database is used.
+    vi.stubEnv('DATABASE_URL', 'postgresql://test:test@localhost:5432/dialog_survey_test');
   });
 
   afterEach(() => {

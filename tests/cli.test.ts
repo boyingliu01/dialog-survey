@@ -210,6 +210,17 @@ describe('CLI', () => {
       expect(result.ok).toBe(false);
       expect(result.message).toContain('>= 20');
     });
+
+    it('should fail on a major-only pass (20.18.9 < 20.19.0, semver compare)', () => {
+      const result = checkNodeVersion('20.18.9');
+      expect(result.ok).toBe(false);
+      expect(result.message).toContain('>= 20.19.0');
+    });
+
+    it('should pass on the exact minimum version 20.19.0', () => {
+      const result = checkNodeVersion('20.19.0');
+      expect(result.ok).toBe(true);
+    });
   });
 
   describe('checkPostgres', () => {
@@ -562,6 +573,7 @@ describe('CLI', () => {
       writeFileSync(join(tmpDir, 'ecosystem.config.cjs'), 'module.exports = {};');
       writeFileSync(join(tmpDir, 'dist', 'src', 'server.js'), '// server.js');
       writeFileSync(join(tmpDir, '.env'), 'DATABASE_URL=test');
+      writeFileSync(join(tmpDir, 'prisma.config.ts'), '');
 
       const result = verifyInstallation(tmpDir);
       expect(result.ok).toBe(true);
@@ -576,6 +588,7 @@ describe('CLI', () => {
       expect(result.missing).toContain('dist/src/server.js');
       expect(result.missing).toContain('.env');
       expect(result.missing).toContain('node_modules');
+      expect(result.missing).toContain('prisma.config.ts');
     });
 
     it('should report each missing file individually', () => {
@@ -596,6 +609,7 @@ describe('CLI', () => {
       writeFileSync(join(tmpDir, 'ecosystem.config.cjs'), '');
       writeFileSync(join(tmpDir, 'dist', 'src', 'server.js'), '');
       writeFileSync(join(tmpDir, '.env'), '');
+      writeFileSync(join(tmpDir, 'prisma.config.ts'), '');
 
       const result = verifyInstallation(tmpDir);
       expect(result.ok).toBe(true);

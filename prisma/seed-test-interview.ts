@@ -1,7 +1,8 @@
-import { InterviewStatus, PrismaClient } from '@prisma/client';
 import { info } from '../src/utils/logger.js';
+import { InterviewStatus } from '../src/utils/prisma-client.js';
+import { createPrismaClient } from '../src/utils/prisma-factory.js';
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 async function seedTestInterviewPlan() {
   const templateId = process.argv[2] || 'a0ca7d02-9ac9-4388-9822-d83f71dd5ed9';

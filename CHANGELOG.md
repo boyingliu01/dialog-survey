@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.10.0 - 2026-09-30
+
+### Changed
+- chore: upgrade Prisma 6 → 7 with driver adapters (#149)
+  - `prisma` / `@prisma/client` / `@prisma/adapter-pg` pinned to 7.10.0; client generated as TypeScript source into `src/generated/prisma` (gitignored, excluded from biome/vitest coverage)
+  - `src/utils/prisma-client.ts` facade (pure re-export) + `src/utils/prisma-factory.ts` factory (`createPrismaClient()`, sole `new PrismaClient()` site, 5s connect timeout, fails loudly when `DATABASE_URL` is missing)
+  - Node.js requirement raised to `>= 20.19.0` (engines, `.nvmrc`, CLI/deploy checks, CI `node-version-file`)
+
+### Added
+- test: PostgreSQL-free test suite via PGlite (per-file isolated WASM database, schema DDL + data-dir caches under `node_modules/.cache/dialog-survey/`)
+- test: `tests/prisma7-spec-invariants.test.ts` pins REQ-PRISMA7-001..006 acceptance clauses as committed invariants (dependency pins, CI generate-before-consumer ordering via step-scoped `run:` parsing, release-chain file lists, spike criteria wiring, toolchain exclusions), including the PGlite template fast-path failure semantics
+- fix(test): a corrupt PGlite template cache is now invalidated from both disk and the in-process memo on load failure (previously the discarded Blob stayed memoized and was served to later callers); degradation is observable via `getTemplateHealth()`
+- ci: `npx prisma generate` step in all PR jobs (generated client is not committed)
+- docs: architecture.yaml declares the generated layer and utils dependency; AGENTS.md / README / README.zh-CN / DEPLOY / Windows setup guide refreshed for Prisma 7
+
+### Fixed
+- fix(release): Docker runner image ships `public/` and `prisma.config.ts`; CLI/deploy Node versions aligned to 20.19; `prisma db push` pinned with `PRISMA_SKIP_GENERATE=1`; healthcheck covers the full boot path
+
 ## 1.8.9 - 2026-07-29
 
 ### Added

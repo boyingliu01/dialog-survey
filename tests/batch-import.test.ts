@@ -1,23 +1,28 @@
-import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { registerTestAdminAuth } from './helpers/admin-auth.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
-// Mock DingTalk client — phone lookup returns controlled results without real API calls
+// Mock DingTalk client — phone lookup returns controlled results without real API calls.
+// The userIds are file-unique: every test file shares one database and runs in
+// parallel, and import-commit rejects a userId that has a live interview in any
+// other plan — a shared id would make these assertions depend on other files.
 const MockDingTalkClient = class {
   static fromEnv() {
     return new MockDingTalkClient();
   }
   async getUserIdByMobile(phone: string) {
-    if (phone === '13800138000') return { found: true, userId: 'user_zhangsan', name: '' };
-    if (phone === '13900139000') return { found: true, userId: 'user_lisi', name: '' };
+    if (phone === '13800138000') return { found: true, userId: 'batch-user-zhangsan', name: '' };
+    if (phone === '13900139000') return { found: true, userId: 'batch-user-lisi', name: '' };
     return { found: false };
   }
   async getUserByUserId(userId: string) {
-    if (userId === 'user_zhangsan')
-      return { userid: 'user_zhangsan', name: '张三', mobile: '13800138000' };
-    if (userId === 'user_lisi') return { userid: 'user_lisi', name: '李四', mobile: '13900139000' };
+    if (userId === 'batch-user-zhangsan')
+      return { userid: 'batch-user-zhangsan', name: '张三', mobile: '13800138000' };
+    if (userId === 'batch-user-lisi')
+      return { userid: 'batch-user-lisi', name: '李四', mobile: '13900139000' };
     throw new Error('user not found');
   }
 };
@@ -41,7 +46,11 @@ vi.mock('../src/utils/logger.js', () => ({
   debug: vi.fn(),
 }));
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 function makeCsv(header: string, ...rows: string[]): string {
   return [header, ...rows].join('\n');
@@ -115,7 +124,7 @@ describe('Batch Import API', () => {
         expect(body.failed).toBe(0);
         expect(body.summary).toBe('all_passed');
         expect(body.results[0].status).toBe('ok');
-        expect(body.results[0].userId).toBe('user_zhangsan');
+        expect(body.results[0].userId).toBe('batch-user-zhangsan');
         expect(body.results[0].dingtalkName).toBe('张三');
       } finally {
         if (planId) {
@@ -309,7 +318,7 @@ describe('Batch Import API', () => {
             rowIndex: 2,
             phone: '13800138000',
             status: 'ok',
-            userId: 'user_zhangsan',
+            userId: 'batch-user-zhangsan',
             dingtalkName: '张三',
             message: '验证通过',
           },
@@ -317,7 +326,7 @@ describe('Batch Import API', () => {
             rowIndex: 3,
             phone: '13900139000',
             status: 'ok',
-            userId: 'user_lisi',
+            userId: 'batch-user-lisi',
             dingtalkName: '李四',
             message: '验证通过',
           },
@@ -374,7 +383,7 @@ describe('Batch Import API', () => {
             rowIndex: 2,
             phone: '13800138000',
             status: 'ok',
-            userId: 'user_zhangsan',
+            userId: 'batch-user-zhangsan',
             dingtalkName: '张三',
             message: '验证通过',
           },
@@ -431,7 +440,7 @@ describe('Batch Import API', () => {
             rowIndex: 2,
             phone: '13800138000',
             status: 'ok',
-            userId: 'user_zhangsan',
+            userId: 'batch-user-zhangsan',
             dingtalkName: '张三',
             message: '验证通过',
           },
@@ -490,7 +499,7 @@ describe('Batch Import API', () => {
                 rowIndex: 2,
                 phone: '13800138000',
                 status: 'ok',
-                userId: 'user_zhangsan',
+                userId: 'batch-user-zhangsan',
                 dingtalkName: '张三',
                 message: '验证通过',
               },
@@ -521,7 +530,7 @@ describe('Batch Import API', () => {
                 rowIndex: 2,
                 phone: '13800138000',
                 status: 'ok',
-                userId: 'user_zhangsan',
+                userId: 'batch-user-zhangsan',
                 dingtalkName: '张三',
                 message: '验证通过',
               },
@@ -572,7 +581,7 @@ describe('Batch Import API', () => {
             rowIndex: 2,
             phone: '13800138000',
             status: 'ok',
-            userId: 'user_zhangsan',
+            userId: 'batch-user-zhangsan',
             dingtalkName: '张三',
             message: '验证通过',
           },

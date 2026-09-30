@@ -1,10 +1,15 @@
-import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { analysisRoutes } from '../src/api/analysis.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 /** @test REQ-REPORT-001 @intent verify GET aggregate report by batchReportId @covers AC-REPORT-001-01 */
 describe('Report API Endpoints', () => {

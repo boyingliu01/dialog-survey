@@ -1,4 +1,3 @@
-import type { PlanStatus, PrismaClient } from '@prisma/client';
 import { parse } from 'csv-parse/sync';
 import type { FastifyInstance, preHandlerAsyncHookHandler } from 'fastify';
 import { z } from 'zod';
@@ -15,6 +14,7 @@ import {
   PlanNotFoundError,
 } from '../services/interview-plan.service.js';
 import { normalizePhone } from '../services/member-verification.service.js';
+import type { PlanStatus, PrismaClient } from '../utils/prisma-client.js';
 
 const createPlanSchema = z.object({
   name: z.string().min(1),

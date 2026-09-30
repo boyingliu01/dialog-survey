@@ -5,7 +5,7 @@
 > 一款 AI 驱动的异步对话机器人，通过钉钉自动进行多轮问卷对话——具备 LLM 智能追问、跨消息上下文记忆、以及自动化报告生成能力。
 
 [![Version](https://img.shields.io/badge/version-1.8.1-blue)](https://github.com/boyingliu01/dialog-survey)
-[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D20.19-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
 ---
@@ -22,7 +22,7 @@ npx dialog-survey start
 # 完成。你的对话机器人已经在钉钉上就绪。
 ```
 
-**环境要求：** Node.js >= 20、PostgreSQL 14+、一个钉钉应用（Client ID / Secret / Agent ID）
+**环境要求：** Node.js >= 20.19、PostgreSQL 14+、一个钉钉应用（Client ID / Secret / Agent ID）
 
 ---
 
@@ -70,7 +70,7 @@ Dialog Survey 是一个**驻留在钉钉里的异步对话机器人**。你设�
 | **对话引擎** | 自研 LangGraph 工作流 |
 | **LLM** | OpenAI 兼容 API——ollama / vLLM / LocalAI / 云端 |
 | **消息平台** | 钉钉 Stream Mode (WebSocket) |
-| **数据库** | PostgreSQL + Prisma ORM |
+| **数据库** | PostgreSQL + Prisma 7（driver adapters） |
 | **Web 框架** | Fastify 5.x |
 | **模板引擎** | Nunjucks（管理后台 UI） |
 | **语言** | TypeScript（严格模式，ESM） |
@@ -93,7 +93,7 @@ npx dialog-survey install \
   --dingtalk-agent-id "xxx"
 ```
 
-CLI 会自动生成 `.env`、运行 `prisma generate` + `db push`、并配置 PM2（Linux/macOS）或直接 node 启动（Windows）。
+CLI 会自动生成 `.env`、通过 `prisma db push` 同步表结构（Prisma 7）、并配置 PM2（Linux/macOS）或直接 node 启动（Windows）。
 
 #### 方式 B：Docker Compose（评估推荐）
 
@@ -176,9 +176,10 @@ docker compose logs -f app
 ### 开发命令
 
 ```bash
+npx prisma generate  # 生成 Prisma Client（检出后必跑）
 npm run dev          # 热重载开发服务器，端口 :3001
 npm run type-check   # TypeScript 类型检查
-npm test             # 运行测试 (Vitest)
+npm test             # Vitest watch 模式；一次性运行用 npx vitest run — 不需要 PostgreSQL（PGlite）
 npm run lint         # Biome 代码检查
 npm run build        # 编译到 dist/
 npm run smoke        # 快速验证（类型检查 + lint + 核心测试）
@@ -198,8 +199,9 @@ dialog-survey/
 │   ├── integrations/ # 钉钉 + LLM 客户端
 │   ├── middleware/   # Fastify 中间件
 │   ├── views/        # Nunjucks 管理后台 (HTMX + Alpine.js)
-│   └── utils/        # 工具函数（日志、安全、PII 等）
-├── tests/            # 92 个测试文件，~930 个测试用例
+│   ├── generated/    # Prisma Client 生成物（gitignore；npx prisma generate）
+│   └── utils/        # 工具函数（日志、安全、PII 等）+ Prisma 门面/工厂
+├── tests/            # 117 个测试文件，~1266 个测试用例（Vitest + PGlite，无需 PostgreSQL）
 ├── scripts/          # CLI 入口 + 部署脚本
 ├── prisma/           # Schema + 迁移 + 种子数据
 └── docs/             # 架构与设计文档

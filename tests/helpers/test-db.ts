@@ -1,56 +1,40 @@
-import { execSync } from 'node:child_process';
-import { PrismaClient } from '@prisma/client';
+import type { PGlite } from '@electric-sql/pglite';
+import { PrismaPGlite } from 'pglite-prisma-adapter';
+import { PrismaClient } from '../../src/utils/prisma-client.js';
+import { createTestPglite } from './pglite-template.js';
 
+/**
+ * In-memory PGlite database for integration-style tests — no PostgreSQL
+ * process, no `DATABASE_URL`. Each instance owns its own database.
+ */
 export class TestDatabase {
-  private readonly prisma: PrismaClient;
-  private readonly databaseUrl: string;
-  private readonly previousDatabaseUrl: string | undefined;
+  private prisma: PrismaClient | undefined;
+  private pglite: PGlite | undefined;
   private isClosed = false;
 
-  constructor() {
-    this.previousDatabaseUrl = process.env['DATABASE_URL'];
-    this.databaseUrl =
-      process.env['TEST_DATABASE_URL'] ||
-      'postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test';
-
-    process.env['DATABASE_URL'] = this.databaseUrl;
-    this.prisma = new PrismaClient();
-  }
-
   async setup(): Promise<void> {
-    try {
-      execSync('npx prisma migrate deploy', {
-        stdio: 'pipe',
-        env: { ...process.env, DATABASE_URL: this.databaseUrl },
-      });
-    } catch (_error) {
-      try {
-        execSync('npx prisma db push --accept-data-loss', {
-          stdio: 'pipe',
-          env: { ...process.env, DATABASE_URL: this.databaseUrl },
-        });
-      } catch (pushError) {
-        throw new Error(
-          `Failed to setup test database schema: ${pushError instanceof Error ? pushError.message : String(pushError)}`
-        );
-      }
-    }
+    const pglite = await createTestPglite();
+    this.pglite = pglite;
+    this.prisma = new PrismaClient({ adapter: new PrismaPGlite(pglite) });
   }
 
+  /**
+   * Order contract: `isClosed` is set synchronously before any await, so a
+   * concurrent `cleanup()` can only hit its early-exit branch. After teardown,
+   * `cleanup()` is a silent no-op. Safe to call without a prior `setup()`.
+   */
   async teardown(): Promise<void> {
     if (this.isClosed) return;
     this.isClosed = true;
-    try {
-      await this.prisma.$disconnect();
-    } finally {
-      if (this.previousDatabaseUrl === undefined) {
-        delete process.env['DATABASE_URL'];
-      } else {
-        process.env['DATABASE_URL'] = this.previousDatabaseUrl;
-      }
-    }
+    await this.prisma?.$disconnect();
+    await this.pglite?.close();
   }
 
+  /**
+   * Deletes rows for the given ids (per-test isolation). Silent no-op after
+   * `teardown()` (see order contract above); before teardown it throws when
+   * the database is unreachable.
+   */
   async cleanup(ids: {
     responses?: string[];
     messages?: string[];
@@ -64,48 +48,53 @@ export class TestDatabase {
     auditLogs?: string[];
     apiKeys?: string[];
   }): Promise<void> {
+    if (this.isClosed) return;
+    const prisma = this.requirePrisma();
     if (ids.responses?.length) {
-      await this.prisma.response.deleteMany({ where: { id: { in: ids.responses } } });
+      await prisma.response.deleteMany({ where: { id: { in: ids.responses } } });
     }
     if (ids.messages?.length) {
-      await this.prisma.message.deleteMany({ where: { id: { in: ids.messages } } });
+      await prisma.message.deleteMany({ where: { id: { in: ids.messages } } });
     }
     if (ids.analysisReports?.length) {
-      await this.prisma.analysisReport.deleteMany({ where: { id: { in: ids.analysisReports } } });
+      await prisma.analysisReport.deleteMany({ where: { id: { in: ids.analysisReports } } });
     }
     if (ids.analysisFailures?.length) {
-      await this.prisma.analysisFailure.deleteMany({ where: { id: { in: ids.analysisFailures } } });
+      await prisma.analysisFailure.deleteMany({ where: { id: { in: ids.analysisFailures } } });
     }
     if (ids.batchAnalysisReports?.length) {
-      await this.prisma.batchAnalysisReport.deleteMany({
+      await prisma.batchAnalysisReport.deleteMany({
         where: { id: { in: ids.batchAnalysisReports } },
       });
     }
     if (ids.interviews?.length) {
-      await this.prisma.interview.deleteMany({ where: { id: { in: ids.interviews } } });
+      await prisma.interview.deleteMany({ where: { id: { in: ids.interviews } } });
     }
     if (ids.interviewPlans?.length) {
-      await this.prisma.interviewPlan.deleteMany({ where: { id: { in: ids.interviewPlans } } });
+      await prisma.interviewPlan.deleteMany({ where: { id: { in: ids.interviewPlans } } });
     }
     if (ids.templates?.length) {
-      await this.prisma.template.deleteMany({ where: { id: { in: ids.templates } } });
+      await prisma.template.deleteMany({ where: { id: { in: ids.templates } } });
     }
     if (ids.templateNames?.length) {
-      await this.prisma.template.deleteMany({ where: { name: { in: ids.templateNames } } });
+      await prisma.template.deleteMany({ where: { name: { in: ids.templateNames } } });
     }
     if (ids.auditLogs?.length) {
-      await this.prisma.auditLog.deleteMany({ where: { id: { in: ids.auditLogs } } });
+      await prisma.auditLog.deleteMany({ where: { id: { in: ids.auditLogs } } });
     }
     if (ids.apiKeys?.length) {
-      await this.prisma.apiKey.deleteMany({ where: { id: { in: ids.apiKeys } } });
+      await prisma.apiKey.deleteMany({ where: { id: { in: ids.apiKeys } } });
     }
   }
 
   getPrisma(): PrismaClient {
-    return this.prisma;
+    return this.requirePrisma();
   }
 
-  getDatabaseUrl(): string {
-    return this.databaseUrl;
+  private requirePrisma(): PrismaClient {
+    if (!this.prisma) {
+      throw new Error('TestDatabase.setup() must complete before the database can be used');
+    }
+    return this.prisma;
   }
 }

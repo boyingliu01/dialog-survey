@@ -1,11 +1,12 @@
 import csrfProtection from '@fastify/csrf-protection';
 import secureSession from '@fastify/secure-session';
-import { PrismaClient } from '@prisma/client';
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { interviewPlanRoutes, isAdministrativePlanMutation } from '../src/api/plans.js';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { createVerifyApiKey, hashApiKey } from '../src/utils/security.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 type BrowserState = {
   readonly cookie: string;
@@ -40,8 +41,8 @@ function cookieHeader(...setCookieHeaders: (string | string[] | undefined)[]): s
   return [...cookies.values()].join('; ');
 }
 
-describe('browser-driven plan mutation CSRF', () => {
-  const prisma = new PrismaClient();
+describe('browser-driven plan mutation CSRF', async () => {
+  const prisma = await getSharedTestPrisma();
   const apps: ReturnType<typeof Fastify>[] = [];
 
   async function createApp(): Promise<ReturnType<typeof Fastify>> {

@@ -1,4 +1,4 @@
-import { type PrismaClient, type Template, TemplateStatus } from '@prisma/client';
+import { type PrismaClient, type Template, TemplateStatus } from '../utils/prisma-client.js';
 
 export class TemplateRepository {
   private readonly prisma: PrismaClient;

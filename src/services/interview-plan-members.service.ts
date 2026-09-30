@@ -1,11 +1,11 @@
-import { SendStatus } from '@prisma/client';
-import type { Prisma, PrismaClient } from '@prisma/client';
 import { DEFAULT_MAX_FOLLOWUPS } from '../core/types/index.js';
 import { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import type { DingTalkStreamClient } from '../integrations/dingtalk/stream-client.js';
 import type { TokenManager } from '../integrations/dingtalk/token-manager.js';
 import { error, info } from '../utils/logger.js';
+import { SendStatus } from '../utils/prisma-client.js';
+import type { Prisma, PrismaClient } from '../utils/prisma-client.js';
 import type { InviteeData } from './interview-plan-base.service.js';
 import { InterviewPlanSendService } from './interview-plan-send.service.js';
 import { verifyPhoneToName } from './member-verification.service.js';

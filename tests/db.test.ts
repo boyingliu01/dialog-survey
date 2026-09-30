@@ -1,13 +1,19 @@
-import type { PrismaClient } from '@prisma/client';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 
-// Use a callable-constructible class so the hoisted mock factory supports `new`
-vi.mock('@prisma/client', () => {
+// createPrismaClient() requires DATABASE_URL; this file never reaches a real
+// database (facade is mocked below), so any well-formed URL satisfies it.
+vi.stubEnv('DATABASE_URL', 'postgresql://test:test@localhost:5432/dialog_survey_test');
+
+// Partial mock: real facade symbols (types/enums) + constructible mock class,
+// so `new PrismaClient()` from the facade stays callable inside this file.
+vi.mock('../src/utils/prisma-client.js', async (importOriginal) => {
   class MockPrismaClient {
     $disconnect = vi.fn();
     $connect = vi.fn();
   }
-  return { PrismaClient: MockPrismaClient };
+  const original = (await importOriginal()) as Record<string, unknown>;
+  return { ...original, PrismaClient: MockPrismaClient };
 });
 
 describe('getDb', () => {
@@ -67,4 +73,8 @@ describe('shutdownDb', () => {
     await shutdownDb();
     expect(db.$disconnect).toHaveBeenCalled();
   });
+});
+
+afterAll(() => {
+  vi.unstubAllEnvs();
 });

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Dialog Survey supports **one-click deployment** to any Linux machine with Node.js 20+ and PostgreSQL 14+.
+Dialog Survey supports **one-click deployment** to any Linux machine with Node.js 20.19+ and PostgreSQL 14+.
 
 ## Quick Deploy
 
@@ -13,16 +13,16 @@ npx dialog-survey start
 ```
 
 The installer will:
-1. ✓ Check Node.js version
+1. ✓ Check Node.js version (>= 20.19.0)
 2. ✓ Verify PostgreSQL connectivity
 3. ✓ Check port availability (3001)
 4. ✓ Install PM2 process manager
 5. ✓ Copy application files to `~/.dialog-survey/`
 6. ✓ Generate admin credentials (auto-generated password shown once)
 7. ✓ Generate `.env` from your configuration (including session keys)
-8. ✓ Install production dependencies
-9. ✓ Generate Prisma client and sync schema
-10. ✓ Build the production bundle
+8. ✓ Install production dependencies (`npm install --omit=dev`)
+9. ✓ Install the Playwright Chromium browser (PDF export)
+10. ✓ Sync the schema with `prisma db push` (Prisma 7)
 11. ✓ Start the service via PM2
 12. ✓ Verify health endpoint
 
@@ -30,7 +30,7 @@ The installer will:
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| Node.js | >= 20.0.0 | Use `nvm` for version management |
+| Node.js | >= 20.19.0 | Use `nvm` for version management |
 | PostgreSQL | 14+ | Dedicated database recommended |
 | RAM | >= 512MB | 1GB+ recommended |
 | Disk | ~200MB | For code + node_modules + logs |
@@ -90,7 +90,6 @@ DASHSCOPE_API_KEY=<YOUR_LLM_API_KEY>  # LLM API key
 DINGTALK_CLIENT_ID=<YOUR_CLIENT_ID>   # DingTalk Stream credentials
 DINGTALK_CLIENT_SECRET=<YOUR_CLIENT_SECRET>
 DINGTALK_AGENT_ID=<YOUR_AGENT_ID>
-ENCRYPTION_KEY=<YOUR_32_BYTE_HEX>     # Generate: node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
 LOG_LEVEL=info                   # info | warn | error (debug for troubleshooting)
 
 # Admin browser login (required for the admin UI)
@@ -108,9 +107,8 @@ SESSION_SALT=<YOUR_32_CHAR_HEX>         # Generate: node -e "console.log(require
 | `SESSION_MAX_AGE` | `28800` | Admin session inactivity limit (seconds; 28800 = 8 hours) |
 | `ADMIN_API_KEY` | — | Optional header-based admin access (`X-Admin-Key`) for automation only |
 | `REPORTS_DIR` | `./reports` | Report storage path |
-| `MAX_LLM_RETRIES` | `2` | LLM retry attempts |
 | `LLM_TIMEOUT` | `30000` | LLM request timeout (ms) |
-| `PUBLIC_URL` | — | Public callback URL |
+| `ENCRYPTION_KEY` | — | **Deprecated** — not read at runtime (compatibility only; still emitted by `npx dialog-survey install`) |
 
 ### Admin Authentication
 
@@ -207,8 +205,9 @@ sudo certbot --nginx -d interview.example.com
 # Basic health
 curl http://localhost:3001/health
 
-# Expected response:
-# {"status":"ok","database":"connected","timestamp":"..."}
+# Expected response (example):
+# {"status":"healthy","timestamp":"...","checks":{"db":{"status":"ok","latencyMs":0},"llm":{"status":"ok"},"dingtalk":{"status":"ok"}}}
+# status is "healthy" | "degraded" | "unhealthy"; a failing db check returns HTTP 503.
 ```
 
 ## Monitoring
@@ -294,7 +293,7 @@ pg_isready
 echo $NODE_ENV
 
 # Test manually
-npm run build && node dist/src/server.ts
+npm run build && node dist/src/server.js
 ```
 
 ### Port already in use
@@ -337,7 +336,6 @@ For >100 concurrent interviews:
 
 ## Security Checklist
 
-- [ ] `ENCRYPTION_KEY` is 32-byte random hex (not default)
 - [ ] `ADMIN_PASSWORD_HASH` is a bcrypt hash (cost 12) of a strong password; password not committed anywhere
 - [ ] `SESSION_SECRET` is 32 random bytes and `SESSION_SALT` is 16 random bytes — regenerate per environment
 - [ ] `ADMIN_API_KEY` (optional) is set only when automation needs it, and is strong and unique

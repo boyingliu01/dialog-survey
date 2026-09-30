@@ -287,7 +287,7 @@ describe('interviewingNode', () => {
       }),
     });
 
-    const mockPrisma = {} as unknown as import('@prisma/client').PrismaClient;
+    const mockPrisma = {} as unknown as import('../src/utils/prisma-client.js').PrismaClient;
     const state = { ...baseState, templateId: 'custom-template', currentQuestion: 0 };
     const result = await interviewingNode(state, { content: '回答', prisma: mockPrisma });
 

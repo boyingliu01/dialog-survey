@@ -1,7 +1,7 @@
-import { PlanStatus } from '@prisma/client';
-import type { PrismaClient } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
+import { PlanStatus } from '../src/utils/prisma-client.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 vi.mock('../src/integrations/dingtalk/message-sender.js', () => ({
   messageSender: {

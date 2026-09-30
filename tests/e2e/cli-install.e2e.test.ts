@@ -105,6 +105,7 @@ describe('CLI (E2E)', () => {
       // Create all required files
       fs.writeFileSync(path.join(validDir, '.env'), 'DATABASE_URL=test');
       fs.writeFileSync(path.join(validDir, 'ecosystem.config.cjs'), 'module.exports = {}');
+      fs.writeFileSync(path.join(validDir, 'prisma.config.ts'), '');
       fs.mkdirSync(path.join(validDir, 'dist', 'src'), { recursive: true });
       fs.writeFileSync(path.join(validDir, 'dist', 'src', 'server.js'), '// server');
       fs.mkdirSync(path.join(validDir, 'node_modules'), { recursive: true });

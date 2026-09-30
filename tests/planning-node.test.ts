@@ -1,7 +1,7 @@
-import type { PrismaClient } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { planningNode } from '../src/core/nodes/planning.js';
 import type { InterviewState } from '../src/core/types/index.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 // Mock polishFirstQuestion to avoid LLM API dependency in unit tests.
 // polishFirstQuestion is integration-tested separately in followup service tests.

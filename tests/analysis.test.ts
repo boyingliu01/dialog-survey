@@ -1,6 +1,6 @@
-import type { PrismaClient } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnalysisService } from '../src/services/analysis.service.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 vi.mock('../src/services/report.service.js', () => ({
   generateReport: vi.fn().mockResolvedValue({

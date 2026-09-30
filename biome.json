@@ -8,6 +8,12 @@
       ".xp-gate/",
       ".code-walkthrough-result.json",
       ".quality-history.jsonl",
+      ".architecture-baseline.json",
+      "coverage/",
+      "dist/",
+      "build/",
+      "docs/sprints/",
+      "src/generated/",
       "public/js/*.min.js"
     ]
   },
@@ -16,7 +22,16 @@
   },
   "linter": {
     "enabled": true,
-    "ignore": ["coverage/", "node_modules/", ".stryker-tmp/", ".omo/", "dist/", "build/"],
+    "ignore": [
+      "coverage/",
+      "node_modules/",
+      ".stryker-tmp/",
+      ".omo/",
+      "dist/",
+      "build/",
+      "src/generated/",
+      "docs/sprints/"
+    ],
     "rules": {
       "recommended": true,
       "suspicious": {
@@ -46,7 +61,16 @@
     "indentWidth": 2,
     "lineEnding": "lf",
     "lineWidth": 100,
-    "ignore": ["coverage/", "node_modules/", ".stryker-tmp/", ".omo/", "dist/", "build/"]
+    "ignore": [
+      "coverage/",
+      "node_modules/",
+      ".stryker-tmp/",
+      ".omo/",
+      "dist/",
+      "build/",
+      "src/generated/",
+      "docs/sprints/"
+    ]
   },
   "javascript": {
     "formatter": {
@@ -66,6 +90,16 @@
           },
           "performance": {
             "noDelete": "off"
+          }
+        }
+      }
+    },
+    {
+      "include": ["tools/**/*.mjs", "scripts/**/*.mjs"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
           }
         }
       }

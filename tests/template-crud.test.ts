@@ -1,6 +1,6 @@
-import { type PrismaClient, TemplateStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TemplateRepository } from '../src/repositories/template.repository.js';
+import { type PrismaClient, TemplateStatus } from '../src/utils/prisma-client.js';
 
 const mockTemplate = (overrides = {}) => ({
   id: 'tpl-123',
