@@ -18,13 +18,16 @@
 
 ### Pattern: AC 的可断言子句与不可断言子句要分开处置，禁止用「整条 AC 有 tag」蒙混
 
-- **Context**: AC-PRISMA7-003-02 同时含「warm p95 ≤2s」（可在 CI 稳定断言）和
+- **Context**: AC-PRISMA7-003-02 同时含「warm p95 ≤2s」（只能隔离测量——套件内并行下会变 flaky，见后一条 Pattern）和
   「冷启动 ≤5s 含 `prisma migrate diff` 子进程」（删缓存才能测，会拖慢其余测试）；
   AC-PRISMA7-005-02 的容器侧执行只能给 tier-(c) 替代证据；AC-003-01 的 CI 子句本质上在 push 之后。
 - **Insight**: `@covers AC-*` 标签只证明「有测试引用了这条 AC」，不证明每个子句都被断言。
   若不做区分，100 分是对门禁的误读。
-- **Action**: 能稳定断言的子句写成断言（warm p95、删 `DATABASE_URL` 仍能建库查询）；
-  只能测量的子句留在证据文件里并写进报告 `disclosures[]`，供 SHIP/CLOSE 复查。
+- **Action**: 能稳定断言的子句写成断言——即**决定性能的机制不变量**（模板 Blob 进程内 memoize
+  同引用、模板自带 schema 且零行启动、删 `DATABASE_URL` 仍能建库查询、快路径失败时磁盘缓存与
+  记忆化值同时作废并可观测降级）；数字预算（warm p95、冷启动 ≤5s）只是
+  `.sprint-state/phase-outputs/ac003-timing-and-memory-evidence.md` 里的隔离测量证据，
+  **没有任何测试断言壁钟数值**，这一点写进报告 `disclosures[]` 供 SHIP/CLOSE 复查。
 
 ### Pattern: 治理类 AC 的测试要锚定「入库的不变量」，不能锚定 gitignore 的过程工件
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.8.10 - 2026-09-30
+## 1.10.0 - 2026-09-30
 
 ### Changed
 - chore: upgrade Prisma 6 → 7 with driver adapters (#149)
@@ -10,7 +10,8 @@
 
 ### Added
 - test: PostgreSQL-free test suite via PGlite (per-file isolated WASM database, schema DDL + data-dir caches under `node_modules/.cache/dialog-survey/`)
-- test: `tests/prisma7-spec-invariants.test.ts` pins REQ-PRISMA7-001..006 acceptance clauses as committed invariants (dependency pins, CI generate-before-consumer ordering, release-chain files, toolchain exclusions)
+- test: `tests/prisma7-spec-invariants.test.ts` pins REQ-PRISMA7-001..006 acceptance clauses as committed invariants (dependency pins, CI generate-before-consumer ordering via step-scoped `run:` parsing, release-chain file lists, spike criteria wiring, toolchain exclusions), including the PGlite template fast-path failure semantics
+- fix(test): a corrupt PGlite template cache is now invalidated from both disk and the in-process memo on load failure (previously the discarded Blob stayed memoized and was served to later callers); degradation is observable via `getTemplateHealth()`
 - ci: `npx prisma generate` step in all PR jobs (generated client is not committed)
 - docs: architecture.yaml declares the generated layer and utils dependency; AGENTS.md / README / README.zh-CN / DEPLOY / Windows setup guide refreshed for Prisma 7
 
