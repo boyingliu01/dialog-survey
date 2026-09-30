@@ -41,6 +41,8 @@ timestamp: 2026-09-30
 尚未建单、建议本次 CLOSE 顺手登记（等用户确认）：
 1. PGlite 模板冷构建的并发争用：多个测试 worker 同时冷构建模板目录时缺单写者锁（当前靠进程内 memoize 规避，跨进程/CI 冷缓存时理论可复现）。
 2. `docs/test-alignment/plan.md` 的 legacy 注解补全专项与 #157 是否合并跟踪，需项目主确认口径。
+3. → 并入 #153：`scripts/sync-version.*` 扇出漏掉 `package-lock.json` 的自引用 version 字段（master 现为 1.10.0 vs lock 1.8.9）。
+4. → 工具侧记录：xp-gate pre-commit 的 `biome check --staged .` 对"仅含超 biome maxSize 文件（如 package-lock.json）"的提交会因 0 files processed 报 internalError/io 假阳性阻断；本次按最小授权原则未绕过（锁文件改动回退，转 #153 处理）。
 
 明确延期（用户决策）：
 - npm publish 1.10.0：publish workflow 为 tag-only（`v*`），DR-020 选择本次不打 tag；发布由用户手动触发。
