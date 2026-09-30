@@ -16,5 +16,11 @@ layers:
     pattern: "src/integrations/**"
     depends: []
   utils:
+    # 门面 src/utils/prisma-client.ts 纯 re-export src/generated 符号；
+    # src/utils/prisma-factory.ts 是 PrismaClient 唯一构造点（内部从门面导入）
     pattern: "src/utils/**"
+    depends: [generated]
+  generated:
+    # Prisma 7 生成物（.ts 源码，gitignore 排除）；唯一消费方为 src/utils 门面
+    pattern: "src/generated/**"
     depends: []

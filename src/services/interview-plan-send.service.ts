@@ -1,6 +1,6 @@
-import { PlanStatus, SendStatus } from '@prisma/client';
 import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import { error, info, warn } from '../utils/logger.js';
+import { PlanStatus, SendStatus } from '../utils/prisma-client.js';
 import { InterviewPlanServiceBase } from './interview-plan-base.service.js';
 
 export class InterviewPlanSendService extends InterviewPlanServiceBase {

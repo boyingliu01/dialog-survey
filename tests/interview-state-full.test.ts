@@ -1,7 +1,7 @@
-import type { PrismaClient } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InterviewState } from '../src/core/types/index.js';
 import { InterviewStateRepository } from '../src/repositories/interview-state.repository.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 describe('InterviewStateRepository - saveFullState (完整多轮对话)', () => {
   let repository: InterviewStateRepository;

@@ -1,10 +1,15 @@
-import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../src/server.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 const ADMIN_KEY = 'test-admin-key';
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 describe('Admin Tree Routes', () => {
   let app: FastifyInstance;
@@ -15,7 +20,7 @@ describe('Admin Tree Routes', () => {
     vi.stubEnv('ADMIN_API_KEY', ADMIN_KEY);
     vi.stubEnv('DINGTALK_CLIENT_ID', 'test-client-id');
     vi.stubEnv('DINGTALK_CLIENT_SECRET', 'test-client-secret');
-    const result = await buildApp();
+    const result = await buildApp({ prismaFactory: () => prisma });
     app = result.fastify;
     await app.ready();
   });

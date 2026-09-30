@@ -1,6 +1,6 @@
-import type { PrismaClient } from '@prisma/client';
 import type { StreamMessage } from '../../../src/services/stream-message-utils.js';
 import { processStreamMessage } from '../../../src/services/stream-message.service.js';
+import type { PrismaClient } from '../../../src/utils/prisma-client.js';
 
 const USER_MAP: Record<string, { name: string; mobile: string }> = {
   user_zhangsan: { name: '张三', mobile: '13800138000' },

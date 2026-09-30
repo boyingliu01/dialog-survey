@@ -1,6 +1,6 @@
-import type { PrismaClient } from '@prisma/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TemplateRepository } from '../src/repositories/template.repository.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),

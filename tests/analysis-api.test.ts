@@ -1,7 +1,8 @@
-import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),
@@ -10,7 +11,11 @@ vi.mock('../src/utils/logger.js', () => ({
   debug: vi.fn(),
 }));
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 async function createApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
@@ -99,8 +104,8 @@ describe('Analysis API Endpoints', () => {
     });
   });
 
-  describe('POST /api/analysis/aggregate/:planId with real DB data', () => {
-    const prisma = new PrismaClient();
+  describe('POST /api/analysis/aggregate/:planId with real DB data', async () => {
+    const prisma = await getSharedTestPrisma();
 
     it('should return 409 when a RUNNING aggregate report already exists', async () => {
       const [template, plan] = await prisma.$transaction(async (tx) => {

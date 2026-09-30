@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
@@ -12,6 +11,7 @@ import type { ExportService } from '../services/export.service.js';
 import type { InterviewPlanService } from '../services/interview-plan.service.js';
 import { updateTemplateDimensions } from '../services/template-dimension.service.js';
 import { error, info } from '../utils/logger.js';
+import type { PrismaClient } from '../utils/prisma-client.js';
 
 export interface AdminTemplatesRoutesOptions {
   templateRepo: TemplateRepository;

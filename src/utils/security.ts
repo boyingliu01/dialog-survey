@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { PrismaClient } from './prisma-client.js';
 
 export interface AuthUser {
   userId: string;

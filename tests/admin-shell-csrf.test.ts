@@ -2,7 +2,6 @@ import { readFile } from 'node:fs/promises';
 import csrfProtection from '@fastify/csrf-protection';
 import secureSession from '@fastify/secure-session';
 import fastifyView from '@fastify/view';
-import { PrismaClient } from '@prisma/client';
 import Fastify from 'fastify';
 import nunjucks from 'nunjucks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -12,6 +11,7 @@ import { TemplateRepository } from '../src/repositories/template.repository.js';
 import { AnalysisService } from '../src/services/analysis.service.js';
 import { AnalyticsService } from '../src/services/analytics.service.js';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 function cookieHeader(...setCookieHeaders: (string | string[] | undefined)[]): string {
   const cookies = new Map<string, string>();
@@ -26,8 +26,8 @@ function cookieHeader(...setCookieHeaders: (string | string[] | undefined)[]): s
   return [...cookies.values()].join('; ');
 }
 
-describe('admin shell CSRF transport', () => {
-  const prisma = new PrismaClient();
+describe('admin shell CSRF transport', async () => {
+  const prisma = await getSharedTestPrisma();
   const apps: ReturnType<typeof Fastify>[] = [];
 
   afterEach(async () => {

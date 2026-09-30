@@ -3,6 +3,7 @@ name: PR Quality Gates
 on:
   pull_request:
     branches: [master, main]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -19,11 +20,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
 
       - name: Biome check
         run: npx biome check src/
@@ -38,46 +42,28 @@ jobs:
     name: Unit Tests (mock, PrismaClient init needs DB)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: dialog_survey_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: Install Playwright for PDF export tests
         run: npx playwright install --with-deps chromium
-
-      - name: Push Prisma schema
-        run: npx prisma db push
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
 
       - name: Run unit tests
         run: npx vitest run --exclude '**/*.integration.test.ts' --exclude 'tests/e2e/**'
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
-          TEST_DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
           DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || 'dummy-ci-client-id' }}
           DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || 'dummy-ci-client-secret' }}
 
@@ -85,45 +71,28 @@ jobs:
     name: Integration Tests (real PostgreSQL)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: dialog_survey_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: Install Playwright for PDF export tests
         run: npx playwright install --with-deps chromium
-
-      - name: Push Prisma schema
-        run: npx prisma db push
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
 
       - name: Run integration tests
         run: npx vitest run tests/*.integration.test.ts
         env:
           NODE_ENV: test
-          TEST_DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
           LLM_API_KEY: ${{ secrets.LLM_API_KEY || '' }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || '' }}
           LLM_MODEL: ${{ secrets.LLM_MODEL || '' }}
@@ -142,7 +111,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
@@ -169,46 +138,28 @@ jobs:
     # Run regardless of integration test failures (known pre-existing data residue issue)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: dialog_survey_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: Install Playwright for PDF export tests
         run: npx playwright install --with-deps chromium
-
-      - name: Push Prisma schema
-        run: npx prisma db push
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
 
       - name: Run all tests with coverage
         run: npx vitest --coverage
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
-          TEST_DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
           LLM_API_KEY: ${{ secrets.LLM_API_KEY || '' }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || '' }}
           LLM_MODEL: ${{ secrets.LLM_MODEL || '' }}
@@ -225,51 +176,33 @@ jobs:
           retention-days: 7
 
   e2e-tests:
-    name: E2E Tests (Playwright, real PostgreSQL)
+    name: E2E Tests (Playwright, PGlite)
     if: always()
     needs: [static-analysis, unit-tests, integration-tests, security-scan]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: dialog_survey_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
-
-      - name: Push Prisma schema
-        run: npx prisma db push
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
 
       - name: Run E2E tests
         run: npx vitest run tests/e2e/*.e2e.test.ts --reporter=verbose --test-timeout=30000
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
-          TEST_DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
           LLM_API_KEY: ${{ secrets.LLM_API_KEY || '' }}
           LLM_BASE_URL: ${{ secrets.LLM_BASE_URL || '' }}
           LLM_MODEL: ${{ secrets.LLM_MODEL || '' }}
@@ -288,11 +221,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: '.nvmrc'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
 
       - name: Run smoke test
         run: npm run smoke

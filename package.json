@@ -1,22 +1,31 @@
 {
   "name": "dialog-survey",
-  "version": "1.8.9",
+  "version": "1.10.0",
   "type": "module",
   "description": "AI-powered survey dialog bot that conducts async multi-turn conversations via DingTalk",
   "repository": {
     "type": "git",
     "url": "https://github.com/boyingliu01/dialog-survey"
   },
-  "files": ["dist/", "scripts/", "src/views/", "public/", "prisma/", "ecosystem.config.cjs"],
+  "files": [
+    "dist/",
+    "scripts/",
+    "src/views/",
+    "public/",
+    "prisma/",
+    "prisma.config.ts",
+    "ecosystem.config.cjs"
+  ],
   "bin": {
     "dialog-survey": "scripts/cli.mjs"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=20.19.0"
   },
   "scripts": {
     "dev": "tsx --env-file=.env --watch src/server.ts",
     "build": "tsc",
+    "prisma:generate": "prisma generate",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
     "lint": "biome lint src",
@@ -43,8 +52,8 @@
     "@fastify/websocket": "^11.2.0",
     "@langchain/core": "^1.1.37",
     "@langchain/langgraph": "^1.2.6",
-    "@prisma/adapter-pg": "^5.22.0",
-    "@prisma/client": "5.22.0",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
     "bcryptjs": "^2.4.3",
     "csv-parse": "^7.0.0",
     "dotenv": "^17.3.1",
@@ -64,6 +73,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@electric-sql/pglite": "0.5.8",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/typescript-checker": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
@@ -74,7 +84,8 @@
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.2",
     "jscpd": "^4.2.4",
-    "prisma": "5.22.0",
+    "pglite-prisma-adapter": "0.7.2",
+    "prisma": "7.10.0",
     "tsx": "^4.7.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.2"
@@ -83,10 +94,7 @@
     "qs": "6.15.2"
   },
   "allowScripts": {
-    "@prisma/engines@5.22.0": true,
-    "@prisma/client@5.22.0": true,
     "esbuild@0.28.1": true,
-    "prisma@5.22.0": true,
     "@biomejs/biome@1.9.4": true
   }
 }

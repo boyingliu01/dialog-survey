@@ -1,5 +1,5 @@
-import type { PrismaClient } from '@prisma/client';
 import { info } from '../utils/logger.js';
+import type { PrismaClient } from '../utils/prisma-client.js';
 
 export async function recordAnalysisFailure(
   prisma: PrismaClient,

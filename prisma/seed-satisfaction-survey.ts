@@ -1,7 +1,8 @@
-import { PrismaClient, type TemplateStatus } from '@prisma/client';
 import { info } from '../src/utils/logger.js';
+import type { TemplateStatus } from '../src/utils/prisma-client.js';
+import { createPrismaClient } from '../src/utils/prisma-factory.js';
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 async function seedSatisfactionSurveyTemplate() {
   const existing = await prisma.template.findFirst({

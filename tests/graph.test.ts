@@ -2,6 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { runInterviewGraph } from '../src/core/graph.js';
 import type { InterviewState } from '../src/core/types/index.js';
 
+// graph.ts fires a background analysis via setImmediate → getDb(), which
+// createPrismaClient() refuses to build without DATABASE_URL; any well-formed
+// URL keeps that fire-and-forget path logging instead of throwing uncaught.
+// The stub intentionally lives for the process lifetime: a pending setImmediate
+// can outlive the file's last test, so an afterAll unstub would re-create the
+// uncaught throw. Vitest's per-file module isolation scopes it to this file.
+vi.stubEnv('DATABASE_URL', 'postgresql://test:test@localhost:5432/dialog_survey_test');
+
 vi.mock('../src/core/nodes/planning.js', () => ({
   planningNode: vi.fn().mockResolvedValue({
     currentQuestion: 0,

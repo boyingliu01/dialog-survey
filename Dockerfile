@@ -32,6 +32,10 @@ COPY --from=builder /app/package.json ./package.json
 # Copy runtime files
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/src/views ./src/views
+COPY --from=builder /app/public ./public
+
+# Runtime files needed by the Prisma CLI (container-side db push, DD-009)
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
 # Copy environment template
 COPY --from=builder /app/.env.example ./.env.example
@@ -39,9 +43,9 @@ COPY --from=builder /app/.env.example ./.env.example
 # Switch to non-root user
 USER nodejs
 
-# Health check
+# Health check — node fetch, not curl (curl is absent from node:20-alpine)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3001/health || exit 1
+  CMD node -e "fetch('http://127.0.0.1:3001/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 EXPOSE 3001
 

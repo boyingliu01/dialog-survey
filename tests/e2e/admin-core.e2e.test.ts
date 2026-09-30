@@ -77,8 +77,15 @@ describe('Admin Core Paths (Playwright E2E)', () => {
         throw err;
       });
 
-      const mainContent = await page.textContent('#main-content');
-      expect(mainContent).toContain('计划进度');
+      // HTMX swaps the fragment after the response lands; poll instead of
+      // sampling #main-content once (the swap can trail the response under load).
+      await vi.waitFor(
+        async () => {
+          const mainContent = await page.textContent('#main-content');
+          expect(mainContent).toContain('计划进度');
+        },
+        { timeout: 15_000 }
+      );
     });
 
     it('should not crash on non-existent content route', async () => {
@@ -102,8 +109,13 @@ describe('Admin Core Paths (Playwright E2E)', () => {
         newTemplateBtn.click(),
       ]);
 
-      const mainContent = await page.textContent('#main-content');
-      expect(mainContent).toContain('新建模板');
+      await vi.waitFor(
+        async () => {
+          const mainContent = await page.textContent('#main-content');
+          expect(mainContent).toContain('新建模板');
+        },
+        { timeout: 15_000 }
+      );
     });
 
     it('should navigate to template import page', async () => {

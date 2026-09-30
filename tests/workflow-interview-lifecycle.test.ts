@@ -1,6 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { registerTestAdminAuth } from './helpers/admin-auth.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),
@@ -139,7 +140,11 @@ async function createAnalysisApp() {
   return app;
 }
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 // ---------------------------------------------------------------------------
 // Shared fixture state for Scenario 2 — populated once per suite run

@@ -11,10 +11,10 @@
  * npx tsx scripts/fix-max-followups.ts
  */
 
-import { PrismaClient } from '@prisma/client';
 import { error, info } from '../src/utils/logger.js';
+import { createPrismaClient } from '../src/utils/prisma-factory.js';
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 async function fixMaxFollowups() {
   info('Starting maxFollowups fix...');

@@ -1,10 +1,11 @@
 import { resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import fastifyView from '@fastify/view';
-import { PrismaClient } from '@prisma/client';
 import nunjucks from 'nunjucks';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { registerTestAdminAuth } from './helpers/admin-auth.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),
@@ -13,7 +14,11 @@ vi.mock('../src/utils/logger.js', () => ({
   debug: vi.fn(),
 }));
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 // Create a minimal test app
 async function createTestApp() {

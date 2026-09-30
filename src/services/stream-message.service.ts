@@ -1,10 +1,10 @@
-import type { PrismaClient } from '@prisma/client';
 import { runInterviewGraph } from '../core/graph.js';
 import type { GraphResult } from '../core/graph.js';
 import { DEFAULT_MAX_FOLLOWUPS, type InterviewState } from '../core/types/index.js';
 import { InterviewStateRepository } from '../repositories/interview-state.repository.js';
 import { TemplateRepository } from '../repositories/template.repository.js';
 import { error, info } from '../utils/logger.js';
+import type { PrismaClient } from '../utils/prisma-client.js';
 import {
   isAllowedWebhookUrl,
   parseStreamMessage,

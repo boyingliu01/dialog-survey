@@ -1,7 +1,7 @@
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { AnalysisService } from '../services/analysis.service.js';
+import type { PrismaClient } from '../utils/prisma-client.js';
 
 const analyzeSingleSchema = z.object({
   interviewId: z.string().uuid(),

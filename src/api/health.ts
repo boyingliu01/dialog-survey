@@ -1,6 +1,6 @@
-import type { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { error, info } from '../utils/logger.js';
+import type { PrismaClient } from '../utils/prisma-client.js';
 
 interface HealthResponse {
   status: 'healthy' | 'degraded' | 'unhealthy';

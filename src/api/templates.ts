@@ -1,9 +1,9 @@
-import type { PrismaClient } from '@prisma/client';
-import { TemplateStatus } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { TemplateRepository } from '../repositories/template.repository.js';
 import { updateTemplateDimensions } from '../services/template-dimension.service.js';
+import type { PrismaClient } from '../utils/prisma-client.js';
+import { TemplateStatus } from '../utils/prisma-client.js';
 
 export interface TemplateRoutesOptions {
   templateRepo: TemplateRepository;

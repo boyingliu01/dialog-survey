@@ -8,11 +8,12 @@ import rateLimit from '@fastify/rate-limit';
 import secureSession from '@fastify/secure-session';
 import fastifyStatic from '@fastify/static';
 import fastifyView from '@fastify/view';
-import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyServerOptions } from 'fastify';
 import nunjucks from 'nunjucks';
+import type { PrismaClient } from './utils/prisma-client.js';
+import { createPrismaClient } from './utils/prisma-factory.js';
 
 // Load .env early but explicitly (not via side-effect import).
 // Use override only outside tests so vi.stubEnv() controls env in test runs.
@@ -56,16 +57,20 @@ const LOG_LEVEL = process.env['LOG_LEVEL'] || (NODE_ENV === 'production' ? 'info
 
 type BuildAppOptions = {
   readonly fastifyFactory?: (options: FastifyServerOptions) => FastifyInstance;
+  readonly prismaFactory?: () => PrismaClient;
 };
 
 export function createFastify(options: FastifyServerOptions): FastifyInstance {
   return Fastify(options);
 }
 
-export async function checkDatabaseConnection(): Promise<boolean> {
-  const prisma = new PrismaClient();
+export async function checkDatabaseConnection(
+  prismaFactory: () => PrismaClient = createPrismaClient
+): Promise<boolean> {
+  let prisma: PrismaClient | undefined;
 
   try {
+    prisma = prismaFactory();
     await Promise.race([
       prisma.$queryRaw`SELECT 1`,
       new Promise((_, reject) =>
@@ -81,7 +86,9 @@ export async function checkDatabaseConnection(): Promise<boolean> {
     error('Run: sudo systemctl start postgresql');
     return false;
   } finally {
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   }
 }
 
@@ -164,7 +171,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
       options: { autoescape: true, noCache: true },
     });
 
-    const applicationPrisma = new PrismaClient();
+    const applicationPrisma = (options.prismaFactory ?? createPrismaClient)();
     prisma = applicationPrisma;
     const templateRepo = new TemplateRepository(applicationPrisma);
     const streamClient = DingTalkStreamClient.fromEnv();

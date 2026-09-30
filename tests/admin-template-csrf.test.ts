@@ -1,6 +1,5 @@
 import csrfProtection from '@fastify/csrf-protection';
 import secureSession from '@fastify/secure-session';
-import { PrismaClient } from '@prisma/client';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { adminTemplatesRoutes } from '../src/api/admin-templates.js';
@@ -9,6 +8,7 @@ import { TemplateRepository } from '../src/repositories/template.repository.js';
 import { AnalysisService } from '../src/services/analysis.service.js';
 import { AnalyticsService } from '../src/services/analytics.service.js';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 type BrowserState = {
   readonly cookie: string;
@@ -59,8 +59,8 @@ function cookieHeader(...setCookieHeaders: (string | string[] | undefined)[]): s
   return [...cookies.values()].join('; ');
 }
 
-describe('admin template mutation CSRF', () => {
-  const prisma = new PrismaClient();
+describe('admin template mutation CSRF', async () => {
+  const prisma = await getSharedTestPrisma();
   const apps: FastifyInstance[] = [];
 
   async function createApp(): Promise<FastifyInstance> {

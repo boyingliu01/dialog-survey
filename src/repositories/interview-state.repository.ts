@@ -1,6 +1,6 @@
-import type { PrismaClient } from '@prisma/client';
 import { DEFAULT_MAX_FOLLOWUPS, type InterviewState } from '../core/types/index.js';
 import { error, info } from '../utils/logger.js';
+import type { PrismaClient } from '../utils/prisma-client.js';
 import { mapInterviewToInterviewState } from './interview-state-mapper.js';
 
 export class StatePersistenceError extends Error {

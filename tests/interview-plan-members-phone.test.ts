@@ -1,8 +1,9 @@
-import { PrismaClient } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { registerTestAdminAuth } from './helpers/admin-auth.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 // Mock DingTalk client — phone lookup returns controlled results without real API calls
 class MockDingTalkClient {
@@ -44,7 +45,11 @@ vi.mock('../src/utils/logger.js', () => ({
   debug: vi.fn(),
 }));
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 async function cleanPlan(planId: string) {
   await prisma.interview.deleteMany({ where: { planId } }).catch(() => {});
@@ -77,11 +82,16 @@ describe('Phone member tests (real DB integration)', () => {
     await prisma.$disconnect();
   });
 
-  // Safety net: clean up any leftover test data
+  // Safety net: clean up any leftover test data. Scoped to this file's own
+  // 'Phone-' templates — every file shares one database and runs in parallel,
+  // so an unscoped deleteMany(userId) would wipe other files' live fixtures.
   afterEach(async () => {
     await prisma.interview
       .deleteMany({
-        where: { userId: { in: ['user_zhangsan', 'user_lisi', 'phone-test-1', 'phone-test-2'] } },
+        where: {
+          userId: { in: ['user_zhangsan', 'user_lisi', 'phone-test-1', 'phone-test-2'] },
+          template: { name: { startsWith: 'Phone-' } },
+        },
       })
       .catch(() => {});
   });

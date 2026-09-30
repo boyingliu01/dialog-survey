@@ -1,6 +1,6 @@
-import type { PrismaClient } from '@prisma/client';
 import { generateSmartResponse } from '../../services/followup.service.js';
 import { info, warn } from '../../utils/logger.js';
+import type { PrismaClient } from '../../utils/prisma-client.js';
 import {
   DEFAULT_CLOSING_MESSAGE,
   type InterviewState,

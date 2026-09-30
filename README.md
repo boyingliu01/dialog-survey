@@ -5,7 +5,7 @@
 > An AI-powered survey dialog bot that conducts async multi-turn conversations via DingTalk — with LLM-driven follow-ups, context memory, and automated report generation.
 
 [![Version](https://img.shields.io/badge/version-1.8.1-blue)](https://github.com/boyingliu01/dialog-survey)
-[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)]()
+[![Node](https://img.shields.io/badge/node-%3E%3D20.19-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
 ---
@@ -22,7 +22,7 @@ npx dialog-survey start
 # That's it. Your dialog bot is live on DingTalk.
 ```
 
-**Prerequisites:** Node.js >= 20, PostgreSQL 14+, a DingTalk application (Client ID/Secret/Agent ID).
+**Prerequisites:** Node.js >= 20.19, PostgreSQL 14+, a DingTalk application (Client ID/Secret/Agent ID).
 
 ---
 
@@ -70,7 +70,7 @@ Dialog Survey is an **async survey dialog bot** that lives inside DingTalk. You 
 | **Conversation Engine** | Custom LangGraph-inspired workflow (not StateGraph API) |
 | **LLM** | OpenAI-compatible API — ollama / vLLM / LocalAI / cloud |
 | **Messaging** | DingTalk Stream Mode (WebSocket) |
-| **Database** | PostgreSQL + Prisma ORM |
+| **Database** | PostgreSQL + Prisma 7 (driver adapters) |
 | **Web Framework** | Fastify 5.x |
 | **Templates** | Nunjucks (admin UI) |
 | **Language** | TypeScript (strict mode, ESM) |
@@ -93,7 +93,7 @@ npx dialog-survey install \
   --dingtalk-agent-id "xxx"
 ```
 
-This generates `.env`, runs `prisma generate` + `db push`, and sets up PM2 (Linux/macOS) or direct node launch (Windows).
+This generates `.env`, syncs the schema with `prisma db push` (Prisma 7), and sets up PM2 (Linux/macOS) or direct node launch (Windows).
 
 #### Option B: Docker Compose (recommended for evaluation)
 
@@ -250,9 +250,10 @@ Health check: `curl http://localhost:3001/health`
 ### Development Commands
 
 ```bash
+npx prisma generate  # Generate Prisma client (required after checkout)
 npm run dev          # Hot-reload dev server on :3001
 npm run type-check   # TypeScript check (tsc --noEmit)
-npm test             # Run tests (Vitest)
+npm test             # Vitest watch; npx vitest run for one-shot — no PostgreSQL needed (PGlite)
 npm run lint         # Biome lint
 npm run build        # Compile to dist/
 npm run smoke        # Quick sanity check (type-check + lint + key tests)
@@ -272,8 +273,9 @@ dialog-survey/
 │   ├── integrations/ # DingTalk + LLM clients
 │   ├── middleware/   # Fastify middleware
 │   ├── views/        # Nunjucks admin UI (HTMX + Alpine.js)
-│   └── utils/        # Helpers (logger, security, PII, etc.)
-├── tests/            # 92 files, ~930 tests (Vitest)
+│   ├── generated/    # Prisma client output (gitignored; npx prisma generate)
+│   └── utils/        # Helpers (logger, security, PII, etc.) + Prisma facade/factory
+├── tests/            # 117 files, ~1266 tests (Vitest + PGlite, no PostgreSQL needed)
 ├── scripts/          # CLI binary + deploy scripts
 ├── prisma/           # Schema + migrations + seeds
 └── docs/             # Architecture & design docs

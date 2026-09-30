@@ -1,5 +1,5 @@
-import { TemplateStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { TemplateStatus } from '../src/utils/prisma-client.js';
 
 let idCounter = 0;
 const generateId = () => `tmpl-${Date.now()}-${++idCounter}`;
