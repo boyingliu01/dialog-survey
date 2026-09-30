@@ -1,0 +1,360 @@
+{
+  "startedAt": "2026-09-29T14:42:12.287Z",
+  "finishedAt": "2026-09-29T14:45:32.192Z",
+  "platform": "win32/x64",
+  "node": "v24.19.0",
+  "results": [
+    {
+      "id": 0,
+      "name": "adapter peerDeps compat (@prisma/client ^7) + npm ls clean",
+      "status": "PASS",
+      "detail": "peers={\"@electric-sql/pglite\":\">=0.2.0\",\"@prisma/client\":\">= 7.1.0\"}; npm ls warnings=0",
+      "evidence": {
+        "version": "0.7.2",
+        "peers": {
+          "@electric-sql/pglite": ">=0.2.0",
+          "@prisma/client": ">= 7.1.0"
+        },
+        "peerWarnLines": []
+      },
+      "durationMs": 3723
+    },
+    {
+      "id": 1,
+      "name": "DDL generation + PGlite replay (no CREATE EXTENSION)",
+      "status": "PASS",
+      "detail": "extension=false; public tables=10; ddl bytes=8013",
+      "evidence": {
+        "hasExtension": false,
+        "tableCount": 10,
+        "ddlBytes": 8013,
+        "ddlHead": "-- CreateSchema\nCREATE SCHEMA IF NOT EXISTS \"public\";\n\n-- CreateEnum\nCREATE TYPE \"InterviewStatus\" AS ENUM ('PENDING', 'ACTIVE', 'PROCESSING', 'WAITING', 'COMPLETED', 'CANCELLED');\n\n-- CreateEnum\nCREA"
+      },
+      "durationMs": 14246
+    },
+    {
+      "id": 2,
+      "name": "full schema: 10 models / 6 enums / arrays / json / uuid / composite unique",
+      "status": "PASS",
+      "detail": "10 models CRUD; P2002=true; relations/arrays/json OK=true",
+      "evidence": {
+        "p2002Hit": true,
+        "interviewStatus": "PENDING",
+        "arrays": [
+          "k1",
+          "k2"
+        ]
+      },
+      "durationMs": 5324
+    },
+    {
+      "id": 3,
+      "name": "interactive $transaction (nested + rollback)",
+      "status": "PASS",
+      "detail": "rollback=true; rowsAfterRollback=0; readModifyWrite version=2",
+      "evidence": {
+        "rolledBack": true,
+        "countAfterRollback": 0,
+        "version": 2
+      },
+      "durationMs": 4322
+    },
+    {
+      "id": "3b",
+      "name": "production transaction shapes",
+      "status": "PASS",
+      "detail": "3 production tx shapes OK=true",
+      "evidence": {
+        "a": "747a8b86-4e5c-4d7c-9c76-928b9c3e8be6",
+        "b": "PAUSED",
+        "c": 3
+      },
+      "durationMs": 3143
+    },
+    {
+      "id": 4,
+      "name": "$queryRaw tagged template",
+      "status": "PASS",
+      "detail": "tagged template raw queries OK=true",
+      "evidence": {
+        "one": {
+          "ok": 1
+        }
+      },
+      "durationMs": 3928
+    },
+    {
+      "id": 5,
+      "name": "P2002 error code parity",
+      "status": "PASS",
+      "detail": "code=P2002",
+      "evidence": {
+        "code": "P2002",
+        "meta": {
+          "modelName": "AnalysisFailure",
+          "driverAdapterError": {
+            "name": "DriverAdapterError",
+            "cause": {
+              "originalCode": "23505",
+              "originalMessage": "duplicate key value violates unique constraint \"AnalysisFailure_interviewId_errorType_key\"",
+              "kind": "UniqueConstraintViolation",
+              "constraint": {
+                "fields": [
+                  "\"interviewId\"",
+                  "\"errorType\""
+                ]
+              }
+            }
+          }
+        }
+      },
+      "durationMs": 4003
+    },
+    {
+      "id": 6,
+      "name": "Fastify mixed load: 20 concurrent (15 plain + 5 long tx)",
+      "status": "PASS",
+      "detail": "20 concurrent (15 plain + 5 tx) statuses all 200=true; version=6",
+      "evidence": {
+        "statuses": [
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "version": 6
+      },
+      "durationMs": 4503
+    },
+    {
+      "id": "6b",
+      "name": "concurrent optimistic lock (double tx, same row)",
+      "status": "FAIL",
+      "detail": "winnerCounts=[1,1]; finalVersion=3",
+      "evidence": {
+        "winnerCounts": [
+          1,
+          1
+        ],
+        "finalVersion": 3
+      },
+      "durationMs": 4413
+    },
+    {
+      "id": 8,
+      "name": "prisma generate without DATABASE_URL (env isolation)",
+      "status": "PASS",
+      "detail": "no-env exit=0; dummy-env exit=0; landing=no dummy env needed (DD-008 branch B)",
+      "evidence": {
+        "noEnvExit": 0,
+        "withDummyExit": 0,
+        "needsDummy": false,
+        "noEnvStderrTail": "Loaded Prisma config from prisma.config.ts.\n\nPrisma schema loaded from prisma\\schema.prisma.\n",
+        "withDummyStderrTail": "Loaded Prisma config from prisma.config.ts.\n\nPrisma schema loaded from prisma\\schema.prisma.\n"
+      },
+      "durationMs": 19298
+    },
+    {
+      "id": 9,
+      "name": "strict tsc + facade symbols + cross-path type identity",
+      "status": "PASS",
+      "detail": "probe=true; repo-wide tsc=true",
+      "evidence": {
+        "checks": [
+          {
+            "name": "tsc --noEmit (repo, strict)",
+            "ok": true,
+            "detail": ""
+          },
+          {
+            "name": "probe: symbols + identity + factory assignability",
+            "ok": true,
+            "detail": ""
+          }
+        ]
+      },
+      "durationMs": 16440
+    },
+    {
+      "id": 10,
+      "name": "production adapter path via createPrismaClient (real PG)",
+      "status": "PASS",
+      "detail": "real PG query ok; bad-port connect failed in 14ms",
+      "evidence": {
+        "serverVersion": "18.4",
+        "badPortMs": 14,
+        "badMessage": "\nInvalid `prisma.$queryRaw()` invocation:\n\n\nRaw query failed. Code: `N/A`. Message: `Can't reach database server at 127.0.0.1:59999`"
+      },
+      "durationMs": 304
+    },
+    {
+      "id": 12,
+      "name": "createTestPrisma timing / memory / RSS curve",
+      "status": "FAIL",
+      "detail": "cold(DDL+exec)=6676ms; warm p95=2440ms (n=5 [2021,2041,2078,2433,2440]); RSS base=975.2MB → 3-concurrent per-instance≈141.8MB; after release=1400.5MB",
+      "evidence": {
+        "coldMs": 6676,
+        "warm": [
+          2021,
+          2041,
+          2078,
+          2433,
+          2440
+        ],
+        "warmP95": 2440,
+        "firstQuery": 0,
+        "rssCurve": [
+          {
+            "i": 0,
+            "rssMb": 986.8
+          },
+          {
+            "i": 1,
+            "rssMb": 986.3
+          },
+          {
+            "i": 2,
+            "rssMb": 988.2
+          },
+          {
+            "i": 3,
+            "rssMb": 993.7
+          },
+          {
+            "i": 4,
+            "rssMb": 995.1
+          },
+          {
+            "i": 5,
+            "rssMb": 996.6
+          }
+        ],
+        "concurrentRss": [
+          {
+            "instances": 1,
+            "rssMb": 996.3
+          },
+          {
+            "instances": 2,
+            "rssMb": 1198.7
+          },
+          {
+            "instances": 3,
+            "rssMb": 1400.5
+          }
+        ],
+        "rssBaseMb": 975.2,
+        "perInstanceMb": 141.8,
+        "rssAfterReleaseMb": 996.6,
+        "rssAfterAllMb": 1400.5
+      },
+      "durationMs": 36860
+    },
+    {
+      "id": "12b",
+      "name": "PGlite template fast path (dumpDataDir → loadDataDir)",
+      "status": "PASS",
+      "detail": "templateBuild=2612ms (DDL cached); dump=39MB; warm p95=692ms (n=5 [425,506,558,647,692])",
+      "evidence": {
+        "buildMs": 2612,
+        "dumpBytes": 40906752,
+        "warm": [
+          425,
+          506,
+          558,
+          647,
+          692
+        ],
+        "warmP95": 692
+      },
+      "durationMs": 5443
+    },
+    {
+      "id": 7,
+      "name": "dual platform (this run)",
+      "status": "INFO",
+      "detail": "ran on win32/x64; CI ubuntu-latest run provides the second platform",
+      "evidence": {
+        "platform": "win32",
+        "arch": "x64",
+        "node": "v24.19.0"
+      },
+      "durationMs": 0
+    },
+    {
+      "id": 11,
+      "name": "fresh-install scenario (npm pack → isolated install → db push)",
+      "status": "PASS",
+      "detail": "config=true; prodInstall=true; configForms=[runtime-defineConfig:fail, type-only-import:ok, plain-object:ok]; workingForm=type-only-import; shippedConfigLoads=true; dbPush=0; autoGenerated=false; --no-generate=false",
+      "evidence": {
+        "tarball": "dialog-survey-1.8.9.tgz",
+        "hasConfig": true,
+        "hasSchema": true,
+        "installExit": 0,
+        "pkgDirListing": [
+          "dist",
+          "ecosystem.config.cjs",
+          "package.json",
+          "prisma",
+          "prisma.config.ts",
+          "public",
+          "README.md",
+          "README.zh-CN.md",
+          "scripts",
+          "src"
+        ],
+        "configFormResults": [
+          {
+            "form": "runtime-defineConfig",
+            "ok": false,
+            "stderrTail": "Failed to load config file \"C:\\Users\\think\\AppData\\Local\\Temp\\spike-install-YFoJJx\\isolated\\node_modules\\dialog-survey\\prisma.config.ts\" as a TypeScript/JavaScript module. Error: Error: Cannot find module 'prisma/config'\nRequire stack:\n- C:\\Users\\think\\AppData\\Local\\Temp\\spike-install-YFoJJx\\isolated\\node_modules\\dialog-survey\\prisma.config.ts\n"
+          },
+          {
+            "form": "type-only-import",
+            "ok": true,
+            "stderrTail": "Loaded Prisma config from prisma.config.ts.\n\nPrisma schema loaded from prisma\\schema.prisma.\n"
+          },
+          {
+            "form": "plain-object",
+            "ok": true,
+            "stderrTail": "Loaded Prisma config from prisma.config.ts.\n\nPrisma schema loaded from prisma\\schema.prisma.\n"
+          }
+        ],
+        "workingForm": "type-only-import",
+        "threePaths": {
+          "noGenerateFlag": false,
+          "skipEnvTested": true,
+          "readOnlySchemaPath": "untested-fallback"
+        },
+        "pushResult": {
+          "attempted": true,
+          "target": "scratch",
+          "defaultExitCode": 0,
+          "autoGenerated": false,
+          "shippedConfigLoaded": true,
+          "noGenerateExitCode": null,
+          "skipEnvExitCode": 0,
+          "stderrTail": "Loaded Prisma config from prisma.config.ts.\n\nPrisma schema loaded from prisma\\schema.prisma.\n"
+        }
+      },
+      "durationMs": 73923
+    }
+  ],
+  "verdict": "FAIL"
+}

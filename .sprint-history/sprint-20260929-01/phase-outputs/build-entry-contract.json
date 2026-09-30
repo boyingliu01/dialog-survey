@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-09-29T14:19:05.774Z",
+  "slices_manifest_exist": true,
+  "schema_valid": true,
+  "spec_reqs": [
+    "REQ-PRISMA7-001",
+    "REQ-PRISMA7-002",
+    "REQ-PRISMA7-003",
+    "REQ-PRISMA7-004",
+    "REQ-PRISMA7-005",
+    "REQ-PRISMA7-006"
+  ],
+  "slice_req_refs": [
+    "REQ-PRISMA7-006",
+    "REQ-PRISMA7-001",
+    "REQ-PRISMA7-002",
+    "REQ-PRISMA7-003",
+    "REQ-PRISMA7-004",
+    "REQ-PRISMA7-005"
+  ],
+  "missing_refs": [],
+  "uncovered_reqs": [],
+  "ok": true
+}

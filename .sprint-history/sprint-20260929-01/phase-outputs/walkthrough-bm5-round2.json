@@ -1,0 +1,124 @@
+{
+  "mode": "code-walkthrough",
+  "round": 2,
+  "timestamp": "2026-09-29T18:28:00.810Z",
+  "artifact": ".sprint-state/phase-outputs/walkthrough-bm5-artifact-r2.md",
+  "artifact_hash": "f5f38f1204ed63078bc28b6d39e953438084e1382029ccf70a73b8126a69341a",
+  "artifact_bytes": 80375,
+  "max_tokens": 16000,
+  "context_files": [
+    {
+      "path": "specification.yaml",
+      "bytes": 9419
+    },
+    {
+      "path": "tests/helpers/pglite-template.ts",
+      "bytes": 6978
+    },
+    {
+      "path": "tests/helpers/create-test-prisma.ts",
+      "bytes": 1372
+    },
+    {
+      "path": "tests/helpers/test-db.ts",
+      "bytes": 3454
+    },
+    {
+      "path": "tests/global-setup.ts",
+      "bytes": 1443
+    },
+    {
+      "path": ".github/workflows/pr.yml",
+      "bytes": 6709
+    },
+    {
+      "path": ".sprint-state/phase-outputs/ac003-timing-and-memory-evidence.md",
+      "bytes": 2913
+    }
+  ],
+  "models": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash"
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash"
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "experts": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [
+        "CI Workflow Naming Mismatch: The `integration-tests` job in `.github/workflows/pr.yml` is still named 'Integration Tests (real PostgreSQL)' despite the removal of the PostgreSQL service and migration to PGlite. This creates a discrepancy between CI status checks/required checks configuration and the actual test environment, potentially causing confusion during triage or blocking PR merges if branch protection rules rely on exact string matching."
+      ],
+      "minor_concerns": [
+        "`tests/helpers/pglite-template.ts`: The `templateDisabled` latch correctly prevents re-attempting the poisoned template Blob within the same process, but it permanently disables the fast path for all subsequent test files in that worker after a single transient failure. While acceptable for test infrastructure, this could mask intermittent WASM initialization issues.",
+        "`vitest.config.ts`: `maxWorkers = Math.min(4, os.cpus().length)` combined with `fileParallelism: true` and `retry: 1` means up to 4 concurrent PGlite instances (~140MB each) plus Chromium processes run simultaneously. The artifact cites local memory evidence (peak 4.4GB), but CI runner memory limits (typically 7GB) leave less headroom; first-run validation is pending.",
+        "`scripts/cli.mjs`: `checkNodeVersion()` uses a manual semver comparison loop. It correctly handles standard versions but would silently pass pre-release suffixes like `'20.19.0-rc.1'` due to `parseInt('0-rc')` returning 0. Low risk in practice but worth noting for strictness.",
+        "`Dockerfile`: Healthcheck timeout is 3s. If `/health` performs synchronous DB + LLM + DingTalk checks (as implied by DEPLOY.md), a cold start or slow external dependency could exceed this, marking the container unhealthy prematurely. `--start-period=5s` may be insufficient for Prisma 7 driver-adapter connection setup."
+      ],
+      "consensus_ratio": 0.95,
+      "summary": "The architectural changes successfully decouple tests from external PostgreSQL dependencies using PGlite, with sound module boundaries (facade/factory pattern) and correct dependency directions. The migration strategy is robust, though minor optimizations for concurrent template building and stricter version alignment in the CLI installer are recommended. The primary issue is a cosmetic but operationally significant mismatch in CI job naming that should be corrected before merge.",
+      "prompt_bytes": 122824,
+      "duration_ms": 13213
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash",
+      "verdict": "APPROVED",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [
+        "templateDisabled latch (tests/helpers/pglite-template.ts:createTestPglite) is a process-wide permanent disable after ONE failed template init. This is intended per the R2 note, but it is a one-way latch with no reset: a transient failure (e.g. a racing worker's rmSync of the tar between existsSync and readFileSync, or a momentary OOM during WASM boot) permanently degrades the rest of the process to the DDL-replay path. Correctness is preserved (replay path is the tested fallback), so this is a perf/observability concern, not a defect. The latch also does not interact with discardTemplate() in a harmful way: discardTemplate() only rm's activeTemplatePath, which is set inside loadOrBuildTemplate; on the second call the memoized templatePromise is still the bad Blob, but templateDisabled short-circuits before getTemplateDataDir() is consulted, so the poisoned promise is never re-awaited. The R1 technical-M1 concern is therefore resolved as stated.",
+        "Divergent lifecycle contracts between test-db.ts (TestDatabase.teardown closes pglite explicitly) and create-test-prisma.ts (docstring says $disconnect is a no-op and process exit reclaims the WASM heap). R2 addressed this by documenting the asymmetry in the createTestPrisma docstring, which is the correct minimal fix. Residual risk: a test file that mixes getSharedTestPrisma() and TestDatabase would hold two independent PGlite instances (not double-close the same one), so no double-close hazard exists as written — the R1 technical-M3 concern is resolved.",
+        "AC-PRISMA7-003-02 timing evidence is now supplied (cold 3654 ms ≤ 5000 ms; warm p95 230/232 ms ≤ 2000 ms, n=20×2) against the shipped helper, closing the R1 feasibility-M2 gap. However the e2e memory evidence (peak 4441.8 MB) was measured on a 31.7 GB Windows host, not the 7 GB ubuntu-latest CI runner; the artifact itself flags 'CI 7 GB runner confirmation pending first PR run'. This is an honest residual-risk disclosure, not a defect, but the AC's 'no OOM' clause is not yet closed on the target platform.",
+        "CI job names in pr.yml remain stale ('Unit Tests (mock, PrismaClient init needs DB)', 'Integration Tests (real PostgreSQL)') while the jobs no longer use PostgreSQL. R2 verified via gh api that these exact strings ARE pinned as required branch-protection contexts with strict:true, so renaming is correctly deferred as a coordinated change. This is the right call — renaming now would break branch protection — and the concern is downgraded from R1 to a tracked non-blocking item."
+      ],
+      "minor_concerns": [
+        "tests/helpers/pglite-template.ts removeStaleTemplates() is called inside the same try as writeFileAtomic; if the write throws, cleanup is skipped and the catch swallows it. The R2 comment ('cleanup deferred to the next successful write') is now accurate, so this is correctly documented rather than a bug.",
+        "scripts/cli.mjs checkNodeVersion() semver loop: parseInt on a pre-release suffix (e.g. '20.19.0-rc.1' → parseInt('0-rc') = 0) would silently pass. process.versions.node is always 3-component numeric in practice, so low risk; the boundary tests (20.18.9 fail / 20.19.0 pass) cover the realistic cases.",
+        "tests/global-setup.ts spawnSync('npm', [...], { shell: process.platform === 'win32' }) — shell:true with an args array is deprecated on Windows and can mis-quote; on POSIX npm must be on PATH (it is in CI). The 180s blocking spawnSync in the main vitest process on cold checkout is acceptable but worth noting.",
+        "Dockerfile healthcheck --timeout=3s --start-period=5s with a /health endpoint that probes db+llm+dingtalk: the R2 response states db is a fast SELECT 1, LLM is cached 60s after success with a 30s internal abort, and DingTalk is config-only (no network), so the 3s timeout is defensible. Not verifiable from the diff alone; flagged as a runtime risk only.",
+        "tools/spike/prisma7-pglite-spike.mjs EXPECTED_FAILS 'PASS#' vs 'PASS' nuance — spike harness only, non-blocking (already tracked)."
+      ],
+      "consensus_ratio": 0.85,
+      "summary": "I maintain APPROVED. Every R1 concern is either fixed in cdffb69 (templateDisabled latch, guarded template read, lifecycle docstring, DEPLOY.md ENCRYPTION_KEY deprecation, stale-template comment) or answered with concrete evidence (AC-003-02 timing 3654 ms cold / 230-232 ms warm p95; e2e peak 4441.8 MB; branch-protection contexts verified via gh api). The templateDisabled latch is a one-way process-wide degradation but preserves correctness via the tested DDL-replay fallback and does not interact harmfully with discardTemplate(); the remaining items (CI-runner memory confirmation, stale job names, no real-PG CI path) are honestly disclosed residual risks that are inherently post-push or spec-sanctioned, not execution blockers.",
+      "prompt_bytes": 122804,
+      "duration_ms": 6211
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash",
+      "verdict": "APPROVED",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [],
+      "minor_concerns": [
+        "AGENTS.md CI note still reads 'every job runs npx prisma generate', but the security-scan job has no generate step (it is 6 of 7 jobs; the walkthrough itself correctly says 6 consuming jobs). Harmless docs-precision nit, tighten at SHIP.",
+        "AC-PRISMA7-003-02 evidence was gathered on Windows 10 / Node 24.18 / 31.7 GB host, while CI runs ubuntu / Node 20.19 via .nvmrc / claimed 7 GB runner. Headroom is large (cold 3654 ms vs 5000 ms = 1.37x; warm p95 230/232 ms vs 2000 ms = ~8.7x), so the tracked first-PR-run confirmation should suffice, but it remains an open verification dependency for a MUST AC.",
+        "tests/helpers/pglite-template.ts: promise memoization also persists rejections — a transient `prisma migrate diff` failure (ddlPromise) or template build failure (templatePromise) fails all DB-backed tests in that process with no in-process retry. Correct fail-fast with an actionable message, but a transient npx/FS hiccup requires a run restart.",
+        "Docker healthcheck --timeout=3s vs an uncached first /health LLM probe (30 s internal abort) is pre-existing from #57 and M4 only swapped the probe binary; steady-state probes are cache-served (60 s) and degraded returns 200 so r.ok stays true. Only a hung-LLM cold start can flap retries; monitor at SHIP, not a defect of this range."
+      ],
+      "consensus_ratio": 0.87,
+      "summary": "I maintain APPROVED and raise confidence 7→8: my R1 major on the AC-PRISMA7-003-02 evidence gap is closed with measurements against the shipped helper (cold 3654 ms ≤ 5000 ms including 1893 ms migrate diff; warm p95 230/232 ms ≤ 2000 ms at n=20×2; fresh-process first call 368–383 ms), and the cdffb69 batch is minimal (tests/helpers + DEPLOY.md only) with the templateDisabled latch and guarded template read verified in the diff. templateDisabled semantics are sound: activeTemplatePath is always assigned before a template Blob can be served, the process-wide skip is the intended bounded degradation (at most one failed boot + DDL replay per worker), and discardTemplate() only deletes the on-disk tar so concurrent workers pay at most one extra rebuild — no missed interaction. My remaining R1 items are properly dispositioned: executed-CI green run and CI-runner memory are inherently post-push and tracked; absence of real-PG/DD-010 coverage is spec-sanctioned by REQ-PRISMA7-003/004 (spike #6b divergence) with a nightly-job follow-up; branch-protection-pinned job names, archlint 208→219 reconciliation, and the package.json prisma:generate/files assertions are all answered with verifiable evidence, so nothing rises to a major or critical.",
+      "prompt_bytes": 122794,
+      "duration_ms": 159176
+    }
+  ],
+  "failures": [],
+  "aggregate": {
+    "verdict": "REQUEST_CHANGES",
+    "consensus_ratio": 0.89,
+    "all_approved": true,
+    "expert_count": 3
+  }
+}

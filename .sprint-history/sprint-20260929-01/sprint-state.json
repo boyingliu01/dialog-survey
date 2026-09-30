@@ -1,0 +1,68 @@
+{
+  "_schema_version": 1,
+  "evidence_schema_version": 2,
+  "id": "sprint-20260929-99",
+  "task_description": "Issue #149: Prisma 7 + PGlite 集成 — 解除集成测试对真实 PostgreSQL 的依赖。复用 2026-09-24 已批准设计（12 项 DD + Stage 0 spike 协议 + Stage A/B 分阶段），补完 Delphi 设计评审 + to-issues + specification.yaml，然后 BUILD/VERIFY/SHIP/CLOSE。验收：Prisma 7.10.0 升级 / PGlite 测试后端 / 全部测试无 PG 全绿 / CI 移除 postgres service / 本地 npm test 零手动步骤",
+  "phase": 5,
+  "status": "in_progress",
+  "started_at": "2026-09-29T13:06:20.192Z",
+  "phase_history": [
+    {
+      "phase": 1,
+      "name": "PREP",
+      "status": "completed",
+      "started_at": "2026-09-29T13:06:20.192Z",
+      "completed_at": "2026-09-29T13:07:18.771Z",
+      "duration_seconds": 59
+    },
+    {
+      "phase": 2,
+      "phase_name": "DESIGN",
+      "status": "completed",
+      "completed_at": "2026-09-29T14:17:27.333Z"
+    },
+    {
+      "phase": 3,
+      "phase_name": "BUILD",
+      "status": "completed",
+      "started_at": "2026-09-29T14:18:49.351Z",
+      "completed_at": "2026-09-29T18:09:37.001Z",
+      "duration_seconds": 13848
+    },
+    {
+      "phase": 4,
+      "phase_name": "VERIFY",
+      "status": "completed",
+      "completed_at": "2026-09-30T02:15:38.813Z"
+    },
+    {
+      "phase": 5,
+      "phase_name": "SHIP",
+      "status": "completed",
+      "started_at": "2026-09-30T02:16:34.891Z",
+      "completed_at": "2026-09-30T04:16:26.391Z",
+      "duration_seconds": 7192
+    }
+  ],
+  "isolation": {
+    "worktree_path": "D:\\projects\\dialog-survey\\.worktrees\\sprint-20260929-01",
+    "branch": "sprint/2026-09-29-01"
+  },
+  "outputs": {
+    "specification": "specification.yaml",
+    "slices_manifest": ".sprint-state/phase-outputs/slices-manifest.json",
+    "requirements_evidence": ".sprint-state/phase-outputs/requirements-reviewed.json",
+    "design_doc": ".sprint-state/phase-outputs/design-doc.md",
+    "delphi_design": "APPROVED 0.9133 (R5, 3/3 experts)",
+    "commit": "ecb2029",
+    "test_alignment": "PASS 100",
+    "walkthrough": "APPROVED 0.9333",
+    "check_all": "9/10 (Gate 6 pre-existing)",
+    "full_suite": "118 files / 1281 passed / 1 skipped",
+    "browser_layer4": "28 chromium e2e tests passed",
+    "pr": "162",
+    "merge_commit": "2463a947",
+    "ci": "all-green"
+  },
+  "metrics": {}
+}

@@ -1,0 +1,119 @@
+{
+  "mode": "code-walkthrough",
+  "round": 3,
+  "timestamp": "2026-09-29T18:33:36.037Z",
+  "artifact": ".sprint-state/phase-outputs/walkthrough-bm5-artifact-r3.md",
+  "artifact_hash": "d890e18d9e825cc15e44929f930e70ade46c70af049f6570b3c56e0f0af9f969",
+  "artifact_bytes": 82503,
+  "max_tokens": 16000,
+  "context_files": [
+    {
+      "path": "specification.yaml",
+      "bytes": 9419
+    },
+    {
+      "path": "tests/helpers/pglite-template.ts",
+      "bytes": 7124
+    },
+    {
+      "path": "tests/helpers/create-test-prisma.ts",
+      "bytes": 1372
+    },
+    {
+      "path": "tests/helpers/test-db.ts",
+      "bytes": 3454
+    },
+    {
+      "path": "tests/global-setup.ts",
+      "bytes": 1443
+    },
+    {
+      "path": ".github/workflows/pr.yml",
+      "bytes": 6709
+    },
+    {
+      "path": ".sprint-state/phase-outputs/ac003-timing-and-memory-evidence.md",
+      "bytes": 2913
+    }
+  ],
+  "models": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash"
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash"
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "experts": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [
+        "CI Workflow Naming Mismatch: The `integration-tests` job in `.github/workflows/pr.yml` is still named 'Integration Tests (real PostgreSQL)' despite the removal of the PostgreSQL service and migration to PGlite. This creates a discrepancy between CI status checks/required checks configuration and the actual test environment, potentially causing confusion during triage or blocking PR merges if branch protection rules rely on exact string matching."
+      ],
+      "minor_concerns": [
+        "Parallel cold template builds across first-run workers: Worst case one build per worker before process-level memoization; measured cold path is a single 3654 ms build; lock/single-writer optimization deferred as non-blocking.",
+        "`npx prisma@7.10.0 db push` pin in `scripts/cli.mjs`: `package.json` devDependency `prisma` is exactly `7.10.0` — the pin mirrors the validated version; #152 replaces `db push` with `migrate`.",
+        "Docker healthcheck timeouts (`--timeout=3s --start-period=5s --retries=3`) predate this sprint (#57); M4 only swapped the probe mechanism (curl → node fetch) due to curl absence in node:20-alpine base image."
+      ],
+      "consensus_ratio": 0.95,
+      "summary": "The architectural changes successfully decouple tests from external PostgreSQL dependencies using PGlite, with sound module boundaries (facade/factory pattern) and correct dependency directions. The migration strategy is robust, though minor optimizations for concurrent template building and stricter version alignment in the CLI installer are recommended. The primary issue is a cosmetic but operationally significant mismatch in CI job naming that should be corrected before merge.",
+      "prompt_bytes": 122094,
+      "duration_ms": 8270
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [],
+      "minor_concerns": [
+        "tests/helpers/pglite-template.ts: `templateDisabled` is a one-way process-wide latch with no reset. Correctness is preserved (DDL-replay fallback is the tested path, and the latch short-circuits before the poisoned `templatePromise` is re-awaited), but a transient failure (racing `rmSync` between `existsSync`/`readFileSync`, momentary WASM boot OOM) permanently degrades the rest of the worker to the slower replay path. The R3 stderr diagnostic makes this observable; a per-instance retry budget would be strictly better but is not required.",
+        "tests/helpers/pglite-template.ts: `activeTemplatePath` is a module-level mutable assigned inside `loadOrBuildTemplate`. `discardTemplate()` therefore only ever targets the most recently computed path. With the current single-template-per-process memoization this is correct, but it is an implicit invariant that a future second template key (e.g. per-schema variants) would silently break.",
+        "tests/helpers/pglite-template.ts: `removeStaleTemplates` runs `readdirSync(CACHE_DIR)` inside the write path; if `CACHE_DIR` creation failed earlier the `mkdirSync` is inside the same try, so this is safe today, but the ordering (write → cleanup) means a cleanup throw is swallowed by the outer catch and the comment 'deferred to the next successful write' is accurate only because the write already succeeded.",
+        "tests/global-setup.ts: `spawnSync('npm', ...)` with `shell: process.platform === 'win32'` — on Windows `npm` resolves via shell, on POSIX via PATH. If a CI image ever ships a `npm` shim that exits 0 without generating, the post-check `fs.existsSync(GENERATED_CLIENT)` correctly catches it, so this is defense-in-depth working as intended rather than a gap.",
+        "tests/helpers/create-test-prisma.ts: `getSharedTestPrisma()` memoizes a `Promise<PrismaClient>`; if `buildClient()` rejects (e.g. template init throws on the very first call before the latch engages), the rejected promise is cached for the file's lifetime and every subsequent call re-rejects with the same error. Acceptable for a test helper (fail fast, file-scoped), but worth a comment.",
+        "vitest.config.ts: `maxWorkers = Math.min(4, os.cpus().length)` is a static cap derived from a §3.6 estimate; the e2e memory evidence (4441.8 MB peak, 5 node procs) was measured on a 31.7 GB host. The 7 GB CI runner confirmation remains post-push (tracked), so the cap is a reasoned prior, not a measured CI value.",
+        "scripts/cli.mjs `checkNodeVersion`: the semver loop compares numeric segments and treats a missing segment as 0, which is correct for `20.19` vs `20.19.0` and for `21.0.0` vs `20.19.0`. It does not handle prerelease tags (`20.19.0-rc.1` would parse `rc` as NaN → `cur > min` is false → correctly fails closed). Behavior is safe; a comment noting the fail-closed NaN semantics would help future readers.",
+        "scripts/deploy.sh: the shell version check parses only major/minor (`NODE_MINOR`), so `20.19.0-rc.1` passes. This is looser than the JS check in cli.mjs but matches the documented `>= 20.19.0` intent and is not reachable in normal release flows."
+      ],
+      "consensus_ratio": 0.95,
+      "summary": "I maintain APPROVED at confidence 9. The R3 diff (194c9c3) is behavior-neutral for the fallback path: the added `process.stderr.write` in `createTestPglite` fires only inside the existing catch block after `templateDisabled = true` is set, and the AGENTS.md wording change is documentation-only — both verified against the supplied file contents, and the targeted suites (pglite-template.test.ts, create-test-prisma.test.ts) re-run green per the artifact. Every R1/R2 concern is either fixed in cdffb69/194c9c3 or honestly dispositioned as post-push (CI-runner memory, first green PR run) or spec-sanctioned (no real-PG CI path, REQ-PRISMA7-003/004); the remaining items are minor robustness/observability nits that do not block execution. The other two experts' R2 APPROVED verdicts and their specific verifications (branch-protection contexts via gh api, templateDisabled/discardTemplate non-interaction, AC-003-02 timing against the shipped helper) are consistent with my own reading of the diff.",
+      "prompt_bytes": 122074,
+      "duration_ms": 6136
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [],
+      "minor_concerns": [
+        "Observability nit only: the new one-time stderr diagnostic in createTestPglite (tests/helpers/pglite-template.ts, catch block) is emitted via raw process.stderr.write from a vitest worker; depending on vitest's per-worker capture it may only surface on failure. Behavior-neutral for the fallback path (write occurs after templateDisabled is set and closeQuietly/discardTemplate, with no control-flow change) and contract tests re-ran 6/6 green, so non-blocking.",
+        "Residual feasibility risk acknowledged but not re-raised: cold-start worst case on a cache-less machine is up to maxWorkers (4) concurrent `prisma migrate diff` spawns before the DDL JSON cache is written; the 3654 ms cold measurement was single-worker. Already dispositioned (architecture-min1, lock/single-writer deferred), bounded by the 180s spawn timeout, and does not gate any AC numerically."
+      ],
+      "consensus_ratio": 0.9,
+      "summary": "I maintain APPROVED and raise confidence 8→9. Both R2→R3 fixes are verified against the diff: the AGENTS.md CI note now claims exactly what pr.yml contains — I re-counted the generate steps and all 6 consuming jobs (static-analysis, unit-tests, integration-tests, coverage, e2e-tests, smoke) run `npx prisma generate` before tsc/vitest/smoke while security-scan runs no project code, which also statically re-confirms AC-PRISMA7-004-02; and the stderr diagnostic is behavior-neutral for the fallback path per the contract-test re-run. My feasibility ledger is fully dispositioned: AC-PRISMA7-003-02 timing (cold 3654 ms ≤ 5000 ms incl. 1893 ms migrate diff; warm p95 230/232 ms ≤ 2000 ms) and e2e memory (4441.8 MB peak, maxWorkers=min(4,cpus) bounding the node side) were measured against the shipped helper; Node/tooling alignment (cli.mjs semver check with boundary tests, deploy.sh bash equivalent, .nvmrc-pinned CI, spike #11 PRISMA_SKIP_GENERATE pin, argv split) is consistent across the diff. The only remaining gates — first executed CI run green including the 7 GB-runner e2e memory check, and the branch-protection rename decision (stale exact contexts verified via gh api) — are inherently unclosable pre-push, tracked as named SHIP/PR-check gates, and the no-real-PG CI path remains spec-sanctioned by REQ-PRISMA7-003/004 with the nightly-job follow-up. No blocker to ≥ 0.90 consensus.",
+      "prompt_bytes": 122064,
+      "duration_ms": 132018
+    }
+  ],
+  "failures": [],
+  "aggregate": {
+    "verdict": "APPROVED",
+    "consensus_ratio": 0.9333,
+    "all_approved": true,
+    "expert_count": 3
+  }
+}

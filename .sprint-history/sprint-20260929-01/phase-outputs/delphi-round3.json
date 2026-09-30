@@ -1,0 +1,110 @@
+{
+  "mode": "design",
+  "round": 3,
+  "timestamp": "2026-09-29T13:59:45.080Z",
+  "artifact": ".sprint-state/phase-outputs/design-doc.md",
+  "artifact_hash": "494c6f4fdc48e59d026a979016794be33580a349146c51855554ffbff87b9e05",
+  "artifact_bytes": 50652,
+  "max_tokens": 16000,
+  "context_files": [
+    {
+      "path": "docs/sprints/2026-09-24-issue-149/phase-outputs/requirements-149-v2.md",
+      "bytes": 11689
+    },
+    {
+      "path": "src/server.ts",
+      "bytes": 15244
+    },
+    {
+      "path": "tests/helpers/test-db.ts",
+      "bytes": 3533
+    },
+    {
+      "path": "vitest.config.ts",
+      "bytes": 661
+    },
+    {
+      "path": "package.json",
+      "bytes": 2940
+    }
+  ],
+  "models": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash"
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash"
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "experts": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [],
+      "minor_concerns": [],
+      "summary": "The architecture demonstrates strong structural soundness through clear module boundaries (Facade vs Factory), explicit dependency direction rules (single import path for types), and a robust migration/rollback strategy (Stage A/B split). The v2/v3 revisions effectively address previous concerns regarding type identity and lifecycle management. The design is approved for implementation, provided the spike validations confirm the strict re-export behavior and the cleanup/teardown race condition guards are implemented as specified.",
+      "prompt_bytes": 91219,
+      "duration_ms": 6605
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash",
+      "verdict": "APPROVED",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [
+        "DD-003 硬规则闭环已由 v3 补齐（§3.3 server.ts 行显式登记 import 由 `@prisma/client` 改门面路径），但 §3.3 表格未登记 `src/utils/db.ts` 的 `PrismaClient` 类型 import 来源——DD-004 说 `getDb()` 委托 `createPrismaClient()`，若 db.ts 仍从 `@prisma/client` 导入类型，strict + nominal brand 下同样存在 not assignable 风险。建议在 §3.3 db.ts 行补一句「import 同改门面路径」，与 server.ts 同源。",
+        "DD-005 的 `isClosed` 置位顺序已由 v3 硬约束（任何 await 之前同步置位），但 §3.5 的 TestDatabase 重构描述未同步该约束的落点措辞，且 8 个 cleanup 调用点审计未说明「afterAll 整库丢弃」路径下 `cleanup()` 是否仍被调用（若被调用则依赖早退分支）。建议 §3.5 与 DD-005 措辞对齐，并在 inventory 工件中标注每个 cleanup 调用点属于 afterEach 还是 afterAll。",
+        "spike #8 的 `env -i` 隔离（v3 M-2）与 spike #11 的全局安装形态（v3 M-3）已补，但 spike #11 的「全局安装形态」在 CI runner 上执行 `npm i -g` 到隔离 prefix 需要写权限与网络，若 runner 受限则按残余风险记录——该分支的判定标准（何种环境算「受限」）未定义，可能导致 BUILD 期主观判断。建议在 §4.1 #11 给出可判定的受限条件（如 `npm config get prefix` 不可写 / 无 registry 访问）。",
+        "§3.6 内存估算（~30-80MB/实例）已标注为设计期启发值并由 spike #12 回填（v4 m-4），但 `maxWorkers = min(4, cpus)` 与「每文件独占 PGlite」的组合下，单文件多实例场景（如 analysis-api.test.ts 跨实例硬依赖）的实际峰值可能高于 4×2 的估算模型。建议 spike #12 明确记录「单文件最大实例数」实测值，作为 Stage B maxWorkers 先验决策的输入之一。",
+        "DD-009 cli.mjs 的 `db push` 自动 generate 行为依赖 spike #11，但 `--no-generate` 标志在 prisma@7.10.0 的实际可用性未在 spike 判据中显式列为 go 标准（仅「结论定案」）。若该标志在 v7 被移除或改名，DD-009 的修复项 (c) 需备选方案（如 `PRISMA_SKIP_GENERATE=1` 或显式 `--schema` 指向只读路径）。建议 spike #11 增补「`--no-generate` 存在性核验」子项。"
+      ],
+      "minor_concerns": [
+        "§3.4 codemod 规则对 `prisma/` 与 `scripts/` 目录的相对路径计算（`../utils/prisma-client.js` vs `../src/utils/prisma-client.js`）未给出逐目录映射表，79 文件 codemod 的路径计算逻辑建议在 inventory 工件中附「目录 → 相对路径」对照，避免 BUILD 期逐文件推导出错。",
+        "DD-006 的 DDL 缓存键 = `schema.prisma` 内容 SHA-256，但未说明缓存失效时是否自动重新生成（还是仅报错）。建议明确「缓存键不匹配 → 自动重新 spawn `migrate diff` 并覆写缓存」，否则本地改 schema 后需手动清缓存。",
+        "§3.6 的 `fileParallelism: true` 与 `maxWorkers` 组合下，vitest 的 worker 复用策略（同 worker 跑多文件）可能导致 PGlite 实例在 worker 内累积未释放。建议在 spike #12 记录「单 worker 连续跑 N 文件后的 RSS 增长曲线」，验证实例释放时机。",
+        "AC#5 的三级替代证据（v4 m-1）中 (a) 的「runner 阶段静态审查」未定义审查清单（Dockerfile diff 之外还应核对哪些文件），建议给出最小清单（如 COPY 指令覆盖的路径 vs `npm pack` 产物清单的交集）。",
+        "DD-007 的「merge commit 禁止 squash」与 Stage A/B 两里程碑提交的 CI run URL 记录要求，未说明若 sprint 分支在 Stage B 前被 rebase（如解决冲突）时如何保真 Stage A 证据。建议明确「rebase 后需重新触发 workflow_dispatch 记录新 run URL」。"
+      ],
+      "consensus_ratio": 0.85,
+      "summary": "v4 已闭环 R1/R2 全部 Critical（含 server.ts import 改写登记、teardown isClosed 同步置位、计数恒等式 79/32/26=a22+b3+c1），代码级落点与 spike 判据基本可执行。我维持 APPROVED，但指出 5 项 Major 落点缺口：db.ts 的 import 来源未登记、§3.5 与 DD-005 措辞未对齐、spike #11 受限条件未定义、内存估算模型未覆盖单文件多实例、`--no-generate` 存在性未列为 spike 子项。这些不阻塞执行，但建议在 BUILD 首步（inventory 工件生成时）一并补齐。",
+      "prompt_bytes": 91199,
+      "duration_ms": 7495
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash",
+      "verdict": "APPROVED",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [],
+      "minor_concerns": [
+        "§8 M1（≤0.5 天）与 M2（≤1.5 天）为全计划最紧的两个时间盒：M1 需在预算内完成依赖预装 + spike 脚本全量编写（§4.1 判据 #0–#12，含 #6 20 并发混合压测、#6b 双事务乐观锁、#7 双平台）+ 双平台闭环；M2 需吸收 79 文件 codemod + 32 构造点（含 17 处 eager→beforeAll 惰性化改造）+ 工厂拆分 + helper + 6 CI job generate 步。2× 呈报阀与 §4.3 infra/technical 拆分可兜底下行风险，但建议 spike 脚本骨架先行、判据分批填充，避免 M1 即触发升级。",
+        "§8 M2 中点审计指标「tsc --noEmit 通过率」口径未定义：codemod 进行至 ~50% 时 tsc 必然整体不过（门面与未改写文件跨路径类型不一致），「通过率」作为指标本身不可执行；建议改为「inventory 逐点勾销率 + tsc 错误计数下降趋势」双指标记录。",
+        "「任一里程碑超预算 2× 即呈报」对 M5（≤0.25 天）意味着仅超 0.25 天即触发用户呈报，阈值对小预算里程碑过于敏感；建议对小时间盒设置绝对值下限（如有效阈值 ≥0.5 天）。",
+        "§4.3 M1 no-go 回滚 `git restore package*.json package-lock.json && npm ci` 不会删除新增的未跟踪文件（tools/spike/prisma7-pglite-spike.mjs、.sprint-state 产物）；不影响构建与依赖状态，但与「零污染」表述不完全一致，建议措辞收敛为「依赖状态零污染」。",
+        "AC#5 的「/health db ok 本机或 compose 验收」隐式依赖本地 PG 或 Docker 可用（现状开发流程即手动启 PG，假设合理），建议在 M4 执行时登记该环境前提，与 docker 三级替代证据（v4 m-1）口径并列。"
+      ],
+      "consensus_ratio": 0.85,
+      "summary": "v4 已逐项闭环 feasibility 预审的全部 3M/5m：计数恒等式闭合（79=26+50+2+1；32=26+6；26=22+3+1）且 AC#2 绑定 BUILD 期可再生的 inventory 工件，验收标准客观可审计；时间盒 + 2× 呈报阀 + infra/technical 超时拆分（M-A2/M-A3）使排期与决策风险可控。technical R2 的两项 Critical（§3.3 server.ts import 改写落点、test-db.ts:40-42 isClosed 同步置位）与 5 项 Major 均在 v3 给出可核验落点，architecture R2 的两项关注亦闭环于 spike #9 与 DD-005，无未处置的阻塞性缺口。我维持 APPROVED（与预审 conf=8 一致），残余仅为执行期 minor：M1/M2 时间盒偏紧、M2 中点审计 tsc 指标口径未定义等，均不阻塞 BUILD 启动。",
+      "prompt_bytes": 91189,
+      "duration_ms": 278607
+    }
+  ],
+  "failures": [],
+  "aggregate": {
+    "verdict": "REQUEST_CHANGES",
+    "consensus_ratio": 0.85,
+    "all_approved": true,
+    "expert_count": 3
+  }
+}

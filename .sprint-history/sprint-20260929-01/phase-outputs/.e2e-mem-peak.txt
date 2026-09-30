@@ -1,0 +1,2 @@
+peak=4441.8MB split: chrome-headless-shell.exe=2073.3MB(n=20) node.exe=2368.5MB(n=5) at 2026-09-30T02:22:26.6137718+08:00
+final=4441.8MB

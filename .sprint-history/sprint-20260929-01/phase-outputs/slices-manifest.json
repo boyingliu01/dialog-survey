@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "sprint_id": "sprint-20260929-99",
+  "issue": "#149",
+  "title": "Prisma 7 + PGlite 集成 — 解除集成测试对真实 PostgreSQL 的依赖",
+  "spec": "specification.yaml",
+  "design_doc": ".sprint-state/phase-outputs/design-doc.md",
+  "generated_at": "2026-09-29T14:00:00Z",
+  "source": "to-issues 垂直切片（设计文档 v4 §8 里程碑映射）",
+  "slices": [
+    {
+      "id": "S1",
+      "title": "Stage 0 Spike：依赖预装 + 判据 #0-#12 + 报告",
+      "milestone": "M1",
+      "requirements": ["REQ-PRISMA7-006"],
+      "deliverables": [
+        "package.json 预装 prisma@7.10.0 / @prisma/client@7.10.0 / @prisma/adapter-pg@7.10.0 / @electric-sql/pglite@0.5.8 / pglite-prisma-adapter@0.7.2",
+        "tools/spike/prisma7-pglite-spike.mjs（永久保留可重跑）",
+        ".github/workflows/spike-prisma7.yml（workflow_dispatch + paths 过滤）",
+        ".sprint-state/phase-outputs/stage0-spike-report.md（#0-#12 逐项结果 + 结论）"
+      ],
+      "acceptance": [
+        "判据 #0-#12 全绿或按 §4.2 映射收敛并记录",
+        "no-go 即停呈报（grill Q3-A），不自动推进",
+        "npm ls 零 peer 警告"
+      ],
+      "depends_on": [],
+      "time_box_days": 0.5
+    },
+    {
+      "id": "S2",
+      "title": "Stage A：Prisma 7 升级 + 门面/工厂 + codemod + 测试域切换（真 PG 全绿）",
+      "milestone": "M2",
+      "requirements": ["REQ-PRISMA7-001", "REQ-PRISMA7-002"],
+      "deliverables": [
+        "prisma/schema.prisma（prisma-client generator）+ prisma.config.ts",
+        "src/utils/prisma-client.ts（门面）+ src/utils/prisma-factory.ts（createPrismaClient）",
+        ".sprint-state/phase-outputs/prisma-import-inventory.md（grep 派生清单 + a/b/c 分类）",
+        "codemod：79 文件 import 改门面路径；7 个 vi.mock 文件改 partial-mock",
+        "tests/helpers/create-test-prisma.ts（PrismaPg 版）+ 测试域 26 构造点三分类处置",
+        "server.ts/db.ts/seeds/scripts 改造（注入缝 + 工厂）"
+      ],
+      "acceptance": [
+        "真 PG 全量测试绿（本机 + CI run URL 记录）",
+        "tsc --noEmit 零错误（含生成物编译）",
+        "prisma-import-inventory.md 生成且逐点勾销",
+        "中点审计：codemod ~50% 时双指标记录（inventory 逐点勾销率 + tsc 错误计数下降趋势，v5 F-m2）"
+      ],
+      "depends_on": ["S1"],
+      "time_box_days": 1.5
+    },
+    {
+      "id": "S3",
+      "title": "Stage B：PGlite 替换 + e2e 注入 + CI service 移除（无 PG 全绿）",
+      "milestone": "M3",
+      "requirements": ["REQ-PRISMA7-002", "REQ-PRISMA7-003", "REQ-PRISMA7-004"],
+      "deliverables": [
+        "tests/helpers/test-db.ts → PGlite（DDL 回放 + cleanup/teardown 契约）",
+        "tests/helpers/create-test-prisma.ts 内部实现换 PGlite",
+        "tests/helpers/global-setup.ts（生成物守卫）",
+        "tests/e2e/helpers/e2e-server.ts 注入改造",
+        ".github/workflows/pr.yml + publish.yml（移除 postgres service/db push + 6 job generate 步）",
+        "config 断言测试（ci-config / toolchain-exclusions）"
+      ],
+      "acceptance": [
+        "无 PG 全量绿（Windows 本机 + CI 无 PG job）",
+        "内存判据通过（无 OOM；maxWorkers 先验预算）",
+        "本地 npx vitest run（含 e2e）零手动步骤"
+      ],
+      "depends_on": ["S2"],
+      "time_box_days": 1.0
+    },
+    {
+      "id": "S4",
+      "title": "发布链路适配 + 生产回归",
+      "milestone": "M4",
+      "requirements": ["REQ-PRISMA7-005"],
+      "deliverables": [
+        "Dockerfile / scripts/deploy.sh / scripts/cli.mjs / package.json / publish.yml 适配",
+        "全新安装场景验证（npm pack + 隔离 prefix 全局安装 + db push）",
+        "生产构建冒烟（build + 无源码树启动 + /health）+ docker build 或替代证据"
+      ],
+      "acceptance": [
+        "npm pack --dry-run 产物含编译后 client 与 prisma.config.ts",
+        "安装场景结论定案（config 写法 + --no-generate 回填 DD-009）",
+        "docker build 端到端或按三级替代证据（用户门禁确认）"
+      ],
+      "depends_on": ["S3"],
+      "time_box_days": 0.5
+    },
+    {
+      "id": "S5",
+      "title": "治理与文档：工具链排除 + architecture.yaml + 文档更新",
+      "milestone": "M5",
+      "requirements": ["REQ-PRISMA7-006"],
+      "deliverables": [
+        "biome.json 三处 ignore + vitest coverage.exclude + .gitignore",
+        "architecture.yaml（门面/工厂归属声明）",
+        "AGENTS.md / docs/setup-guide.md / README.md / README.zh-CN.md / DEPLOY.md 更新",
+        "CHANGELOG"
+      ],
+      "acceptance": [
+        "验收 AC#7 全项（含 architecture.yaml 声明）"
+      ],
+      "depends_on": ["S3"],
+      "time_box_days": 0.25
+    }
+  ]
+}

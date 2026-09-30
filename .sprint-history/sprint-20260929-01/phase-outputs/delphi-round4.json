@@ -1,0 +1,117 @@
+{
+  "mode": "design",
+  "round": 4,
+  "timestamp": "2026-09-29T14:06:31.401Z",
+  "artifact": ".sprint-state/phase-outputs/design-doc.md",
+  "artifact_hash": "6574e9a6a3ce81587c389945a8bde3ab9ae9c937346ad13a467aa81870fbb5c2",
+  "artifact_bytes": 59764,
+  "max_tokens": 16000,
+  "context_files": [
+    {
+      "path": "docs/sprints/2026-09-24-issue-149/phase-outputs/requirements-149-v2.md",
+      "bytes": 11689
+    },
+    {
+      "path": "src/server.ts",
+      "bytes": 15244
+    },
+    {
+      "path": "tests/helpers/test-db.ts",
+      "bytes": 3533
+    },
+    {
+      "path": "vitest.config.ts",
+      "bytes": 661
+    },
+    {
+      "path": "package.json",
+      "bytes": 2940
+    }
+  ],
+  "models": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash"
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash"
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "experts": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [
+        "DD-003 / §3.3: The hard rule for `PrismaClient` type imports from the facade is correctly applied to `server.ts`, but `src/utils/db.ts` (which delegates to `createPrismaClient()` per DD-004) must also explicitly import `PrismaClient` from the facade path (`../utils/prisma-client.js`) rather than `@prisma/client`. This is critical to prevent strict-mode nominal brand mismatches when passing the client between modules. Ensure this is registered in the codemod inventory.",
+        "DD-005 / §3.5: The `isClosed` guard implementation contract is sound, but the design must explicitly mandate that `teardown()` sets `this.isClosed = true` synchronously *before* any `await` operations (e.g., `$disconnect`). This prevents race conditions where concurrent `cleanup()` calls bypass the guard during async teardown. Verify this ordering is enforced in the spike #12 or unit tests.",
+        "§3.6 / Spike #12: The memory estimation model (~30-80MB/instance) assumes single-instance-per-file. However, files like `analysis-api.test.ts` may instantiate multiple PGlite clients. Spike #12 must measure 'max instances per file' and 'RSS growth curve under worker reuse' to validate if `maxWorkers=4` causes OOM in CI runners with limited RAM."
+      ],
+      "minor_concerns": [
+        "DD-009 / Spike #11: The availability of `--no-generate` flag in Prisma 7.10.0 should be verified as a sub-item in Spike #11. If unavailable, fallback strategies (env var `PRISMA_SKIP_GENERATE=1` or read-only schema path) must be pre-defined to avoid blocking the `cli.mjs` adaptation.",
+        "§4.1 #11: Define objective criteria for 'restricted environment' regarding global npm install verification (e.g., `npm config get prefix` unwritable OR `npm ping` failure). This prevents subjective risk acceptance during BUILD phase.",
+        "DD-006: Clarify that DDL cache regeneration on hash mismatch is automatic (spawn `migrate diff` + overwrite), not an error state, to ensure smooth developer experience after schema changes."
+      ],
+      "consensus_ratio": 0.95,
+      "summary": "The architecture is structurally sound with clear module boundaries (Facade vs Factory) and robust migration strategy. The v5 revisions effectively address previous concerns regarding type identity and lifecycle management. I maintain APPROVED status, provided the specific import paths for `db.ts` are enforced and spike validations confirm the concurrency/memory assumptions.",
+      "prompt_bytes": 99566,
+      "duration_ms": 12039
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash",
+      "verdict": "APPROVED",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [
+        "DD-009 / spike #11: `--no-generate` 存在性核验已列为子项（v5 T-M5），但备选链 ①`PRISMA_SKIP_GENERATE=1` ②`--schema` 只读路径 均未在 prisma@7.10.0 上核实存在性——若 `--no-generate` 被移除且两个备选也不存在，DD-009 修复项 (c) 无落地手段，cli.mjs 的 `db push` 会向全局安装目录写入生成物。建议 spike #11 的 go 标准从「结论定案」升级为「至少一条路径实测可用」，否则显式记录为残余风险并回填 DD-009。",
+        "§3.6 内存估算模型（4 worker × 2 实例 × 80MB）与 DD-005「每文件独占 PGlite」+ `fileParallelism: true` 的组合存在口径不一致：单文件多实例（analysis-api.test.ts:13/:103 跨实例硬依赖）意味着单 worker 内可能同时存活 >2 个 PGlite 实例，且 spike #12 的「单文件最大实例数」实测值尚未回填。当前先验下调 maxWorkers 的触发条件依赖该估算，若实测值显著高于 2，估算模型失效。建议在 spike #12 回填前，将 §3.6 的 maxWorkers 先验决策显式标注为「待 #12 实测后确认」，避免 BUILD 期按失效模型决策。",
+        "DD-005 的 (b) 类 3 处 vi.mock 域实例（admin-templates-integration:232、admin-templates-import:160、server-api:71）语义澄清依赖「codemod 统一改写 import 为门面路径 → mock 目标与 import 目标一致」。但 §3.4 的 partial mock 模式 `vi.mock('…/prisma-client.js', async (importOriginal) => ({ ...(await importOriginal()), PrismaClient: MockPrismaClient }))` 中，`importOriginal()` 会求值真实门面模块——若门面 `export *` 在求值期触发 `src/generated/prisma/client.js` 的顶层副作用（如 wasm 加载、env 读取），则 mock 生效域内仍可能整文件失败。v3 M-4 已要求「门面模块求值期零副作用」断言，但该断言与 (b) 类 3 处的实际 mock 生效性之间的因果链未在 inventory 工件中逐点标注验证方式。建议 inventory 为 (b) 类 3 处各标注「importOriginal 实测通过」证据锚点。",
+        "§3.3 db.ts 行已登记 `PrismaClient` import 改门面路径（v5 T-M1），但 `getDb()` 委托 `createPrismaClient()` 后，`src/core/graph.ts:65` 的 fire-and-forget 回退路径在 DATABASE_URL 缺失时会抛错（v7 adapter 强制构造参数）。DD-004 已注明「fallback 近似不可达」，但未定义该路径的失败行为契约（抛错 vs 返回 undefined vs 静默降级）。若生产环境意外命中，行为与 v6 不一致。建议在 db.ts JSDoc 中显式声明失败行为，并纳入反模式观察清单的验收项。"
+      ],
+      "minor_concerns": [
+        "§3.4 codemod 规则中 `prisma/` 与 `scripts/` 目录的门面相对路径未在正文给出（仅指向 inventory 对照表），而 DD-009 已注明 seeds 打进发布包但相对门面路径在包内不可解析。建议在 inventory 对照表中为 `prisma/` 与 `scripts/` 两行显式标注「仅 dev 场景可用」的约束，避免 BUILD 期误以为包内可解析。",
+        "spike #9 的「跨路径类型同一性」断言（门面导出类型与生成目录类型相互 assignable）在 strict + nominal brand 下若失败，§4.2 映射表仅给出「Stage A 内修复（generator 选项 / tsconfig 豁免）」——但 tsconfig 豁免与 DD-002「tsconfig 不排除 src/generated」冲突。建议补充第三条修复路径（如门面改为显式 `export type { PrismaClient } from '...'` 而非 `export *`），避免修复手段与既有决策冲突。",
+        "§8 M2 中点审计的双指标（inventory 勾销率 + tsc 错误计数下降趋势）中，「tsc 错误计数基线」未定义采集时点——若基线在 codemod 开始前采集（含 v7 升级引入的既有错误），下降趋势可能被噪声掩盖。建议明确基线采集时点为「codemod 首文件改写前、依赖升级后」。",
+        "DD-008 的 6 个 job generate 步若需 dummy env（spike #8 分支），落点已预定但未说明 dummy env 是否会影响同 job 内后续测试命令的 env 语义（如 vitest 读取 DATABASE_URL 的既有逻辑）。建议在 DD-008 中注明 dummy env 仅作用于 generate 步（step-level env），不污染 job-level env。",
+        "AC#5 的 docker 三级替代证据 (a) 中「runner 阶段全部 `COPY --from=builder` 源路径逐个核验 ∈ npm pack 产物 ∪ 基础镜像」——但 `node_modules/**` 在 npm pack 产物中通常不含 devDeps，而 runner 阶段若依赖 devDeps 编译产物则核验会失败。建议明确核验范围是否包含 devDeps 传递依赖。"
+      ],
+      "consensus_ratio": 0.85,
+      "summary": "v5 已闭环 R1/R2/R3 全部 Critical 与绝大多数 Major，代码级落点（79 import / 32 构造点 / 26 三分类 / 8 cleanup 归属）与 spike 判据 #0-#12 基本可执行，我维持 APPROVED。新提 4 项 Major 均为「落点已定但验证手段或失败契约未闭合」的执行期风险：`--no-generate` 备选链未核实、内存估算模型与单文件多实例口径不一致、(b) 类 vi.mock 的 importOriginal 因果链未逐点标注、db.ts fallback 失败行为未定义。这些不阻塞 BUILD 启动，但建议在 BUILD 首步（inventory 工件生成 + spike #11/#12 执行）一并补齐，否则可能在 M2/M4 阶段暴露为返工。",
+      "prompt_bytes": 99546,
+      "duration_ms": 8431
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash",
+      "verdict": "APPROVED",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [],
+      "minor_concerns": [
+        "基线采集时序未入里程碑：§3.6 的两个基线（integration-tests job 时长 = 变更前近 3 次 CI run 均值；本地 vitest run 总时长 = 变更前本机实测）在 §8 无显式采集步骤。M1 首步即主 worktree 依赖预装，本机基线若未在预装前实测即丢失（CI 基线可事后从 main 历史 run 取回，本机基线需 git restore 复原后再测）。建议 M1 增一行「预装前完成基线采集」，否则 §3.6 软目标失去可验证参照",
+        "spike #12 的 T-m3/T-M4 子项（单 worker 连续 N 文件 RSS 曲线、单文件最大实例数）需在真实 vitest worker 下测得，而 Stage 0 载体 tools/spike/prisma7-pglite-spike.mjs 为纯 node 脚本——需在 spike 内搭建最小临时 vitest 场景，该工时未在 M1 ≤0.5 天预算中显式列项。F-m1 判据分批填充已部分缓解；建议明确 #12 内存子项可记录为「spike 最小 vitest 场景实测」或顺延至 M3 入口补测并留痕",
+        "残余排期风险（沿用 R3 F-m1 判断）：M1 0.5 天覆盖 13 项判据 + 双平台、M2 1.5 天覆盖 79 文件 codemod + 32 构造点（含 17 处顶层 eager → beforeAll 惰性化）仍处激进端；max(2×, 0.5 天) 呈报阀 + infra/technical 拆分（M-A3）+ 中点双指标审计（F-m2）已将风险收敛为可控残余，不再构成阻塞",
+        "M4 的 docker 替代证据 tier (c) 与 Stage B 重基线（m-5）均依赖用户同步门禁；门禁形态已预定义（AC#5 / DD-007），但用户不可用时会拖慢 M4/M3 收口——操作依赖登记即可，无需设计变更"
+      ],
+      "consensus_ratio": 0.88,
+      "summary": "v5 逐项闭环 R3 全部 15 项（5M/10m），落点均可核验：计数恒等式（79=26+50+2+1；32=26+6；26=a22+b3+c1）绑定 BUILD 期可再生的 inventory 工件使 AC#2 客观可审计，F-m2 双指标修复了中点审计口径不可执行的缺陷，F-m3/F-m4/F-m5 使升级阈值、回滚措辞与 AC#5 环境前提自洽。我维持 APPROVED（conf=8 与 R3 一致）：无阻塞性缺口，时间盒经骨架先行与呈报阀约束后风险可控；残余为基线采集时序、spike #12 vitest 场景工时与 M1/M2 时间盒偏紧三项 minor，均可在 BUILD 启动时以一行级补充解决，不需变更设计结构。三专家 R3 全 APPROVED 且 v5 无新增分歧面，预计 R4 共识率 0.88 左右。",
+      "prompt_bytes": 99536,
+      "duration_ms": 144488
+    }
+  ],
+  "failures": [],
+  "aggregate": {
+    "verdict": "REQUEST_CHANGES",
+    "consensus_ratio": 0.8933,
+    "all_approved": true,
+    "expert_count": 3
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "alignment_status": "PASS",
+  "phase": 2,
+  "score": 100,
+  "head_commit": "d9a63ccef3f60f970ed0f95485ac6ccf29b5d07e",
+  "spec_hash": "1c9b235ad846af7499dbff2e05f0c5945226e7782ff8c3659d14429e4598f49f",
+  "timestamp": "2026-09-30T03:50:03.759Z",
+  "misaligned_tests": [],
+  "anti_pattern_detected": false,
+  "errors": [],
+  "scope": {
+    "specification": "SPEC-PRISMA7-001",
+    "mode": "requirement-scoped (docs/test-alignment/plan.md legacy mode: pre-existing tests belong to earlier specifications)",
+    "domain_files": [
+      "tests/create-test-prisma.test.ts",
+      "tests/pglite-template.test.ts",
+      "tests/prisma-client.test.ts",
+      "tests/prisma-factory.test.ts",
+      "tests/prisma7-spec-invariants.test.ts",
+      "tests/test-database.test.ts"
+    ],
+    "repo_wide_baseline": {
+      "test_files": 118,
+      "annotated_tests": 315,
+      "score": 0,
+      "issues_by_type": {
+        "MISSING_INTENT": 281
+      },
+      "tests_with_intent": 34,
+      "note": "281 @intent gaps live in tests annotated against earlier specs (out of #149 scope; tracked as an emergent issue for Phase 6 CLOSE)."
+    }
+  },
+  "disclosures": [
+    "AC-PRISMA7-003-02: the mechanism clauses (single memoized template Blob per process, template boots with schema and zero rows, PG-free setup) are asserted by tests/prisma7-spec-invariants.test.ts; the numeric budgets (cold <= 5s incl. the prisma migrate diff subprocess, warm p95 <= 2s) are isolated-measurement evidence in docs/ac003-timing-and-memory-evidence.md and are NOT asserted by any test (wall-clock assertions proved unstable under suite file parallelism).",
+    "AC-PRISMA7-005-02: container-side execution is covered by the docker-build baseline log plus CLI/health tests, not by a docker run in the unit suite (tier-(c) substitute evidence declared in the walkthrough).",
+    "AC-PRISMA7-003-01 CI clause requires a green no-PostgreSQL run on the runner; inherently post-push and tracked as M1-CI backfill."
+  ],
+  "req_test_mapping": {
+    "REQ-PRISMA7-001": [
+      "tests/prisma-client.test.ts#prisma-client facade (DD-003)",
+      "tests/prisma-factory.test.ts#prisma-factory (DD-003/DD-010)",
+      "tests/prisma7-spec-invariants.test.ts#prisma 7 generate contract (AC-001-01)"
+    ],
+    "REQ-PRISMA7-002": [
+      "tests/create-test-prisma.test.ts#create-test-prisma helper",
+      "tests/pglite-template.test.ts#pglite-template contract",
+      "tests/prisma7-spec-invariants.test.ts#test-domain construction triage (AC-002-02)",
+      "tests/test-database.test.ts#TestDatabase cleanup/teardown contract"
+    ],
+    "REQ-PRISMA7-003": [
+      "tests/prisma7-spec-invariants.test.ts#tests run without PostgreSQL (AC-003)",
+      "tests/prisma7-spec-invariants.test.ts#template fast-path failure semantics (AC-003-02)"
+    ],
+    "REQ-PRISMA7-004": [
+      "tests/prisma7-spec-invariants.test.ts#CI workflows are PG-free and generate-first (AC-004)"
+    ],
+    "REQ-PRISMA7-005": [
+      "tests/prisma7-spec-invariants.test.ts#release chain carries prisma config (AC-005)"
+    ],
+    "REQ-PRISMA7-006": [
+      "tests/prisma7-spec-invariants.test.ts#governance and documentation (AC-006)"
+    ]
+  },
+  "ac_assertion_mapping": {
+    "AC-PRISMA7-001-01": [
+      "tests/prisma7-spec-invariants.test.ts#prisma 7 generate contract (AC-001-01)"
+    ],
+    "AC-PRISMA7-001-02": [
+      "tests/prisma-client.test.ts#prisma-client facade (DD-003)",
+      "tests/prisma-factory.test.ts#prisma-factory (DD-003/DD-010)"
+    ],
+    "AC-PRISMA7-002-01": [
+      "tests/create-test-prisma.test.ts#create-test-prisma helper",
+      "tests/pglite-template.test.ts#pglite-template contract",
+      "tests/test-database.test.ts#TestDatabase cleanup/teardown contract"
+    ],
+    "AC-PRISMA7-002-02": [
+      "tests/prisma7-spec-invariants.test.ts#test-domain construction triage (AC-002-02)"
+    ],
+    "AC-PRISMA7-003-01": [
+      "tests/prisma7-spec-invariants.test.ts#tests run without PostgreSQL (AC-003)"
+    ],
+    "AC-PRISMA7-003-02": [
+      "tests/prisma7-spec-invariants.test.ts#tests run without PostgreSQL (AC-003)",
+      "tests/prisma7-spec-invariants.test.ts#template fast-path failure semantics (AC-003-02)"
+    ],
+    "AC-PRISMA7-004-01": [
+      "tests/prisma7-spec-invariants.test.ts#CI workflows are PG-free and generate-first (AC-004)"
+    ],
+    "AC-PRISMA7-004-02": [
+      "tests/prisma7-spec-invariants.test.ts#CI workflows are PG-free and generate-first (AC-004)"
+    ],
+    "AC-PRISMA7-005-01": [
+      "tests/prisma7-spec-invariants.test.ts#release chain carries prisma config (AC-005)"
+    ],
+    "AC-PRISMA7-005-02": [
+      "tests/prisma7-spec-invariants.test.ts#release chain carries prisma config (AC-005)"
+    ],
+    "AC-PRISMA7-006-01": [
+      "tests/prisma7-spec-invariants.test.ts#governance and documentation (AC-006)"
+    ],
+    "AC-PRISMA7-006-02": [
+      "tests/prisma7-spec-invariants.test.ts#governance and documentation (AC-006)"
+    ]
+  }
+}
