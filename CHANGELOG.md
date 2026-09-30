@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.8.10 - 2026-09-30
 
 ### Changed
 - chore: upgrade Prisma 6 → 7 with driver adapters (#149)
@@ -10,6 +10,7 @@
 
 ### Added
 - test: PostgreSQL-free test suite via PGlite (per-file isolated WASM database, schema DDL + data-dir caches under `node_modules/.cache/dialog-survey/`)
+- test: `tests/prisma7-spec-invariants.test.ts` pins REQ-PRISMA7-001..006 acceptance clauses as committed invariants (dependency pins, CI generate-before-consumer ordering, release-chain files, toolchain exclusions)
 - ci: `npx prisma generate` step in all PR jobs (generated client is not committed)
 - docs: architecture.yaml declares the generated layer and utils dependency; AGENTS.md / README / README.zh-CN / DEPLOY / Windows setup guide refreshed for Prisma 7
 

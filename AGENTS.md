@@ -1,6 +1,6 @@
 # AGENTS.md — Dialog Survey Project Knowledge Base
 
-> Updated: 2026-09-30 (v1.8.9). Sprint #149 (Prisma 7 migration). 58 source TS files, 117 test files, ~1266 tests. Tests need no PostgreSQL (PGlite).
+> Updated: 2026-09-30 (v1.8.10). Sprint #149 (Prisma 7 migration). 58 source TS files, 117 test files, ~1266 tests. Tests need no PostgreSQL (PGlite).
 
 ## Overview
 
