@@ -122,7 +122,7 @@ describe('test-domain construction triage (AC-002-02)', () => {
  * @intent AC-PRISMA7-003-01 无 PG 依赖：删除 DATABASE_URL 后 TestDatabase 仍可建库并查询。
  * AC-PRISMA7-003-02 断言 warm 快路径的机制（模板 Blob 进程内记忆化 + 模板自带 schema）；
  * 其数值预算（冷 ≤5s 含 migrate diff、warm p95 ≤2s）为隔离测量证据，见
- * .sprint-state/phase-outputs/ac003-timing-and-memory-evidence.md — 壁钟断言在全量并行下不稳定。
+ * docs/ac003-timing-and-memory-evidence.md — 壁钟断言在全量并行下不稳定。
  * @covers AC-PRISMA7-003-01, AC-PRISMA7-003-02
  */
 describe('tests run without PostgreSQL (AC-003)', () => {
