@@ -1,0 +1,22 @@
+{
+  "capturedAt": "2026-09-29T14:29:30.000Z",
+  "milestone": "M1 pre-install baseline (R4-F1)",
+  "method": "CI-parity local env (NODE_ENV=test, DATABASE_URL=TEST_DATABASE_URL=postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test), npx vitest run",
+  "command": "npx vitest run",
+  "log": ".sprint-state/phase-outputs/baseline-vitest-before-ci-parity.log",
+  "result": {
+    "testFiles": { "passed": 112, "failed": 0, "total": 112 },
+    "tests": { "passed": 1247, "skipped": 1, "failed": 0, "total": 1248 },
+    "durationSeconds": 123.26,
+    "wallClockSeconds": 126.04
+  },
+  "performanceTarget": {
+    "localRunMaxSeconds": 147.91,
+    "formula": "baseline 123.26s x 1.2 (soft target, grill Q4-A)"
+  },
+  "envRootCauseNote": "Earlier worktree run (baseline-vitest-before.log) showed 106 failures: worktree's freshly npm-ci-generated Prisma client does not auto-load .env at runtime, unlike the main repo's older install. CI provides DATABASE_URL/TEST_DATABASE_URL at job level (pr.yml) - explicit env export mirrors CI and is the adopted local methodology.",
+  "ciBaseline": {
+    "artifact": ".sprint-state/phase-outputs/ci-baseline.json",
+    "integrationJobMeanSeconds": 81.3
+  }
+}

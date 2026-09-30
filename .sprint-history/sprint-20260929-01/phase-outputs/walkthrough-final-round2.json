@@ -1,0 +1,97 @@
+{
+  "mode": "code-walkthrough",
+  "round": 2,
+  "timestamp": "2026-09-30T03:17:57.600Z",
+  "artifact": ".sprint-state/phase-outputs/walkthrough-final-artifact.md",
+  "artifact_hash": "9c92cf50b29ac1d8b4bb59c4be13b6880937897fce834294bcc38fb1105a06c2",
+  "artifact_bytes": 32815,
+  "context_files": [
+    "specification.yaml",
+    "tests/prisma7-spec-invariants.test.ts",
+    "tests/helpers/pglite-template.ts",
+    ".sprint-state/phase-outputs/test-alignment-report.json"
+  ],
+  "models": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash"
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash"
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "responses": [
+    {
+      "round": 2,
+      "role": "architecture",
+      "requested_model": "whalecloud/g-qwen3.8-flash",
+      "resolved_model": "qwen3.8-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [],
+      "minor_concerns": [
+        "The `templateDisabled` latch in `pglite-template.ts` is a process-global state mutation that permanently degrades subsequent test files to the slow DDL-replay path upon a single transient failure. While this prevents cascading failures from a corrupted memoized Blob, it lacks observability (no counter/metric) and could mask systemic issues if triggered by race conditions rather than actual corruption.",
+        "The invariant tests rely heavily on text-matching against configuration files (e.g., `jobBlock` parsing YAML via regex, checking for specific strings like `npx prisma generate`). This creates a brittle coupling between test logic and formatting/indentation of CI workflows. A minor reformatting of `.github/workflows/pr.yml` could cause false negatives or positives without semantic changes.",
+        "AC-PRISMA7-003-02's numeric budgets (cold/warm SLA) are moved to gitignored evidence files. While justified by parallel execution noise, this removes automated regression detection for performance in CI. The deferred bench job (#150) must be prioritized to ensure these architectural constraints remain enforced."
+      ],
+      "consensus_ratio": 0.85,
+      "summary": "The architecture correctly isolates the Prisma facade/factory seam and enforces dependency direction via committed invariants. The shift from wall-clock assertions to mechanism-based checks (memoization identity) is a sound trade-off for test stability in parallel environments, though it requires strict follow-up on the deferred benchmarking issue. The template disable latch is a pragmatic resilience measure but introduces silent degradation risks. Overall, the module boundaries and release chain integrity are preserved, warranting approval with tracked technical debt."
+    },
+    {
+      "round": 2,
+      "role": "technical",
+      "requested_model": "whalecloud/g-deepseek-flash",
+      "resolved_model": "deepseek-flash",
+      "verdict": "REQUEST_CHANGES",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [
+        "AC-PRISMA7-003-02 coverage loss is real, not a strengthening: the numeric budgets (cold ≤5s, warm p95 ≤2s) now live only in a gitignored `.sprint-state/` evidence file, so nothing committed or in CI can ever fail if the fast path regresses. The replacement assertion (memoized Blob identity + zero-row schema) is a legitimate mechanism check but does not bound the property the AC states. The alignment report's PASS 100 for AC-003-02 therefore overstates what is asserted; either re-baseline the AC text in specification.yaml or assert the budget somewhere committed.",
+        "The invariant test's `jobBlock()` parser is fragile in a way that can silently weaken AC-004-02: it terminates a job body on `/^ {2}[A-Za-z0-9_-]+:\\s*$/` or `/^[A-Za-z#]/`, so any 2-space-indented key inside a job (nested `with:`/`env:` mapping, or a job-level key containing a dot) truncates the block early. A truncation after the consumer but before a later generate step would pass. Worse, `indexOf('npx vitest run')` matches the first occurrence anywhere in the block, including inside a comment or a `name:` string, so ordering can be satisfied by text that is not the executed step. This is a text-matching assertion standing in for a semantic one and will rot on the first reformat.",
+        "`expect(cli).toMatch(/prisma@\\d+\\.\\d+\\.\\d+ db push/)` and `(cli.match(/prisma\\.config\\.ts/g) ?? []).length >= 2` are count/presence assertions with no semantic anchor — they pass if the string appears twice in comments or dead code. Combined with the recorded note that this pin is replaced by `prisma migrate` in #152, this assertion is guaranteed to break or become vacuous within one issue.",
+        "The spike-criteria loop `spike.includes('[${id},') || ... || spike.includes('#${id} ')` is close to vacuous for ids 0-9: `[1,` matches `[10,`, `[11,`, `[12,` and any array literal. It asserts the harness mentions a number, not that criterion #N is implemented — and this is the assertion carrying AC-006-02.",
+        "`templateDisabled` is a process-global latch set on first template failure and never reset, with no counter/metric and no test asserting it engages. A transient failure (e.g. one racing worker) silently converts the rest of the run to the slow DDL-replay path with only a stderr line as signal that CI does not surface.",
+        "`discardTemplate()` deletes `activeTemplatePath` on failure but does not clear `templatePromise`, so `getTemplateDataDir()` still resolves to the memoized bad Blob for the rest of the process. The new `templateDisabled` latch masks this for `createTestPglite()`, but any other caller of `getTemplateDataDir()` (including the new invariant test) still receives the discarded template; the comment's 'forcing a rebuild by the next process' is true only because of the latch, not because the memo is invalidated."
+      ],
+      "minor_concerns": [
+        "`expect(excludeArray).not.toContain('generated')` is a negative assertion on a regex-extracted substring; if `tsconfig.json` has no `exclude` key the match is `''` and the assertion passes vacuously.",
+        "`listTestFiles` recurses without a symlink/cycle guard and reads every test file synchronously; acceptable at current size but a maintenance trap as the suite grows.",
+        "The `DATABASE_URL` save/restore in the AC-003-01 test mutates `process.env` in a parallel-worker suite; it is restored in `finally`, but a concurrent test reading the env in the same worker could observe the deletion."
+      ],
+      "consensus_ratio": 0.6,
+      "summary": "Round-2 technical review: the PGlite hardening (atomic write, read-vs-rebuild fallback, disable latch) is sound, but the new invariant test is largely text-matching that can pass vacuously or rot, and AC-003-02's numeric budget is now asserted nowhere committed, so the alignment PASS 100 overstates coverage. The `jobBlock` parser and the spike-id loop are the weakest links; `discardTemplate` leaves the memoized bad Blob reachable by non-latched callers. No Critical issues, but the coverage-loss and assertion-strength majors stand: REQUEST_CHANGES."
+    },
+    {
+      "round": 2,
+      "role": "feasibility",
+      "requested_model": "whalecloud/g-glm-5.3-flash",
+      "resolved_model": "glm-5.3-flash",
+      "verdict": "REQUEST_CHANGES",
+      "confidence": 7,
+      "critical_issues": [],
+      "major_concerns": [
+        "Maintained from round 1, now with full-diff confirmation: the release act at 680ddaa tags 1.8.10 (PATCH) while the shipped tree carries engines.node >=20.19.0 and the prisma.config.ts packaging requirement (DD-009). The package is npm-distributed (DEPLOY.md `npx dialog-survey install`, AC-005-01 fresh-install path, publish.yml), so ^1.8.x consumers silently receive a runtime-floor raise as a 'safe' patch — at least MINOR under SemVer. The CHANGELOG diff still hides lines 7-9, so the Node-floor disclosure is unverifiable from the artifact. Cheap pre-push fix stands: sync-version.sh to 1.9.0 and add 'requires Node >= 20.19.0' to the release entry.",
+        "Recorded-evidence inconsistency on AC-003-02 (corroborates technical expert): the alignment report's disclosures[] states 'the warm p95 <= 2s clause is asserted by tests/prisma7-spec-invariants.test.ts', and committed learnings.md Pattern 2 lists warm p95 among clauses 'written as assertions' — but the test's @intent and Pattern 4 correctly state the numeric budgets are isolated-measurement evidence only, with no committed assertion bounding them. PASS 100 for AC-003-02 is truthful only after the disclosure and learnings.md wording are corrected to 'measurement evidence, not asserted' (or the AC is re-baselined per DD-007)."
+      ],
+      "minor_concerns": [
+        "Layer-4 evidence table lists 4 e2e files / 28 tests at HEAD vs 11/78 at M4; the SHIP record should state explicitly whether the 1281-test full-suite run at 680ddaa included all 11 e2e files, so the browser-verification line is unambiguous.",
+        "Question 4 judgement: shipping on Playwright-only Layer-4 evidence is acceptable — the boot failure is pre-existing (server.ts:177/316-339 predate the branch per git -S), honestly disclosed, and tracked in #156; but the PR notes must say Layer-4 = Playwright-only so it is not read as a live-boot verification, and #156 stays a SHIP condition."
+      ],
+      "consensus_ratio": 0.7,
+      "summary": "Maintained from round 1: the 1.8.10 PATCH tag ships an engines >=20.19.0 raise plus the prisma.config.ts packaging change — at least MINOR — and the CHANGELOG hunk still hides lines 7-9, so the Node-floor disclosure is unverified. Re-version to 1.9.0 via sync-version.sh and add the floor line. New this round: the alignment report's disclosure and learnings.md Pattern 2 claim warm p95 ≤2s is asserted, contradicting the test's @intent and Pattern 4 (budgets are isolated-measurement evidence only); PASS 100 is truthful only after that wording is corrected. Question 4: Playwright-only Layer-4 is acceptable given #156, with the record kept explicit. Remaining evidence (master-baseline Gate 6, 1281 tests, sync fan-out) is sound."
+    }
+  ],
+  "failures": [],
+  "aggregate": {
+    "verdict": "REQUEST_CHANGES",
+    "consensus_ratio": 0.7167,
+    "all_approved": false,
+    "expert_count": 3
+  }
+}

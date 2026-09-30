@@ -1,0 +1,48 @@
+{
+  "mode": "design",
+  "round": 3,
+  "timestamp": "2026-09-29T13:51:15.813Z",
+  "artifact": ".sprint-state/phase-outputs/design-doc.md",
+  "artifact_hash": "02809cb9a0cae9d473599086f198f746ea4752cc094e0fd2350dc9edbc858532",
+  "artifact_bytes": 43404,
+  "max_tokens": 16000,
+  "context_files": [],
+  "models": [
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "experts": [
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash",
+      "verdict": "APPROVED",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [
+        "AC#2 的「27 处测试实例化替换完毕」不具备客观可审计性：全文数字未闭合（§1.2 记 83 import 文件 / 33 实例化点，DD-007 记 33 构造点，§3.5/AC#2 记 27 处，M3 记 27+7 处），且 DD-005(b) 明确 3 处 vi.mock 拦截实例『不替换』（仅改写 import）。建议 Stage A 产出一份 grep 派生的枚举清单工件（逐点标注 a/b/c 分类处置），并将 AC#2 绑定到该清单，否则 BUILD 期门禁审计会因计数口径争议失效。",
+        "工作量估算仅 M1 有预算（≤0.5 天），M2（Stage A）作为最大切片——83 文件 codemod 含 7 个 partial-mock 重写、33 构造点三分类、6 个 CI job 改造——没有任何时间盒或中点检查点。建议为 M2-M4 补充估算或设 Stage A 中点审计（如 codemod 完成 50% 时核对三分类清单与 tsc 通过率），防止低估复利放大；这是本设计最可能的执行风险点。",
+        "§4.3 超时口径『预装或 CI 排队超预算即按 no-go 处理』将基础设施延迟（CI 队列）与技术不可行混同为 no-go 标签。虽然本地优先排序（本地跑通后异步等 CI）与『呈报用户』已缓解，但建议区分 infra-timeout（改期/等待）与 technical no-go，避免 spike 报告误标决策上下文。"
+      ],
+      "minor_concerns": [
+        "AC#5 的 docker build 带条件豁免（『不可执行需记录理由 + 替代证据』），但『替代证据』未定义可接受形态（如仅 builder stage 构建、buildah 等），建议预定义，使该 AC 在豁免分支下仍可二值判定。",
+        "spike ≤0.5 天对 13 项判据 × 双平台偏紧，尤其 #11（npm pack + 隔离 prefix 全局安装 + 一次性 db push）单独可能耗数小时；建议优先脚本化 #11。已有超时呈报阀门兜底，故降为 minor。",
+        "DD-006 globalSetup 的『一次自动兜底 generate』与『纯 unit 路径不 spawn prisma CLI』的理由在生成物缺失场景下矛盾（此时仍会 spawn）；建议 JSDoc 明确该 fallback 仅失败路径触发（CI 因 DD-008 显式 generate 步不会命中），消除口径歧义。",
+        "§3.6 内存前置估算基于 ~30-80MB/实例启发值；建议 spike #12 实测单实例 RSS 后回填替换启发值，再进入 Stage B 的 maxWorkers 先验决策（现有 OOM 硬判据 + 降阶阶梯已覆盖最坏情况）。",
+        "Stage B 失败时按 DD-007 保留 Stage A、CI 继续 PG service，但 AC#3/#4/#5 是全有全无口径，issue 级验收无部分达成语义；建议参照 DD-012 降级修订机制预定义 Stage B 延期的 AC 重基线路径。"
+      ],
+      "consensus_ratio": 0.8,
+      "summary": "该设计在可行性维度成熟度高：spike 判据 #0-#12 将未知量前置转化为决策、三层回滚（M1 零污染 / Stage A revert / Stage B 降级）、no-go 即停呈报、CI 步序与 env 分支两案预置均可执行。无 critical 阻塞——所有高风险点均已落入 spike 门禁或显式降级映射。主要保留意见是 AC#2 计数口径未闭合导致验收不可客观审计，以及 Stage A 缺时间盒使工作量真实性无法评估；补齐枚举清单工件与里程碑估算后即可进入 R3 终审。",
+      "prompt_bytes": 44406,
+      "duration_ms": 242653
+    }
+  ],
+  "failures": [],
+  "aggregate": {
+    "verdict": "REQUEST_CHANGES",
+    "consensus_ratio": 0.8,
+    "all_approved": false,
+    "expert_count": 1
+  }
+}

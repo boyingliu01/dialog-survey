@@ -1,0 +1,129 @@
+{
+  "mode": "code-walkthrough",
+  "round": 1,
+  "timestamp": "2026-09-29T16:14:54.165Z",
+  "artifact": ".sprint-state/phase-outputs/walkthrough-stageA-artifact.md",
+  "artifact_hash": "5899f64632930c9b39f486b89b4b66c9d1ecfb5c7840e9927c510b86178adedd",
+  "artifact_bytes": 94925,
+  "max_tokens": 16000,
+  "context_files": [
+    {
+      "path": "src/utils/prisma-client.ts",
+      "bytes": 611
+    },
+    {
+      "path": "src/utils/prisma-factory.ts",
+      "bytes": 984
+    }
+  ],
+  "models": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash"
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash"
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "experts": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [
+        "The `getSharedTestPrisma` helper in `tests/helpers/create-test-prisma.ts` introduces a module-level singleton (`shared`). While this reduces connection overhead, it creates implicit state coupling across test files if Vitest's isolation is not strictly enforced or if tests rely on specific connection states. Ensure that `afterAll` hooks reliably disconnect the shared instance to prevent resource leaks or 'connection closed' errors in subsequent suites."
+      ],
+      "minor_concerns": [
+        "In `src/server.ts`, `checkDatabaseConnection` now accepts an optional factory. The default parameter `createPrismaClient` is evaluated at call time, which is correct, but ensure that any future refactoring of `buildApp` does not accidentally bypass this DI seam by calling `new PrismaClient()` directly.",
+        "The CI workflow adds `npx prisma generate` to multiple jobs. This is necessary for Prisma 7's client generation but increases build time. Consider caching the generated client artifacts if build times become a bottleneck.",
+        "Some test files (e.g., `tests/admin-templates-import.test.ts`) use complex `vi.mock` patterns with `importOriginal`. Verify that these mocks do not inadvertently leak real Prisma types into the mock scope, causing type-checking inconsistencies during `tsc` runs."
+      ],
+      "consensus_ratio": 0.95,
+      "summary": "The changeset successfully implements the Prisma 7 facade switch, centralizing client construction and improving dependency injection seams. The structural soundness is high, with clear boundaries between production code and test helpers. The migration strategy is robust, though attention should be paid to the lifecycle management of the shared test Prisma client to avoid cross-test pollution.",
+      "prompt_bytes": 97644,
+      "duration_ms": 9111
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash",
+      "verdict": "REQUEST_CHANGES",
+      "confidence": 7,
+      "critical_issues": [
+        "tests/helpers/create-test-prisma.ts:38 — `getSharedTestPrisma()` is declared `async` but contains no `await`; it returns `shared ??= buildClient()` synchronously. This is benign, but the more serious issue is that the shared singleton is never disconnected by the helper itself, and the new `tests/create-test-prisma.test.ts` calls `await shared.$disconnect()` in its own `afterAll` — since `shared` is a module-level singleton in `create-test-prisma.ts`, disconnecting it in one test file poisons the singleton for any other test file that imports the same module instance. Vitest isolates modules per test file by default (separate module registry per worker/file), so this is likely safe in practice, but the contract is undocumented and fragile: the helper's own docstring says 'Disconnect ownership belongs to afterAll / TestDatabase.teardown()' while the new test file disconnects the shared instance directly. This is a real correctness hazard if `isolate: false` or `pool: 'threads'` with shared module graph is ever enabled.",
+        "tests/helpers/create-test-prisma.ts:1 — imports `PrismaPg` from `@prisma/adapter-pg` and constructs `new PrismaClient({ adapter })` directly, bypassing `createPrismaClient()` from `src/utils/prisma-factory.ts`. The changeset's stated design (DD-003/DD-010) is that `createPrismaClient()` is the 'sole production construction point'. Test helpers duplicating adapter construction means the connection-string resolution logic (`TEST_DATABASE_URL || DATABASE_URL || default`) and the `connectionTimeoutMillis: 5000` value are now maintained in two places (factory + helper + test-db.ts). If the factory's timeout or adapter options change, tests silently diverge from production behavior. This is a maintainability defect that undermines the stated single-construction-point invariant.",
+        "tests/helpers/test-db.ts:18-24 — `TestDatabase` constructor now also constructs `new PrismaClient({ adapter })` directly with its own `PrismaPg` adapter, again bypassing the factory. Combined with the previous point, there are now three independent PrismaClient construction sites in test infrastructure (create-test-prisma.ts, test-db.ts, and the mock-domain casts in admin-templates-import.test.ts / admin-templates-integration.test.ts). The changeset claims '22 → getSharedTestPrisma()' but the helper itself and test-db.ts are additional construction sites not counted in the three-way classification."
+      ],
+      "major_concerns": [
+        "tests/admin-plan-csrf.test.ts:44, tests/admin-plan-route-csrf.test.ts:99, tests/admin-shell-csrf.test.ts:29, tests/admin-template-csrf.test.ts:62, tests/analysis-api.test.ts:107 — `describe('...', async () => { const prisma = await getSharedTestPrisma(); ... })`. Vitest does NOT await an async describe callback; the returned promise is ignored. This means `prisma` is a Promise (or the awaited value is assigned after the describe body has already run synchronously). In practice the `const prisma = await ...` inside an async describe body will resolve before any `it()` runs only if Vitest happens to await it — which it does not. This is a latent race: the `it()` callbacks capture `prisma` via closure, and if the describe body's await has not resolved by the time a test runs, `prisma` is `undefined`. Vitest's actual behavior is that describe callbacks are invoked synchronously and the returned promise is discarded, so `prisma` will be `undefined` at test time. This is a critical correctness bug in the test classification — the 5 files listed use this pattern and will fail or flake. (Note: this is the strongest single finding; if Vitest version in use does await describe, downgrade to major.)",
+        "tests/analysis-api.test.ts:107 — nested `describe('POST /api/analysis/aggregate/:planId with real DB data', async () => { const prisma = await getSharedTestPrisma(); ... })` shadows the outer `let prisma` declared at module scope and assigned in `beforeAll`. The inner `prisma` is a separate binding; the outer `beforeAll` assignment is dead for this nested block. Same async-describe hazard as above.",
+        "tests/admin-templates-import.test.ts:162 and tests/admin-templates-integration.test.ts:229 — `new (PrismaClient as unknown as new () => InstanceType<typeof PrismaClient>)()`. The double cast `as unknown as new () => InstanceType<typeof PrismaClient>` is a type-level lie: `InstanceType<typeof PrismaClient>` resolves to the real PrismaClient type (which requires an adapter), but the mock class has no constructor args. The cast silences the compiler but the resulting object is typed as a real PrismaClient while being a mock. This is acceptable in a mock domain, but the comment claims 'the real Prisma 7 ctor requires an adapter' — the facade re-exports from `../generated/prisma/client.js`, and whether the generated client's constructor requires an adapter depends on the generator output, which is not shown. The claim is unverifiable from the artifact.",
+        "tests/server-api.test.ts:63-70 — the deleted `vi.mock('../src/server.js')` previously stubbed `checkDatabaseConnection` to avoid real DB access. The new code mocks `../src/utils/prisma-client.js` with a `FakePrismaClient` function that returns `mockPrismaInstance`. But `checkDatabaseConnection` in `src/server.ts` now calls `prismaFactory()` (default `createPrismaClient` from `prisma-factory.ts`), NOT `new PrismaClient()`. The mock replaces `PrismaClient` on the facade, but `createPrismaClient` imports `PrismaClient` from `./prisma-client.js` — so the mock DOES intercept it. However, `createPrismaClient` also calls `new PrismaPg({ connectionString, connectionTimeoutMillis: 5000 })` before `new PrismaClient({ adapter })`. The mock's `FakePrismaClient` is a function (not a class) that ignores its argument and returns `mockPrismaInstance`, so the adapter is constructed but discarded. This works, but it means the test exercises `createPrismaClient`'s real adapter construction path (which requires `@prisma/adapter-pg` to be importable and `DATABASE_URL` to be set — hence the `vi.stubEnv('DATABASE_URL', ...)` additions). The test is now coupled to the factory's internals rather than testing `checkDatabaseConnection` in isolation. The new test at line 238 ('should return false when the factory itself throws') is good, but the existing tests now depend on `createPrismaClient` not throwing before the mock is reached.",
+        "tests/db.test.ts:6 — `vi.stubEnv('DATABASE_URL', ...)` is called at module top-level, outside any `beforeEach`/`beforeAll`. `vi.stubEnv` at module scope runs during collection, before `vi.mock` hoisting completes in some Vitest versions. More importantly, `vi.stubEnv` is not automatically unstubbed here (no `vi.unstubAllEnvs()` in an `afterEach`), so the stub leaks to other test files if module isolation is disabled. Same pattern in tests/graph.test.ts:5.",
+        "tests/dingtalk-stream.test.ts:6-28 — the fake `ws` module replaces `WebSocket` with an `EventEmitter` subclass, but the real `ws` module also exports `WebSocketServer`, `createWebSocketStream`, etc. If `stream-client.ts` imports any of those, the mock will break. The mock returns only `{ WebSocket: FakeWebSocket }`. The diff does not show whether `stream-client.ts` imports other `ws` symbols. If it does, this is a critical break; if not, it's fine. Unverifiable from the artifact.",
+        "tests/interview-plan-members-phone.test.ts:88-96 — the safety-net `deleteMany` now filters by `template: { name: { startsWith: 'Phone-' } }`. This is a relational filter on `interview.template`. If the `Interview` model does not have a `template` relation (only `templateId`), this query will fail at runtime. The diff does not show the schema. If the relation exists, the filter is correct; if not, the `.catch(() => {})` swallows the error and the safety net silently does nothing — which is worse than the original unscoped delete because it gives false confidence.",
+        "tests/e2e/helpers/admin-login.ts:44 — `page.waitForURL(..., { waitUntil: 'commit', timeout: 30_000 })`. Playwright's `waitForURL` accepts `waitUntil` values `'load' | 'domcontentloaded' | 'networkidle' | 'commit'`. `'commit'` is valid. However, `'commit'` resolves as soon as the navigation is committed, which may be before the server has finished processing the login POST. If the subsequent test step immediately queries the page, it may race. The 30s timeout mitigates but does not eliminate this. The comment says 'Only the URL transition matters here' — but the URL transition to `/admin` only happens after the server responds with a redirect, so `'commit'` is actually fine for the redirect itself. The risk is the next line in the test.",
+        "tests/helpers/test-db.ts:83 — `if (this.isClosed) return;` added to `cleanup()`. The docstring says 'before teardown it throws when the database is unreachable'. But the new guard means after teardown, cleanup is a silent no-op. This is the documented contract, but it changes behavior: previously, calling `cleanup()` after `teardown()` would throw (because `this.prisma` was disconnected). Now it silently succeeds. Any test that relied on the throw to detect ordering bugs will no longer catch them. The new `tests/test-database.test.ts` asserts the new behavior, so this is intentional — but it weakens a safety net."
+      ],
+      "minor_concerns": [
+        "src/server.ts:60-63 — `checkDatabaseConnection(prismaFactory: () => PrismaClient = createPrismaClient)`. The default parameter is evaluated at call time, which is correct. The `let prisma: PrismaClient | undefined` + `if (prisma)` guard in `finally` is correct. Good change.",
+        "src/utils/db.ts:11-13 — `getDb()` now calls `createPrismaClient()`, which throws if `DATABASE_URL` is missing. The docstring says 'fails loudly'. This is a behavior change: previously `new PrismaClient()` would construct a client that fails on first query. Now it throws at construction. Callers that catch query errors but not construction errors may break. The `graph.ts` fire-and-forget path is the known case, addressed by the `vi.stubEnv` in tests/graph.test.ts. Production callers should be audited.",
+        "prisma/seed-test-interview.ts:2 — `import { InterviewStatus } from '../src/utils/prisma-client.js'` (value import, not type). If `InterviewStatus` is a Prisma enum, it's a runtime value and the value import is correct. If it's a type-only export, this will fail at runtime. The facade does `export * from '../generated/prisma/client.js'`, and Prisma enums are runtime values, so this is likely correct.",
+        "src/services/analysis.service.ts:1-4 — two separate imports from `'../utils/prisma-client.js'` (`BatchAnalysisReport` and `PrismaClient`). Could be merged into one import statement. Biome may or may not flag this depending on config.",
+        "tests/admin-templates-integration.test.ts:7-11 — the `@intent`/`@covers` JSDoc block was moved from before the imports to after them. This changes the comment's association: it now documents the `Template`/`TemplateStatus` import rather than the file. If the project's coverage tooling parses these annotations positionally, this is a regression. If it parses them file-wide, it's cosmetic.",
+        "tests/e2e/helpers/e2e-server.ts:1-4 — the `@no-test-required` comment was moved from line 1 to line 4, after the `playwright` import. Same positional-annotation concern as above.",
+        ".github/workflows/pr.yml — `npx prisma generate` added to 6 jobs. If the repo uses a Prisma 7 setup where `prisma generate` requires `DATABASE_URL` or a `prisma.config.ts`, this will fail in CI. The diff does not show a `prisma.config.ts` or env setup for the generate step. Prisma 7's `generate` typically does not need a DB connection, but it may need the schema path. Assuming default `prisma/schema.prisma`, this is fine.",
+        ".github/workflows/pr.yml — `workflow_dispatch:` added with no inputs. Fine, but the `concurrency` group uses `${{ github.ref }}`, which for `workflow_dispatch` on a branch is the branch ref. No issue.",
+        "tests/batch-import.test.ts — userIds changed from `user_zhangsan`/`user_lisi` to `batch-user-zhangsan`/`batch-user-lisi`. The mock `getUserByUserId` now throws for the old IDs. If any other test file or fixture references `user_zhangsan` in a way that flows through this mock, it will break. The change is scoped to this file's mock, so cross-file impact is limited to shared DB state — which is exactly what the change is trying to avoid. Good.",
+        "tests/interview-plan.integration.test.ts:20-21 — `vi.stubEnv('DINGTALK_CLIENT_ID', ...)` and `vi.stubEnv('DINGTALK_CLIENT_SECRET', ...)` added in `beforeAll`, with `vi.unstubAllEnvs()` in `afterAll`. Correct pattern. But `vi.unstubAllEnvs()` also unstubs any env stubbed by other means in the same file — if the file has other stubs, they're cleared too. The diff shows no other stubs in this file, so fine.",
+        "tests/create-test-prisma.test.ts:17 — `await shared.$disconnect()` in `afterAll`. As noted in critical issues, this disconnects the module-level singleton. If Vitest module isolation is per-file (default), this is safe. If not, it poisons other files. The test itself is well-written; the concern is the contract.",
+        "tests/helpers/create-test-prisma.ts:8 — default fallback `'postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test'` hardcodes credentials. This matches the existing pattern in `test-db.ts:15`, so it's consistent, but hardcoded credentials in test helpers are a minor smell. Not a security issue since it's a local test DB.",
+        "tests/helpers/create-test-prisma.ts:38 — `getSharedTestPrisma` is `async` but has no `await`. It could be synchronous. The async signature is presumably for forward-compatibility with Stage B (PGlite init). The docstring mentions 'from Stage B on, one PGlite database'. Acceptable as a forward-looking API, but currently misleading."
+      ],
+      "consensus_ratio": 0.55,
+      "summary": "The facade/factory wiring in production code (src/server.ts, src/utils/db.ts, prisma-factory.ts) is correct and the DI seam is well-designed. However, the test-domain classification has a serious mechanical defect: five test files use `describe('...', async () => { const prisma = await getSharedTestPrisma(); ... })`, and Vitest does not await async describe callbacks, so `prisma` will be undefined at test time in those files. Additionally, the test helpers duplicate PrismaClient construction (bypassing the factory) in three places, undermining the stated single-construction-point invariant, and the shared-singleton disconnect contract is fragile. The CI `prisma generate` additions and the `ws` mock are plausible but unverifiable from the artifact. Recommend fixing the async-describe pattern before merge.",
+      "prompt_bytes": 97624,
+      "duration_ms": 16608
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash",
+      "verdict": "APPROVED",
+      "confidence": 7,
+      "critical_issues": [],
+      "major_concerns": [
+        "Hardcoded credential fallback committed in new code: tests/helpers/create-test-prisma.ts (resolveTestDatabaseUrl) defaults to 'postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test' when TEST_DATABASE_URL/DATABASE_URL are unset. The password is now in git history, and in a CI job lacking those env vars every parallel file silently dials localhost with those creds and burns the 5s connectionTimeoutMillis before failing confusingly. Prefer failing loudly on missing env, or sourcing the default from CI config only.",
+        "Shared single test DB + parallel file execution remains a systemic flakiness source: the changeset acknowledges the model ('every test file shares one database and runs in parallel' in tests/batch-import.test.ts) and patches exactly two discovered collisions (file-unique userIds; the 'Phone-' prefix scoping in tests/interview-plan-members-phone.test.ts afterEach). Nothing prevents the next collision. Until Stage B PGlite isolation lands, add a fixture-uniqueness convention check or temporarily run the affected files with file-parallelism disabled to de-risk the 80/80/70/80 gate.",
+        "getDb() (src/utils/db.ts) bypasses the new DI seam: it calls createPrismaClient() directly with no injection point, so tests that trigger the fire-and-forget analysis path (tests/graph.test.ts, which only vi.stubEnv's DATABASE_URL) construct a real adapter-backed client pointed at a nonexistent DB and attempt a doomed connection. The diff comment claims the path now 'logs instead of throwing uncaught', but this depends on a catch in code not shown; verify the dead-letter path swallows connection errors, or mock the facade in graph.test.ts, otherwise this is a latent unhandled-rejection flake in the gate.",
+        "CI completeness is asserted but not proven from the diff: `npx prisma generate` is added to 6 jobs; any job running tsc/vitest that was missed will fail on missing src/generated/prisma. The added workflow_dispatch makes this cheap to verify manually — run it once on a clean fork before merge. Also the biome-only job does not need generate (biome check src/ is type-unaware); it is wasted pipeline time, keep or drop consciously. Also confirm biome/coverage config excludes src/generated since it now lives under the linted src/ tree."
+      ],
+      "minor_concerns": [
+        "Async describe bodies (`describe('...', async () => { const prisma = await getSharedTestPrisma(); ... })`) in admin-plan-csrf, admin-plan-route-csrf, admin-shell-csrf, admin-template-csrf, and the nested analysis-api suite are a nonstandard pattern (jest rejects it); confirm the pinned vitest version supports async suite factories and that registration order stays deterministic.",
+        "Several converted files instantiate the shared client in beforeAll but never $disconnect it in afterAll (e.g., admin-delete.test.ts, admin-tree.test.ts); lingering pg-pool handles may slow worker shutdown. Parity with the old top-level `new PrismaClient()`, so not a regression — but now is the moment to fix.",
+        "The cast `new (PrismaClient as unknown as new () => InstanceType<typeof PrismaClient>)()` in admin-templates-import.test.ts and admin-templates-integration.test.ts is type-legal but fragile; a typed mock constructor in the mock factory would remove the double-cast.",
+        "The 'facade-only imports' rule (DD-003) is convention-only; make AC verification mechanical by adding a Biome/ESLint restricted-import rule banning '@prisma/client' and 'src/generated/prisma' outside the facade — right now 'no remaining construction sites' is verifiable only by grep (26-site classification 22+3+1 is greppable today, which is good, but it will drift).",
+        "vi.stubEnv in db.test.ts, graph.test.ts, server-api.test.ts is never unstubbed within the file; rely on per-file isolation or unstubEnvs config — fine, but document the assumption.",
+        "Timeout inflation (login waitUntil 'commit' 10s→30s; two 15s vi.waitFor polls) raises worst-case e2e duration; watch job budgets on the full-suite run.",
+        "Per-file PrismaPg pools (pg default max 10) across parallel files vs Postgres max_connections is comparable to the v6 engine baseline but worth monitoring once all 22 real-DB sites share one pool per file."
+      ],
+      "consensus_ratio": 0.75,
+      "summary": "The changeset is executable as written: the CI `prisma generate` additions remove the main fresh-checkout blocker, the factory-throws regression test and the DD-005 isClosed contract tests give objectively verifiable acceptance criteria, and the ws mock plus file-unique userIds are sensible stability fixes. The residual feasibility risk concentrates in the shared-DB parallel architecture (two collisions patched, no systemic guard), the committed credential fallback in the new test helper, and getDb() bypassing the DI seam so graph.test.ts exercises a real doomed connection. Approve, conditional on verifying full CI job coverage of `prisma generate` via the new workflow_dispatch and tightening the credential/env handling before Stage B.",
+      "prompt_bytes": 97614,
+      "duration_ms": 299410,
+      "retried_attempts": 2
+    }
+  ],
+  "failures": [],
+  "aggregate": {
+    "verdict": "REQUEST_CHANGES",
+    "consensus_ratio": 0.75,
+    "all_approved": false,
+    "expert_count": 3
+  }
+}

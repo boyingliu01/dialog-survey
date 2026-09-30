@@ -1,0 +1,83 @@
+{
+  "mode": "design",
+  "round": 1,
+  "timestamp": "2026-09-29T13:17:13.816Z",
+  "artifact": "docs/sprints/2026-09-24-issue-149/phase-outputs/design-doc.md",
+  "artifact_hash": "890d730662e7fd17c167c243e9bbc6f188bad3e79055c18f944209ab6a8bcd63",
+  "models": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash"
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash"
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "experts": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [
+        "DD-003 / §3.4: The `export *` facade strategy for `src/utils/prisma-client.ts` is structurally sound but relies on the assumption that Prisma's generated `.d.ts` exports are fully compatible with `isolatedModules`. While B-expert verified this, the design should explicitly mandate a 'strict re-export check' in Spike #9 to ensure no type-only symbols (like `Prisma.TransactionClient`) are accidentally stripped or cause runtime errors if imported as values by mistake in the 83 codemod files.",
+        "DD-005 / §3.5: The distinction between `cleanup()` (data reset) and `teardown()` (instance close) is critical for test isolation. The design states `cleanup()` after `teardown()` is a 'silent no-op'. This must be rigorously enforced in the implementation of `TestDatabase` to prevent race conditions where an `afterEach` hook attempts to clean up a closed PGlite instance, potentially causing unhandled promise rejections or flaky tests."
+      ],
+      "minor_concerns": [
+        "DD-002 / §3.3: The decision to include `src/generated` in `tsconfig` compilation increases build time. The design mentions 'BUILD stage smoke test', but does not specify if incremental builds (`tsc --incremental`) will handle the large generated file set efficiently. A note on potential build performance impact would be beneficial.",
+        "DD-009 / §3.1: The removal of `allowScripts` keys for Prisma 5 is correct, but the addition of `prisma.config.ts` to `files` in `package.json` needs careful verification against the `npm pack --dry-run` output to ensure it doesn't inadvertently include sensitive env vars if `dotenv/config` is imported at the top level of the config file during packaging analysis (though unlikely, it's a security hygiene point)."
+      ],
+      "consensus_ratio": 0.95,
+      "summary": "The architecture is robust, with clear separation of concerns via the facade/factory pattern (DD-003/DD-004) and a well-defined dependency injection seam for testing (DD-004). The staged execution plan (Stage A/B) effectively mitigates risk by decoupling the Prisma upgrade from the database backend swap. The primary structural concern lies in ensuring the `export *` facade remains strictly side-effect-free and that the lifecycle management of PGlite instances in `TestDatabase` prevents race conditions between cleanup and teardown hooks.",
+      "duration_ms": 11492
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash",
+      "verdict": "REQUEST_CHANGES",
+      "confidence": 7,
+      "critical_issues": [
+        "DD-003 门面模块 `export * from '../generated/prisma/client.js'` 与 DD-004 的 `BuildAppOptions.prismaFactory?: () => PrismaClient` 存在类型身份风险：`PrismaClient` 类型经门面 re-export 后，与 `src/utils/prisma-factory.ts` 中直接 import 自生成目录的 `PrismaClient` 在结构上应兼容，但若 factory 从生成目录直接 import 而 server.ts 从门面 import，`tsc` 在 `exactOptionalPropertyTypes` + 严格模式下可能因 nominal 差异（Prisma 7 生成 client 含私有 brand 字段）报不兼容。设计未指定 factory 的 import 来源必须与门面一致，也未在 spike #9 中验证跨路径类型同一性。这是代码级可执行性缺口。",
+        "DD-005 的 `cleanup()` 语义与 `teardown()` 顺序契约存在实现矛盾：设计称 `cleanup()` 在 `teardown()` 之后调用为「静默 no-op」，但现有 `cleanup()` 实现（test-db.ts:56-104）直接调用 `this.prisma.response.deleteMany(...)` 等，无 `isClosed` 守卫。若 `teardown()` 已 `$disconnect()` 并关闭 PGlite，`cleanup()` 的 deleteMany 会抛错而非静默 no-op。设计未给出 `cleanup()` 内部的 `isClosed` 早退实现，也未在 §3.5 或 DD-005 中明确该守卫的落点。",
+        "DD-006 的 `globalSetup` 职责收缩与 DD-005 的「DDL 生成惰性化到 TestDatabase 首次 setup」存在时序冲突：`globalSetup` 只做生成物存在性守卫，但 DDL 缓存文件（`node_modules/.cache/dialog-survey/test-schema.sql`）的生成被推迟到 TestDatabase 首次 setup。若 `globalSetup` 守卫的是「生成物」（`src/generated`）而非 DDL 缓存，则 DDL 缓存的冷启动生成（spawn `prisma migrate diff` 子进程 2-4s）会落在第一个 TestDatabase.setup() 内，与 §3.6 的 `TestDatabase.setup()` p95 ≤ 2s 目标直接冲突。设计未澄清 globalSetup 守卫对象与 DDL 缓存生成时机的边界。"
+      ],
+      "major_concerns": [
+        "DD-004 的 `checkDatabaseConnection(prismaFactory: () => PrismaClient = createPrismaClient)` 默认参数在 `startServer()` 中零改调用，但 `startServer()` 随后调用 `buildApp()`，后者又通过 `options.prismaFactory ?? createPrismaClient` 创建第二个 client。这意味着生产启动路径会创建两个 PrismaClient 实例（一个用于连接检查后 disconnect，一个用于应用），与 v6 行为一致但未在设计中显式说明，且 DD-010 的连接池参数会应用两次。建议明确这是有意保留还是应复用。",
+        "DD-008 称「6 个 job 显式新增 `npx prisma generate` 步」，但 pr.yml 的 static-analysis job 若已运行 `tsc --noEmit`，则 generate 必须在 tsc 之前；设计未给出 job 内步骤顺序，也未说明 generate 步是否需要 `DATABASE_URL` dummy env（spike #8 未定论）。若 spike #8 结论为「需要 dummy env」，则 6 个 job 的 generate 步都需补 env，设计未预留该分支的落点。",
+        "DD-009 的 cli.mjs 改造 (c) 依赖 spike #11 结论决定是否加 `--no-generate`，但 `db push` 在 Prisma 7 中是否默认触发 generate 属于 CLI 行为，spike #11 的验证方法（`npm pack` 产物解包 + 仅生产 deps）可能无法覆盖 `db push` 的 generate 触发路径，因为该路径需要 schema 与 config 同时可解析。建议 spike #11 增加「在无 devDeps 环境实际执行 `db push` 并观察是否写入生成物」的步骤。",
+        "DD-005 的 27 处替换三分类中，(b) 类「vi.mock 拦截实例（3 处）」不替换，但 §3.4 的 codemod 规则要求 7 个 vi.mock 文件改 mock 目标为门面路径。若这 3 处实例化位于 mock 生效域内，其 `new PrismaClient()` 调用在 codemod 后 import 的是门面路径，而门面路径已被 mock，则实例化的是 Mock 实例——这与「不替换」的意图一致，但设计未明确 codemod 后这 3 处的 import 语句是否仍需改写（若改写则 mock 目标与 import 目标一致，若不改写则 import 仍指向 `@prisma/client` 导致 mock 失效）。",
+        "§3.6 的「本地 `vitest run` 总时长 ≤ 基线 ×1.2」为软目标，但 DD-006 的 DDL 缓存冷启动（2-4s）+ 每文件独占 PGlite 实例的内存开销，在 ~100 文件并行下可能显著超过 1.2×。设计未给出 maxWorkers 的初始值或 PGlite 实例数的上限估算，软目标的「自动优化」路径缺乏具体参数。"
+      ],
+      "minor_concerns": [
+        "DD-003 的符号清单中「model 类型」未逐一列举，而 §4.1 spike #9 要求「门面 `export *` 对 DD-003 符号清单逐项可用性」验证。清单不完整会导致 spike #9 的验证范围不明确。",
+        "DD-006 的缓存键 = `schema.prisma` 内容 SHA-256，但未考虑 `prisma.config.ts` 或 Prisma 版本变化对 DDL 输出的影响。若 Prisma 7.10.0 → 7.10.1 改变 diff 输出，缓存不会失效。建议缓存键加入 Prisma 版本。",
+        "§3.4 的 codemod 规则「按文件所在目录计算相对路径」对 `prisma/seed-*.ts` 和 `scripts/fix-max-followups.ts` 的相对路径计算未给出示例，且 DD-009 已注明 seeds 在发布包内不可解析——codemod 后这些文件的 import 路径在源码树内正确但在包内断裂，设计未说明是否需要在 codemod 中排除这些文件或加注释。",
+        "DD-012 的 Y'' 备选（`pglite-socket`）提到「Windows 兼容未知」，但未给出验证该备选可行性的 spike 判据。若主方案 X 失败且 Y/Y' 也不可行，Y'' 的可行性无前置验证。",
+        "§4.1 spike #6 的「20 并发 HTTP 请求」未指定并发模型（Promise.all vs 真实 TCP 并发），而 PGlite 是 in-process WASM，HTTP 层并发与 DB 层并发的交互可能不同于真 PG。建议明确并发注入方式。",
+        "DD-009 的 Dockerfile runner 阶段「增加 COPY `prisma.config.ts`」——若 runner 阶段不执行 `db push`（生产容器通常不跑 db push），则该 COPY 无实际用途，反而增加镜像层。设计未说明 runner 阶段何时需要 prisma.config.ts。"
+      ],
+      "consensus_ratio": 0.72,
+      "summary": "设计文档在架构层面（门面/工厂拆分、分阶段执行、spike 判据）已相当完备，R1 的 4 项 Critical 基本得到回应。但存在 3 项代码级可执行性缺口：门面 re-export 与 factory 的类型身份未验证、cleanup() 在 teardown() 后的 no-op 语义缺乏实现落点、globalSetup 守卫对象与 DDL 缓存生成时机的边界不清（与 §3.6 时长目标冲突）。这些缺口会导致 BUILD 阶段出现非预期的 tsc 错误或测试时序失败，建议在 spike 判据中补充验证项并明确实现落点后再进入 BUILD。",
+      "duration_ms": 10205
+    }
+  ],
+  "failures": [
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash",
+      "error": "unparseable model output: "
+    }
+  ],
+  "aggregate": {
+    "verdict": "PROCESS_BLOCK",
+    "consensus_ratio": 0.835,
+    "all_approved": false,
+    "expert_count": 2
+  }
+}
