@@ -1,0 +1,114 @@
+{
+  "mode": "code-walkthrough",
+  "round": 2,
+  "timestamp": "2026-09-29T16:25:07.276Z",
+  "artifact": ".sprint-state/phase-outputs/walkthrough-stageA-artifact.md",
+  "artifact_hash": "5899f64632930c9b39f486b89b4b66c9d1ecfb5c7840e9927c510b86178adedd",
+  "artifact_bytes": 94925,
+  "max_tokens": 16000,
+  "context_files": [
+    {
+      "path": "src/utils/prisma-client.ts",
+      "bytes": 611
+    },
+    {
+      "path": "src/utils/prisma-factory.ts",
+      "bytes": 984
+    },
+    {
+      "path": ".sprint-state/phase-outputs/walkthrough-round1-response.md",
+      "bytes": 9376
+    }
+  ],
+  "models": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash"
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash"
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "experts": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [
+        "The Technical Expert's claim that `describe('...', async () => { const prisma = await getSharedTestPrisma(); ... })` causes a race condition and leaves `prisma` undefined is refuted by the author's empirical evidence (5/5 files passed in isolation) and Vitest 4's documented behavior of awaiting async suite factories. The architecture remains sound.",
+        "The Technical Expert's concern regarding test helpers bypassing `createPrismaClient()` is addressed by the design document (DD-003/DD-010), which explicitly scopes the 'sole construction point' invariant to production code. Test helpers intentionally duplicate adapter construction to decouple the test engine from Postgres-specific factory logic, facilitating the Stage B migration to PGlite."
+      ],
+      "minor_concerns": [
+        "The hardcoded credential fallback in `tests/helpers/create-test-prisma.ts` (`postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test`) is a pre-existing pattern but should be removed or replaced with a strict environment variable check before Stage B to prevent silent connection failures in CI environments lacking explicit configuration.",
+        "The shared database model for integration tests introduces inherent flakiness risks due to parallel execution. While two specific collisions were patched (file-unique userIds, scoped template names), a systemic guard (e.g., fixture uniqueness convention checks or temporary serial execution for affected suites) would further de-risk the 80/80/70/80 coverage gate until Stage B isolation lands."
+      ],
+      "consensus_ratio": 0.95,
+      "summary": "The changeset successfully implements the Prisma 7 facade switch with structurally sound module boundaries and dependency direction. The architectural decision to separate production client construction from test helper construction is validated by the design documents and necessary for the planned Stage B migration. The Technical Expert's critical findings regarding async describe races and factory bypasses are refuted by empirical test results and design intent, respectively. Approval is recommended with minor follow-ups on credential handling and test isolation guards.",
+      "prompt_bytes": 121452,
+      "duration_ms": 14258
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash",
+      "verdict": "APPROVED",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [
+        "T-C1 (async describe) is refuted by the author's empirical run of the 5 flagged files (68/68 pass, real DB round-trips) plus Vitest 4's documented behavior of awaiting async suite factories. I withdraw this as a critical/major finding; the nested-suite shadowing in tests/analysis-api.test.ts:108 is benign because getSharedTestPrisma() is a file-level singleton (DD-005), so inner and outer bindings reference the same client.",
+        "Test-helper construction duplication (tests/helpers/create-test-prisma.ts:1, tests/helpers/test-db.ts:17) bypasses createPrismaClient(). The author's scoping argument is sound — prisma-factory.ts:8 says 'sole production construction point' and DD-003 line 146 says '唯一生产构造点'; Stage B replaces helper internals with PGlite (design line 162), so routing tests through the production factory would couple the test engine to Postgres. This is a deliberate design boundary, not a defect. Residual maintainability cost: connectionTimeoutMillis: 5000 is now duplicated in factory + helper + test-db.ts; a shared constant would be cleaner but is non-blocking.",
+        "tests/server-api.test.ts:63-70 now exercises the real checkDatabaseConnection through the real createPrismaClient with only the facade's PrismaClient symbol replaced. This is intentional (the old vi.mock('../src/server.js') re-implemented the function under test). The coupling is acceptable because the new 'factory itself throws' test at line 238 covers the guard path, and the DATABASE_URL stub makes the real adapter construction deterministic.",
+        "tests/helpers/create-test-prisma.ts:5-9 hardcoded credential fallback 'postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test'. The author correctly notes this is pre-existing parity with origin/master's test-db.ts:14 and is removed in Stage B. Still a real hygiene issue (credential in git history, silent localhost dial with 5s timeout when env is unset). Non-blocking for Stage A but should be tracked.",
+        "getDb() (src/utils/db.ts) bypasses the DI seam and calls createPrismaClient() directly. The author's F-M3 disposition is verified: src/core/graph.ts:70-75 catches the analyzeInterview rejection, and tests/graph.test.ts stubs DATABASE_URL so the synchronous factory throw is avoided. The remaining hazard is a doomed connection attempt to a nonexistent DB, but that is caught by the same .catch and logged — no unhandled rejection observed across repeated full-suite runs."
+      ],
+      "minor_concerns": [
+        "tests/db.test.ts:6 and tests/graph.test.ts:5 call vi.stubEnv at module scope without a matching vi.unstubAllEnvs(). Safe under Vitest's default isolate:true (per-file module registry), but fragile if isolate is ever disabled. tests/interview-plan.integration.test.ts:59 does unstub in afterAll, showing the pattern is known.",
+        "tests/helpers/create-test-prisma.ts:38 getSharedTestPrisma() is async with no await — intentional forward API for Stage B PGlite DDL replay (design line 168), but the docstring's 'Disconnect ownership belongs to afterAll' contract is contradicted by tests/create-test-prisma.test.ts:19 calling shared.$disconnect() directly. Safe under per-file isolation; worth documenting explicitly.",
+        "tests/dingtalk-stream.test.ts:6-28 fake ws module exports only { WebSocket }. Author verified src/integrations/dingtalk/stream-client.ts:1 imports only WebSocket, so the mock is complete. If stream-client ever adds WebSocketServer or createWebSocketStream imports, the mock silently breaks — a comment noting the single-symbol assumption would help.",
+        "tests/interview-plan-members-phone.test.ts:88-96 relational filter template: { name: { startsWith: 'Phone-' } } is valid per prisma/schema.prisma:56 (template Template @relation). The .catch(() => {}) would swallow a future schema regression into a silent no-op; acceptable given the schema is stable.",
+        "tests/e2e/helpers/admin-login.ts:44 waitUntil: 'commit' is valid Playwright API. The author's reasoning is correct: the /admin URL transition only occurs after the server accepts the login POST, so 'commit' is sufficient for the redirect itself. Subsequent steps have their own waits.",
+        "tests/helpers/test-db.ts:83 isClosed early-return in cleanup() changes prior behavior (previously threw after teardown). Intentional per DD-005 v2/v3 and asserted by tests/test-database.test.ts. The safety-net weakening is acknowledged and covered by the new contract test.",
+        "CI: npx prisma generate added to 6 jobs; the biome-only job does not need it (biome check src/ is type-unaware). Author's F-M4 disposition confirms src/generated/ is excluded from biome and coverage. workflow_dispatch addition makes manual verification cheap.",
+        "tests/admin-templates-import.test.ts:162 and -integration.test.ts:229 double cast `as unknown as new () => InstanceType<typeof PrismaClient>` is a type-level lie in a mock domain. The comment's claim that 'the real Prisma 7 ctor requires an adapter' is corroborated by prisma-factory.ts:24 and test-db.ts:17, both of which pass { adapter }."
+      ],
+      "consensus_ratio": 0.7,
+      "summary": "I maintain APPROVED. The technical expert's T-C1 (async describe) is empirically refuted by the author's isolated run of the 5 flagged files (68/68 pass with real DB round-trips) and by Vitest 4's documented behavior of awaiting async suite factories; the nested-suite shadowing is benign because getSharedTestPrisma() is a file-level singleton. The remaining concerns — test-helper construction duplication, hardcoded credential fallback, getDb() bypassing DI — are deliberate Stage A intermediate-state choices with documented Stage B remediation paths, and none block execution as written. The production facade/factory wiring, CI prisma generate additions, and the new contract tests (factory-throws guard, isClosed teardown/cleanup) are correct and verifiable.",
+      "prompt_bytes": 121432,
+      "duration_ms": 7096
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash",
+      "verdict": "APPROVED",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [
+        "Shared single test DB with parallel file execution remains a bounded residual risk to the 80/80/70/80 gate (F-M2): the two discovered collisions are patched (file-unique userIds in tests/batch-import.test.ts; 'Phone-' relational scoping in tests/interview-plan-members-phone.test.ts:88-96) and the author reports repeated full-suite green runs (116 files / 1261 tests, zero unhandled errors), but nothing prevents the next collision. The author commits to structural elimination in Stage B (per-instance PGlite, design DD-005); I require that Stage B lands on schedule and, until then, a documented flake-triage protocol (rerun, or fileParallelism=false fallback for gate failures) so a transient collision cannot silently erode confidence in the coverage gate."
+      ],
+      "minor_concerns": [
+        "F-M1 credential fallback: the author correctly shows the local-dev test account string is pre-existing on origin/master (tests/helpers/test-db.ts:14), so this changeset does not worsen git-history exposure, and CI sets TEST_DATABASE_URL/DATABASE_URL explicitly. Still, resolveTestDatabaseUrl() in tests/helpers/create-test-prisma.ts should ultimately fail loudly on missing env; track for Stage B, which removes the network URL entirely (PGlite).",
+        "F-M3 resolution accepted but note residual cost: the tests/graph.test.ts DATABASE_URL stub keeps a real doomed connection (connectionTimeoutMillis: 5000) in the getDb() fire-and-forget path; the author verified the rejection is caught at src/core/graph.ts:70-75 ('Async analysis failed'), so no unhandled rejection — consider mocking the facade instead to reclaim worst-case ~5s per run in Postgres-less CI jobs.",
+        "T-C1 refutation (async describe) rests on Vitest 4 (^4.1.2) awaiting async suite factories; the author's isolated run (5 files, 68/68, real DB round-trips at tests/admin-plan-csrf.test.ts:45-52) is credible evidence, but the pattern is version-sensitive — add a lint rule or upgrade note so a future Vitest behavior change cannot silently reintroduce the undefined-prisma hazard.",
+        "F-M4 CI verification: per-job `prisma generate` coverage is verified statically at six anchors (pr.yml:30/72/122/209/273/314; security-scan compiles nothing) and src/generated exclusions from biome/coverage are confirmed; close the loop by running the newly added workflow_dispatch once on a clean checkout before merge, which also confirms the 80/80/70/80 thresholds numerically (the response cites ci-parity logs but does not restate coverage figures).",
+        "E2E budget inflation: waitUntil 'commit' with 30s (tests/e2e/helpers/admin-login.ts:44) and two 15s vi.waitFor polls (tests/e2e/admin-core.e2e.test.ts) raise worst-case wall-clock on loaded full-suite runs — already recorded as a watch item; keep monitoring."
+      ],
+      "consensus_ratio": 0.8,
+      "summary": "I maintain APPROVED and raise confidence from 7 to 8: all four Round 1 feasibility majors (F-M1 through F-M4) were answered with specific, checkable evidence — the credential fallback is pre-existing on origin/master, the shared-DB flakiness is an acknowledged Stage A residual with Stage B (PGlite, DD-005) as the structural fix, the fire-and-forget rejection is verified caught at src/core/graph.ts:70-75, and per-job `prisma generate` coverage is verified at six pr.yml anchors. The panel's only critical-adjacent claim (T-C1 async describe) was empirically refuted by an isolated 68/68 run against the real database, so the changeset remains executable as written. Residual risk concentrates in parallel shared-DB collisions until Stage B lands, which I retain as the single remaining major concern with a triage-protocol ask.",
+      "prompt_bytes": 121422,
+      "duration_ms": 172408
+    }
+  ],
+  "failures": [],
+  "aggregate": {
+    "verdict": "REQUEST_CHANGES",
+    "consensus_ratio": 0.8167,
+    "all_approved": true,
+    "expert_count": 3
+  }
+}

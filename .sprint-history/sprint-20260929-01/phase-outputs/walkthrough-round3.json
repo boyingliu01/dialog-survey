@@ -1,0 +1,111 @@
+{
+  "mode": "code-walkthrough",
+  "round": 3,
+  "timestamp": "2026-09-29T16:38:56.713Z",
+  "artifact": ".sprint-state/phase-outputs/walkthrough-stageA2-artifact.md",
+  "artifact_hash": "8aad70e79d49678c6abc90f12b610d69c7c523a449cba2573c022f89fcef3938",
+  "artifact_bytes": 98830,
+  "max_tokens": 16000,
+  "context_files": [
+    {
+      "path": "src/utils/prisma-client.ts",
+      "bytes": 611
+    },
+    {
+      "path": "src/utils/prisma-factory.ts",
+      "bytes": 1155
+    },
+    {
+      "path": ".sprint-state/phase-outputs/walkthrough-round2-response.md",
+      "bytes": 9936
+    }
+  ],
+  "models": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash"
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash"
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "experts": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [
+        "The Technical Expert's claim regarding async describe race conditions (T-C1) is refuted by empirical evidence and Vitest 4 semantics; the architecture remains sound.",
+        "Test helper construction duplication (create-test-prisma.ts, test-db.ts) bypassing createPrismaClient() is a deliberate design boundary for Stage B migration (DD-003/DD-010), not a defect. The timeout constant dedup in eb707f9 resolves the maintainability concern."
+      ],
+      "minor_concerns": [
+        "Hardcoded credential fallback in tests/helpers/create-test-prisma.ts:5-9 is pre-existing and slated for removal in Stage B via PGlite isolation; tracked as hygiene issue.",
+        "Shared test DB parallelism introduces residual flake risk until Stage B lands; mitigated by documented triage protocol in AGENTS.md and file-scoped fixture fixes in this changeset."
+      ],
+      "consensus_ratio": 0.95,
+      "summary": "The Round-2 response commit eb707f9 successfully addresses all architectural concerns, particularly the timeout constant deduplication and clarification of test helper boundaries. The facade switch maintains strict dependency direction (src -> prisma-client/prisma-factory) and correct DI seams. The remaining minor issues are explicitly scoped to Stage B remediation with clear documentation, ensuring long-term maintainability without blocking current execution.",
+      "prompt_bytes": 118264,
+      "duration_ms": 8455
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash",
+      "verdict": "APPROVED",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [
+        "Shared single PostgreSQL DB with fileParallelism: true remains a bounded residual risk to the coverage gate (F-M2). The two known collisions are patched (file-unique userIds in tests/batch-import.test.ts; 'Phone-' relational scoping in tests/interview-plan-members-phone.test.ts:88-96) and the triage protocol is now documented at AGENTS.md:84, but nothing structurally prevents the next collision until Stage B PGlite (DD-005) lands. I require Stage B to land in-sprint as committed; the interim protocol is acceptable only as a bridge.",
+        "Test-helper construction duplication: tests/helpers/create-test-prisma.ts:1 and tests/helpers/test-db.ts:17 both construct PrismaPg adapters directly, bypassing createPrismaClient(). The author's scoping argument (prisma-factory.ts:8 'sole production construction point'; DD-003 line 146) is sound and Stage B replaces helper internals with PGlite, so this is a deliberate boundary — but the duplication is a real maintainability cost that must not silently persist past Stage B."
+      ],
+      "minor_concerns": [
+        "Hardcoded credential fallback 'postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test' at tests/helpers/create-test-prisma.ts:5-9 (and pre-existing at test-db.ts:14). Pre-existing parity with origin/master and removed in Stage B, but the credential is in git history and the fallback silently dials localhost with a 5s timeout when env is unset. Track on the Stage B checklist.",
+        "getDb() (src/utils/db.ts) bypasses the DI seam and calls createPrismaClient() directly. Verified caught at src/core/graph.ts:66-71 and tests/graph.test.ts stubs DATABASE_URL, so no unhandled rejection — but the doomed-connection cost (~5s) materializes in Postgres-less runs. Accepted as non-blocking; revisit if Stage B makes getDb() mockable in this path.",
+        "tests/graph.test.ts intentionally keeps a process-lifetime vi.stubEnv without afterAll unstub. The author's empirical evidence (pending setImmediate outlives the last test; unstub re-surfaces an unhandled error) is credible and the file comment at tests/graph.test.ts:8-10 documents it. This is correct under the current config (isolate: true default) but is fragile if isolate is ever disabled — the comment should be treated as a load-bearing invariant.",
+        "tests/server-api.test.ts:63-70 now exercises the real checkDatabaseConnection through the real createPrismaClient with only the facade's PrismaClient symbol replaced. Intentional (the old vi.mock('../src/server.js') re-implemented the function under test) and covered by the new 'factory itself throws' test at line 238, but the coupling to real adapter construction is worth noting.",
+        "Coverage thresholds are not numerically enforced today (vitest.config.ts wires no coverage.thresholds; pr.yml:176 job and pr.yml:233 comment are stale). Pre-existing and untouched by Stage A; current figures (87.13/73.07/93.5/87.7) exceed 80/80/70/80 anyway. Correctly flagged as issue #150 for the next sprint.",
+        "workflow_dispatch was added to pr.yml but the run URL is promised as post-walkthrough evidence, not yet attached. Acceptable given the stated sequencing, but the evidence should be recorded before merge."
+      ],
+      "consensus_ratio": 0.9,
+      "summary": "I maintain APPROVED at confidence 8. The eb707f9 delta resolves my T-M (timeout dedup: single PRISMA_CONNECT_TIMEOUT_MS at prisma-factory.ts:5, imported by both helpers) and the db.test.ts unstub minor; the graph.test.ts non-unstub is now backed by concrete empirical evidence (pending setImmediate outliving the last test) rather than assertion, which is stronger than the letter of the ask. The remaining items — shared-DB collision risk (F-M2), helper construction duplication, credential fallback, getDb() DI bypass — are all deliberate Stage A intermediate-state choices with documented Stage B remediation (DD-005), and none block execution as written. The production facade/factory wiring, CI prisma generate additions across six jobs, and the new contract tests (factory-throws guard at server-api.test.ts:238, isClosed teardown/cleanup at test-database.test.ts) are correct and verifiable.",
+      "prompt_bytes": 118244,
+      "duration_ms": 5493
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [
+        "F-M2 residual (conditional, non-blocking): the shared single test DB with fileParallelism: true remains structurally collision-prone until Stage B (per-instance PGlite, DD-005) lands. The interim triage protocol I required now exists verbatim in AGENTS.md (Shared test DB note: isolation rerun -> npx vitest run <file> --no-file-parallelism -> fixture scoping, never weaken assertions), and the two known collision classes are patched (file-unique userIds in tests/batch-import.test.ts; 'Phone-'-scoped cleanup predicate in tests/interview-plan-members-phone.test.ts afterEach). Repeated full-suite runs at eb707f9 are green (116 files / 1261 tests, zero unhandled errors). Remaining condition: Stage B (M3, committed as the immediate next milestone in this sprint) must land on schedule — schedule adherence, not the changeset, is the open risk.",
+        "Coverage gate integrity (new, disclosed by author under F-M4): vitest.config.ts wires no coverage.thresholds, so the 'Coverage Check (80/80/70/80)' job (pr.yml:176) and its pr.yml:233 comment do not numerically gate today. Pre-existing (thresholds removed by 22bad13, 2026-07-28), untouched by Stage A, and current figures (87.13/73.07/93.5/87.7) exceed all four axes, so this does not block Stage A — but the AC is not objectively enforced in CI mechanism until enforcement is restored (tracked as issue #150, next sprint in queue)."
+      ],
+      "minor_concerns": [
+        "workflow_dispatch is added to pr.yml but not yet exercised; the dispatched-run URL is to be recorded as M2/M4 evidence at push, before any merge — acceptable as a scheduled verification step.",
+        "Credential fallback 'postgresql://investigator:zhulaoda@localhost:5432/dialog_survey_test' persists in tests/helpers/create-test-prisma.ts:5-9 (pre-existing parity with origin/master test-db.ts:14); confirm removal lands with Stage B PGlite so the helper internals no longer dial a network URL with a bounded 5s timeout when env is unset.",
+        "F-M3 residual: Postgres-less runs pay one bounded ~5s doomed connect attempt via getDb() -> createPrismaClient(); rejection caught in the graph.ts fire-and-forget path — accepted as bounded operational cost.",
+        "Several suites depend on Vitest 4 awaiting async describe factories (describe(..., async () => await getSharedTestPrisma())); the re-verify-on-upgrade note in AGENTS.md is the right mitigation — carry it into any Vitest bump checklist.",
+        "E2E budget inflation watch item retained: waitUntil 'commit' (30s) and vi.waitFor 15s raise per-test ceilings; full-suite wall clock 78.1s remains within budget — continue monitoring.",
+        "tests/graph.test.ts keeps a process-lifetime DATABASE_URL stub with a documented, experimentally verified rationale (unstub re-creates an unhandled setImmediate error); valid under default per-file module isolation, but re-check if vitest isolate is ever disabled."
+      ],
+      "consensus_ratio": 0.92,
+      "summary": "I maintain APPROVED and raise confidence from 8 to 9: every feasibility ask is closed with verifiable evidence — the F-M2 triage protocol is now in AGENTS.md with Stage B (PGlite, DD-005) scheduled as M3, F-M4 numbers are restated with the ≤0.1pp coverage delta attributable to the factory constant refactor, workflow_dispatch is in pr.yml, and the fake-ws and e2e timing fixes remove external network dependencies from CI. The author's disclosure that coverage thresholds are absent from vitest.config.ts is a pre-existing gate-integrity gap (tracked as #150, figures currently pass) and does not block Stage A. Residual risk is concentrated in shared-DB collisions until Stage B lands; my approval is conditional on the M3 schedule holding and #150 restoring numeric enforcement.",
+      "prompt_bytes": 118234,
+      "duration_ms": 173332
+    }
+  ],
+  "failures": [],
+  "aggregate": {
+    "verdict": "APPROVED",
+    "consensus_ratio": 0.9233,
+    "all_approved": true,
+    "expert_count": 3
+  }
+}

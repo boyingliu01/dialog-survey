@@ -34,6 +34,10 @@ regexTarget = "line"
 regexes = [
   '''DINGTALK_CLIENT_SECRET=\[REDACTED\]''',
   '''DINGTALK_CLIENT_SECRET=<.*>''',
+  # Placeholder/dummy values in docs, CI workflow snippets and archived evidence
+  '''DINGTALK_CLIENT_SECRET=your-dingtalk-client-secret''',
+  '''DINGTALK_CLIENT_SECRET=smoke-dummy-secret''',
+  '''DINGTALK_CLIENT_SECRET \|\| 'dummy-ci-client-secret' ''',
 ]
 
 [[rules]]
@@ -46,6 +50,8 @@ regexTarget = "line"
 regexes = [
   '''ADMIN_API_KEY=<.*>''',
   '''ADMIN_API_KEY=dev-admin-key-123''',
+  # Placeholder value used in .env templates and archived docs
+  '''ADMIN_API_KEY=your-admin-api-key''',
 ]
 
 [[rules]]

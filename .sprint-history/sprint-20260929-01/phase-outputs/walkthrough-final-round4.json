@@ -1,0 +1,90 @@
+{
+  "mode": "code-walkthrough",
+  "round": 4,
+  "timestamp": "2026-09-30T03:56:14.164Z",
+  "artifact": ".sprint-state/phase-outputs/walkthrough-final-artifact.md",
+  "artifact_hash": "ffbc879b05bacc3c750932fc7a4b64944e998b58b2f9ec5af3597d11f240f6fe",
+  "artifact_bytes": 46247,
+  "context_files": [
+    "specification.yaml",
+    "tests/prisma7-spec-invariants.test.ts",
+    "tests/helpers/pglite-template.ts",
+    ".sprint-state/phase-outputs/test-alignment-report.json"
+  ],
+  "models": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash"
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash"
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "responses": [
+    {
+      "round": 4,
+      "role": "architecture",
+      "requested_model": "whalecloud/g-qwen3.8-flash",
+      "resolved_model": "qwen3.8-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [],
+      "minor_concerns": [
+        "The `PGLITE_TEST_CACHE_DIR` environment variable is read at module load time in `pglite-template.ts`. While the contract test correctly uses `vi.resetModules()` to re-evaluate the module with the new cache path, this pattern creates a hidden dependency on module isolation for correctness. If other tests or production code were to import this helper without resetting modules after changing the env var, they would silently use the wrong cache directory. This is acceptable for now given the specific test usage, but warrants a comment or lint rule if the helper becomes more widely used.",
+        "The invariant test relies heavily on string parsing of YAML and JS files (`jobRunSteps`, regex matches on `scripts/cli.mjs`). This couples the test architecture tightly to the formatting of these configuration files. While robust enough for the current scope, minor refactors (e.g., changing indentation in `pr.yml` or splitting lines in `cli.mjs`) could break these assertions unnecessarily. Consider moving towards AST-based checks or structural validation libraries if these config files grow in complexity."
+      ],
+      "consensus_ratio": 0.85,
+      "summary": "The changeset successfully addresses all prior architectural concerns. The introduction of `getTemplateHealth()` provides necessary observability into the template fast-path degradation, closing the gap where failures were previously silent. The fix for the memoization bug (clearing `templatePromise` on failure) ensures correct state management across process lifecycles. Module boundaries are respected: the facade/factory seam remains intact, and the new invariant tests correctly anchor governance requirements to committed artifacts rather than gitignored state. The release version bump to 1.10.0 accurately reflects the breaking engine change. No critical or major architectural flaws remain."
+    },
+    {
+      "round": 4,
+      "role": "technical",
+      "requested_model": "whalecloud/g-deepseek-flash",
+      "resolved_model": "deepseek-flash",
+      "verdict": "APPROVED",
+      "confidence": 7,
+      "critical_issues": [],
+      "major_concerns": [],
+      "minor_concerns": [
+        "jobRunSteps() still matches `run:` text via substring includes() rather than exact command equality; a step whose run: text merely contains 'npx vitest run' (e.g. inside a quoted echo) would satisfy ordering. Materially stronger than the old jobBlock()/indexOf approach and acceptable, but not fully semantic.",
+        "The corrupt-template contract test mutates process.env['PGLITE_TEST_CACHE_DIR'] and calls vi.resetModules() inside a shared vitest process; if another test file in the same worker imports pglite-template.js concurrently, the env swap could leak. Mitigated by per-file module isolation and the finally-block restore, but the seam is process-global.",
+        "The AC-006-02 spike-criteria regexes ([/^\\s+([0-9]+)\\s*,\\s*$/gm] and record(\\d+,) still accept a bare numeric entry anywhere in the CRITERIA block; the executable-wiring claim is stronger than before but a stray `5,` line would still count.",
+        "docs/ac003-timing-and-memory-evidence.md §1b honestly records that warm p95 measured 2.4-2.7s under full-suite parallelism, i.e. the AC's 2s budget is unmet by observation in that regime; this is disclosed, not asserted, and correctly deferred to #150.",
+        "getTemplateHealth() is exported but only asserted in the invariant test; no production/CI surface consumes the counter, so a silent degrade in a normal run still surfaces only via stderr."
+      ],
+      "consensus_ratio": 0.85,
+      "summary": "All six round-1/2 technical majors are fixed in code, not argued: T1 budgets committed to docs/; T2 jobRunSteps() reads only run: lines; T3 assertions scoped to array literals with pinned prisma@7.10.0; T4 executable-wiring set replaces the vacuous substring loop; T5 getTemplateHealth() + failure counter + latch-engagement assertions; T6 the real discardTemplate()/templatePromise bug is fixed and proven by a three-process contract test with an isolated cache seam. F1/F2 (version 1.10.0, corrected disclosures) also land. Remaining items are minor text-matching fragility and a disclosed, tracked SLA gap (#150). No critical or major issues remain; suite 118/118, 1282 passed, EXIT=0."
+    },
+    {
+      "round": 4,
+      "role": "feasibility",
+      "requested_model": "whalecloud/g-glm-5.3-flash",
+      "resolved_model": "glm-5.3-flash",
+      "verdict": "APPROVED",
+      "confidence": 8,
+      "critical_issues": [],
+      "major_concerns": [],
+      "minor_concerns": [
+        "F1 verified in artifact: VERSION/package.json/CHANGELOG/AGENTS.md all at 1.10.0 (next non-colliding MINOR above published v1.9.0), engines floor pinned by the invariant test; the SemVer/downgrade problem is resolved. Residual: the CHANGELOG hunk still hides lines 7-9, so the 'requires Node >= 20.19.0' disclosure line is unverifiable from the artifact — confirm it exists before publishing (npm engines enforcement makes this non-blocking).",
+        "AGENTS.md counts are stale against the recorded evidence: 117 test files / ~1266 tests vs 118 files / 1282 passed + 1 skipped at d9a63cc; refresh while touching the doc.",
+        "AC-PRISMA7-003-02 spec text remains unscoped ('warm p95 ≤2s' without isolation/parallelism qualifier) while evidence §1b records 2.4–2.7s under full-suite contention; the @intent/disclosures/evidence-doc chain is now truthful and the runner confirmation is routed to M1-CI backfill, but consider re-baselining the AC wording per DD-007 at SHIP so spec and evidence scope match.",
+        "Cosmetic: in the docs-assertion test, `find()` returning undefined for the ENCRYPTION_KEY row would fail with an opaque TypeError instead of a message."
+      ],
+      "consensus_ratio": 0.85,
+      "summary": "Both my majors are fixed in the artifact, not argued: release re-versioned to 1.10.0 (canonical VERSION + fan-out + retitled CHANGELOG, DR-017), and the disclosures[]/learnings/@intent now truthfully state no test asserts the wall-clock budgets, pointing at committed docs/ac003-timing-and-memory-evidence.md. The committed evidence is methodologically honest — isolation measurements with the §1b contention caveat and explicit CI-confirmation routing. Deferrals (#150 bench, #152 migrate swap, #156 env hazard, #157 debt) are each disclosed and shippable; first PR CI run backfills the post-push clauses. All six technical majors also show committed fixes. Remaining items are minors: verify the CHANGELOG Node-floor line in the hidden hunk, refresh stale AGENTS.md counts, scope the AC wording at SHIP."
+    }
+  ],
+  "failures": [],
+  "aggregate": {
+    "verdict": "REQUEST_CHANGES",
+    "consensus_ratio": 0.85,
+    "all_approved": true,
+    "expert_count": 3
+  }
+}

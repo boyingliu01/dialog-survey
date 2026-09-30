@@ -1,0 +1,9 @@
+{
+  "clean": false,
+  "blocked": false,
+  "skipped": false,
+  "uncommitted_files": 1,
+  "files": ["M .gitignore"],
+  "note": "BUILD 入口唯一未提交变更为 .gitignore 新增 .archlint-cache/（Gate 6 archlint 自动生成的工具缓存，856K，可再生）。属本 sprint 内变更，将随 S1 Stage 0 交付物提交。无外部/无关工作混入。",
+  "timestamp": "2026-09-29T14:22:30Z"
+}

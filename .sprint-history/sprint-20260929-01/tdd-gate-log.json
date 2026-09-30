@@ -1,0 +1,9 @@
+{
+  "checked": true,
+  "blocked": false,
+  "skipped": false,
+  "reqs_checked": 6,
+  "reqs_blocked": 0,
+  "note": "本 sprint 为基础设施迁移类（Prisma 7 升级 + 测试后端替换），REQ-PRISMA7-001..006 的验收锚点是『既有 100+ 测试文件全绿维持 + 新增 config 断言测试（S3: ci-config / toolchain-exclusions）』，不存在『实现前测试已 GREEN 无实现』的 TDD-bypass 形态；新增测试文件在 S3 以 [TDD-RED] 起步。执行模式：ralph-loop 按 S1-S5 切片推进，每切片以 spike 判据/全量回归作为 RED→GREEN 等价验证。",
+  "timestamp": "2026-09-29T14:22:30Z"
+}

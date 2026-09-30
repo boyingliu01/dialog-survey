@@ -4,6 +4,7 @@
     "ignore": [
       ".stryker-tmp/",
       ".sprint-state/",
+      ".sprint-history/",
       ".gstack/",
       ".xp-gate/",
       ".code-walkthrough-result.json",
@@ -26,6 +27,7 @@
       "coverage/",
       "node_modules/",
       ".stryker-tmp/",
+      ".sprint-history/",
       ".omo/",
       "dist/",
       "build/",
@@ -65,6 +67,7 @@
       "coverage/",
       "node_modules/",
       ".stryker-tmp/",
+      ".sprint-history/",
       ".omo/",
       "dist/",
       "build/",
