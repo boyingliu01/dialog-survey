@@ -26,7 +26,7 @@
 - **Action**: 能稳定断言的子句写成断言——即**决定性能的机制不变量**（模板 Blob 进程内 memoize
   同引用、模板自带 schema 且零行启动、删 `DATABASE_URL` 仍能建库查询、快路径失败时磁盘缓存与
   记忆化值同时作废并可观测降级）；数字预算（warm p95、冷启动 ≤5s）只是
-  `.sprint-state/phase-outputs/ac003-timing-and-memory-evidence.md` 里的隔离测量证据，
+  `docs/ac003-timing-and-memory-evidence.md` 里的隔离测量证据，
   **没有任何测试断言壁钟数值**，这一点写进报告 `disclosures[]` 供 SHIP/CLOSE 复查。
 
 ### Pattern: 治理类 AC 的测试要锚定「入库的不变量」，不能锚定 gitignore 的过程工件
@@ -46,7 +46,7 @@
 - **Insight**: 壁钟断言在并行套件里测的是调度噪声，不是被测性质；它会把「预算」变成 flaky 源。
   引擎的 fast path 之所以快，是因为模板 Blob 被进程内 memoize 且已带 schema——这才是可稳定断言的因。
 - **Action**: 断言改为确定性形式（`getTemplateDataDir()` 两次调用返回同一引用 + 模板实例零行且带 schema），
-  数字预算回到 `.sprint-state/phase-outputs/ac003-timing-and-memory-evidence.md` 的隔离测量并显式写明
+  数字预算回到 `docs/ac003-timing-and-memory-evidence.md` 的隔离测量并显式写明
   「并发争用下不可断言」，`@intent` 同步改口径，残留风险进 SHIP 复查清单。
 
 ### Pattern: 门禁红灯先做 master 基线对照，再决定是修还是披露
