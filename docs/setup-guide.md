@@ -7,7 +7,7 @@
 | 组件 | 最低版本 | 推荐版本 | 说明 |
 |------|----------|----------|------|
 | Windows | 10/11 | 11 | 需支持 PowerShell 5.1+ |
-| Node.js | >= 20.0.0 | 20 LTS | 必须 20+ (项目使用 `tsx --env-file` 特性) |
+| Node.js | >= 20.19.0 | 20 LTS | 项目 `engines` 要求 `>= 20.19.0`（`.nvmrc` 为 20.19） |
 | PostgreSQL | 14+ | 16 | 数据存储 |
 | Git | 2.40+ | 最新 | 版本控制 |
 | jq | 任意 | 最新 | pre-push hook 依赖 |
@@ -151,20 +151,23 @@ HOST=0.0.0.0
 # Database
 DATABASE_URL="postgresql://postgres:your_password@localhost:5432/dialog_survey?schema=public"
 
-# LLM Configuration
-DASHSCOPE_API_KEY=sk-your-dashscope-api-key
-MAX_LLM_RETRIES=2
+# LLM Configuration (OpenAI 兼容)
+LLM_API_KEY=your-llm-api-key
+LLM_MODEL=qwen2.5
 LLM_TIMEOUT=30000
+# LLM_BASE_URL=http://localhost:11434/v1/chat/completions
+# DASHSCOPE_API_KEY=sk-your-dashscope-api-key   # 仅特定集成（embedding 等）需要
 
-# DingTalk Configuration
-DINGTALK_APP_KEY=your-dingtalk-app-key
-DINGTALK_APP_SECRET=your-dingtalk-app-secret
+# DingTalk Configuration（Stream 模式，无需公网回调地址）
+DINGTALK_CLIENT_ID=your-dingtalk-client-id
+DINGTALK_CLIENT_SECRET=your-dingtalk-client-secret
 DINGTALK_AGENT_ID=your-dingtalk-agent-id
-PUBLIC_URL=http://your-internal-ip:3001
 
-# Security
-ENCRYPTION_KEY=your-32-byte-hex-key
-ADMIN_API_KEY=your-admin-api-key
+# Admin 登录（会话认证）
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD_HASH=
+SESSION_SECRET=
+SESSION_SALT=
 
 # Report Configuration
 REPORTS_DIR=./reports
@@ -178,12 +181,17 @@ LOG_LEVEL=info
 | 变量 | Windows 注意事项 |
 |------|------------------|
 | `DATABASE_URL` | 如果 PG 在本地，确保端口 5432 可访问 |
-| `PUBLIC_URL` | 钉钉回调地址。局域网内用 `http://内网IP:3001` |
-| `ENCRYPTION_KEY` | 生成方法见下方 |
+| `ADMIN_PASSWORD_HASH` | bcrypt 哈希：`node -e "require('bcryptjs').hash('your-password', 12).then(console.log)"` |
+| `SESSION_SECRET` / `SESSION_SALT` | 会话密钥，生成方法见下方 |
+| `ENCRYPTION_KEY` | （已弃用，仅兼容保留）运行时不再使用 |
 
-### 生成 ENCRYPTION_KEY
+### 生成会话密钥
 
 ```powershell
+# SESSION_SECRET (32 bytes hex)
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# SESSION_SALT (16 bytes hex)
 node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
 ```
 
@@ -231,11 +239,11 @@ curl http://localhost:3001/health
 npm run build       # 编译到 dist/
 
 # 直接运行
-node dist\src\server.ts
+node dist\src\server.js
 
 # 或使用 PM2 管理（推荐）
 npm install -g pm2
-pm2 start dist/src/server.ts --name dialog-survey
+pm2 start dist/src/server.js --name dialog-survey
 pm2 save
 pm2 startup   # 设置 Windows 开机自启
 ```
@@ -278,14 +286,14 @@ pm2 startup   # 设置 Windows 开机自启
 
 完成上述步骤后，逐一验证：
 
-- [ ] `node --version` 输出 >= 20.0.0
+- [ ] `node --version` 输出 >= 20.19.0
 - [ ] `npm install` 无报错
 - [ ] `.env` 已配置所有必填项
-- [ ] `npx prisma generate` 成功
+- [ ] `npx prisma generate` 成功（生成 `src/generated/prisma`）
 - [ ] `npx prisma db push` 成功（数据表已创建）
 - [ ] `npm run dev` 启动无报错
 - [ ] `curl http://localhost:3001/health` 返回正常响应
-- [ ] `npm run test` 测试通过
+- [ ] `npx vitest run` 测试通过（无需 PostgreSQL，使用 PGlite）
 - [ ] `npm run type-check` 类型检查通过
 - [ ] `npm run lint` 代码检查通过
 - [ ] `jq --version` 可用（pre-push hook 需要）
@@ -312,9 +320,8 @@ npm ci --ignore-scripts
 ### Q: `npm run dev` 启动后钉钉 Stream 连接失败？
 
 **A**: 检查：
-1. `DINGTALK_APP_KEY` / `DINGTALK_APP_SECRET` 是否正确
-2. 网络能否访问钉钉 API（公司防火墙是否放行）
-3. `PUBLIC_URL` 是否为钉钉服务器可访问的地址
+1. `DINGTALK_CLIENT_ID` / `DINGTALK_CLIENT_SECRET` / `DINGTALK_AGENT_ID` 是否正确
+2. 网络能否访问钉钉 API（公司防火墙是否放行；Stream 模式为 WebSocket 长连接，无需公网回调地址）
 
 ### Q: Git pre-push hook 报错 `jq: command not found`？
 

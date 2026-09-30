@@ -4,7 +4,6 @@ import csrfProtection from '@fastify/csrf-protection';
 import fastifyFormbody from '@fastify/formbody';
 import secureSession from '@fastify/secure-session';
 import fastifyView from '@fastify/view';
-import type { Template, TemplateStatus } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import nunjucks from 'nunjucks';
@@ -13,6 +12,7 @@ import type { InterviewRepository } from '../src/repositories/interview.reposito
 import type { AnalysisService } from '../src/services/analysis.service.js';
 import type { AnalyticsService } from '../src/services/analytics.service.js';
 import type { InterviewPlanService } from '../src/services/interview-plan.service.js';
+import type { Template, TemplateStatus } from '../src/utils/prisma-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -42,62 +42,65 @@ const mockAnalysisReportFindMany = vi.fn(() => Promise.resolve([]));
 const mockAnalysisReportFindFirst = vi.fn(() => Promise.resolve(null));
 const mockBatchReportCount = vi.fn(() => Promise.resolve(0));
 
-vi.mock('@prisma/client', () => ({
-  PrismaClient: class {
-    template = {
-      get create() {
-        return mockTemplateCreate;
-      },
-      get findUnique() {
-        return mockTemplateFindUnique;
-      },
-      get findMany() {
-        return mockTemplateFindMany;
-      },
-      get update() {
-        return mockTemplateUpdate;
-      },
-      get delete() {
-        return mockTemplateDelete;
-      },
-      get count() {
-        return mockTemplateCount;
-      },
-    };
-    interviewPlan = {
-      get findMany() {
-        return mockInterviewPlanFindMany;
-      },
-      get groupBy() {
-        return mockInterviewPlanGroupBy;
-      },
-    };
-    interview = {
-      get findMany() {
-        return mockInterviewFindMany;
-      },
-      get groupBy() {
-        return mockInterviewGroupBy;
-      },
-    };
-    analysisReport = {
-      get findMany() {
-        return mockAnalysisReportFindMany;
-      },
-      get findFirst() {
-        return mockAnalysisReportFindFirst;
-      },
-    };
-    batchAnalysisReport = {
-      get count() {
-        return mockBatchReportCount;
-      },
-    };
-    $disconnect = vi.fn(() => Promise.resolve());
-    $connect = vi.fn(() => Promise.resolve());
-  },
-  TemplateStatus: { DRAFT: 'DRAFT', PUBLISHED: 'PUBLISHED' },
-}));
+vi.mock('../src/utils/prisma-client.js', async (importOriginal) => {
+  const original = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...original,
+    PrismaClient: class {
+      template = {
+        get create() {
+          return mockTemplateCreate;
+        },
+        get findUnique() {
+          return mockTemplateFindUnique;
+        },
+        get findMany() {
+          return mockTemplateFindMany;
+        },
+        get update() {
+          return mockTemplateUpdate;
+        },
+        get delete() {
+          return mockTemplateDelete;
+        },
+        get count() {
+          return mockTemplateCount;
+        },
+      };
+      interviewPlan = {
+        get findMany() {
+          return mockInterviewPlanFindMany;
+        },
+        get groupBy() {
+          return mockInterviewPlanGroupBy;
+        },
+      };
+      interview = {
+        get findMany() {
+          return mockInterviewFindMany;
+        },
+        get groupBy() {
+          return mockInterviewGroupBy;
+        },
+      };
+      analysisReport = {
+        get findMany() {
+          return mockAnalysisReportFindMany;
+        },
+        get findFirst() {
+          return mockAnalysisReportFindFirst;
+        },
+      };
+      batchAnalysisReport = {
+        get count() {
+          return mockBatchReportCount;
+        },
+      };
+      $disconnect = vi.fn(() => Promise.resolve());
+      $connect = vi.fn(() => Promise.resolve());
+    },
+  };
+});
 
 const { adminTemplatesRoutes } = await import('../src/api/admin-templates.js');
 const { TemplateRepository } = await import('../src/repositories/template.repository.js');
@@ -156,8 +159,10 @@ describe('Admin Templates Import', () => {
       templates: viewsDir,
       options: { autoescape: true, noCache: true },
     });
-    const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient();
+    const { PrismaClient } = await import('../src/utils/prisma-client.js');
+    // This file mocks the facade with a no-arg fake, while the real Prisma 7 ctor
+    // requires an adapter — cast so the mock-domain construction stays type-legal.
+    const prisma = new (PrismaClient as unknown as new () => InstanceType<typeof PrismaClient>)();
     await app.register(adminTemplatesRoutes, {
       templateRepo: new TemplateRepository(prisma),
       interviewPlanService: {} as unknown as InterviewPlanService,

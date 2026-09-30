@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '../utils/prisma-client.js';
 
 export class InterviewRepository {
   constructor(private prisma: PrismaClient) {}

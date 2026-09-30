@@ -93,6 +93,7 @@ coverage/
 
 # Prisma
 prisma/migrations/
+src/generated/
 
 # Vitest
 .nyc_output/
@@ -113,6 +114,7 @@ tests-clean/
 
 # Git worktrees
 .worktrees/
+.archlint-cache/
 worktrees/
 .gstack/
 .design-review/

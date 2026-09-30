@@ -1,5 +1,5 @@
-import { PlanStatus, type PrismaClient } from '@prisma/client';
 import { info } from '../utils/logger.js';
+import { PlanStatus, type PrismaClient } from '../utils/prisma-client.js';
 
 export interface CreatePlanInput {
   name: string;

@@ -1,5 +1,5 @@
-import type { PrismaClient } from '@prisma/client';
 import { polishFirstQuestion } from '../../services/followup.service.js';
+import type { PrismaClient } from '../../utils/prisma-client.js';
 import type { InterviewState, NodeOutput } from '../types/index.js';
 import { loadTemplateContent } from './template-utils.js';
 

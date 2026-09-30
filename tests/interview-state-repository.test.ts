@@ -1,10 +1,10 @@
-import type { PrismaClient } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InterviewState } from '../src/core/types/index.js';
 import {
   InterviewStateRepository,
   StatePersistenceError,
 } from '../src/repositories/interview-state.repository.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 const mockInterview = {
   id: 'interview-123',

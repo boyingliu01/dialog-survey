@@ -1,7 +1,7 @@
-import type { PrismaClient } from '@prisma/client';
 import { AnalysisService } from '../services/analysis.service.js';
 import { getDb } from '../utils/db.js';
 import { error, info } from '../utils/logger.js';
+import type { PrismaClient } from '../utils/prisma-client.js';
 import { interviewingNode } from './nodes/interviewing.js';
 import { planningNode } from './nodes/planning.js';
 import { DEFAULT_CLOSING_MESSAGE, type InterviewState, type NodeInput } from './types/index.js';

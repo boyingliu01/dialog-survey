@@ -1,9 +1,15 @@
-import { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AuditCleanupService } from '../src/services/audit-cleanup.service.js';
+import type { PrismaClient } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
-const prisma = new PrismaClient();
-const service = new AuditCleanupService(prisma);
+let prisma: PrismaClient;
+let service: AuditCleanupService;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+  service = new AuditCleanupService(prisma);
+});
 
 describe('AuditCleanupService', () => {
   beforeAll(async () => {

@@ -1,6 +1,6 @@
-import type { PlanStatus } from '@prisma/client';
 import { type Browser, type BrowserContext, type Page, chromium } from 'playwright';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PlanStatus } from '../../src/utils/prisma-client.js';
 import {
   E2E_ADMIN_API_KEY,
   loginAdminViaForm,

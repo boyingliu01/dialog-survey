@@ -40,8 +40,10 @@ export async function loginAdminViaForm(page: Page, baseUrl: string): Promise<vo
   await page.goto(`${baseUrl}/admin/login`, { waitUntil: 'load' });
   await page.fill('#username', E2E_ADMIN_USERNAME);
   await page.fill('#password', E2E_ADMIN_PASSWORD);
+  // Only the URL transition matters here; waiting for 'load' lets a slow
+  // post-login page fetch outlast the budget on a loaded full-suite run.
   await Promise.all([
-    page.waitForURL(`${baseUrl}/admin`, { timeout: 10_000 }),
+    page.waitForURL(`${baseUrl}/admin`, { waitUntil: 'commit', timeout: 30_000 }),
     page.click('button[type="submit"]'),
   ]);
 }

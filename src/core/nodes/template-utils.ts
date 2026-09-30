@@ -1,5 +1,5 @@
-import type { PrismaClient } from '@prisma/client';
 import { TemplateRepository } from '../../repositories/template.repository.js';
+import type { PrismaClient } from '../../utils/prisma-client.js';
 import { DEFAULT_TEMPLATE_CONTENT, type TemplateContent } from '../types/index.js';
 
 export async function loadTemplateContent(

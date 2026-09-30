@@ -1,9 +1,10 @@
-import { PrismaClient, TemplateStatus } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { templateRoutes } from '../src/api/templates.js';
 import { TemplateRepository } from '../src/repositories/template.repository.js';
+import { type PrismaClient, TemplateStatus } from '../src/utils/prisma-client.js';
+import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),
@@ -12,7 +13,11 @@ vi.mock('../src/utils/logger.js', () => ({
   debug: vi.fn(),
 }));
 
-const prisma = new PrismaClient();
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  prisma = await getSharedTestPrisma();
+});
 
 describe('Template API Endpoints', () => {
   let fastify: FastifyInstance;
