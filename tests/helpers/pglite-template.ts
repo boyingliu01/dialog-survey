@@ -16,7 +16,11 @@ import { PGlite } from '@electric-sql/pglite';
  */
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const CACHE_DIR = path.join(ROOT, 'node_modules', '.cache', 'dialog-survey');
+// PGLITE_TEST_CACHE_DIR isolates the caches for the template-failure contract
+// test; production test runs keep the shared repo-local cache.
+const CACHE_DIR = process.env['PGLITE_TEST_CACHE_DIR']
+  ? path.resolve(process.env['PGLITE_TEST_CACHE_DIR'])
+  : path.join(ROOT, 'node_modules', '.cache', 'dialog-survey');
 const DDL_CACHE_PATH = path.join(CACHE_DIR, 'test-schema.sql');
 const TEMPLATE_FILE_PREFIX = 'pglite-template-';
 const TEMPLATE_FILE_SUFFIX = '.tar';
@@ -25,6 +29,7 @@ let ddlPromise: Promise<string> | undefined;
 let templatePromise: Promise<Blob> | undefined;
 let activeTemplatePath: string | undefined;
 let templateDisabled = false;
+let templateFailures = 0;
 
 function sha256(content: string): string {
   return crypto.createHash('sha256').update(content).digest('hex');
@@ -113,6 +118,11 @@ export async function applyTestSchema(pglite: PGlite): Promise<void> {
   await pglite.exec(await getTestSchemaDdl());
 }
 
+/** Observability for the template fast path — non-zero failures mean boots silently used the DDL replay fallback. */
+export function getTemplateHealth(): { disabled: boolean; failures: number } {
+  return { disabled: templateDisabled, failures: templateFailures };
+}
+
 /**
  * Data-dir template with the schema applied and zero rows — the fast path
  * booted by every `createTestPglite()`. Memoized per process and persisted
@@ -176,10 +186,15 @@ export async function createTestPglite(): Promise<PGlite> {
       return preloaded;
     } catch {
       await closeQuietly(preloaded);
+      templateFailures += 1;
       discardTemplate();
+      // Drop the memoized (now-deleted) Blob so later callers rebuild from
+      // scratch instead of receiving a template nothing will load.
+      templatePromise = undefined;
+      activeTemplatePath = undefined;
       templateDisabled = true;
       process.stderr.write(
-        '[pglite-template] template init failed - falling back to DDL replay for the rest of this process\n'
+        `[pglite-template] template init failed (${templateFailures}) - falling back to DDL replay for the rest of this process\n`
       );
     }
   }

@@ -1,6 +1,8 @@
 import fs from 'node:fs';
-import { describe, expect, it } from 'vitest';
-import { getTemplateDataDir } from './helpers/pglite-template.js';
+import os from 'node:os';
+import path from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
+import { getTemplateDataDir, getTemplateHealth } from './helpers/pglite-template.js';
 import { TestDatabase } from './helpers/test-db.js';
 
 const read = (p: string): string => fs.readFileSync(p, 'utf-8');
@@ -15,16 +17,25 @@ function listTestFiles(dir: string): string[] {
   return out;
 }
 
-function jobBlock(yml: string, job: string): string {
+/** Steps of one job, each step the text of ONLY its `run:` lines — names, comments and nested with:/env: cannot match. */
+function jobRunSteps(yml: string, job: string): string[] {
   const lines = yml.split('\n');
   const start = lines.findIndex((line) => line === `  ${job}:`);
   if (start === -1) throw new Error(`job not found: ${job}`);
-  const body: string[] = [];
+  const steps: string[] = [];
+  let current: string[] | undefined;
   for (const line of lines.slice(start + 1)) {
-    if (/^ {2}[A-Za-z0-9_-]+:\s*$/.test(line) || /^[A-Za-z#]/.test(line)) break;
-    body.push(line);
+    if (/^ {2}\S/.test(line)) break;
+    if (/^ {6}-\s/.test(line)) {
+      if (current) steps.push(current.join('\n'));
+      current = [];
+      continue;
+    }
+    const run = current !== undefined ? line.match(/^ {8}run:\s*(.*)$/) : null;
+    if (current && run && run[1] !== '|' && run[1] !== '>') current.push(run[1]);
   }
-  return body.join('\n');
+  if (current) steps.push(current.join('\n'));
+  return steps;
 }
 
 /**
@@ -62,8 +73,14 @@ describe('prisma 7 generate contract (AC-001-01)', () => {
     expect(fs.existsSync('src/generated/prisma/client.ts')).toBe(true);
     expect(fs.existsSync('src/generated/prisma/enums.ts')).toBe(true);
     expect(read('src/generated/prisma/client.ts').length).toBeGreaterThan(0);
-    const excludeArray = read('tsconfig.json').match(/"exclude"\s*:\s*\[[^\]]*\]/)?.[0] ?? '';
-    expect(excludeArray).not.toContain('generated');
+    const tsconfig = JSON.parse(read('tsconfig.json')) as {
+      include?: string[];
+      exclude?: string[];
+    };
+    for (const pattern of tsconfig.exclude ?? []) {
+      expect(pattern).not.toMatch(/generated/);
+    }
+    expect(tsconfig.include ?? []).toEqual(expect.arrayContaining(['src/**/*', 'tests/**/*']));
   });
 });
 
@@ -127,6 +144,10 @@ describe('tests run without PostgreSQL (AC-003)', () => {
   it('serves every boot from one memoized template carrying the schema', async () => {
     const first = await getTemplateDataDir();
     expect(await getTemplateDataDir()).toBe(first);
+    expect(getTemplateHealth(), 'no silent fallback to DDL replay').toEqual({
+      disabled: false,
+      failures: 0,
+    });
     const db = new TestDatabase();
     await db.setup();
     try {
@@ -135,6 +156,64 @@ describe('tests run without PostgreSQL (AC-003)', () => {
       await db.teardown();
     }
   });
+});
+
+/**
+ * @test REQ-PRISMA7-003
+ * @intent AC-PRISMA7-003-02 降级语义：模板加载失败时，坏 Blob 同时从磁盘缓存和进程记忆化中
+ * 作废（否则后续调用方会永远拿到死模板）；失败实例走 DDL replay 仍可启动并自带 schema；
+ * latch/失败次数经 getTemplateHealth() 可观测，恢复后的新进程重新吃到健康模板。
+ * @covers AC-PRISMA7-003-02
+ */
+describe('template fast-path failure semantics (AC-003-02)', () => {
+  it(
+    'discards a corrupt template from disk and memo, boots via DDL replay, rebuilds after',
+    { timeout: 180_000 },
+    async () => {
+      const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pglite-template-contract-'));
+      const savedCacheDir = process.env['PGLITE_TEST_CACHE_DIR'];
+      process.env['PGLITE_TEST_CACHE_DIR'] = cacheDir;
+      const importHelper = async () => {
+        vi.resetModules();
+        return import('./helpers/pglite-template.js');
+      };
+      const templatePathIn = (): string => {
+        const names = fs
+          .readdirSync(cacheDir)
+          .filter((name) => name.startsWith('pglite-template-') && name.endsWith('.tar'));
+        expect(names, 'exactly one template cache file').toHaveLength(1);
+        return path.join(cacheDir, names[0]);
+      };
+      try {
+        const healthy = await importHelper();
+        await (await healthy.createTestPglite()).close();
+        expect(healthy.getTemplateHealth()).toEqual({ disabled: false, failures: 0 });
+        const templatePath = templatePathIn();
+
+        fs.writeFileSync(templatePath, 'corrupted-cache-entry');
+
+        const degraded = await importHelper();
+        const corrupt = await degraded.getTemplateDataDir();
+        const replay = await degraded.createTestPglite();
+        try {
+          expect((await replay.exec('SELECT count(*) FROM "Template"')).length).toBe(1);
+        } finally {
+          await replay.close();
+        }
+        expect(degraded.getTemplateHealth()).toEqual({ disabled: true, failures: 1 });
+        expect(await degraded.getTemplateDataDir()).not.toBe(corrupt);
+        expect(fs.statSync(templatePathIn()).size).toBeGreaterThan(1024);
+
+        const recovered = await importHelper();
+        await (await recovered.createTestPglite()).close();
+        expect(recovered.getTemplateHealth()).toEqual({ disabled: false, failures: 0 });
+      } finally {
+        if (savedCacheDir === undefined) delete process.env['PGLITE_TEST_CACHE_DIR'];
+        else process.env['PGLITE_TEST_CACHE_DIR'] = savedCacheDir;
+        fs.rmSync(cacheDir, { recursive: true, force: true });
+      }
+    }
+  );
 });
 
 /**
@@ -167,13 +246,13 @@ describe('CI workflows are PG-free and generate-first (AC-004)', () => {
       ['publish', publish, ['npm run test:coverage', 'npm run build']],
     ];
     for (const [job, yml, consumers] of generatingJobs) {
-      const block = jobBlock(yml, job);
-      const generateAt = block.indexOf('npx prisma generate');
+      const steps = jobRunSteps(yml, job);
+      const generateAt = steps.findIndex((step) => step.includes('npx prisma generate'));
       expect(generateAt, `${job}: generate step missing`).toBeGreaterThan(-1);
       for (const consumer of consumers) {
-        const consumerAt = block.indexOf(consumer);
-        expect(consumerAt, `${job}: ${consumer} not found`).toBeGreaterThan(-1);
-        expect(generateAt, `${job}: generate must precede ${consumer}`).toBeLessThan(consumerAt);
+        const consumerAt = steps.findIndex((step) => step.includes(consumer));
+        expect(consumerAt, `${job}: ${consumer} not found in a run: step`).toBeGreaterThan(-1);
+        expect(consumerAt, `${job}: generate must precede ${consumer}`).toBeGreaterThan(generateAt);
       }
     }
   });
@@ -191,8 +270,16 @@ describe('release chain carries prisma config (AC-005)', () => {
     expect(pkg.files).toContain('prisma.config.ts');
     expect(fs.existsSync('prisma.config.ts')).toBe(true);
     const cli = read('scripts/cli.mjs');
-    expect((cli.match(/prisma\.config\.ts/g) ?? []).length).toBeGreaterThanOrEqual(2);
-    expect(cli).toMatch(/prisma@\d+\.\d+\.\d+ db push/);
+    const copyList = cli.match(/const filesToCopy = \[[\s\S]*?\];/)?.[0] ?? '';
+    const verifyList = cli.match(/const requiredFiles = \[[\s\S]*?\];/)?.[0] ?? '';
+    expect(copyList, 'CLI must copy prisma.config.ts into the install tree').toContain(
+      "'prisma.config.ts'"
+    );
+    expect(verifyList, 'CLI must verify prisma.config.ts after install').toContain(
+      "'prisma.config.ts'"
+    );
+    expect(cli).toMatch(/npx --yes prisma@7\.10\.0 db push/);
+    expect(cli).toContain('PRISMA_SKIP_GENERATE');
   });
 
   it('builds to dist and carries the runtime tree the container needs', () => {
@@ -233,15 +320,20 @@ describe('governance and documentation (AC-006)', () => {
     expect(arch).toContain('src/generated');
   });
 
-  it('keeps spike criteria #0-#12 present in the harness', () => {
+  it('wires every spike criterion #0-#12 to an executable entry (not a comment mention)', () => {
     const spike = read('tools/spike/prisma7-pglite-spike.mjs');
+    const start = spike.indexOf('const CRITERIA = [');
+    const end = spike.indexOf('\n];', start);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const block = spike.slice(start, end);
+    const wired = new Set<string>();
+    for (const m of block.matchAll(/\[\s*([0-9]+)\s*,/g)) wired.add(m[1]);
+    for (const m of block.matchAll(/\[\s*'([0-9]+[a-z])'\s*,/g)) wired.add(m[1]);
+    for (const m of block.matchAll(/^\s+([0-9]+)\s*,\s*$/gm)) wired.add(m[1]);
+    for (const m of spike.matchAll(/record\(\s*([0-9]+)\s*,/g)) wired.add(m[1]);
     for (let id = 0; id <= 12; id += 1) {
-      const declared =
-        spike.includes(`[${id},`) ||
-        spike.includes(`['${id}',`) ||
-        new RegExp(`function c${id}_`).test(spike) ||
-        spike.includes(`#${id} `);
-      expect(declared, `spike criterion #${id} missing`).toBe(true);
+      expect(wired.has(String(id)), `spike criterion #${id} not wired to a runner`).toBe(true);
     }
     expect(spike).toContain("EXPECTED_FAILS = new Set(['6b'])");
   });
