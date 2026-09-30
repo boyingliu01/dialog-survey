@@ -130,3 +130,19 @@
 - **Choice**: ① squash，不打 tag
 - **Rationale**: 发布是不可逆对外动作且 publish 工作流为 tag-only；merge 本身已满足 SHIP→CLOSE 门禁。npm 发布延后由用户手动触发。
 - **Timestamp**: 2026-09-30T12:16:00+08:00
+
+## Decision DR-021
+- **Phase**: 6/6 CLOSE
+- **Question**: sprint-state 归档如何入库（master 为保护分支，Gate 0 拒绝含 .ts/.sh 的直提；归档文件按门禁契约不可改字节）
+- **Options**: ① 直提 master + [skip-version-check] ② 改文件后缀/删脚本 ③ 专用 chore 分支 + PR 合并 ④ --no-verify 绕过
+- **Choice**: ③ 分支 `chore/archive-sprint-149-state`，归档保持字节原样；配套 `biome.json` 忽略 `.sprint-history/`、Gate 5A 走文档化 escape valve（SKIP_GATE_5A_BLOCK=1 + reason，审计留痕，非 master）
+- **Rationale**: ①被 Gate 0 源码判定拒绝且会篡改证据语义；②伪造证据；④绝对禁用。GATE MW 要求在推送 HEAD 上有绑定走查证据，故推送前针对归档 HEAD（纯归档 + 两个配置 diff）补一次最小范围 code-walkthrough。
+- **Timestamp**: 2026-09-30T14:30:00+08:00
+
+## Decision DR-022
+- **Phase**: 6/6 CLOSE
+- **Question**: gitleaks 对归档报 9 处 leak 的处置
+- **Options**: ① 删除/改写涉事行 ② 目录级豁免 ③ 逐值核实后行级 allowlist
+- **Choice**: ③ 仅放行 `smoke-dummy-secret`、`your-dingtalk-client-secret`、`your-admin-api-key` 三个已核实占位值；不做目录级豁免
+- **Rationale**: ①会破坏 walkthrough 工件哈希；②会让未来真实泄漏在归档目录静默通过；③最小授权，且与 CI gitleaks-action 共用同一 .gitleaks.toml。
+- **Timestamp**: 2026-09-30T14:30:00+08:00
