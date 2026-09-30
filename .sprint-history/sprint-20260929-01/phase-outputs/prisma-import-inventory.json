@@ -1,0 +1,922 @@
+{
+  "generatedAt": "2026-09-29T14:55:25.070Z",
+  "facade": "src/utils/prisma-client.ts",
+  "importFiles": 79,
+  "importFilesRaw": 79,
+  "viMockFiles": [
+    "tests/admin-templates-import.test.ts",
+    "tests/admin-templates-integration.test.ts",
+    "tests/db.test.ts",
+    "tests/health-api.test.ts",
+    "tests/security.test.ts",
+    "tests/server-api.test.ts",
+    "tests/server-lifecycle.test.ts"
+  ],
+  "directoryFacadePaths": {
+    "prisma": "../src/utils/prisma-client.js",
+    "scripts": "../src/utils/prisma-client.js",
+    "src": "./utils/prisma-client.js",
+    "src/api": "../utils/prisma-client.js",
+    "src/core": "../utils/prisma-client.js",
+    "src/core/nodes": "../../utils/prisma-client.js",
+    "src/repositories": "../utils/prisma-client.js",
+    "src/services": "../utils/prisma-client.js",
+    "src/utils": "./prisma-client.js",
+    "tests": "../src/utils/prisma-client.js",
+    "tests/e2e": "../../src/utils/prisma-client.js",
+    "tests/e2e/helpers": "../../../src/utils/prisma-client.js",
+    "tests/helpers": "../../src/utils/prisma-client.js"
+  },
+  "targets": [
+    {
+      "file": "src/api/admin-templates.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        2
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/api/analysis.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/api/health.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/api/plans.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/api/templates.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1,
+        2
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/core/graph.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/core/nodes/interviewing.ts",
+      "facade": "../../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/core/nodes/planning.ts",
+      "facade": "../../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/core/nodes/template-utils.ts",
+      "facade": "../../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/repositories/interview-state.repository.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/repositories/interview.repository.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/repositories/message.repository.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/repositories/template.repository.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/server.ts",
+      "facade": "./utils/prisma-client.js",
+      "from": [
+        11
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/services/analysis.service.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1,
+        2
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/services/analytics.service.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/services/audit-cleanup.service.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/services/dead-letter.service.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/services/export.service.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        3
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/services/interview-plan-base.service.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/services/interview-plan-members.service.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1,
+        2
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/services/interview-plan-send.service.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/services/stream-message.service.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/services/template-dimension.service.ts",
+      "facade": "../utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/utils/db.ts",
+      "facade": "./prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "src/utils/security.ts",
+      "facade": "./prisma-client.js",
+      "from": [
+        2
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/admin-delete.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        4
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/admin-plan-csrf.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        3
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/admin-plan-route-csrf.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        3
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/admin-shell-csrf.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        5
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/admin-template-csrf.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        3
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/admin-templates-extra.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        3
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/admin-templates-import.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        7
+      ],
+      "mock": [
+        45
+      ],
+      "dynamic": [
+        159
+      ],
+      "subpath": [],
+      "mocked": true
+    },
+    {
+      "file": "tests/admin-templates-integration.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        11
+      ],
+      "mock": [
+        46
+      ],
+      "dynamic": [
+        226
+      ],
+      "subpath": [],
+      "mocked": true
+    },
+    {
+      "file": "tests/admin-templates.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/admin-tree.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/analysis-api.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/analysis.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/analytics.service.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/audit-cleanup.service.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/batch-aggregate-api.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/batch-import.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/db.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [
+        5
+      ],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": true
+    },
+    {
+      "file": "tests/dead-letter.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/e2e/helpers/e2e-server.ts",
+      "facade": "../../../src/utils/prisma-client.js",
+      "from": [
+        2
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/e2e/helpers/mock-dingtalk.ts",
+      "facade": "../../../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/e2e/plan-lifecycle.e2e.test.ts",
+      "facade": "../../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/export.integration.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        10
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/export.service.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        4
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/health-api.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [
+        20
+      ],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": true
+    },
+    {
+      "file": "tests/helpers/test-db.ts",
+      "facade": "../../src/utils/prisma-client.js",
+      "from": [
+        2
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/helpers/test-server.ts",
+      "facade": "../../src/utils/prisma-client.js",
+      "from": [
+        7
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/interview-plan-additional.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1,
+        2
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/interview-plan-members-phone.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/interview-plan-members.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/interview-plan.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1,
+        2
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/interview-repository.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/interview-state-full.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/interview-state-repository.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/interviewing-node.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [],
+      "mock": [],
+      "dynamic": [
+        290
+      ],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/message-repository.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/planning-node.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/plans-api.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        3
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/report-api.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/schema-analysis-dimensions.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/security.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [
+        6
+      ],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": true
+    },
+    {
+      "file": "tests/server-api.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [],
+      "mock": [
+        59
+      ],
+      "dynamic": [
+        70
+      ],
+      "subpath": [],
+      "mocked": true
+    },
+    {
+      "file": "tests/server-lifecycle.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [],
+      "mock": [
+        80
+      ],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": true
+    },
+    {
+      "file": "tests/state-integration.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/state-persistence.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/template-crud.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/template-dimensions-api.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/template-import-export.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/template-version.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/templates-api.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "tests/workflow-interview-lifecycle.test.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "prisma/seed-satisfaction-survey.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "prisma/seed-test-interview.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        1
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    },
+    {
+      "file": "scripts/fix-max-followups.ts",
+      "facade": "../src/utils/prisma-client.js",
+      "from": [
+        14
+      ],
+      "mock": [],
+      "dynamic": [],
+      "subpath": [],
+      "mocked": false
+    }
+  ]
+}

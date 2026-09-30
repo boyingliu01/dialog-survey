@@ -1,0 +1,167 @@
+specification:
+  id: "SPEC-PRISMA7-001"
+  name: "Prisma 7 + PGlite 集成 — 解除集成测试对真实 PostgreSQL 的依赖"
+  version: "1.0.0"
+  issue: "#149"
+  created_at: "2026-09-29T13:00:00Z"
+  source: "docs/sprints/2026-09-24-issue-149/phase-outputs/design-doc.md → .sprint-state/phase-outputs/design-doc.md (v5)"
+  requirements:
+    - id: REQ-PRISMA7-001
+      description: |
+        Prisma 升级至 7.10.0（prisma-client generator，生成物 src/generated/prisma），
+        并完成生产路径适配：门面模块（prisma-client.ts 纯符号缝）+ 工厂（prisma-factory.ts
+        createPrismaClient），全部消费方经门面导入、经工厂或显式 adapter 构造。
+      priority: MUST
+      acceptance_criteria:
+        - id: AC-PRISMA7-001-01
+          given: "依赖升级至 prisma@7.10.0 / @prisma/client@7.10.0 且 generator 配置为 prisma-client（output=../src/generated/prisma）"
+          when: "执行 npx prisma generate 与 npx tsc --noEmit"
+          then: "generate 成功产出 .ts 生成物，tsc 对生成物 + 全仓编译零错误"
+        - id: AC-PRISMA7-001-02
+          given: "门面 src/utils/prisma-client.ts 与工厂 src/utils/prisma-factory.ts 就位"
+          when: "生产路径（server.ts / db.ts / seeds / scripts）构建 PrismaClient"
+          then: "全部经门面导入（禁止直连生成目录）且类型同一性成立：factory 返回值可赋给 BuildAppOptions.prismaFactory 形参"
+      edge_cases:
+        - "顶层 eager 构造经 beforeAll 惰性化后首查询不落空 schema"
+        - "vi.mock partial-mock 模式（importOriginal）下门面模块求值期零副作用"
+      test_coverage_requirements:
+        unit: true
+        integration: true
+        e2e: false
+
+    - id: REQ-PRISMA7-002
+      description: |
+        测试基础设施迁移至 PGlite（in-process WASM PostgreSQL 16）：
+        TestDatabase 每实例独占内存库 + DDL 回放 + cleanup/teardown 契约；
+        createTestPrisma 提供文件级单例与独立实例；测试域 26 构造点按清单工件三分类勾销。
+      priority: MUST
+      acceptance_criteria:
+        - id: AC-PRISMA7-002-01
+          given: "tests/helpers/test-db.ts 重构为 PGlite 后端且 create-test-prisma.ts 就位"
+          when: "测试调用 TestDatabase.setup()/getPrisma() 并执行 CRUD"
+          then: "PGlite 内存库回放 DDL 成功、adapter 构造的 PrismaClient 可用；teardown 后 cleanup 为静默 no-op（isClosed 同步置位）"
+        - id: AC-PRISMA7-002-02
+          given: "Stage A 产出 prisma-import-inventory.md（grep 派生清单）"
+          when: "按清单逐点执行三分类处置（a22 切换 getSharedTestPrisma / b3 vi.mock 域保持 / c1 helper 重构）"
+          then: "清单全部勾销，无遗留 new PrismaClient() 直连生成目录的测试实例"
+      edge_cases:
+        - "同文件多实例共享库语义保持（analysis-api 跨实例硬依赖）"
+        - "vi.mock 域内构造 Mock 实例不替换为 getSharedTestPrisma"
+        - "teardown 与清理并发调用竞态（isClosed 提前置位）"
+      test_coverage_requirements:
+        unit: true
+        integration: true
+        e2e: false
+
+    - id: REQ-PRISMA7-003
+      description: |
+        全部测试（unit + 6 集成 + 11 e2e，~100 文件）在无外部 PostgreSQL 环境下全绿；
+        本地 npx vitest run（含 e2e）零手动步骤。
+      priority: MUST
+      acceptance_criteria:
+        - id: AC-PRISMA7-003-01
+          given: "CI 无 postgres service、本机无 PG 运行环境"
+          when: "运行全量测试（unit + 集成 + e2e）"
+          then: "全绿（Windows 本机证据 + CI 无 PG job 证据）"
+        - id: AC-PRISMA7-003-02
+          given: "全新克隆 + npm ci 后（冷启动，DDL 缓存未生成）"
+          when: "执行 npx vitest run 包含 e2e"
+          then: "零手动步骤全绿；冷启动首次 setup ≤5s、warm p95 ≤2s"
+      edge_cases:
+        - "冷启动 DDL diff 子进程 2-4s 不计入 warm p95"
+        - "内存峰值无 OOM（maxWorkers 先验预算）"
+      test_coverage_requirements:
+        unit: true
+        integration: true
+        e2e: true
+
+    - id: REQ-PRISMA7-004
+      description: |
+        CI workflows（pr.yml 4 个 job + publish.yml）移除 postgres service 与 db push；
+        6 个 job 显式新增 prisma generate 步且置于 tsc/test 之前。
+      priority: MUST
+      acceptance_criteria:
+        - id: AC-PRISMA7-004-01
+          given: "pr.yml 与 publish.yml 修改完成"
+          when: "静态检查 workflow 文件"
+          then: "无 postgres service 声明、无 db push 步；node 版本取自 .nvmrc"
+        - id: AC-PRISMA7-004-02
+          given: "v7 生成物不入库（src/generated 被 gitignore）"
+          when: "检查 6 个 job（static-analysis/unit/integration/coverage/e2e/smoke）步序"
+          then: "每个 job 的 generate 步存在且先于同 job 内 tsc / vitest / smoke 命令"
+      edge_cases:
+        - "generate 阶段是否需要 dummy DATABASE_URL（spike #8 定案后的分支落地）"
+        - "coverage job 的 if: always() 保持不动（#150 范围）"
+      test_coverage_requirements:
+        unit: true
+        integration: false
+        e2e: false
+
+    - id: REQ-PRISMA7-005
+      description: |
+        发布链路适配：Dockerfile / deploy.sh / cli.mjs / package.json（files+allowScripts）/
+        publish.yml；全新安装场景与生产构建回归验证。
+      priority: MUST
+      acceptance_criteria:
+        - id: AC-PRISMA7-005-01
+          given: "发布包包含 prisma.config.ts（files + cli.mjs filesToCopy + verifyInstallation）"
+          when: "全新安装场景（npm pack / 隔离 prefix 全局安装 → npx prisma db push）"
+          then: "prisma.config.ts 可解析、db push 可用；自动 generate 行为定案（必要时 --no-generate）"
+        - id: AC-PRISMA7-005-02
+          given: "生产构建产物 dist + node_modules"
+          when: "npm run build + 无源码树启动（node dist/src/server.js）+ /health 探测"
+          then: "启动正常、/health 返回 db ok；docker build 端到端或按预定义替代证据（builder 单阶段/等价工具/残余风险声明）"
+      edge_cases:
+        - "seeds 仅 dev 场景（发布包内相对门面路径不可解析）"
+        - "runner 阶段缺 prisma.config.ts 时容器内 db push 失败"
+      test_coverage_requirements:
+        unit: true
+        integration: true
+        e2e: true
+
+    - id: REQ-PRISMA7-006
+      description: |
+        治理与文档：工具链排除（biome / vitest coverage / .gitignore）、architecture.yaml
+        门面/工厂模块声明、Stage 0 spike 报告（#0-#12 判据）、项目文档更新。
+      priority: SHOULD
+      acceptance_criteria:
+        - id: AC-PRISMA7-006-01
+          given: "生成物目录 src/generated 存在且为 .ts 源码"
+          when: "检查工具链配置与架构声明"
+          then: "biome 三处 ignore + vitest coverage.exclude + .gitignore 均排除生成物；architecture.yaml 声明门面/工厂归属与依赖"
+        - id: AC-PRISMA7-006-02
+          given: "Stage 0 spike 执行完毕"
+          when: "审阅 spike 报告与文档 diff"
+          then: "报告含 #0-#12 全部判据结果与结论；AGENTS.md / README / docs/setup-guide.md / DEPLOY.md 更新到位"
+      edge_cases:
+        - "spike 判据部分失败时按 §4.2 映射收敛（降级 Y/Y'/Y''）并记录"
+      test_coverage_requirements:
+        unit: true
+        integration: false
+        e2e: false
+
+  design_decisions:
+    - id: DD-001
+      description: "版本选择：@prisma/client 7.10.0 / prisma 7.10.0 / @prisma/adapter-pg 7.10.0 / @electric-sql/pglite 0.5.8 / pglite-prisma-adapter 0.7.2（精确 pin）"
+    - id: DD-002
+      description: "生成器 prisma-client → src/generated/prisma（.ts 源码），tsconfig 不排除生成目录"
+    - id: DD-003
+      description: "门面 prisma-client.ts（纯 export * 符号缝）+ 工厂 prisma-factory.ts（唯一生产构造点）；类型同一性硬规则"
+    - id: DD-004
+      description: "prismaFactory 注入缝（BuildAppOptions），checkDatabaseConnection 参数化；双 client 为 v6 既有行为"
+    - id: DD-005
+      description: "TestDatabase → PGlite；cleanup/teardown 契约（isClosed 同步置位）；测试域 26 构造点三分类 + Stage A 清单工件"
+    - id: DD-006
+      description: "测试 schema 初始化：migrate diff 生成 DDL + 缓存；globalSetup 仅生成物守卫（兜底 generate 仅失败路径）"
+    - id: DD-007
+      description: "分阶段执行 Stage 0/A/B + 回滚点 + merge commit（禁 squash）+ Stage B 延期 AC 重基线"
+    - id: DD-008
+      description: "CI workflows：4 job 移除 service + 6 job 显式 generate（先于 tsc/test）+ dummy env 两分支落点预定"
+    - id: DD-009
+      description: "发布链路 6 处适配（Dockerfile/deploy.sh/cli.mjs/publish.yml/package.json/engines 20.19）"
+    - id: DD-010
+      description: "连接池与生产行为基线：PrismaPg 显式 connectionTimeoutMillis 等对齐 v6"
+    - id: DD-011
+      description: "工具链排除（biome/vitest/gitignore）+ architecture.yaml 声明"
+    - id: DD-012
+      description: "e2e 策略：主方案 X（全 PGlite 注入）+ 降级 Y/Y'/Y''"

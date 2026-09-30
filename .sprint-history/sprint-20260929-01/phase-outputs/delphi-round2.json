@@ -1,0 +1,80 @@
+{
+  "mode": "design",
+  "round": 2,
+  "timestamp": "2026-09-29T13:24:46.245Z",
+  "artifact": ".sprint-state/phase-outputs/design-doc.md",
+  "artifact_hash": "59326471e0c71fcf937eacc3d5effe626a8485819c8010d5c4eb352395a11634",
+  "models": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash"
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash"
+    },
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash"
+    }
+  ],
+  "experts": [
+    {
+      "role": "architecture",
+      "model": "g-qwen3.8-flash",
+      "verdict": "APPROVED",
+      "confidence": 9,
+      "critical_issues": [],
+      "major_concerns": [
+        "DD-003 / §3.4: The `export *` facade strategy for `src/utils/prisma-client.ts` is structurally sound but relies on the assumption that Prisma's generated `.d.ts` exports are fully compatible with `isolatedModules`. While B-expert verified this, the design should explicitly mandate a 'strict re-export check' in Spike #9 to ensure no type-only symbols (like `Prisma.TransactionClient`) are accidentally stripped or cause runtime errors if imported as values by mistake in the 83 codemod files.",
+        "DD-005 / §3.5: The distinction between `cleanup()` (data reset) and `teardown()` (instance close) is critical for test isolation. The design states `cleanup()` after `teardown()` is a 'silent no-op'. This must be rigorously enforced in the implementation of `TestDatabase` to prevent race conditions where an `afterEach` hook attempts to clean up a closed PGlite instance, potentially causing unhandled promise rejections or flaky tests."
+      ],
+      "minor_concerns": [
+        "DD-004: The injection seam `prismaFactory` is well-defined, but ensure `checkDatabaseConnection` also utilizes this factory or accepts an injected client to maintain consistency with the production path during e2e tests, avoiding hidden global state dependencies.",
+        "§3.6: The performance baseline targets (p95 <= 2s) are ambitious given PGlite initialization overhead. Ensure the spike includes a worst-case scenario measurement for schema application time to validate feasibility before committing to these SLAs in CI gates."
+      ],
+      "consensus_ratio": 0.85,
+      "duration_ms": 8796
+    },
+    {
+      "role": "technical",
+      "model": "g-deepseek-flash",
+      "verdict": "REQUEST_CHANGES",
+      "confidence": 7,
+      "critical_issues": [
+        "DD-003 类型同一性硬规则与 DD-004 的 `BuildAppOptions.prismaFactory?: () => PrismaClient` 形参来源未在文档中形成闭环：DD-003 要求 factory 与消费方从门面导入，但 `BuildAppOptions` 定义在 `src/server.ts`（context 中 server.ts:44-46 仅含 fastifyFactory），其 `PrismaClient` 类型 import 路径未在 §3.3 表格中显式登记为「改门面」。若 server.ts 的 `PrismaClient` 仍从 `@prisma/client` 或生成目录导入，而 factory 从门面导入，strict + nominal brand 下 `createPrismaClient()` 返回值赋给形参可能 not assignable。spike #9 已列核验项，但 §3.3 未把 server.ts 的 import 改写列为改造点，属代码级落点缺口。",
+        "DD-005 的 `cleanup()` 静默 no-op 契约虽在 v2 明确「首行 `if (this.isClosed) return;`」，但 §3.5 的 TestDatabase 重构描述与 DD-005 的 8 个 cleanup 调用点审计未说明 `isClosed` 守卫与 `teardown()` 置位之间的原子性：`teardown()` 现有实现（test-db.ts:40-52）先 `$disconnect()` 再恢复 env，v2 改为「`$disconnect` + 关闭 PGlite + 置 isClosed」，若置位发生在 `$disconnect` 之后、PGlite close 之前，并发 afterEach 仍可能进入 deleteMany。设计未给出置位顺序（应在任何 await 之前同步置位），实现级竞态未闭合。"
+      ],
+      "major_concerns": [
+        "DD-006 与 §3.6 的冷启动口径切分（warm p95 ≤ 2s / 冷启动 ≤ 5s）在 CI 每次 `npm ci` 后缓存为冷启动的前提下，意味着 integration-tests job 的首次 setup 必然走 5s 路径；但 §3.6 的「integration-tests job 时长 ≤ 基线」目标未说明基线是否含冷启动，若基线为 warm 均值则目标与冷启动现实冲突。",
+        "DD-008 的 generate 步 dummy env 分支落点已预定（6 job + Dockerfile builder），但 spike #8 的验证方法「无 DATABASE_URL 环境跑 npx prisma generate」未说明如何隔离 `prisma.config.ts` 的 `import \"dotenv/config\"` 副作用——若本地存在 `.env`，dotenv 会注入 DATABASE_URL 使测试失真。spike 需显式 `env -i` 或临时移走 `.env`。",
+        "DD-009 cli.mjs 的 `db push` 自动 generate 行为依赖 spike #11，但 spike #11 的「无 devDeps 环境」构造方式（`npm pack` 解包 + 仅生产 deps）与 cli.mjs 实际安装场景（全局 npm bin）不完全等价：全局安装时 `npx prisma@7.10.0` 会临时下载 prisma CLI，其 generate 触发路径可能与本地 node_modules 不同。spike #11 应补「全局安装形态」验证或明确记录该差异为已知残余风险。",
+        "§3.4 codemod 对 7 个 vi.mock 文件的 partial mock 模式 `vi.mock('…/prisma-client.js', async (importOriginal) => ({ ...(await importOriginal()), PrismaClient: MockPrismaClient }))` 在 `export *` 门面下，`importOriginal()` 会触发门面模块求值——若门面被设计为「无副作用」则安全，但 DD-003 的契约测试「断言门面 import 无副作用」与 vi.mock 的 importOriginal 求值时机（模块加载期）需在 spike #9 或契约测试中显式覆盖，否则 mock 文件可能因门面求值失败而整文件报错。",
+        "§3.6 的 `maxWorkers = min(4, os.cpus().length)` 初始参数与「~100 文件、每文件独占 PGlite 实例」的内存模型未给出单实例内存估算；PGlite WASM 每实例约数十 MB 量级，4 worker × 并行文件数可能触及 CI runner 内存上限。硬判据「全量无 OOM」缺乏前置估算，属事后验证而非设计约束。"
+      ],
+      "minor_concerns": [
+        "DD-005 的 27 处三分类中 (b) 类 3 处「不替换为 getSharedTestPrisma」的语义澄清（v2 R1 M-4）已明确 codemod 统一改写 import，但 §3.4 的 codemod 规则未区分「改写 import 路径」与「改写实例化表达式」两个独立变换，实现时易混淆。建议在 codemod 规则中显式拆为两条规则。",
+        "DD-004 的 `checkDatabaseConnection(prismaFactory: () => PrismaClient = createPrismaClient)` 默认参数在 `startServer()` 零改调用，但 context 中 server.ts:53 的 `checkDatabaseConnection()` 当前无参数；v2 改为带默认参数后，`startServer()` 的调用点（server.ts:167 附近）虽零改但语义已变（探活 client 由工厂创建）。JSDoc 登记已列，但 §3.3 表格未把 `checkDatabaseConnection` 签名变更列为 server.ts 的改造点之一。",
+        "DD-011 的 architecture.yaml 声明「`src/utils/prisma-client.ts` 对 `src/generated` 的依赖」——若 architecture.yaml 有分层依赖方向约束（如 utils 不得依赖 generated），需明确是「新增 generated 层」还是「豁免 utils→generated 边」，设计未给出二选一。",
+        "§4.1 spike #9 的「跨路径类型同一性」断言「门面导出的 PrismaClient 与 src/generated/prisma/client.ts 的类型相互可赋值」——若 DD-003 硬规则禁止直连生成目录，则 spike 脚本本身需直连生成目录做断言，与硬规则表面冲突；应注明 spike 脚本为核验工具、豁免硬规则。",
+        "DD-007 的「merge commit（禁止 squash）」与「Stage A 里程碑提交推送后记录 CI run URL」依赖 sprint 分支不被 rebase；但 §4.3 的 spike 在「主 worktree 先做依赖预装」——若 spike 与 Stage A 在同一 worktree 顺序执行，M1 依赖预装提交与 spike 回滚（`git restore package*.json`）的交互未说明是否产生额外提交。"
+      ],
+      "consensus_ratio": 0.72,
+      "summary": "v2 已充分回应 R1 的 3 项 Critical（C-1 类型同一性硬规则、C-2 cleanup isClosed 守卫、C-3 globalSetup/DDL 缓存边界），架构与分阶段策略稳健。但仍有 2 项代码级落点缺口：server.ts 的 PrismaClient import 改写未在 §3.3 登记（DD-003 硬规则闭环不完整），以及 teardown() 中 isClosed 置位与 $disconnect/PGlite close 的顺序未规定（并发竞态未闭合）。另有 5 项 Major 涉及 spike 验证方法的隔离性（dotenv 副作用、全局安装形态）与内存估算缺失，建议在进入 BUILD 前补齐落点。",
+      "duration_ms": 9544
+    }
+  ],
+  "failures": [
+    {
+      "role": "feasibility",
+      "model": "g-glm-5.3-flash",
+      "error": "unparseable model output: "
+    }
+  ],
+  "aggregate": {
+    "verdict": "PROCESS_BLOCK",
+    "consensus_ratio": 0.785,
+    "all_approved": false,
+    "expert_count": 2
+  }
+}

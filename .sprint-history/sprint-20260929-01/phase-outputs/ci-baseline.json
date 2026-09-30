@@ -1,0 +1,50 @@
+{
+  "purpose": "Pre-change CI baseline for #149 (§3.6, R4-F1): integration-tests job duration before migration",
+  "workflow": "PR Quality Gates",
+  "captured_at": "2026-09-29T14:22:00Z",
+  "note": "All runs are pull_request events; repo has no recent master push runs of this workflow. Recent 3 PR runs used.",
+  "runs": [
+    {
+      "run_id": 30344622441,
+      "created": "2026-07-28T08:58:56Z",
+      "branch": "fix/deploy-issues-159-160-157-158",
+      "jobs": {
+        "integration_tests_seconds": 86,
+        "integration_tests_conclusion": "success",
+        "unit_tests_seconds": 104,
+        "e2e_tests_seconds": 73,
+        "coverage_seconds": 115
+      }
+    },
+    {
+      "run_id": 29002582331,
+      "created": "2026-07-09T07:46:31Z",
+      "branch": "fix/max-followups-enforcement",
+      "jobs": {
+        "integration_tests_seconds": 79,
+        "integration_tests_conclusion": "success",
+        "unit_tests_seconds": 108,
+        "e2e_tests_seconds": 85,
+        "coverage_seconds": 124
+      }
+    },
+    {
+      "run_id": 28763346391,
+      "created": "2026-07-06T02:09:21Z",
+      "branch": "test-e2e-phase1",
+      "jobs": {
+        "integration_tests_seconds": 79,
+        "integration_tests_conclusion": "failure",
+        "unit_tests_seconds": 89,
+        "e2e_tests_seconds": 82,
+        "coverage_seconds": 106
+      }
+    }
+  ],
+  "aggregate": {
+    "integration_tests_mean_seconds": 81.3,
+    "integration_tests_successful_mean_seconds": 82.5,
+    "unit_tests_mean_seconds": 100.3,
+    "note": "job 时长含 setup（npm ci + postgres service 启动 + db push）"
+  }
+}
