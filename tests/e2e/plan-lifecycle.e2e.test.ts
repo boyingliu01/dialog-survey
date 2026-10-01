@@ -2,6 +2,7 @@ import { type Browser, type BrowserContext, type Page, chromium } from 'playwrig
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlanStatus } from '../../src/utils/prisma-client.js';
 import {
+  ADMIN_SHELL_TIMEOUT_MS,
   E2E_ADMIN_API_KEY,
   loginAdminViaForm,
   renderedShellCsrfToken,
@@ -142,12 +143,16 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
 
       await loginAdminViaForm(page, baseUrl);
 
-      await page.waitForSelector('text=E2E UI Create Template', { timeout: 8000 });
+      await page.waitForSelector('text=E2E UI Create Template', {
+        timeout: ADMIN_SHELL_TIMEOUT_MS,
+      });
       await page.click('text=E2E UI Create Template');
-      await page.waitForSelector('button:has-text("创建计划")', { timeout: 8000 });
+      await page.waitForSelector('button:has-text("创建计划")', {
+        timeout: ADMIN_SHELL_TIMEOUT_MS,
+      });
       await page.click('button:has-text("创建计划")');
-      await page.waitForSelector('#planName', { timeout: 8000 });
-      await page.waitForSelector('#plan-submit-btn', { timeout: 5000 });
+      await page.waitForSelector('#planName', { timeout: ADMIN_SHELL_TIMEOUT_MS });
+      await page.waitForSelector('#plan-submit-btn', { timeout: ADMIN_SHELL_TIMEOUT_MS });
 
       // Fill in plan details
       const planName = 'E2E UI 创建计划';
@@ -168,14 +173,20 @@ describe('Plan Lifecycle (Playwright E2E)', () => {
         ctx.planIds.push(responseBody.id);
       }
 
-      // Give HTMX time to process the response and refresh the tree
-      await page.waitForTimeout(3000);
-
-      // Reload admin page to verify tree data contains the new plan name
+      // The plan-create POST has already been awaited above (line 162) and its
+      // 200 response parsed, so the write is committed server-side before this
+      // reload — no HTMX settle wait is needed. The reload re-renders the tree
+      // from the database.
       await page.goto(`${baseUrl}/admin`, { waitUntil: 'load' });
-      const treeContent = await page.textContent('aside');
-      expect(treeContent).toContain(planName);
-      expect(treeContent).toContain('E2E UI Create Template');
+      // Wait for the tree content itself, not merely the <aside> node: the
+      // helper's `attached` guarantee says the element exists, not that the
+      // expected name is in it. `getByText` avoids interpolating a
+      // user-visible string into a Playwright selector engine.
+      const tree = page.locator('aside');
+      await tree.getByText(planName, { exact: false }).waitFor({ timeout: ADMIN_SHELL_TIMEOUT_MS });
+      await tree
+        .getByText('E2E UI Create Template', { exact: false })
+        .waitFor({ timeout: ADMIN_SHELL_TIMEOUT_MS });
     });
 
     it('should reject plan creation with empty form (validation)', async () => {
