@@ -1,6 +1,6 @@
 # Phase 6/6: CLOSE (收尾) — Sprint #149 Prisma 7 + PGlite
 
-status: in_progress (等待 USER ACCEPTANCE 手动门禁)
+status: completed (UAT approved by user 2026-09-30; archive PR #163 merged as 7a97870)
 branch: chore/archive-sprint-149-state (base master `2463a94`, PR #162 squash-merged per DR-020)
 timestamp: 2026-09-30
 
@@ -63,3 +63,9 @@ timestamp: 2026-09-30
 3. 关闭 issue #149（附摘要）+（可选）登记 §3 两条新 emergent issues。
 4. worktree cleanup：`git worktree remove .worktrees/sprint-20260929-01` + 删除 sprint 分支（本地/远端）。
 5. `npx xp-gate phase-transition 6 completed --render`。
+
+## 6. 完成回放（2026-09-30，用户四项决策后）
+
+- UAT：用户通过验收；归档 PR #163 squash 合并为 `7a97870`（CI 7/7 绿）；issue #149 关闭附完成摘要；两条新 emergent 各建单。
+- 下一站：sprint #156（免凭据启动 + post-listen 重发开关），延续「剩余 open issues 连续开发」总指令。
+- `npx xp-gate phase-transition 6 completed --render` 已执行（dashboard 100%）。
