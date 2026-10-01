@@ -4,7 +4,7 @@
 >
 > 一款 AI 驱动的异步对话机器人，通过钉钉自动进行多轮问卷对话——具备 LLM 智能追问、跨消息上下文记忆、以及自动化报告生成能力。
 
-[![Version](https://img.shields.io/badge/version-1.8.1-blue)](https://github.com/boyingliu01/dialog-survey)
+[![Version](https://img.shields.io/badge/version-1.10.0-blue)](https://github.com/boyingliu01/dialog-survey)
 [![Node](https://img.shields.io/badge/node-%3E%3D20.19-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
@@ -50,8 +50,9 @@ Dialog Survey 是一个**驻留在钉钉里的异步对话机器人**。你设�
 | **自动生成报告** | 对话结束后自动生成 Markdown 报告，支持 PDF/Excel 导出（基于 Playwright） |
 | **私有部署** | 所有数据留在你的基础设施中。你的 PostgreSQL、你的 LLM（ollama / vLLM / 云端）、你的钉钉应用 |
 
-### 近期更新 (v1.8.x)
+### 近期更新 (v1.10.x)
 
+- **v1.10.0** — Prisma 6 → 7 升级，改用 driver adapters。测试不再依赖 PostgreSQL：整套测试跑在 PGlite（每个测试文件独立的 WASM 数据库）上，`npm test` 零手动步骤即可运行。Node.js 要求提升至 >= 20.19.0
 - **v1.8.1** — 文档大刷新：AGENTS.md 从 597 行压缩至 88 行，新增子目录 AGENTS.md
 - **v1.8.0** — 移除未使用的 ASR 语音识别。修复 COMPLETED 状态对话陷入 CONTINUE 循环的 bug。修复 maxFollowups 未持久化到数据库的问题。修复添加成员时错误信息被静默吞掉的问题
 - **v1.7.9** — CI 稳定性：修复不稳定的集成测试，清理示例配置中的敏感信息
@@ -201,7 +202,7 @@ dialog-survey/
 │   ├── views/        # Nunjucks 管理后台 (HTMX + Alpine.js)
 │   ├── generated/    # Prisma Client 生成物（gitignore；npx prisma generate）
 │   └── utils/        # 工具函数（日志、安全、PII 等）+ Prisma 门面/工厂
-├── tests/            # 117 个测试文件，~1266 个测试用例（Vitest + PGlite，无需 PostgreSQL）
+├── tests/            # 118 个测试文件，~1283 个测试用例（Vitest + PGlite，无需 PostgreSQL）
 ├── scripts/          # CLI 入口 + 部署脚本
 ├── prisma/           # Schema + 迁移 + 种子数据
 └── docs/             # 架构与设计文档

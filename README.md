@@ -4,7 +4,7 @@
 >
 > An AI-powered survey dialog bot that conducts async multi-turn conversations via DingTalk — with LLM-driven follow-ups, context memory, and automated report generation.
 
-[![Version](https://img.shields.io/badge/version-1.8.1-blue)](https://github.com/boyingliu01/dialog-survey)
+[![Version](https://img.shields.io/badge/version-1.10.0-blue)](https://github.com/boyingliu01/dialog-survey)
 [![Node](https://img.shields.io/badge/node-%3E%3D20.19-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
@@ -50,8 +50,9 @@ Dialog Survey is an **async survey dialog bot** that lives inside DingTalk. You 
 | **Auto report generation** | Markdown reports generated automatically after dialogs complete — PDF/Excel export via Playwright |
 | **Self-hosted** | All data stays on your infrastructure. PostgreSQL, your LLM (ollama / vLLM / cloud), your DingTalk app |
 
-### What's New (v1.8.x)
+### What's New (v1.10.x)
 
+- **v1.10.0** — Prisma 6 → 7 with driver adapters. Tests no longer need PostgreSQL: the suite runs on PGlite (isolated WASM database per test file), so `npm test` works with zero manual setup. Node.js requirement raised to >= 20.19.0.
 - **v1.8.1** — Full project doc refresh: compressed AGENTS.md to 88 lines, added subdirectory AGENTS.md for repositories/integrations/utils
 - **v1.8.0** — Removed unused ASR/voice recognition. Fixed COMPLETED dialogs stuck in CONTINUE loop. Fixed maxFollowups not persisted to DB. Fixed add-member modal swallowing errors silently.
 - **v1.7.9** — CI stability: fixed flaky integration tests, cleaned up secrets from sample configs
