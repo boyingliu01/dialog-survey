@@ -3,7 +3,7 @@
   "evidence_schema_version": 2,
   "id": "sprint-20260929-99",
   "task_description": "Issue #149: Prisma 7 + PGlite 集成 — 解除集成测试对真实 PostgreSQL 的依赖。复用 2026-09-24 已批准设计（12 项 DD + Stage 0 spike 协议 + Stage A/B 分阶段），补完 Delphi 设计评审 + to-issues + specification.yaml，然后 BUILD/VERIFY/SHIP/CLOSE。验收：Prisma 7.10.0 升级 / PGlite 测试后端 / 全部测试无 PG 全绿 / CI 移除 postgres service / 本地 npm test 零手动步骤",
-  "phase": 5,
+  "phase": 6,
   "status": "in_progress",
   "started_at": "2026-09-29T13:06:20.192Z",
   "phase_history": [
@@ -42,6 +42,12 @@
       "started_at": "2026-09-30T02:16:34.891Z",
       "completed_at": "2026-09-30T04:16:26.391Z",
       "duration_seconds": 7192
+    },
+    {
+      "phase": 6,
+      "phase_name": "CLOSE",
+      "status": "completed",
+      "completed_at": "2026-09-30T15:21:26.328Z"
     }
   ],
   "isolation": {
@@ -62,7 +68,11 @@
     "browser_layer4": "28 chromium e2e tests passed",
     "pr": "162",
     "merge_commit": "2463a947",
-    "ci": "all-green"
+    "ci": "all-green",
+    "uat": "approved",
+    "archive_pr": "163",
+    "issue_149": "closed",
+    "next_sprint": "156"
   },
   "metrics": {}
 }

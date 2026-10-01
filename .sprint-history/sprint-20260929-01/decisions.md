@@ -154,3 +154,11 @@
 - **Choice**: ③ tar 内路径与原相对路径一致；打包后解包逐文件 sha256 与原件全数一致（10/10 OK）后才 git rm 散装原件
 - **Rationale**: ①为纯文档归档反复跑 Delphi 是浪费门禁语义；②伪造扩展名破坏证据可追溯；③字节零改动、可复现解包，且推送恢复其"文档-only"的真实属性，门禁自然不适用。
 - **Timestamp**: 2026-09-30T15:40:00+08:00
+
+## Decision DR-024
+- **Phase**: 6/6 CLOSE
+- **Question**: #149 USER ACCEPTANCE（强制手动门禁）+ 归档 PR #163 处置 + issue 收尾 + 下一 sprint
+- **Options**: 见当次 AskUserQuestion 四问
+- **Choice**: 通过验收；#163 squash 合并（不打 tag）；关 #149 + 建 2 条 emergent issue；下一站 #156
+- **Rationale**: 交付质量证据链完整（1282 测试绿、CI 全绿、走查 R5/R4 APPROVED、#367 满分）；发布仍按 DR-020 延后由用户手动触发。
+- **Timestamp**: 2026-09-30T16:30:00+08:00
