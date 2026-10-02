@@ -49,6 +49,8 @@ case "$GIT_DIR" in
 esac
 
 RECORD_FILE="$GIT_DIR/xp-gate-uninstall-record"
+# Persistent audit trail for destructive (--force / --reset-unset) operations.
+LOG_FILE="$GIT_DIR/xp-gate-uninstall.log"
 SENTINEL_UNSET="__UNSET__"
 # Installed into the TARGET repository. The hook itself lives in the repository
 # that owns this script when the two differ; for the normal in-repo invocation
@@ -61,9 +63,15 @@ FORCE=0
 for arg in "$@"; do
   case "$arg" in
     --uninstall) MODE="uninstall" ;;
+    --reset-unset) MODE="reset-unset" ;;
     --force) FORCE=1 ;;
     --help | -h)
-      echo "Usage: scripts/install-git-hooks.sh [--uninstall [--force]]"
+      echo "Usage: scripts/install-git-hooks.sh [--uninstall [--force] | --reset-unset]"
+      echo ""
+      echo "  (no args)      Install the local commit-msg hook (opt-in)."
+      echo "  --uninstall    Restore the core.hooksPath value recorded at install."
+      echo "  --force        With --uninstall: restore even if the current value diverged."
+      echo "  --reset-unset  Unset the local core.hooksPath (single-purpose escape hatch)."
       exit 0
       ;;
     *)
@@ -158,31 +166,44 @@ uninstall_hook() {
     exit 1
   fi
 
-  local recorded current
+  local recorded current overwrote restored
   recorded="$(recorded_hooks_path)"
   current="$(current_local_hooks_path)"
+  overwrote=""
 
-  # The expected post-install value is this repository's githooks dir.
   if [ "$recorded" = "$SENTINEL_UNSET" ]; then
-    if [ -n "$current" ] && [ "$current" != "$HOOKS_DIR" ] && [ "$FORCE" -ne 1 ]; then
+    restored="(unset)"
+  else
+    restored="$recorded"
+  fi
+
+  # A value that is neither the installed one nor the recorded original means
+  # something else changed it after installation. Refuse to guess.
+  if [ -n "$current" ] && [ "$current" != "$HOOKS_DIR" ] && [ "$current" != "$recorded" ]; then
+    if [ "$FORCE" -ne 1 ]; then
       echo "install-git-hooks: core.hooksPath is '$current', not the value this tool set." >&2
-      echo "install-git-hooks: re-run with --force to overwrite it." >&2
+      echo "install-git-hooks: re-run with --force to restore '$restored'." >&2
       exit 1
     fi
-    if [ -n "$current" ] && [ "$current" != "$HOOKS_DIR" ]; then
-      echo "install-git-hooks: --force overwriting core.hooksPath '$current' (was unset before install)"
-    fi
+    overwrote="$current"
+  fi
+
+  if [ "$recorded" = "$SENTINEL_UNSET" ]; then
     git -C "$TARGET_ROOT" config --local --unset core.hooksPath 2>/dev/null || true
   else
-    if [ -n "$current" ] && [ "$current" != "$HOOKS_DIR" ] && [ "$FORCE" -ne 1 ]; then
-      echo "install-git-hooks: core.hooksPath is '$current', not the value this tool set." >&2
-      echo "install-git-hooks: re-run with --force to restore '$recorded'." >&2
-      exit 1
-    fi
-    if [ "$current" != "$recorded" ]; then
-      echo "install-git-hooks: --force restoring core.hooksPath '$recorded' (overwrote '$current')"
-    fi
     git -C "$TARGET_ROOT" config --local core.hooksPath "$recorded"
+  fi
+
+  # Persistent audit record of a destructive overwrite. stderr scrolls away;
+  # this file does not. Only written when --force actually replaced a divergent
+  # value, so it stays a record of real events rather than of every uninstall.
+  if [ "$overwrote" != "" ]; then
+    {
+      printf '%s\tcore.hooksPath: %s -> %s\n' \
+        "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$overwrote" "$restored"
+    } >>"$LOG_FILE"
+    echo "install-git-hooks: --force overwrote core.hooksPath '$overwrote'" >&2
+    echo "install-git-hooks: recorded in $LOG_FILE" >&2
   fi
 
   rm -f "$HOOK_PATH" "$RECORD_FILE"
@@ -192,7 +213,33 @@ uninstall_hook() {
   echo "install-git-hooks: uninstalled; core.hooksPath restored"
 }
 
+# ---------------------------------------------------------------------------
+# --reset-unset: a separate, single-meaning escape hatch.
+#
+# It exists so that `--force` never has to carry two destructive meanings. This
+# flag does exactly one thing - remove the LOCAL core.hooksPath - and therefore
+# needs no record file: the machine-global value (if any) shows through again.
+# ---------------------------------------------------------------------------
+reset_unset() {
+  local current
+  current="$(current_local_hooks_path)"
+
+  if [ -n "$current" ]; then
+    {
+      printf '%s\tcore.hooksPath: %s -> (unset) via --reset-unset\n' \
+        "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$current"
+    } >>"$LOG_FILE"
+  fi
+
+  git -C "$TARGET_ROOT" config --local --unset core.hooksPath 2>/dev/null || true
+  rm -f "$HOOK_PATH" "$RECORD_FILE"
+  rmdir "$HOOKS_DIR" 2>/dev/null || true
+
+  echo "install-git-hooks: core.hooksPath unset (--reset-unset); recorded in $LOG_FILE"
+}
+
 case "$MODE" in
   install) install_hook ;;
   uninstall) uninstall_hook ;;
+  reset-unset) reset_unset ;;
 esac

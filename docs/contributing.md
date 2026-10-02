@@ -72,8 +72,23 @@ The uninstall restores the previous `core.hooksPath` exactly:
 The pre-install value is recorded in `.git/xp-gate-uninstall-record` on first
 install and is never overwritten by a repeat install. If `core.hooksPath` changed
 since installation, `--uninstall` refuses to guess and exits non-zero; pass
-`--force` to restore the recorded value anyway (the overwritten value is printed).
+`--force` to restore the recorded value anyway. A forced restore prints the value
+it overwrote **and** appends it to `.git/xp-gate-uninstall.log`, so a destructive
+overwrite leaves a durable, timestamped record rather than scrolling off screen.
 Only the repository's own config is ever written — global config is never touched.
+
+If you just want to drop the local override without restoring anything, use the
+separate single-purpose flag:
+
+```bash
+bash scripts/install-git-hooks.sh --reset-unset
+```
+
+`--reset-unset` always succeeds (it needs no record, because its meaning does not
+depend on knowing the previous value) and simply unsets the local
+`core.hooksPath`, letting any inherited global value apply again. It is kept
+separate from `--force` so that `--force` never has to carry two destructive
+meanings.
 
 ## Checks to run before pushing
 

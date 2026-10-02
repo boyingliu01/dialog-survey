@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -119,24 +119,27 @@ interface RunResult {
   status: number;
   stdout: string;
   stderr: string;
+  /** stdout and stderr combined — use for "was the user told?" assertions. */
+  output: string;
 }
 
 function runInstaller(cwd: string, args: string[] = []): RunResult {
-  try {
-    const stdout = execFileSync(bashCommand, [installer, ...args], {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    return { status: 0, stdout, stderr: '' };
-  } catch (error) {
-    const failure = error as { status?: number; stdout?: string; stderr?: string };
-    return {
-      status: failure.status ?? 1,
-      stdout: `${failure.stdout ?? ''}`,
-      stderr: `${failure.stderr ?? ''}`,
-    };
-  }
+  // spawnSync (not execFileSync) so stderr is captured on SUCCESS too.
+  // execFileSync drops stderr when the process exits 0, and the --force
+  // overwrite warning goes to stderr precisely because that run succeeds.
+  const result = spawnSync(bashCommand, [installer, ...args], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  const stdout = `${result.stdout ?? ''}`;
+  const stderr = `${result.stderr ?? ''}`;
+  return {
+    status: result.status ?? 1,
+    stdout,
+    stderr,
+    output: `${stdout}${stderr}`,
+  };
 }
 
 function readRecord(dir: string): string | null {
@@ -350,7 +353,7 @@ describe('opt-in local commit-msg hook installer', () => {
       // Recorded value was "unset", so a forced uninstall unsets.
       expect(gitConfigGet(dir, 'core.hooksPath')).toBeNull();
       // The overwritten value must be reported, not silently discarded.
-      expect(`${result.stdout}${result.stderr}`).toContain('C:/someone/else/hooks');
+      expect(result.output).toContain('C:/someone/else/hooks');
     });
 
     it('fails when the record file is missing, for both --uninstall and --force', () => {
@@ -369,10 +372,74 @@ describe('opt-in local commit-msg hook installer', () => {
 
       const result = runInstaller(dir);
 
-      const output = `${result.stdout}${result.stderr}`;
+      const output = result.output;
       expect(output.toLowerCase()).toContain('global');
       // It must be explicit that the global chain is bypassed, not merely "changed".
       expect(output).toMatch(/hooksPath|hook/i);
+    });
+  });
+
+  describe('design §3: --force persists an audit trail, not just stderr', () => {
+    it('appends the overwritten value to .git/xp-gate-uninstall.log', () => {
+      const dir = repo();
+      runInstaller(dir);
+      git(dir, 'config', 'core.hooksPath', 'C:/someone/else/hooks');
+
+      runInstaller(dir, ['--uninstall', '--force']);
+
+      // A destructive overwrite must leave a durable record: stderr scrolls away.
+      const logPath = join(dir, '.git', 'xp-gate-uninstall.log');
+      expect(existsSync(logPath)).toBe(true);
+      const log = readFileSync(logPath, 'utf8');
+      expect(log).toContain('C:/someone/else/hooks');
+      // Timestamped, so multiple events stay distinguishable.
+      expect(log).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/);
+    });
+
+    it('writes no audit entry on an ordinary, non-destructive uninstall', () => {
+      const dir = repo();
+      runInstaller(dir);
+
+      runInstaller(dir, ['--uninstall']);
+
+      // Nothing was overwritten, so there is nothing to audit.
+      expect(existsSync(join(dir, '.git', 'xp-gate-uninstall.log'))).toBe(false);
+    });
+  });
+
+  describe('design §3: --reset-unset is a separate single-meaning escape hatch', () => {
+    it('unsets the local core.hooksPath without needing a record file', () => {
+      const dir = repo();
+      runInstaller(dir);
+      // Simulate a lost record: --reset-unset must still work, because its
+      // meaning does not depend on knowing the previous value.
+      rmSync(join(dir, RECORD_FILE), { force: true });
+
+      const result = runInstaller(dir, ['--reset-unset']);
+
+      expect(result.status).toBe(0);
+      expect(gitConfigGet(dir, 'core.hooksPath')).toBeNull();
+    });
+
+    it('works even when nothing was ever installed', () => {
+      const dir = repo();
+
+      const result = runInstaller(dir, ['--reset-unset']);
+
+      expect(result.status).toBe(0);
+      expect(gitConfigGet(dir, 'core.hooksPath')).toBeNull();
+    });
+
+    it('is distinct from --uninstall, which still refuses without a record', () => {
+      const dir = repo();
+      runInstaller(dir);
+      rmSync(join(dir, RECORD_FILE), { force: true });
+
+      // --uninstall cannot know the original value, so it must fail...
+      expect(runInstaller(dir, ['--uninstall']).status).not.toBe(0);
+      // ...while --reset-unset has a single unambiguous meaning and succeeds,
+      // proving --force does not have to carry two destructive meanings.
+      expect(runInstaller(dir, ['--reset-unset']).status).toBe(0);
     });
   });
 });
