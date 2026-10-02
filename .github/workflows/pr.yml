@@ -232,3 +232,76 @@ jobs:
 
       - name: Run smoke test
         run: npm run smoke
+
+  # Enforces Conventional Commits (issue #153, design doc §5). The repo
+  # squash-merges, so the PR title becomes the final commit message on master —
+  # that check is load-bearing, the branch-range check is advisory only.
+  commit-lint:
+    name: Commit Lint (Conventional Commits)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # fetch-depth: 0 — without full history `origin/<base>` does not exist and
+      # the range check would silently lint nothing (§5.1).
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      # Prerequisite: every `npx --no-install` below resolves offline from here.
+      - name: Install dependencies (pinned, no registry drift)
+        run: npm ci
+
+      # Self-check (§5.4): a known-bad message MUST be rejected. If commitlint is
+      # missing, npx is unavailable, or the config is emptied, this step fails
+      # first — the gate can never silently fail-open.
+      - name: Self-check (lint command actually rejects bad input)
+        run: |
+          set -euo pipefail
+          # Must fail: non-conventional message.
+          if printf '%s' "bad message no type" | npx --no-install commitlint --verbose; then
+            echo "::error::commitlint accepted a non-conventional message — gate is fail-open"
+            exit 1
+          fi
+          # Must pass: conventional message.
+          printf '%s' "feat: self check" | npx --no-install commitlint --verbose
+
+      # step ① — base ref resolution is blocking: a missing base ref must fail
+      # loudly rather than let the range check pass vacuously (§5.1, R-6).
+      - name: Resolve base ref
+        id: base
+        run: |
+          set -euo pipefail
+          BASE_REF="${{ github.base_ref }}"
+          if [ -z "$BASE_REF" ]; then
+            echo "::error::base ref is empty (github.base_ref unset) — cannot scope commit range"
+            exit 1
+          fi
+          if ! git rev-parse --verify --quiet "origin/$BASE_REF"; then
+            echo "::error::base ref origin/$BASE_REF not found — is fetch-depth: 0 set?"
+            exit 1
+          fi
+          echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
+
+      # step ② — PR title check (BLOCKING, load-bearing). commitlint reads the
+      # message from stdin; positional args are silently ignored, hence the pipe.
+      # Passed via env (not interpolated) and with printf (not echo) so titles
+      # containing quotes/backticks/$ or leading -n are handled safely (§5.2).
+      - name: Validate PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s' "$PR_TITLE" | npx --no-install commitlint --verbose
+
+      # step ③ — branch range check (ADVISORY). Intermediate commits are
+      # discarded by squash-merge, so linting them must not block the PR.
+      # If this repo ever moves to merge commits, promote this to blocking (§5.2).
+      - name: Validate commit range (advisory)
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ steps.base.outputs.base_ref }}
+        run: npx --no-install commitlint --from "origin/$BASE_REF" --to HEAD --verbose
