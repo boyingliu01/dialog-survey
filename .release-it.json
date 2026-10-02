@@ -1,0 +1,27 @@
+{
+  "git": {
+    "requireBranch": "master",
+    "requireCleanWorkingDir": true,
+    "tagName": "v${version}",
+    "commitMessage": "chore(release): v${version}",
+    "tagAnnotation": "Release v${version}"
+  },
+  "npm": {
+    "publish": false
+  },
+  "github": {
+    "release": true,
+    "releaseNotes": null,
+    "draft": false,
+    "preRelease": false
+  },
+  "plugins": {
+    "@release-it/conventional-changelog": {
+      "preset": "conventionalcommits",
+      "infile": "CHANGELOG.md"
+    }
+  },
+  "hooks": {
+    "after:bump": ["node scripts/write-version.cjs ${version}", "node scripts/sync-version.cjs"]
+  }
+}

@@ -126,6 +126,32 @@ describe('commitlint configuration (AC-1)', () => {
     expect(lintMessage('chore(release): 1.2.3')).toBe(0);
     expect(lintMessage('foo: bar')).not.toBe(0);
   });
+
+  it('declares the commitlint packages the config and CI job depend on', () => {
+    // Guard against a silently dropped dependency. These were once missing from
+    // package.json while the commit claiming to add them stayed green: absent
+    // from node_modules, `npx --no-install commitlint` exits 1, which is
+    // indistinguishable from a correctly rejected message. The round-trip tests
+    // below only caught it once the dependency was reinstalled.
+    const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
+    const declared = { ...pkg.dependencies, ...pkg.devDependencies };
+
+    expect(declared['@commitlint/cli']).toBeDefined();
+    expect(declared['@commitlint/config-conventional']).toBeDefined();
+    expect(existsSync(join(repoRoot, 'node_modules', '@commitlint', 'cli'))).toBe(true);
+    expect(existsSync(join(repoRoot, 'node_modules', '@commitlint', 'config-conventional'))).toBe(
+      true
+    );
+  });
+
+  it('pins a commitlint range that still supports this repository\u2019s Node floor', () => {
+    const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
+
+    // Measured: @commitlint/cli 21.x requires Node >=22.12, which would break
+    // this repo's >=20.19 floor and .nvmrc (20.19).
+    expect(pkg.devDependencies['@commitlint/cli']).toMatch(/\^20\./);
+    expect(pkg.devDependencies['@commitlint/config-conventional']).toMatch(/\^20\./);
+  });
 });
 
 describe('commit-lint job in .github/workflows/pr.yml (AC-4 / AC-12)', () => {
