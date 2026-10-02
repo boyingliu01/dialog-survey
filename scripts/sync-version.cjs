@@ -99,12 +99,16 @@ function readVersion() {
 
 /**
  * Rewrite only the version field, preserving every other key and the formatting.
- * A wholly absent target is optional and skipped; an existing-but-unwritable one throws
+ *
+ * Only a regular file is a write target; a name that is absent OR is a directory is
+ * skipped. This mirrors the .sh's `[ -f "$pkg" ] || return 0` exactly — using a bare
+ * existence check here would make a directory named `package.json` throw EISDIR in the
+ * .cjs while the .sh silently skips it. An existing-but-unwritable file still throws
  * (and therefore exits non-zero), per the design's failure semantics.
  */
 function updatePackageTarget(target, version) {
   const full = path.join(root, target);
-  if (!fs.existsSync(full)) {
+  if (!fs.statSync(full, { throwIfNoEntry: false })?.isFile()) {
     return;
   }
   const contents = fs.readFileSync(full, 'utf8');
@@ -123,16 +127,14 @@ function updatePackageTarget(target, version) {
  * Anchored single-line replacement: exactly one match, and the header must be present in
  * the expected format. A missing or format-mismatched header exits non-zero rather than
  * silently reporting success, so a release can never quietly leave AGENTS.md stale.
+ * Only a regular file counts as present (mirrors the .sh's `[ -f AGENTS.md ]`).
  */
 function updateAgentsHeader(version) {
   const full = path.join(root, AGENTS_TARGET);
-  if (!fs.existsSync(full)) {
+  if (!fs.statSync(full, { throwIfNoEntry: false })?.isFile()) {
     return;
   }
   const content = fs.readFileSync(full, 'utf8');
-  if (!AGENTS_HEADER_PATTERN.test(content)) {
-    fail(`no blockquote header with a (vX.Y.Z) token found in ${AGENTS_TARGET}`);
-  }
   const updated = content.replace(
     AGENTS_HEADER_PATTERN,
     (_match, prefix) => `${prefix}(v${version})`
@@ -145,13 +147,14 @@ function updateAgentsHeader(version) {
 /**
  * Refuse to start unless every precondition holds. The fan-out mutates several files, so
  * validating up front keeps a failure from leaving a partially-applied release state: a
- * missing or malformed AGENTS.md header used to abort AFTER package.json had already been
- * rewritten, which is exactly the half-updated tree the design forbids.
+ * missing or malformed AGENTS.md header would otherwise abort AFTER package.json had
+ * already been rewritten, which is exactly the half-updated tree the design forbids.
+ * A non-regular AGENTS.md (absent, or a directory) is not a target at all.
  */
 function assertPreconditionsMet() {
   const agentsFull = path.join(root, AGENTS_TARGET);
-  if (!fs.existsSync(agentsFull)) {
-    return; // AGENTS.md is an optional target.
+  if (!fs.statSync(agentsFull, { throwIfNoEntry: false })?.isFile()) {
+    return; // AGENTS.md is an optional target; only a regular file is checked.
   }
   const content = fs.readFileSync(agentsFull, 'utf8');
   if (!AGENTS_HEADER_PATTERN.test(content)) {

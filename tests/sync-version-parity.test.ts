@@ -41,9 +41,8 @@ function resolveBashCommand(): string {
 const bashCommand = resolveBashCommand();
 
 /**
- * Run a script with inherited stdio. `execSync` is only used for the quoted bash command;
- * node is always spawned through `execFileSync` with the current interpreter so the test
- * does not depend on `node` being resolvable from a shell PATH (AC-15).
+ * Run the .sh, returning its stdout. `execSync` is only used for the shell command because
+ * the bash path may need quoting; stderr is dropped so a failure surfaces as a thrown error.
  */
 function runSh(dir: string, args: string[] = []): string {
   return `${execSync(`${bashCommand} "${shScriptPath}" ${args.join(' ')}`.trim(), {
@@ -53,6 +52,11 @@ function runSh(dir: string, args: string[] = []): string {
   })}`;
 }
 
+/**
+ * Run the .cjs, returning its stdout. Spawned through `execFileSync` with the current
+ * interpreter so the test never depends on `node` being resolvable from a shell PATH —
+ * the WSL-bash failure mode this suite exists to guard against (AC-15).
+ */
 function runCjs(dir: string, args: string[] = []): string {
   return `${execFileSync(process.execPath, [cjsScriptPath, ...args], {
     cwd: dir,
@@ -279,6 +283,42 @@ describe('sync-version .sh/.cjs parity', () => {
       expect(agents).toContain('> Generated: 2026-07-08. Commit: `073e69e` (v2.3.4).');
       expect(agents).toContain('# Body stays untouched (v1.0.0)');
     }
+  });
+
+  it('AC-13: both implementations skip a target whose name is a directory, not a file', () => {
+    // `[ -f "$pkg" ]` in the .sh means "regular file only". A bare existence check in the
+    // .cjs would instead throw EISDIR on a directory named package.json and diverge.
+    for (const run of [runSh, runCjs]) {
+      const f = fixture();
+      mkdirSync(join(f.dir, 'package.json'), { recursive: true });
+      mkdirSync(join(f.dir, 'AGENTS.md'), { recursive: true });
+
+      expect(() => run(f.dir)).not.toThrow();
+      // Both directory targets are left untouched.
+      expect(existsSync(join(f.dir, 'package.json'))).toBe(true);
+      expect(readdirSync(join(f.dir, 'package.json'))).toEqual([]);
+      expect(readdirSync(join(f.dir, 'AGENTS.md'))).toEqual([]);
+    }
+  });
+
+  it('AC-13: neither implementation rewrites anything outside the root', () => {
+    // SYNC_VERSION_ROOT must be honoured: a sync against a fixture may never touch the
+    // live repository's own version-bearing files.
+    const liveVersion = readFileSync(join(repoRoot, 'VERSION'), 'utf8');
+    const liveAgents = readFileSync(join(repoRoot, 'AGENTS.md'), 'utf8');
+
+    for (const run of [runSh, runCjs]) {
+      const f = fixture();
+      f.writePackageJson('package.json', '1.0.0');
+      f.writeAgentsHeader('1.8.0');
+
+      run(f.dir);
+
+      expect(readFileSync(join(f.dir, 'package.json'), 'utf8')).toContain('"version": "2.3.4"');
+    }
+
+    expect(readFileSync(join(repoRoot, 'VERSION'), 'utf8')).toBe(liveVersion);
+    expect(readFileSync(join(repoRoot, 'AGENTS.md'), 'utf8')).toBe(liveAgents);
   });
 
   it('AC-15: node runs the .cjs without any bash on PATH', () => {
