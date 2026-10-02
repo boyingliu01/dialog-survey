@@ -131,6 +131,7 @@ worktrees/
 # XP-gate generated artifacts
 .xp-gate/
 .architecture-baseline.json
+!.architecture-baseline.json
 
 # Quality history (auto-generated)
 .quality-history.jsonl
