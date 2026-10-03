@@ -1,0 +1,156 @@
+specification:
+  id: "SPEC-153-001"
+  name: "强制 Conventional Commits + 自动 CHANGELOG + 自动版本发布"
+  version: "1.0.0"
+  issue: "#153"
+  sprint: "sprint-20261001-30"
+  branch: "sprint/2026-10-01-01"
+  created_at: "2026-10-01T16:00:00Z"
+  source: "docs/plans/2026-10-01-conventional-commits-design.md (v8, post-R2-round-5) + .sprint-state/phase-outputs/requirements-reviewed.json (PASS_WITH_CAVEATS, user option A)"
+
+  requirements:
+    - id: REQ-153-1
+      description: "CI 强制 commit message 符合 Conventional Commits，不合规阻断 PR"
+      priority: critical
+      acceptance_criteria: [AC-153-1-02, AC-153-1-04]
+    - id: REQ-153-2
+      description: "提供可选的本地 opt-in commit-msg hook（默认不安装），其代价被显式声明"
+      priority: medium
+      acceptance_criteria: [AC-153-2-01, AC-153-2-02, AC-153-7-01, AC-153-2-03]
+    - id: REQ-153-3
+      description: "release-it 自动完成：算版本 → 生成 CHANGELOG → bump → commit → tag → GitHub Release"
+      priority: high
+      acceptance_criteria: [AC-153-3-01, AC-153-3-02, AC-153-3-03]
+    - id: REQ-153-4
+      description: "VERSION 为发布后的规范记录与同步扇出中心（bump 期间操作输入是 package.json）；发布后与 package.json/AGENTS.md 恒一致且进入发布提交"
+      priority: high
+      acceptance_criteria: [AC-153-4-01, AC-153-4-02, AC-153-4-03]
+    - id: REQ-153-5
+      description: "修复 sync-version 的 --list-targets 并新增跨平台的 sync-version.cjs"
+      priority: medium
+      acceptance_criteria: [AC-153-4-02, AC-153-5-01, AC-153-4-03]
+    - id: REQ-153-6
+      description: "发布 bootstrap：创建初始 annotated tag v1.10.0，使版本基线正确且幂等"
+      priority: high
+      acceptance_criteria: [AC-153-6-01]
+    - id: REQ-153-7
+      description: "全局 xp-gate 门禁链在默认状态下不受影响"
+      priority: critical
+      acceptance_criteria: [AC-153-7-01]
+
+  acceptance_criteria:
+    - id: AC-153-1-01
+      requirement: REQ-153-1
+      criteria: "commitlint 配置 = @commitlint/config-conventional + 文档化覆盖项与 ignores（含具名机器人正则）"
+      test_type: unit
+    - id: AC-153-2-01
+      requirement: REQ-153-2
+      criteria: "当 opt-in 已安装时，不合规 commit 被本地 hook 拒绝；其代价（本仓库全局门禁临时失效）已声明于文档"
+      test_type: integration
+    - id: AC-153-2-02
+      requirement: REQ-153-2
+      criteria: "合规 commit 被接受（feat:/fix:/chore(scope): 等多种形式）"
+      test_type: integration
+    - id: AC-153-1-02
+      requirement: REQ-153-1
+      criteria: "CI job commit-lint 对不合规 PR 标题失败；base ref 缺失亦失败；范围校验仅警告不阻断"
+      test_type: unit
+    - id: AC-153-3-01
+      requirement: REQ-153-3
+      criteria: "CHANGELOG 自动生成并追加到现有文件顶部，既有 '## 1.8.9' 条目保留"
+      test_type: integration
+    - id: AC-153-3-02
+      requirement: REQ-153-3
+      criteria: "dry-run 在 §7.4 fixture 配置（github.release=false、requireBranch=false）上执行，算出正确下一版本与 tag 名（'v'+版本），断言 HEAD 与 tag 集合前后不变；git remote get-url 失败时记 skipped 而非 passed；解析失败即测试失败（无 fallback）"
+      test_type: integration
+    - id: AC-153-4-01
+      requirement: REQ-153-4
+      criteria: "发布后 VERSION = package.json = AGENTS.md 三者一致，且该一致性已进入发布提交（git show --name-only + git status --porcelain 为空）"
+      test_type: integration
+    - id: AC-153-7-01
+      requirement: REQ-153-7
+      criteria: "默认（未安装）状态下全局 core.hooksPath 值不变；且以实测证明必然触发门禁的改动（非版本一致性类改动——已实测 Gate 0 对一个 VERSION 与 package.json 矛盾的暂存改动放行、exit 0、提交落地、既未修复也未暂存，故版本矛盾不能用作触发样本）验证 xp-gate 链仍返回非零退出"
+      test_type: integration
+    - id: AC-153-2-03
+      requirement: REQ-153-2
+      criteria: "安装器幂等；卸载精确恢复（含 __UNSET__）；当前值≠记录值需 --force；--force 语义唯一（恢复记录值并打印被覆盖值）"
+      test_type: unit
+    - id: AC-153-1-03
+      requirement: REQ-153-1
+      criteria: "（运维）commit-lint 被设为 required status check —— 需仓库管理员，不在代码验收范围"
+      test_type: manual
+    - id: AC-153-6-01
+      requirement: REQ-153-6
+      criteria: "bootstrap 创建 annotated tag v1.10.0；四分支幂等：不存在→创建并记录 SHA；SHA==记录值→警告+0；SHA!=记录值→报错+非零；记录缺失但 tag 是 HEAD 祖先→警告+0 并补记，记录缺失且 tag 非祖先→报错+非零"
+      test_type: unit
+    - id: AC-153-1-04
+      requirement: REQ-153-1
+      criteria: "commit-lint job 存在、无 needs、且未新增发布类 job；job 总数以信息方式记录（不硬断言 8，避免未来无关 job 变更导致脆弱失败）"
+      test_type: unit
+    - id: AC-153-4-02
+      requirement: REQ-153-4
+      criteria: "sync-version.cjs 与 .sh 在共享 fixture 上语义等价（含 AGENTS.md 用例）；同值重跑为 no-op；.sh 必须经 §4.5 的 resolveBashCommand() 调用（优先 Git Bash），不得依赖 PATH 默认 bash（WSL 会 exit 127）"
+      test_type: unit
+    - id: AC-153-5-01
+      requirement: REQ-153-5
+      criteria: "--list-targets 只列出实际存在的目标（本仓库应为 package.json 与 AGENTS.md 共 2 个）"
+      test_type: unit
+    - id: AC-153-4-03
+      requirement: REQ-153-4
+      criteria: "node scripts/sync-version.cjs 不依赖 bash/PATH 即可成功（WSL exit 127 失败模式回归测试）"
+      test_type: unit
+    - id: AC-153-3-03
+      requirement: REQ-153-3
+      criteria: "GitHub Release 在首次真实发布时创建成功且含生成的 notes（CI 无凭据，人工清单；GITHUB_TOKEN 为未验证先决条件）"
+      test_type: manual
+
+  design_decisions:
+    - id: DD-001
+      decision: "不使用 husky"
+      rationale: "husky@9.1.7 index.js:14 无条件执行 git config core.hooksPath <dir>/_，会静默废掉全局 xp-gate 全部 12 道 pre-commit gate"
+      alternatives_considered: ["husky（被否决：破坏全局门禁）", "lefthook（同样依赖 core.hooksPath）"]
+    - id: DD-002
+      decision: "本地 hook 采用 opt-in 安装器 + 精确记录/恢复 core.hooksPath"
+      rationale: "git 只从单一 core.hooksPath 取 hook，故全局门禁与本地 hook 不可兼得；用默认不安装 + 记录-恢复控制风险"
+      alternatives_considered: ["<repo>/githooks/ 零冲突挂载（实测证伪：hook 从不触发）", "纯 CI（用户否决，选择保留 opt-in）"]
+    - id: DD-003
+      decision: "commit 校验以 PR 标题为唯一阻断项，范围为仅警告"
+      rationale: "仓库用 squash 合并，中间提交会被丢弃，全范围阻断会产生假阳性"
+      alternatives_considered: ["仅范围校验（会漏掉最终消息）", "两者都阻断（假阳性摩擦）"]
+    - id: DD-004
+      decision: "release-it hook 使用 bare after:bump + 数组形式调用 .cjs"
+      rationale: "三重实测：(1) after:version:bump 在安装 @release-it/conventional-changelog 后静默不触发（两插件 namespace 均为 version，changelog 插件迭代时 willHookRun 为假而抑制 hook），仅 bare after:bump 可靠；(2) && 链式两命令都不执行；(3) .sh 在 WSL bash 下 exit 127"
+      alternatives_considered: ["after:version:bump（实测静默失效）", "&& 链式（实测失效）", "bash .sh（实测 exit 127）"]
+    - id: DD-005
+      decision: "显式配置 git.tagName = \"v${version}\""
+      rationale: "零 tag 时 GitBase.js:20 的默认推断退化为无 v 前缀"
+      alternatives_considered: ["依赖默认推断（实测会产出无前缀 tag）"]
+    - id: DD-006
+      decision: "AC-153-3-01/AC-153-4-01 的集成验证在一次性临时仓库中进行"
+      rationale: "dry-run 对 hook 做 no-op（shell.js:31），无法验证产物；真实 release 有副作用，故隔离到临时仓库"
+      alternatives_considered: ["本仓库内真实发布（危险）", "仅配置层断言（空洞）"]
+    - id: DD-007
+      decision: "拆分 AC-153-3-02（计算正确性，dry-run）与 AC-153-4-01（产物正确性，集成层）"
+      rationale: "v3 曾把两者混在 dry-run 中，与实测结论自相矛盾"
+      alternatives_considered: ["单一 AC 用 dry-run 验证全部（空洞断言）"]
+    - id: DD-008
+      decision: "CI 拆为三个独立 step（base ref 阻断 / PR 标题阻断 / 范围仅警告）"
+      rationale: "把'必须失败'与'仅警告'置于同一 continue-on-error 步骤会自相矛盾"
+      alternatives_considered: ["单一 continue-on-error 步骤（逻辑矛盾）"]
+
+    - id: DD-009
+      decision: "探针与集成 fixture 必须复刻生产配置（含 changelog 插件）"
+      rationale: "实测证明移除 changelog 插件会改变 hook 触发行为：无插件时 after:version:bump 触发，有插件时静默不触发。在简化配置上验证会得到假通过"
+      alternatives_considered: ["在最小配置上验证（实测会掩盖缺陷）"]
+    - id: DD-010
+      decision: "AC-153-7-01 断言 2 在 master 上执行（Gate 0 为受保护分支门控），且不硬编码 Gate 标题"
+      rationale: "pre-commit:296-311 显示 Gate 0 仅在 master/develop/trunk/mainline 启用，且 :323-329 只检查已暂存文件；在 sprint 分支上断言永不成立。不硬编码标题可避免 xp-gate 改名致假失败"
+      alternatives_considered: ["在 sprint 分支断言（永不触发）", "硬编码 Gate 标题（脆弱）"]
+
+  known_unverified:
+    - "GitHub Release 创建链路从未实测（探针 github.release=false）"
+    - "AC-153-3-02 的 git ls-remote 需远端凭据；不可用时记 skipped"
+
+  review_status:
+    r1_requirements: "PASS_WITH_CAVEATS (5 rounds, 0/3 APPROVED, consensus 0.00; user accepted option A)"
+    r2_design: "5 rounds completed, 0/3 APPROVED each round, consensus 0.00; all findings dispositioned with empirical evidence; R4/R5 discoveries corrected real defects (see design §0.4, §7.3, §7.6)"

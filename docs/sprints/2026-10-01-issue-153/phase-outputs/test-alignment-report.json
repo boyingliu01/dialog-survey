@@ -1,0 +1,1459 @@
+{
+  "alignment_status": "FAIL",
+  "phase": 1,
+  "score": 0,
+  "head_commit": "a5f41786df6ad17adc06351485a48f2ce6424267",
+  "spec_hash": "2e844864e8cfc99331b446530df1277f538eca29f9bdb82bb4c509eda98911d0",
+  "timestamp": "2026-10-03T02:48:38.385Z",
+  "misaligned_tests": [
+    {
+      "test_name": "unknown",
+      "spec_requirement": "REQ-153-7",
+      "gap": "Acceptance criterion AC-153-1-03 is not covered by any test"
+    },
+    {
+      "test_name": "should extract topics from content",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should extract topics from content\" in tests\\analysis-features.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should analyze interview and return result",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should analyze interview and return result\" in tests\\analysis.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should calculate metrics for responses",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should calculate metrics for responses\" in tests\\analysis.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should detect positive sentiment",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should detect positive sentiment\" in tests\\analysis.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "POST /api/analysis/aggregate/:planId",
+      "spec_requirement": "unknown",
+      "gap": "Test \"POST /api/analysis/aggregate/:planId\" in tests\\batch-aggregate-api.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns 201 with batchReportId when plan has COMPLETED interviews",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns 201 with batchReportId when plan has COMPLETED interviews\" in tests\\batch-aggregate-api.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns 409 when an aggregate report is already RUNNING",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns 409 when an aggregate report is already RUNNING\" in tests\\batch-aggregate-api.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns 400 when plan has no COMPLETED interviews",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns 400 when plan has no COMPLETED interviews\" in tests\\batch-aggregate-api.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "Batch Aggregation: Dimension Statistics",
+      "spec_requirement": "unknown",
+      "gap": "Test \"Batch Aggregation: Dimension Statistics\" in tests\\batch-aggregation.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "calculates mention rate and sentiment breakdown",
+      "spec_requirement": "unknown",
+      "gap": "Test \"calculates mention rate and sentiment breakdown\" in tests\\batch-aggregation.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "Batch Aggregation: Checkpoint",
+      "spec_requirement": "unknown",
+      "gap": "Test \"Batch Aggregation: Checkpoint\" in tests\\batch-aggregation.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "Batch Aggregation: Concurrency",
+      "spec_requirement": "unknown",
+      "gap": "Test \"Batch Aggregation: Concurrency\" in tests\\batch-aggregation.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "Batch Aggregation: Timeout",
+      "spec_requirement": "unknown",
+      "gap": "Test \"Batch Aggregation: Timeout\" in tests\\batch-aggregation.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns only failed analyses for batch retry",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns only failed analyses for batch retry\" in tests\\dead-letter.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns error for invalid JSON",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns error for invalid JSON\" in tests\\dimension-validation.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns error for invalid structure",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns error for invalid structure\" in tests\\dimension-validation.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have src/integrations/dingtalk/message-sender.ts",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have src/integrations/dingtalk/message-sender.ts\" in tests\\dingtalk-services.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should implement sendText method via sendTextMessage or sendText",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should implement sendText method via sendTextMessage or sendText\" in tests\\dingtalk-services.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should implement rich message sending via sendActionCard or markdown",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should implement rich message sending via sendActionCard or markdown\" in tests\\dingtalk-services.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have src/integrations/dingtalk/client.ts",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have src/integrations/dingtalk/client.ts\" in tests\\dingtalk-services.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should implement HTTP request wrapper",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should implement HTTP request wrapper\" in tests\\dingtalk-services.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should implement signature generation",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should implement signature generation\" in tests\\dingtalk-services.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have dingtalk signature verification module",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have dingtalk signature verification module\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should export verifySignature function",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should export verifySignature function\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should export verifyTimestamp function for replay protection",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should export verifyTimestamp function for replay protection\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should validate correct signature",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should validate correct signature\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should reject invalid signature",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should reject invalid signature\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should reject timestamp older than 5 minutes",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should reject timestamp older than 5 minutes\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should reject expired timestamp",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should reject expired timestamp\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should accept recent timestamp",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should accept recent timestamp\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should reject when timestamp is missing",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should reject when timestamp is missing\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should reject when secret is missing",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should reject when secret is missing\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should reject when signature is missing",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should reject when signature is missing\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should reject when all parameters missing",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should reject when all parameters missing\" in tests\\dingtalk-signature.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should create client with valid config",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should create client with valid config\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw error if clientId is missing",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw error if clientId is missing\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw error if clientSecret is missing",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw error if clientSecret is missing\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should create client from environment variables",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should create client from environment variables\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should fetch connection token from DingTalk API",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should fetch connection token from DingTalk API\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw error when API returns non-OK status",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw error when API returns non-OK status\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw error when API response is invalid",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw error when API response is invalid\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should include correct subscription in request body",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should include correct subscription in request body\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should build correct WebSocket URL",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should build correct WebSocket URL\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle connection state",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle connection state\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should track connection state after connect",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should track connection state after connect\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should parse incoming message correctly",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should parse incoming message correctly\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should parse data field as JSON",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should parse data field as JSON\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle invalid message format",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle invalid message format\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should emit message event when receiving valid message",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should emit message event when receiving valid message\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should build correct ACK response",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should build correct ACK response\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should send ACK after receiving message",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should send ACK after receiving message\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should send message to session webhook",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should send message to session webhook\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw error if webhook is invalid",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw error if webhook is invalid\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw error if content is empty",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw error if content is empty\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle send message API error",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle send message API error\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have reconnect method",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have reconnect method\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should track reconnection attempts",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should track reconnection attempts\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should disconnect cleanly",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should disconnect cleanly\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should support max reconnection attempts",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should support max reconnection attempts\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use default max reconnect attempts",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use default max reconnect attempts\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle WebSocket connection error",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle WebSocket connection error\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle network errors during token fetch",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle network errors during token fetch\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should support on method for event registration",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should support on method for event registration\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should support off method for event unregistration",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should support off method for event unregistration\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should support multiple event listeners",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should support multiple event listeners\" in tests\\dingtalk-stream.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should run planning node for PENDING status",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should run planning node for PENDING status\" in tests\\graph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should run interviewing node when content is provided",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should run interviewing node when content is provided\" in tests\\graph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return nextState with updated fields",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return nextState with updated fields\" in tests\\graph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should preserve pendingMessages and pendingResponses in nextState",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should preserve pendingMessages and pendingResponses in nextState\" in tests\\graph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return closing message when interview ends",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return closing message when interview ends\" in tests\\graph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should skip interviewing node when content is empty",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should skip interviewing node when content is empty\" in tests\\graph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should run planning then return immediately when PENDING with content",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should run planning then return immediately when PENDING with content\" in tests\\graph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should only run planning node when PENDING with no content",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should only run planning node when PENDING with no content\" in tests\\graph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should skip processing for CANCELLED status",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should skip processing for CANCELLED status\" in tests\\graph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should send invitations to pending interviews",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should send invitations to pending interviews\" in tests\\interview-plan-additional.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle send failures",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle send failures\" in tests\\interview-plan-additional.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw when plan not found",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw when plan not found\" in tests\\interview-plan-additional.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use template invitationPrompt instead of hardcoded message",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use template invitationPrompt instead of hardcoded message\" in tests\\interview-plan-additional.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should update per-interview sendStatus to SENT on success",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should update per-interview sendStatus to SENT on success\" in tests\\interview-plan-additional.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should set completedAt when status is COMPLETED",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should set completedAt when status is COMPLETED\" in tests\\interview-plan-additional.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should not set completedAt for other statuses",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should not set completedAt for other statuses\" in tests\\interview-plan-additional.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should count interviews by status for a template",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should count interviews by status for a template\" in tests\\interview-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return empty counts and total 0 for template with no interviews",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return empty counts and total 0 for template with no interviews\" in tests\\interview-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should find all interviews for a plan ID",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should find all interviews for a plan ID\" in tests\\interview-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return empty array for non-existent plan ID",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return empty array for non-existent plan ID\" in tests\\interview-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should find interview by ID for report",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should find interview by ID for report\" in tests\\interview-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null for non-existent interview ID",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null for non-existent interview ID\" in tests\\interview-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should find interview by ID for report page",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should find interview by ID for report page\" in tests\\interview-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null for non-existent interview ID",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null for non-existent interview ID\" in tests\\interview-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should save state with pendingMessages in a single transaction",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should save state with pendingMessages in a single transaction\" in tests\\interview-state-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should save pendingResponses in the same transaction",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should save pendingResponses in the same transaction\" in tests\\interview-state-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should clear pendingMessages and pendingResponses after successful save",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should clear pendingMessages and pendingResponses after successful save\" in tests\\interview-state-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw VERSION_CONFLICT error when version mismatch",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw VERSION_CONFLICT error when version mismatch\" in tests\\interview-state-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw NOT_FOUND error when interview does not exist",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw NOT_FOUND error when interview does not exist\" in tests\\interview-state-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should load state and initialize pendingMessages/pendingResponses",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should load state and initialize pendingMessages/pendingResponses\" in tests\\interview-state-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null when interview not found",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null when interview not found\" in tests\\interview-state-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null when userId mismatch",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null when userId mismatch\" in tests\\interview-state-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null when no completed interview exists",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null when no completed interview exists\" in tests\\interview-state-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return most recent completed interview",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return most recent completed interview\" in tests\\interview-state-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should add response and move to next question",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should add response and move to next question\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return completion message when no more questions",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return completion message when no more questions\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should accumulate responses across multiple turns",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should accumulate responses across multiple turns\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use default template when templateId is undefined",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use default template when templateId is undefined\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle second question correctly",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle second question correctly\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle third question correctly",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle third question correctly\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should end interview when smart response indicates shouldEndInterview",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should end interview when smart response indicates shouldEndInterview\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should increment followupCount when smart response action is FOLLOWUP",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should increment followupCount when smart response action is FOLLOWUP\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should preserve responses and stay on current question when smart response action is STAY",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should preserve responses and stay on current question when smart response action is STAY\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should strip extra questions when LLM response contains multiple question marks",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should strip extra questions when LLM response contains multiple question marks\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should fallback to next question when generateSmartResponse throws",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should fallback to next question when generateSmartResponse throws\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return closing message when fallback on last question",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return closing message when fallback on last question\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return custom closing message when on last question with closingMessage",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return custom closing message when on last question with closingMessage\" in tests\\interviewing-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should proceed to next question when action is NEXT",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should proceed to next question when action is NEXT\" in tests\\interviewing-smart-response.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should complete interview on last question with NEXT",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should complete interview on last question with NEXT\" in tests\\interviewing-smart-response.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have removed src/services/conversation-engine.ts",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have removed src/services/conversation-engine.ts\" in tests\\langgraph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have removed src/domains/ directory",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have removed src/domains/ directory\" in tests\\langgraph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should define InterviewState",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should define InterviewState\" in tests\\langgraph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have planning node",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have planning node\" in tests\\langgraph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have interviewing node",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have interviewing node\" in tests\\langgraph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have removed analyzing node (inlined into graph.ts)",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have removed analyzing node (inlined into graph.ts)\" in tests\\langgraph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have removed completed node (inlined into graph.ts)",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have removed completed node (inlined into graph.ts)\" in tests\\langgraph.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "LLM Topic Clustering",
+      "spec_requirement": "unknown",
+      "gap": "Test \"LLM Topic Clustering\" in tests\\llm-clustering.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns 3-8 sub-themes per dimension",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns 3-8 sub-themes per dimension\" in tests\\llm-clustering.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns empty array when no quotes provided",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns empty array when no quotes provided\" in tests\\llm-clustering.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns empty array when LLM fails",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns empty array when LLM fails\" in tests\\llm-clustering.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "LLM Emergent Discovery",
+      "spec_requirement": "unknown",
+      "gap": "Test \"LLM Emergent Discovery\" in tests\\llm-clustering.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns up to top 5 emergent issues",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns up to top 5 emergent issues\" in tests\\llm-clustering.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns empty array when no emergent tags",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns empty array when no emergent tags\" in tests\\llm-clustering.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have base LLM interface",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have base LLM interface\" in tests\\llm-followup-report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have Alibaba adapter",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have Alibaba adapter\" in tests\\llm-followup-report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have prompt service",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have prompt service\" in tests\\llm-followup-report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have retry mechanism",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have retry mechanism\" in tests\\llm-followup-report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have followup.service.ts",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have followup.service.ts\" in tests\\llm-followup-report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should implement isFollowupNeeded",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should implement isFollowupNeeded\" in tests\\llm-followup-report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have report.service.ts",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have report.service.ts\" in tests\\llm-followup-report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should implement markdown rendering",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should implement markdown rendering\" in tests\\llm-followup-report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "verifyPhoneToName",
+      "spec_requirement": "unknown",
+      "gap": "Test \"verifyPhoneToName\" in tests\\member-verification.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return verified=true when phone resolves and name matches exactly",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return verified=true when phone resolves and name matches exactly\" in tests\\member-verification.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return verified=true when name matches after trimming whitespace",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return verified=true when name matches after trimming whitespace\" in tests\\member-verification.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return verified=false when provided name differs from DingTalk name",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return verified=false when provided name differs from DingTalk name\" in tests\\member-verification.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return verified=true when no name is provided (DingTalk fallback)",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return verified=true when no name is provided (DingTalk fallback)\" in tests\\member-verification.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return verified=true when name is undefined",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return verified=true when name is undefined\" in tests\\member-verification.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return verified=false when phone is not found in DingTalk",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return verified=false when phone is not found in DingTalk\" in tests\\member-verification.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return verified=false when DingTalk API throws",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return verified=false when DingTalk API throws\" in tests\\member-verification.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return verified=true when DingTalk returns empty name (cannot verify)",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return verified=true when DingTalk returns empty name (cannot verify)\" in tests\\member-verification.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should create a message with required fields",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should create a message with required fields\" in tests\\message-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should find messages by interview ID",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should find messages by interview ID\" in tests\\message-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return empty array for non-existent interview ID",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return empty array for non-existent interview ID\" in tests\\message-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should find message by ID",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should find message by ID\" in tests\\message-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null for non-existent message ID",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null for non-existent message ID\" in tests\\message-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should delete messages for given interview ID",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should delete messages for given interview ID\" in tests\\message-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return 0 when deleting by non-existent interview ID",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return 0 when deleting by non-existent interview ID\" in tests\\message-repository.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "AC-MULTI-001-01: 正确解析 Stream 消息格式",
+      "spec_requirement": "unknown",
+      "gap": "Test \"AC-MULTI-001-01: 正确解析 Stream 消息格式\" in tests\\multi-turn-conversation.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "AC-MULTI-001-02: 处理无效消息返回 null",
+      "spec_requirement": "unknown",
+      "gap": "Test \"AC-MULTI-001-02: 处理无效消息返回 null\" in tests\\multi-turn-conversation.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "AC-MULTI-001-03: 处理空内容消息返回 null",
+      "spec_requirement": "unknown",
+      "gap": "Test \"AC-MULTI-001-03: 处理空内容消息返回 null\" in tests\\multi-turn-conversation.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should create instance with provided options",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should create instance with provided options\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use default values when options not provided",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use default values when options not provided\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use DEFAULT_MODEL constant",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use DEFAULT_MODEL constant\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should create instance from environment variables",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should create instance from environment variables\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw error when API key not configured",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw error when API key not configured\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use ANTHROPIC_AUTH_TOKEN as fallback",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use ANTHROPIC_AUTH_TOKEN as fallback\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use environment model when set",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use environment model when set\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use default baseUrl when not set",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use default baseUrl when not set\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should make successful API request",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should make successful API request\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw error when API returns non-ok status",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw error when API returns non-ok status\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use custom model when provided",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use custom model when provided\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use custom temperature and max_tokens",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use custom temperature and max_tokens\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle missing choices in response",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle missing choices in response\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle missing content in message",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle missing content in message\" in tests\\openai-compatible.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should add first question message to messages array",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should add first question message to messages array\" in tests\\planning-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should preserve existing messages",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should preserve existing messages\" in tests\\planning-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use default template when templateId is undefined",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use default template when templateId is undefined\" in tests\\planning-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should set currentQuestion to 0",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should set currentQuestion to 0\" in tests\\planning-node.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "Report API Endpoints",
+      "spec_requirement": "unknown",
+      "gap": "Test \"Report API Endpoints\" in tests\\report-api.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "GET /api/analysis/aggregate/:batchReportId returns full aggregate report",
+      "spec_requirement": "unknown",
+      "gap": "Test \"GET /api/analysis/aggregate/:batchReportId returns full aggregate report\" in tests\\report-api.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns dimensionTags when LLM provides valid JSON",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns dimensionTags when LLM provides valid JSON\" in tests\\report-dimensions.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "returns empty dimensionTags when dimensions is not defined",
+      "spec_requirement": "unknown",
+      "gap": "Test \"returns empty dimensionTags when dimensions is not defined\" in tests\\report-dimensions.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should generate report with LLM response",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should generate report with LLM response\" in tests\\report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should create fallback report when LLM fails",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should create fallback report when LLM fails\" in tests\\report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should parse sentiment from content",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should parse sentiment from content\" in tests\\report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle empty qaPairs",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle empty qaPairs\" in tests\\report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should limit key findings to 5 items",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should limit key findings to 5 items\" in tests\\report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should set generatedAt timestamp",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should set generatedAt timestamp\" in tests\\report.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return result on first successful attempt",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return result on first successful attempt\" in tests\\retry.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should retry on failure and succeed",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should retry on failure and succeed\" in tests\\retry.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw error after max retries exhausted",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw error after max retries exhausted\" in tests\\retry.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use default options when not provided",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use default options when not provided\" in tests\\retry.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should apply exponential backoff",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should apply exponential backoff\" in tests\\retry.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should cap delay at maxDelayMs",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should cap delay at maxDelayMs\" in tests\\retry.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle non-Error thrown values",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle non-Error thrown values\" in tests\\retry.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw wrapped error for non-Error types",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw wrapped error for non-Error types\" in tests\\retry.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should work with custom maxRetries",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should work with custom maxRetries\" in tests\\retry.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should work with zero retries",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should work with zero retries\" in tests\\retry.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "anonymizeData",
+      "spec_requirement": "unknown",
+      "gap": "Test \"anonymizeData\" in tests\\security.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "generateApiKey",
+      "spec_requirement": "unknown",
+      "gap": "Test \"generateApiKey\" in tests\\security.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "verifyApiKey",
+      "spec_requirement": "unknown",
+      "gap": "Test \"verifyApiKey\" in tests\\security.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should parse valid JSON response",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should parse valid JSON response\" in tests\\smart-response.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should parse JSON wrapped in markdown code block",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should parse JSON wrapped in markdown code block\" in tests\\smart-response.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null for invalid JSON",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null for invalid JSON\" in tests\\smart-response.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null for JSON missing required fields",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null for JSON missing required fields\" in tests\\smart-response.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle all valid actions",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle all valid actions\" in tests\\smart-response.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should export generateSmartResponse function",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should export generateSmartResponse function\" in tests\\smart-response.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return SmartResponseResult with correct structure",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return SmartResponseResult with correct structure\" in tests\\smart-response.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return state when interview exists",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return state when interview exists\" in tests\\state-integration.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null when interview does not exist",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null when interview does not exist\" in tests\\state-integration.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null when userId does not match",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null when userId does not match\" in tests\\state-integration.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle pendingMessages properly",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle pendingMessages properly\" in tests\\state-integration.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle pendingResponses properly",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle pendingResponses properly\" in tests\\state-integration.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw VERSION_CONFLICT when version mismatches",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw VERSION_CONFLICT when version mismatches\" in tests\\state-integration.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should find ACTIVE status interview for user",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should find ACTIVE status interview for user\" in tests\\state-integration.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should find WAITING status interview for user",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should find WAITING status interview for user\" in tests\\state-integration.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null when no active interview exists",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null when no active interview exists\" in tests\\state-integration.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should retry on version conflict up to MAX_RETRIES then error",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should retry on version conflict up to MAX_RETRIES then error\" in tests\\state-integration.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle transaction errors appropriately",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle transaction errors appropriately\" in tests\\state-integration.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null when interview not found",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null when interview not found\" in tests\\state-persistence.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null when userId does not match",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null when userId does not match\" in tests\\state-persistence.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return state when found",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return state when found\" in tests\\state-persistence.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return version number",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return version number\" in tests\\state-persistence.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return 0 when not found",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return 0 when not found\" in tests\\state-persistence.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should create interview and return id",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should create interview and return id\" in tests\\state-persistence.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw NOT_FOUND when interview does not exist",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw NOT_FOUND when interview does not exist\" in tests\\state-persistence.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should throw VERSION_CONFLICT when version mismatches",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should throw VERSION_CONFLICT when version mismatches\" in tests\\state-persistence.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should process first message and create new interview",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should process first message and create new interview\" in tests\\stream-message-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should process second message with existing state",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should process second message with existing state\" in tests\\stream-message-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should accumulate pendingMessages across multiple turns",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should accumulate pendingMessages across multiple turns\" in tests\\stream-message-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should retry on version conflict (max 3 retries)",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should retry on version conflict (max 3 retries)\" in tests\\stream-message-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should fail after max retries exceeded",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should fail after max retries exceeded\" in tests\\stream-message-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return error for invalid message format",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return error for invalid message format\" in tests\\stream-message-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return error for missing userId",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return error for missing userId\" in tests\\stream-message-full.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should parse valid message with text.content format (real DingTalk format)",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should parse valid message with text.content format (real DingTalk format)\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should parse valid message with direct content field",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should parse valid message with direct content field\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should parse message with empty content gracefully",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should parse message with empty content gracefully\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null for invalid JSON data",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null for invalid JSON data\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should parse content as plain string (no JSON parsing needed)",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should parse content as plain string (no JSON parsing needed)\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle empty senderStaffId",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle empty senderStaffId\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle empty content field",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle empty content field\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle missing sessionWebhook",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle missing sessionWebhook\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should send reply successfully",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should send reply successfully\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return false for empty webhook URL",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return false for empty webhook URL\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return false when response not ok",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return false when response not ok\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return false when fetch throws error",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return false when fetch throws error\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return error for invalid message format",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return error for invalid message format\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return error for missing userId",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return error for missing userId\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return error for missing content",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return error for missing content\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should create new interview when no active interview found",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should create new interview when no active interview found\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should use pre-created PENDING interview instead of creating new one",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should use pre-created PENDING interview instead of creating new one\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should block message and send cooldown reply when recently completed interview exists",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should block message and send cooldown reply when recently completed interview exists\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should allow new interview when cooldown has expired",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should allow new interview when cooldown has expired\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should create new interview normally when no completed interview exists",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should create new interview normally when no completed interview exists\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should send nudge message on first timeout without advancing question",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should send nudge message on first timeout without advancing question\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should process user input AND send nudge side-effect on timeout, not block resume",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should process user input AND send nudge side-effect on timeout, not block resume\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should process normally when not timed out",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should process normally when not timed out\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should process message with existing interview",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should process message with existing interview\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle version conflict with retry",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle version conflict with retry\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return error when max retries exceeded",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return error when max retries exceeded\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return error for non-version-conflict save errors",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return error for non-version-conflict save errors\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should send reply when sessionWebhook is provided",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should send reply when sessionWebhook is provided\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should not send reply when sessionWebhook is empty",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should not send reply when sessionWebhook is empty\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should accumulate pendingMessages correctly",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should accumulate pendingMessages correctly\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should persist user response to pendingResponses",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should persist user response to pendingResponses\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should parse valid message",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should parse valid message\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return null for invalid message",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return null for invalid message\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should send reply successfully",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should send reply successfully\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return false for empty webhook",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return false for empty webhook\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle fetch error",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle fetch error\" in tests\\stream-message-service.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "updates template with valid dimensions",
+      "spec_requirement": "unknown",
+      "gap": "Test \"updates template with valid dimensions\" in tests\\template-dimensions-api.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "sets dimensions to empty array when passed empty",
+      "spec_requirement": "unknown",
+      "gap": "Test \"sets dimensions to empty array when passed empty\" in tests\\template-dimensions-api.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "rejects dimensions missing label",
+      "spec_requirement": "unknown",
+      "gap": "Test \"rejects dimensions missing label\" in tests\\template-dimensions-api.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "rejects dimensions missing id",
+      "spec_requirement": "unknown",
+      "gap": "Test \"rejects dimensions missing id\" in tests\\template-dimensions-api.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should export template to JSON",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should export template to JSON\" in tests\\template-import-export.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should import template from valid JSON",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should import template from valid JSON\" in tests\\template-import-export.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should handle import with missing optional fields",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should handle import with missing optional fields\" in tests\\template-import-export.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should roundtrip: export then import produces same data",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should roundtrip: export then import produces same data\" in tests\\template-import-export.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should validate template structure with topics and questions",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should validate template structure with topics and questions\" in tests\\template-schema.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should support optional metadata",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should support optional metadata\" in tests\\template-schema.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should return current version when querying version",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should return current version when querying version\" in tests\\template-version.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should support multiple version increments",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should support multiple version increments\" in tests\\template-version.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should get version history",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should get version history\" in tests\\template-version.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have MessageRepository",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have MessageRepository\" in tests\\webhook-message.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should have Message entity type",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should have Message entity type\" in tests\\webhook-message.test.ts is missing @intent annotation"
+    },
+    {
+      "test_name": "should implement save method",
+      "spec_requirement": "unknown",
+      "gap": "Test \"should implement save method\" in tests\\webhook-message.test.ts is missing @intent annotation"
+    }
+  ],
+  "anti_pattern_detected": false,
+  "errors": [],
+  "analysis": {
+    "sprint_scope_gaps": 0,
+    "sprint_suites": [
+      "commitlint-ci",
+      "sync-version-parity",
+      "optin-hooks",
+      "release-config",
+      "release-bootstrap",
+      "release-integration"
+    ],
+    "specification_error_found_and_resolved": {
+      "symptom": "check-alignment scored this specification 0/100 and could not associate any test with any requirement.",
+      "root_cause_1": "Acceptance criteria used flat ids (AC-1 .. AC-16). The checker matches ACs by literal set equality and filters @covers with /^AC-[A-Z0-9]+-[0-9]+-[0-9]+$/, so flat ids could never match. The skill reference specification-format.md prescribes AC-XXX-001-01, and the checker own fixtures use AC-TEST-001-01.",
+      "root_cause_2": "Tests carried no JSDoc annotations. The extractor only recognises a /** */ block immediately preceding a test/it/describe call and requires @test REQ-... plus @intent.",
+      "resolution": "User authorized option A. All 16 AC ids were rewritten to the canonical AC-153-<req>-<nn> form, derived from each AC own requirement: field rather than guessed, and every REQ -> AC relationship was verified preserved. Mandatory @test/@intent/@covers JSDoc was added to all sprint test blocks.",
+      "verified_outcome": "Requirement coverage 0/7 -> 7/7. Acceptance-criteria coverage 0/16 -> 15/16."
+    },
+    "remaining_structural_gap_is_out_of_code_scope": {
+      "ac": "AC-153-1-03",
+      "criteria": "(ops) commit-lint is configured as a required status check",
+      "spec_test_type": "manual",
+      "reason": "Requires a repository administrator to change GitHub branch protection. The specification declares test_type: manual and states it is outside code acceptance scope. No automated assertion can prove it; fabricating one would be a false pass. Deferred to manual UAT in Phase 6 CLOSE."
+    },
+    "remaining_intent_gaps_are_pre_existing": {
+      "count": 281,
+      "detail": "Every one is an @intent annotation missing from a suite pre-dating this sprint (stream-message-service 36, dingtalk-stream 31, openai-compatible 14, and so on). None belongs to issue #153 and no sprint suite contributes one. Retro-fitting @intent across ~281 unrelated assertions would be a large unreviewed change outside this sprint write scope, so it is reported rather than silently absorbed."
+    },
+    "why_score_is_zero_not_partial": "calculateScore blends requirementCoverage 30 + acCoverage 25 + testIntent 20 + edgeCaseCoverage 15 + dataValidity 10, with no partial-credit path. Missing @intent in files this sprint does not own suppresses the testIntent dimension, so a repository-wide FAIL is the correct tool output even though sprint-scope alignment is complete."
+  },
+  "verification_evidence": {
+    "automated_suites": "91 passed, 1 skipped, 0 failed across seven sprint suites, including a real release-it integration release in a throwaway clone with the live repository VERSION verified unchanged.",
+    "l1_typecheck": "tsc --noEmit: pass",
+    "l1_lint": "biome check: pass",
+    "full_regression": "123 files / 1360 passed, 0 failed",
+    "live_repo_integrity": "VERSION == package.json == 1.10.0 before and after every test run"
+  },
+  "phase_2_disposition": "Phase 2 (frozen execution) was not entered as a separate frozen pass because the raw verdict is FAIL for reasons outside sprint scope. No test was deleted, skipped, or weakened to change it: the single skip is the dependency-capability guard, which reports SKIPPED with a concrete reason by design. Reporting FAIL honestly is required by the skill anti-pattern rules."
+}
