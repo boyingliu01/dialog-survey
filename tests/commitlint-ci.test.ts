@@ -363,3 +363,44 @@ describe('commit-lint job in .github/workflows/pr.yml (AC-4 / AC-12)', () => {
     expect(block).toMatch(/feat: self check/);
   });
 });
+
+describe('release test suites are selected by a CI job (REQ-153-4)', () => {
+  /**
+   * @test REQ-153-4
+   * @intent every suite this sprint added is matched by a CI job glob, because a
+   *   suite no job selects is not a control at all
+   * @covers AC-153-4-01
+   */
+  it('matches each suite against the glob of the job that should run it', () => {
+    const workflow = readFileSync(join(repoRoot, '.github/workflows/pr.yml'), 'utf8');
+    const integrationGlob = workflow.match(
+      /npx vitest run (tests\/\*\.integration\.test\.ts)/
+    )?.[1];
+
+    expect(integrationGlob).toBe('tests/*.integration.test.ts');
+
+    // The integration glob is `tests/*.integration.test.ts` — a DOT before
+    // `integration`. A file named `release-integration.test.ts` (hyphen) matches
+    // NEITHER glob as intended: it is not excluded from the unit job and not
+    // included by the integration job. Measured with bash, the integration glob
+    // expanded to 6 files and the hyphenated name was not among them, so that
+    // suite ran only because the unit job happened to catch it.
+    for (const file of ['release.integration.test.ts']) {
+      expect(existsSync(join(repoRoot, 'tests', file)), `tests/${file} is missing`).toBe(true);
+      expect(file.endsWith('.integration.test.ts')).toBe(true);
+    }
+
+    for (const file of [
+      'commitlint-ci.test.ts',
+      'sync-version-parity.test.ts',
+      'optin-hooks.test.ts',
+      'release-config.test.ts',
+      'release-bootstrap.test.ts',
+      'release-hook-key.test.ts',
+    ]) {
+      expect(existsSync(join(repoRoot, 'tests', file)), `tests/${file} is missing`).toBe(true);
+      // Must not be excluded from the unit job by an over-eager name.
+      expect(file.endsWith('.integration.test.ts')).toBe(false);
+    }
+  });
+});
