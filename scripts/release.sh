@@ -124,10 +124,8 @@ fi
 #
 # Instead the override is scoped to this process tree via git's GIT_CONFIG_COUNT
 # environment mechanism, which release-it's own `git commit` inherits. Nothing is
-# written to any config file, so there is no state to restore and no trap to get
-# wrong. The variables are unset before the post-release checks, which read config
-# and should see the operator's real environment.
-LOCAL_HOOKS_PATH="$(git config --local --get core.hooksPath 2>/dev/null || true)"
+# written to any config file, so there is no state to restore: no local value needs
+# to be captured, and nothing needs unwinding on a crash or a SIGKILL.
 EFFECTIVE_HOOKS_PATH="$(git config --get core.hooksPath 2>/dev/null || true)"
 
 # NOTE: `git rev-parse --git-path hooks` HONOURS core.hooksPath, so it returns the
@@ -177,11 +175,12 @@ fi
 TAGS_BEFORE="$(git tag -l | LC_ALL=C sort)"
 HEAD_BEFORE="$(git rev-parse HEAD)"
 
+# `set -e` already aborts the script if release-it exits non-zero, so there is
+# deliberately no `RELEASE_EXIT=$?` here: under `set -e` that line is unreachable
+# (release-it's failure exits the shell first) and it read like real error handling
+# while doing nothing. If release-it fails, the EXIT trap and shell handle it, and
+# the operator sees release-it's own diagnostics plus its non-zero status.
 npx --no-install release-it "${ARGS[@]}"
-RELEASE_EXIT=$?
-if [ "$RELEASE_EXIT" -ne 0 ]; then
-  exit "$RELEASE_EXIT"
-fi
 
 # A dry run changes nothing, so there is nothing to verify.
 if [ "$DRY_RUN" -eq 1 ]; then

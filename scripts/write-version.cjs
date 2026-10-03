@@ -61,7 +61,33 @@ function main() {
     fail(`refusing non-semver version: '${version}'`);
   }
 
-  fs.writeFileSync(path.join(root, 'VERSION'), `${version}\n`);
+  // Write atomically: write a sibling temp file, fsync it, then rename over the
+  // target. `rename` is atomic within a filesystem, so a reader (or a crash) never
+  // observes a truncated or empty VERSION. A plain writeFileSync truncates first,
+  // and a crash between the truncate and the write would leave VERSION empty - which
+  // the release post-check reads as a version mismatch and the CI job reads as a
+  // hard failure, in both cases for a file that was never actually corrupted by
+  // anyone's edit.
+  const target = path.join(root, 'VERSION');
+  const temp = path.join(root, `.VERSION.tmp-${process.pid}`);
+  try {
+    const fd = fs.openSync(temp, 'w');
+    try {
+      fs.writeFileSync(fd, `${version}\n`);
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(temp, target);
+  } catch (error) {
+    // Never leave the scratch file behind for a later glob or commit to pick up.
+    try {
+      fs.unlinkSync(temp);
+    } catch {
+      // best effort
+    }
+    fail(`could not write VERSION atomically: ${error.message}`);
+  }
   process.stdout.write(`write-version: VERSION set to ${version}\n`);
 }
 

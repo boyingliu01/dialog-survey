@@ -123,11 +123,24 @@ function releaseWithHookKey(key: string): { hookRan: boolean; version: string } 
   };
   writeFileSync(join(repo, '.release-it.json'), `${JSON.stringify(config, null, 2)}\n`);
 
-  spawnSync(
+  // The status is asserted, not discarded. Without this the negative control could
+  // "pass" while release-it never ran at all - for example if the binary moved or
+  // the fixture failed to start - and a test that cannot distinguish "the hook did
+  // not run" from "nothing ran" proves nothing about the hook key.
+  const result = spawnSync(
     process.execPath,
     [join(repoRoot, 'node_modules', 'release-it', 'bin', 'release-it.js'), '--ci'],
     { cwd: repo, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 120_000 }
   );
+  if (result.error) {
+    throw new Error(`release-it could not be started: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      `release-it exited ${result.status ?? 'by signal'} for hook key '${key}':\n` +
+        `${result.stderr || result.stdout || '(no output)'}`
+    );
+  }
 
   return {
     hookRan: existsSync(join(repo, 'HOOK-RAN.txt')),

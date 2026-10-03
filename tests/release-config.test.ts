@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -675,5 +675,103 @@ describe('scripts/release.sh', () => {
     expect(doc).toMatch(/[Rr]ollback/);
     expect(doc).toMatch(/git tag -d/);
     expect(doc).toMatch(/git push origin :refs\/tags\//);
+  });
+
+  /**
+   * @test REQ-153-3
+   * @intent writes VERSION atomically so a crash cannot leave it truncated or
+   *   empty, which would be misread as a version mismatch
+   * @covers AC-153-3-01
+   */
+  it('writes VERSION atomically via a temp file and rename', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wv-atomic-'));
+    try {
+      writeFileSync(join(dir, 'VERSION'), '1.10.0\n');
+      execFileSync(process.execPath, [writeVersion, '1.12.0'], {
+        env: { ...process.env, WRITE_VERSION_ROOT: dir },
+        encoding: 'utf8',
+      });
+
+      // Exact bytes: the version and a trailing newline, nothing partial.
+      expect(readFileSync(join(dir, 'VERSION'), 'utf8')).toBe('1.12.0\n');
+      // No scratch file may survive for a later glob or commit to pick up.
+      expect(readdirSync(dir).filter((f) => f.startsWith('.VERSION.tmp'))).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * @test REQ-153-3
+   * @intent leaves the existing VERSION untouched when the requested version is
+   *   not semver, so a rejected release cannot half-apply a version change
+   * @covers AC-153-3-01
+   */
+  it('leaves VERSION untouched when the requested version is not semver', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'wv-reject-'));
+    try {
+      writeFileSync(join(dir, 'VERSION'), '1.10.0\n');
+
+      expect(() =>
+        execFileSync(process.execPath, [writeVersion, 'not-semver'], {
+          env: { ...process.env, WRITE_VERSION_ROOT: dir },
+          encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        })
+      ).toThrow();
+
+      expect(readFileSync(join(dir, 'VERSION'), 'utf8')).toBe('1.10.0\n');
+      expect(readdirSync(dir).filter((f) => f.startsWith('.VERSION.tmp'))).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * @test REQ-153-3
+   * @intent does not pretend to handle a release-it failure with unreachable
+   *   code, since `set -e` already aborts the script on a non-zero status
+   * @covers AC-153-3-02
+   */
+  it('does not rely on a dead RELEASE_EXIT branch under set -e', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    // `RELEASE_EXIT=$?` after a command is unreachable when `set -e` is active:
+    // release-it's non-zero status exits the shell first. It read like error
+    // handling while doing nothing, which is worse than its absence.
+    //
+    // Match only UNCOMMENTED lines: the explanatory comment above the release-it
+    // invocation deliberately names the removed pattern, and a naive substring
+    // assertion matches that comment and fails against correct code.
+    const liveCode = source
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('#'))
+      .join('\n');
+
+    expect(liveCode).not.toMatch(/RELEASE_EXIT/);
+    expect(source).toMatch(/set -euo pipefail/);
+  });
+
+  /**
+   * @test REQ-153-3
+   * @intent carries no unused local-hooksPath variable, which was a leftover
+   *   from the discarded trap-based override
+   * @covers AC-153-4-02
+   */
+  it('carries no unused LOCAL_HOOKS_PATH assignment', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    // The process-scoped override writes nothing, so there is no previous local
+    // value to capture. A variable that is assigned and never read suggests state
+    // is being restored when it is not.
+    //
+    // Uncommented lines only, for the same reason as the RELEASE_EXIT test: the
+    // comment explaining the removal names the variable.
+    const liveCode = source
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('#'))
+      .join('\n');
+
+    expect(liveCode).not.toMatch(/LOCAL_HOOKS_PATH/);
   });
 });
