@@ -1,0 +1,33 @@
+release-it integration evidence (issue #153, AC-5 / AC-7)
+================================================================
+Fixture: throwaway git repo, DD-009 sanctioned exceptions only
+  github.release=false (no token), requireBranch=false
+  changelog plugin PRESENT (mandatory per §0.4 - omitting it yields false passes)
+  hooks key: bare after:bump
+
+POSITIVE (bare after:bump)  -> release-it 1.11.0 --ci
+  hook log:
+    - npm version                     OK
+    - node scripts/write-version.cjs 1.11.0   OK
+    - node scripts/sync-version.cjs            OK
+  release commit a54060f chore(release): v1.11.0 contained:
+    AGENTS.md  CHANGELOG.md  VERSION  package.json      (4 files)
+  VERSION=1.11.0  package.json=1.11.0  AGENTS.md=(v1.11.0)   all equal
+  git status --porcelain: (empty)
+  CHANGELOG.md: '## 1.11.0' at top; '## 1.8.9' preserved
+  tag: v1.11.0 (annotated)
+
+NEGATIVE CONTROL (hook key renamed to after:version:bump)
+  hook log: NO write-version / sync-version lines at all
+  VERSION after release : 1.10.0   <- STALE, silently
+  package.json          : 1.12.0
+  release commit 861b66d contained only: CHANGELOG.md package.json  (2 files)
+  exit code: 0 up to the push step; no error reported about the hook
+
+CONCLUSION: with @release-it/conventional-changelog installed, after:version:bump
+never fires and the release still proceeds and tags. Only the bare after:bump key
+produces the required four-file, three-way-consistent release. This is why
+.release-it.json pins 'after:bump' and why tests assert the key name exactly.
+
+REAL REPOSITORY SIDE EFFECTS: none. All of the above ran in an isolated clone
+with a local bare remote under %TEMP%.

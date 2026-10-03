@@ -133,9 +133,11 @@ jobs:
 
   coverage:
     name: Coverage Check (80/80/70/80)
-    if: always()
     needs: [unit-tests, integration-tests]
-    # Run regardless of integration test failures (known pre-existing data residue issue)
+    # Blocking by design (issue #150): the thresholds live in vitest.config.ts
+    # and vitest exits non-zero below them. The old `if: always()` was a
+    # workaround for a real-PostgreSQL data-residue problem that no longer
+    # exists — tests run on in-process PGlite since #149.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -157,7 +159,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run all tests with coverage
-        run: npx vitest --coverage
+        run: npx vitest run --coverage
         env:
           NODE_ENV: test
           LLM_API_KEY: ${{ secrets.LLM_API_KEY || '' }}
