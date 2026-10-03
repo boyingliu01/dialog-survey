@@ -140,6 +140,21 @@ function makeFixture(options: { version?: string; agentsHeader?: string | null }
   };
 }
 
+/** Run release.sh in RELEASE_VERIFY_ONLY mode, which exercises run_post_release_check. */
+function runVerify(fixture: Fixture): { status: number; output: string } {
+  const result = spawnSync(bashCommand, [releaseSh], {
+    cwd: fixture.dir,
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    timeout: 120_000,
+    env: { ...process.env, RELEASE_VERIFY_ONLY: '1' },
+  });
+  if (result.error) {
+    throw new Error(`could not start release.sh verify-only: ${result.error.message}`);
+  }
+  return { status: result.status ?? -1, output: `${result.stdout}${result.stderr}` };
+}
+
 describe.skipIf(!capable)('release.sh behaviour (REQ-153-4 / AC-153-4-01)', () => {
   /**
    * @test REQ-153-4
@@ -221,29 +236,14 @@ describe.skipIf(!capable)('release.sh behaviour (REQ-153-4 / AC-153-4-01)', () =
   it('reports a missing AGENTS.md version header rather than dying silently', () => {
     const fixture = makeFixture({ agentsHeader: null });
 
-    // Drive the post-check directly: a dry run returns before it, and the header is
-    // rewritten by the sync hook during a real release. Invoking the extracted
-    // post-check expression is therefore the only way to reach this path without
-    // publishing, and it is the exact expression the script uses.
-    const probe = spawnSync(
-      bashCommand,
-      [
-        '-c',
-        [
-          'set -euo pipefail',
-          `cd ${JSON.stringify(fixture.dir).replace(/"/g, "'")}`,
-          "POST_AGENTS=\"$(LC_ALL=C grep -oE '\\(v[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?\\)' AGENTS.md 2>/dev/null | head -n 1 | tr -d '()' || true)\"",
-          'if [ -z "$POST_AGENTS" ]; then echo "REPORTED-MISSING"; else echo "FOUND:$POST_AGENTS"; fi',
-        ].join('\n'),
-      ],
-      { encoding: 'utf8', timeout: 60_000, stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-    const output = `${probe.stdout}${probe.stderr}`;
+    // Drive the post-check through the script's own RELEASE_VERIFY_ONLY entry point,
+    // which EXECUTES the exact run_post_release_check function rather than a re-typed
+    // copy of its expression. The HEAD-unchanged check also fires (no release ran),
+    // but the header-missing message is the one this case guards.
+    const { status, output } = runVerify(fixture);
 
-    // Reaching the branch at all is the assertion: without `|| true` the shell dies
-    // at the assignment and this marker never appears.
-    expect(output).toMatch(/REPORTED-MISSING/);
-    expect(probe.status).toBe(0);
+    expect(status).not.toBe(0);
+    expect(output).toMatch(/AGENTS\.md carries no \(vX\.Y\.Z\) header version/);
   });
 
   /**
@@ -255,21 +255,13 @@ describe.skipIf(!capable)('release.sh behaviour (REQ-153-4 / AC-153-4-01)', () =
   it('still finds a present AGENTS.md version header', () => {
     const fixture = makeFixture({ version: '1.10.0', agentsHeader: '1.10.0' });
 
-    const probe = spawnSync(
-      bashCommand,
-      [
-        '-c',
-        [
-          'set -euo pipefail',
-          `cd ${JSON.stringify(fixture.dir).replace(/"/g, "'")}`,
-          "POST_AGENTS=\"$(LC_ALL=C grep -oE '\\(v[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?\\)' AGENTS.md 2>/dev/null | head -n 1 | tr -d '()' || true)\"",
-          'if [ -z "$POST_AGENTS" ]; then echo "REPORTED-MISSING"; else echo "FOUND:$POST_AGENTS"; fi',
-        ].join('\n'),
-      ],
-      { encoding: 'utf8', timeout: 60_000, stdio: ['pipe', 'pipe', 'pipe'] }
-    );
+    const { status, output } = runVerify(fixture);
 
-    expect(`${probe.stdout}${probe.stderr}`).toMatch(/FOUND:v1\.10\.0/);
+    // A present header matching VERSION must NOT be reported as missing. The
+    // post-check still fails on HEAD-unchanged (no release happened), but the
+    // header-missing message must be absent.
+    expect(status).not.toBe(0);
+    expect(output).not.toMatch(/AGENTS\.md carries no \(vX\.Y\.Z\) header version/);
   });
 
   /**

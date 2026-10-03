@@ -35,6 +35,132 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 }
 cd "$ROOT"
 
+# --- Post-release verification -------------------------------------------------
+# The pre-check cannot detect that the release itself misbehaved: it runs before,
+# and it only proves VERSION and package.json agreed at that moment. If the
+# after:bump hook silently fails to run - which is exactly what a wrong hook key
+# produces - release-it still exits 0, still commits and still tags, leaving
+# VERSION and AGENTS.md stale in the released tree. xp-gate's Gate 0 cannot be
+# relied on for this either: measured, it PASSES a staged VERSION that contradicts
+# package.json (exit 0, commit lands). So this check is the backstop, and it fails
+# loudly rather than letting a corrupt release stand.
+#
+# The whole block is a callable function so a test can genuinely EXERCISE it by
+# running `RELEASE_VERIFY_ONLY=1 scripts/release.sh [tags_before]`, rather than
+# only asserting that its source contains certain strings. That matters: the header
+# grep's `|| true` is a load-bearing guard whose branch is unreachable without it,
+# and a source assertion cannot see whether the branch is actually reached.
+run_post_release_check() {
+  POST_FAIL=0
+
+  # Identify the tag this release created. This must not use `comm`: comm exits
+  # non-zero when either input is not in sorted order, and under
+  # `set -euo pipefail` that non-zero status inside a command substitution ABORTS
+  # the script - measured, exit 1 with no rollback guidance printed. Instead, take
+  # the most recently created tag and confirm it was not already present before.
+  POST_NEW_TAG="$(git tag -l --sort=-creatordate | head -n 1)"
+  if [ -n "$POST_NEW_TAG" ]; then
+    case "$(printf '%s\n' "$TAGS_BEFORE" | grep -Fx -- "$POST_NEW_TAG" || true)" in
+      "") ;; # not present before => this release created it
+      *)
+        POST_NEW_TAG=""
+        ;;
+    esac
+  fi
+
+  fail_post() {
+    echo "release: POST-RELEASE CHECK FAILED: $1" >&2
+    POST_FAIL=1
+  }
+
+  # 1. Three-way version equality. POST_AGENTS keeps the leading 'v' (the header
+  #    form is "(v1.2.3)"), so it is compared against "v$POST_VERSION" - an earlier
+  #    form compared it against the bare version and failed every correct release.
+  POST_VERSION="$(LC_ALL=C tr -d '[:space:]' < VERSION)"
+  POST_PKG="$(node -p "require('./package.json').version")"
+  # `|| true` is load-bearing, NOT defensive padding. grep exits 1 when it matches
+  # nothing, and under `set -euo pipefail` that status propagates through the
+  # pipeline and ABORTS the shell on the assignment - so the `-z` branch just below
+  # would be unreachable. Measured: without `|| true` a header-less AGENTS.md exits
+  # 1 having printed NO message, after the commit and tag already exist.
+  POST_AGENTS="$(LC_ALL=C grep -oE '\(v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?\)' AGENTS.md 2>/dev/null | head -n 1 | tr -d '()' || true)"
+
+  if [ "$POST_VERSION" != "$POST_PKG" ]; then
+    fail_post "VERSION ($POST_VERSION) != package.json ($POST_PKG)"
+  fi
+  if [ -z "$POST_AGENTS" ]; then
+    fail_post "AGENTS.md carries no (vX.Y.Z) header version"
+  elif [ "$POST_AGENTS" != "v$POST_VERSION" ]; then
+    fail_post "AGENTS.md ($POST_AGENTS) != VERSION (v$POST_VERSION)"
+  fi
+
+  # 2. There must BE a release commit, and it must carry the version records.
+  #    Verify the commit explicitly rather than assuming HEAD moved: a release whose
+  #    commit step was skipped would otherwise have `git show HEAD` describe the
+  #    PREVIOUS commit, and the file check below would pass or fail for reasons that
+  #    have nothing to do with this release.
+  HEAD_AFTER="$(git rev-parse HEAD)"
+  if [ "$HEAD_AFTER" = "$HEAD_BEFORE" ]; then
+    fail_post "no release commit was created (HEAD is unchanged at $HEAD_AFTER)"
+  fi
+
+  #    A silently-dead hook yields a commit without VERSION or AGENTS.md. The
+  #    changelog plugin's omission is equally invisible, so CHANGELOG.md is included.
+  RELEASE_FILES="$(git show --name-only --format= "$HEAD_AFTER" | LC_ALL=C sort | tr '\n' ' ')"
+  for expected in VERSION AGENTS.md package.json CHANGELOG.md; do
+    case " $RELEASE_FILES " in
+      *" $expected "*) ;;
+      *) fail_post "release commit is missing $expected (found: ${RELEASE_FILES:-none})" ;;
+    esac
+  done
+
+  # 3. The working tree must be clean, so the tag matches what is on disk.
+  if [ -n "$(git status --porcelain)" ]; then
+    fail_post "working tree is dirty after the release"
+  fi
+
+  # 4. A new tag must exist and carry the v prefix.
+  if [ -z "$POST_NEW_TAG" ]; then
+    fail_post "no new tag was created"
+  elif [ "${POST_NEW_TAG#v}" = "$POST_NEW_TAG" ]; then
+    fail_post "tag '$POST_NEW_TAG' is missing the 'v' prefix"
+  fi
+
+  if [ "$POST_FAIL" -ne 0 ]; then
+    cat >&2 <<'ROLLBACK'
+
+release: a release was published but the post-release checks failed, which means
+release: the released tree may be inconsistent (for example VERSION or AGENTS.md
+release: left stale by a hook that did not run).
+release:
+release: Roll back before re-releasing:
+release:   1. Delete the tag locally and on the remote:
+release:        git tag -d <tag> && git push origin :refs/tags/<tag>
+release:   2. Revert the release commit:
+release:        git revert --no-edit HEAD && git push
+release:   3. Delete or re-cut the GitHub Release for that tag.
+release:   4. Fix the cause, then re-run scripts/release.sh --execute.
+release:
+release: See docs/contributing.md for the full rollback procedure.
+ROLLBACK
+    return 1
+  fi
+
+  echo "release: post-release checks passed (VERSION = package.json = AGENTS.md = $POST_VERSION, tag $POST_NEW_TAG)."
+}
+
+# RELEASE_VERIFY_ONLY=1 is a test-only entry point. It does not release anything:
+# it runs the post-release checks so a test can EXERCISE that exact code rather than
+# asserting that the source contains certain strings. It must run BEFORE any
+# release-it interaction (which would otherwise try to reach npm). The first
+# argument, when present, overrides TAGS_BEFORE so the tag-set logic can be driven.
+if [ "${RELEASE_VERIFY_ONLY:-0}" = "1" ]; then
+  TAGS_BEFORE="${1:-$(git tag -l | LC_ALL=C sort)}"
+  HEAD_BEFORE="$(git rev-parse HEAD)"
+  run_post_release_check
+  exit $?
+fi
+
 DRY_RUN=1
 VERSION_ARG=""
 
@@ -187,122 +313,9 @@ if [ "$DRY_RUN" -eq 1 ]; then
   exit 0
 fi
 
-# --- Post-release verification -------------------------------------------------
-# The pre-check above cannot detect that the release itself misbehaved: it runs
-# before, and it only proves VERSION and package.json agreed at that moment. If
-# the after:bump hook silently fails to run - which is exactly what a wrong hook
-# key produces - release-it still exits 0, still commits and still tags, leaving
-# VERSION and AGENTS.md stale in the released tree.
-#
-# xp-gate's Gate 0 cannot be relied on for this either: measured, it PASSES a
-# staged VERSION that contradicts package.json (exit 0, commit lands). So this
-# check is the backstop, and it fails loudly rather than letting a corrupt
-# release stand.
+# The execute path: run the post-release verification defined near the top. It
+# verifies the release actually produced a consistent tree rather than just
+# trusting release-it's own success.
 echo "release: verifying the release..."
-
-POST_FAIL=0
-
-# Identify the tag this release created. This must not use `comm`: comm exits
-# non-zero when either input is not in sorted order, and under `set -euo pipefail`
-# that non-zero status inside a command substitution ABORTS the script - measured,
-# exit 1 with no rollback guidance printed, leaving the operator with a pushed and
-# possibly-inconsistent release. A tag-set difference is not worth that risk.
-#
-# Instead, take the most recently created tag and confirm it was not already
-# present before the release. `--sort=-creatordate` is stable and cannot fail on
-# ordering, and the membership test is a plain string comparison.
-POST_NEW_TAG="$(git tag -l --sort=-creatordate | head -n 1)"
-if [ -n "$POST_NEW_TAG" ]; then
-  case "$(printf '%s\n' "$TAGS_BEFORE" | grep -Fx -- "$POST_NEW_TAG" || true)" in
-    "") ;; # not present before => this release created it
-    *)
-      # The newest tag predates this release, so the release created no tag.
-      POST_NEW_TAG=""
-      ;;
-  esac
-fi
-
-fail_post() {
-  echo "release: POST-RELEASE CHECK FAILED: $1" >&2
-  POST_FAIL=1
-}
-
-# 1. Three-way version equality.
-#    POST_AGENTS keeps the leading 'v' (the header form is "(v1.2.3)"), so it is
-#    compared against "v$POST_VERSION" - an earlier form compared it against the
-#    bare version and failed every correct release with
-#    "AGENTS.md (v1.11.0) != VERSION (1.11.0)".
-POST_VERSION="$(LC_ALL=C tr -d '[:space:]' < VERSION)"
-POST_PKG="$(node -p "require('./package.json').version")"
-# `|| true` is load-bearing, NOT defensive padding. grep exits 1 when it matches
-# nothing, and under `set -euo pipefail` that status propagates through the pipeline
-# and ABORTS the shell on the assignment - so the `-z` branch just below, which
-# exists precisely to report the missing header, would be unreachable. Measured:
-# without `|| true` a header-less AGENTS.md exits 1 having printed NO message, after
-# the commit and tag already exist, and the rollback guidance is skipped. This is the
-# same failure class as the `comm` bug, so every grep whose "no match" case is
-# handled by later logic needs it.
-POST_AGENTS="$(LC_ALL=C grep -oE '\(v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?\)' AGENTS.md 2>/dev/null | head -n 1 | tr -d '()' || true)"
-
-if [ "$POST_VERSION" != "$POST_PKG" ]; then
-  fail_post "VERSION ($POST_VERSION) != package.json ($POST_PKG)"
-fi
-if [ -z "$POST_AGENTS" ]; then
-  fail_post "AGENTS.md carries no (vX.Y.Z) header version"
-elif [ "$POST_AGENTS" != "v$POST_VERSION" ]; then
-  fail_post "AGENTS.md ($POST_AGENTS) != VERSION (v$POST_VERSION)"
-fi
-
-# 2. There must BE a release commit, and it must carry the version records.
-#    Verify the commit explicitly rather than assuming HEAD moved: a release whose
-#    commit step was skipped would otherwise have `git show HEAD` describe the
-#    PREVIOUS commit, and the file check below would pass or fail for reasons that
-#    have nothing to do with this release.
-HEAD_AFTER="$(git rev-parse HEAD)"
-if [ "$HEAD_AFTER" = "$HEAD_BEFORE" ]; then
-  fail_post "no release commit was created (HEAD is unchanged at $HEAD_AFTER)"
-fi
-
-#    A silently-dead hook yields a commit without VERSION or AGENTS.md. The
-#    changelog plugin's omission is equally invisible, so CHANGELOG.md is included.
-RELEASE_FILES="$(git show --name-only --format= "$HEAD_AFTER" | LC_ALL=C sort | tr '\n' ' ')"
-for expected in VERSION AGENTS.md package.json CHANGELOG.md; do
-  case " $RELEASE_FILES " in
-    *" $expected "*) ;;
-    *) fail_post "release commit is missing $expected (found: ${RELEASE_FILES:-none})" ;;
-  esac
-done
-
-# 3. The working tree must be clean, so the tag matches what is on disk.
-if [ -n "$(git status --porcelain)" ]; then
-  fail_post "working tree is dirty after the release"
-fi
-
-# 4. A new tag must exist and carry the v prefix.
-if [ -z "$POST_NEW_TAG" ]; then
-  fail_post "no new tag was created"
-elif [ "${POST_NEW_TAG#v}" = "$POST_NEW_TAG" ]; then
-  fail_post "tag '$POST_NEW_TAG' is missing the 'v' prefix"
-fi
-
-if [ "$POST_FAIL" -ne 0 ]; then
-  cat >&2 <<'ROLLBACK'
-
-release: a release was published but the post-release checks failed, which means
-release: the released tree may be inconsistent (for example VERSION or AGENTS.md
-release: left stale by a hook that did not run).
-release:
-release: Roll back before re-releasing:
-release:   1. Delete the tag locally and on the remote:
-release:        git tag -d <tag> && git push origin :refs/tags/<tag>
-release:   2. Revert the release commit:
-release:        git revert --no-edit HEAD && git push
-release:   3. Delete or re-cut the GitHub Release for that tag.
-release:   4. Fix the cause, then re-run scripts/release.sh --execute.
-release:
-release: See docs/contributing.md for the full rollback procedure.
-ROLLBACK
-  exit 1
-fi
-
-echo "release: post-release checks passed (VERSION = package.json = AGENTS.md = $POST_VERSION, tag $POST_NEW_TAG)."
+run_post_release_check
+exit 0
