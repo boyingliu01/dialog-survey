@@ -72,6 +72,12 @@ export function collectChangedFiles({ base, git = defaultGit }) {
   // Working-tree changes (staged + unstaged) count too, for local pre-push use.
   for (const file of selectMutableFiles(git(['diff', '--name-only', 'HEAD']) ?? ''))
     files.add(file);
+  // Untracked new files are invisible to git diff; list them explicitly.
+  for (const file of selectMutableFiles(
+    git(['ls-files', '--others', '--exclude-standard']) ?? ''
+  )) {
+    files.add(file);
+  }
   return [...files].sort();
 }
 

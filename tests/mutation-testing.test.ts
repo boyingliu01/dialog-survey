@@ -48,19 +48,21 @@ describe('mutation-test orchestrator (issue #155)', () => {
     expect(mod.selectMutableFiles(diff)).toEqual(['src/api/plans.ts']);
   });
 
-  it('AC-1: collectChangedFiles unions base...HEAD range with working tree and dedupes', async () => {
+  it('AC-1: collectChangedFiles unions base...HEAD range, working tree and untracked files', async () => {
     const mod = await loadModule();
     const calls: string[][] = [];
     const fakeGit = (args: string[]): string | null => {
       calls.push(args);
       if (args[0] === 'diff' && args[2]?.includes('...HEAD')) return 'src/a.ts\nsrc/b.ts\n';
       if (args[0] === 'diff' && args[2] === 'HEAD') return 'src/b.ts\nsrc/c.ts\nREADME.md\n';
+      if (args[0] === 'ls-files') return 'src/d.ts\nnotes.txt\n';
       return null;
     };
     expect(mod.collectChangedFiles({ base: 'origin/master', git: fakeGit })).toEqual([
       'src/a.ts',
       'src/b.ts',
       'src/c.ts',
+      'src/d.ts',
     ]);
     // The range must be delegated to git's own merge-base resolution.
     expect(calls.some((args) => args.includes('origin/master...HEAD'))).toBe(true);
