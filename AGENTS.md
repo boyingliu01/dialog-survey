@@ -71,6 +71,8 @@ npm run dev           # tsx --watch, port 3001
 npm run build         # tsc → dist/
 npm run test          # vitest (watch); CI uses npx vitest run
 npm run test:coverage # coverage (80/80/70/80 threshold)
+npm run test:mutation # full Stryker mutation run (slow, local)
+npm run test:mutation:incremental # git-diff incremental mutation (issue #155; advisory in CI)
 npm run smoke         # type-check + lint + ~44 key tests
 npm run lint          # biome lint src/
 npm run type-check    # tsc --noEmit
@@ -85,7 +87,8 @@ npm run check:fix     # biome check + auto-fix
 - **Vitest async suites**: Vitest 4 awaits async `describe` callbacks — several suites rely on a describe-level `await getSharedTestPrisma()`. Re-verify async-suite semantics when upgrading Vitest.
 - **Process pollution**: `tsx --watch` leaves orphan processes. Styling issues → find the PID (`netstat -ano | findstr :3001` on Windows, `fuser -k 3001/tcp` on WSL/Linux) and kill it first.
 - **Test layers**: Unit (mock Prisma) / Integration (PGlite in-process, parallel-safe) / E2E in `tests/e2e/` (11 files: in-process Fastify + real chromium via Playwright).
-- **CI**: PRs run 9 jobs (static-analysis, unit-tests, integration-tests, security-scan, coverage, e2e-tests, smoke, commit-lint, version-consistency). No PostgreSQL service; the consuming jobs run `npx prisma generate` before tsc/vitest (security-scan and version-consistency are static-only; generated client is gitignored). **Integration suites must be named `*.integration.test.ts` (dot, not hyphen)** — the job glob is `tests/*.integration.test.ts` and the unit job excludes the same pattern, so a hyphenated name is silently selected by the wrong job.
+- **CI**: PRs run 10 jobs (static-analysis, unit-tests, integration-tests, security-scan, coverage, e2e-tests, mutation-tests [advisory], smoke, commit-lint, version-consistency). No PostgreSQL service; the consuming jobs run `npx prisma generate` before tsc/vitest (security-scan and version-consistency are static-only; generated client is gitignored). **Integration suites must be named `*.integration.test.ts` (dot, not hyphen)** — the job glob is `tests/*.integration.test.ts` and the unit job excludes the same pattern, so a hyphenated name is silently selected by the wrong job.
+- **Mutation testing (issue #155)**: Stryker + vitest runner via `stryker.conf.json`. Incremental runs (`scripts/mutation-test.mjs`) mutate only files changed vs the base ref and fan out over ≥4 workers; the CI `mutation-tests` job is advisory (`continue-on-error`). Mutant runs use `vitest.config.mutation.ts` (e2e excluded, no retries).
 - **API bug triage**: curl → isolate backend first. htmx.ajax() `.then()` fires on 4xx with `undefined` arg.
 - **Commits**: Conventional Commits are enforced in CI by the `commit-lint` job (PR title blocking; branch range advisory). An opt-in local hook exists but is **not installed by default** — run `scripts/install-git-hooks.sh install` to enable it. See `docs/contributing.md`.
 - **Releasing**: `scripts/release.sh` is a **dry run by default**; pass `--execute` to release. It refuses to start unless `VERSION == package.json`, requires `GITHUB_TOKEN` when `github.release=true` (release-it otherwise skips the GitHub Release and still exits 0), and verifies the result afterwards. The `after:bump` hook key in `.release-it.json` must be the **bare** `after:bump`: a key naming a plugin namespace (e.g. `after:version:bump`) is never invoked, which leaves `VERSION` and `AGENTS.md` stale while still exiting 0 and still tagging. `tests/release-hook-key.test.ts` is the behavioural control proving this. Never force-move a released tag.

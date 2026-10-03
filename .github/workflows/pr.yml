@@ -211,6 +211,52 @@ jobs:
           DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || 'dummy-ci-client-id' }}
           DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || 'dummy-ci-client-secret' }}
 
+  mutation-tests:
+    name: Mutation Testing (incremental, advisory)
+    # Issue #155: incremental mutation testing on PRs. Advisory by design —
+    # continue-on-error reports the score without blocking merges. Only files
+    # changed vs the base are mutated (scripts/mutation-test.mjs), and
+    # Stryker fans mutants out over >=4 parallel workers.
+    if: always()
+    needs: [unit-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so merge-base with the PR base is resolvable.
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run incremental mutation tests
+        continue-on-error: true
+        run: npm run test:mutation:incremental -- --base "origin/${{ github.base_ref }}"
+        env:
+          NODE_ENV: test
+          DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || 'dummy-ci-client-id' }}
+          DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || 'dummy-ci-client-secret' }}
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: .stryker-report.json
+          retention-days: 7
+          if-no-files-found: ignore
+
   smoke:
     name: Smoke Test
     if: always()
