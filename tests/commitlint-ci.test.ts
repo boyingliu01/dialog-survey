@@ -194,6 +194,63 @@ describe('commitlint configuration (AC-1)', () => {
   });
 });
 
+describe('version-consistency job in .github/workflows/pr.yml (REQ-153-4)', () => {
+  const workflow = readFileSync(join(repoRoot, '.github/workflows/pr.yml'), 'utf8');
+
+  /**
+   * @test REQ-153-4
+   * @intent enforces version consistency at the MERGE boundary, not only at
+   *   release time, because a drift discovered during a release has already been
+   *   tagged and published
+   * @covers AC-153-4-01
+   */
+  it('exists as a job that needs no dependencies or build', () => {
+    expect(workflow).toMatch(/^ {2}version-consistency:$/m);
+    // No build step: the check must stay fast and incapable of flaking.
+    const block = workflow.slice(workflow.indexOf('  version-consistency:'));
+    expect(block).not.toMatch(/npm ci/);
+    expect(block).not.toMatch(/npx prisma generate/);
+  });
+
+  /**
+   * @test REQ-153-4
+   * @intent fails on a VERSION/package.json mismatch and on a stale AGENTS.md,
+   *   rather than passing vacuously
+   * @covers AC-153-4-01
+   */
+  it('asserts all three version sources and fails closed on each', () => {
+    const block = workflow.slice(workflow.indexOf('  version-consistency:'));
+
+    // VERSION vs package.json.
+    expect(block).toMatch(/VERSION \(\$\{FILE_VERSION\}\) != package\.json/);
+    // AGENTS.md header.
+    expect(block).toMatch(/AGENTS\.md has no .*header version to compare/);
+    expect(block).toMatch(/AGENTS\.md \(\$\{HEADER_VERSION\}\) != VERSION/);
+    // Missing/empty VERSION fails rather than skipping.
+    expect(block).toMatch(/VERSION file is missing/);
+    expect(block).toMatch(/VERSION is empty/);
+  });
+
+  /**
+   * @test REQ-153-4
+   * @intent confirms the new job does not displace the existing jobs
+   * @covers AC-153-4-01
+   */
+  it('is additive: the original jobs are all still present', () => {
+    for (const job of [
+      'static-analysis',
+      'unit-tests',
+      'integration-tests',
+      'security-scan',
+      'coverage',
+      'smoke',
+      'commit-lint',
+    ]) {
+      expect(workflow, `missing job ${job}`).toMatch(new RegExp(`^  ${job}:$`, 'm'));
+    }
+  });
+});
+
 describe('commit-lint job in .github/workflows/pr.yml (AC-4 / AC-12)', () => {
   /**
    * @test REQ-153-1

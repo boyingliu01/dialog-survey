@@ -445,6 +445,30 @@ describe('scripts/release.sh', () => {
 
   /**
    * @test REQ-153-4
+   * @intent fails closed with a clear message outside a git work tree, instead of
+   *   silently operating on the current directory
+   * @covers AC-153-4-02
+   */
+  it('fails closed outside a git work tree', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'release-sh-nogit-'));
+    try {
+      // Deliberately NOT a git repository: `git rev-parse --show-toplevel` fails,
+      // and the script must refuse rather than treat cwd as the release target.
+      const result = spawnSync(bashCommand, [releaseSh], {
+        cwd: dir,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      expect(result.status).not.toBe(0);
+      expect(`${result.stdout ?? ''}${result.stderr ?? ''}`).toMatch(/not inside a git work tree/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  /**
+   * @test REQ-153-4
    * @intent verifies the release AFTER it runs, because the pre-check cannot
    *   detect a release that misbehaves and Gate 0 does not reject a staged
    *   VERSION that contradicts package.json

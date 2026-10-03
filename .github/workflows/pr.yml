@@ -305,3 +305,65 @@ jobs:
         env:
           BASE_REF: ${{ steps.base.outputs.base_ref }}
         run: npx --no-install commitlint --from "origin/$BASE_REF" --to HEAD --verbose
+
+  version-consistency:
+    name: Version Consistency (VERSION / package.json / AGENTS.md)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      # Enforce version consistency at the MERGE boundary, not only at release
+      # time. xp-gate's Gate 0 claims to check this but does not: measured, it
+      # passes a staged VERSION that contradicts package.json (exit 0, the commit
+      # lands, nothing is healed). Without this job a drift can sit on the default
+      # branch indefinitely and is discovered only when a release runs — after a
+      # tag and a GitHub Release already exist, when retracting it is expensive.
+      #
+      # This is a ~10-line job on purpose: it needs no dependencies and no build,
+      # so it is fast and cannot be flaky.
+      - name: Assert VERSION, package.json and AGENTS.md agree
+        run: |
+          set -euo pipefail
+
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+
+          if [ ! -f VERSION ]; then
+            fail "VERSION file is missing"
+          fi
+
+          FILE_VERSION="$(tr -d '[:space:]' < VERSION)"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+
+          echo "VERSION      = ${FILE_VERSION}"
+          echo "package.json = ${PKG_VERSION}"
+
+          if [ -z "$FILE_VERSION" ]; then
+            fail "VERSION is empty"
+          fi
+          if [ "$FILE_VERSION" != "$PKG_VERSION" ]; then
+            fail "VERSION (${FILE_VERSION}) != package.json (${PKG_VERSION}) — reconcile before merging; VERSION is written by the after:bump hook (see docs/contributing.md)"
+          fi
+
+          # AGENTS.md carries the version in its header. Fail closed if the header
+          # is absent rather than silently skipping the check.
+          HEADER_VERSION="$(grep -oE '\(v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?\)' AGENTS.md | head -n 1 | tr -d '()')"
+          if [ -z "$HEADER_VERSION" ]; then
+            fail "AGENTS.md has no '(vX.Y.Z)' header version to compare"
+          fi
+
+          echo "AGENTS.md    = ${HEADER_VERSION}"
+
+          if [ "$HEADER_VERSION" != "v${FILE_VERSION}" ]; then
+            fail "AGENTS.md (${HEADER_VERSION}) != VERSION (v${FILE_VERSION}) — the sync-version fan-out did not run or did not complete (see docs/contributing.md)"
+          fi
+
+          echo "Version consistency OK: VERSION = package.json = AGENTS.md = ${FILE_VERSION}"
