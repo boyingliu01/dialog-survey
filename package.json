@@ -73,7 +73,10 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
     "@electric-sql/pglite": "0.5.8",
+    "@release-it/conventional-changelog": "^11.0.1",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/typescript-checker": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
@@ -86,6 +89,7 @@
     "jscpd": "^4.2.4",
     "pglite-prisma-adapter": "0.7.2",
     "prisma": "7.10.0",
+    "release-it": "^20.2.1",
     "tsx": "^4.7.1",
     "typescript": "^5.9.3",
     "vitest": "^4.1.2"
