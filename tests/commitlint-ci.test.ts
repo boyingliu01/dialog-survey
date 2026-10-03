@@ -265,6 +265,21 @@ describe('commit-lint job in .github/workflows/pr.yml (AC-4 / AC-12)', () => {
 
   /**
    * @test REQ-153-1
+   * @intent only runs commit-lint on a pull_request, because both github.base_ref
+   *   and github.event.pull_request.title are empty on workflow_dispatch and the
+   *   job's two load-bearing steps would fail with a confusing "base ref is empty"
+   *   error instead of skipping
+   * @covers AC-153-1-02
+   */
+  it('gates the commit-lint job to pull_request events', () => {
+    const block = jobBlock('commit-lint');
+
+    expect(block).toMatch(/^ {4}if: github\.event_name == 'pull_request'$/m);
+    expect(block).not.toMatch(/github\.event_name == 'workflow_dispatch'/);
+  });
+
+  /**
+   * @test REQ-153-1
    * @intent does not add any release/publish job
    * @covers AC-153-1-01
    */

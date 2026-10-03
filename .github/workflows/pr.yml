@@ -238,6 +238,11 @@ jobs:
   # that check is load-bearing, the branch-range check is advisory only.
   commit-lint:
     name: Commit Lint (Conventional Commits)
+    # Only meaningful on a pull_request: both the base-ref scope (github.base_ref)
+    # and the PR-title check (github.event.pull_request.title) are empty on
+    # workflow_dispatch, so running here would fail with a confusing "base ref is
+    # empty" error for a manual dispatch that has no branch to lint against.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
