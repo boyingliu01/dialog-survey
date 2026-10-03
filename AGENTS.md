@@ -1,6 +1,6 @@
 # AGENTS.md — Dialog Survey Project Knowledge Base
 
-> Updated: 2026-09-30 (v1.10.0). Sprint #149 (Prisma 7 migration). 58 source TS files, 118 test files, ~1283 tests. Tests need no PostgreSQL (PGlite).
+> Updated: 2026-10-03 (v1.10.0). Sprint #153 (Conventional Commits + auto CHANGELOG + release automation). 58 source TS files, 125 test files. Tests need no PostgreSQL (PGlite).
 
 ## Overview
 
@@ -18,7 +18,7 @@ AI-powered survey dialog bot — async multi-turn conversations via DingTalk wit
 | Nunjucks views | `src/views/` | Admin UI via HTMX fragments + Alpine.js |
 | Utilities | `src/utils/` | Logger, security, retry, markdown, PII |
 | Prisma client | `src/generated/prisma` (generated, gitignored) | Facade `src/utils/prisma-client.ts` + factory `src/utils/prisma-factory.ts`; run `npx prisma generate` after checkout |
-| Tests | `tests/` | 118 files, flat structure, Vitest 4.x; needs no PostgreSQL |
+| Tests | `tests/` | 125 files, flat structure, Vitest 4.x; needs no PostgreSQL |
 
 ## Code Map (Top-Level Symbols)
 
@@ -85,6 +85,8 @@ npm run check:fix     # biome check + auto-fix
 - **Vitest async suites**: Vitest 4 awaits async `describe` callbacks — several suites rely on a describe-level `await getSharedTestPrisma()`. Re-verify async-suite semantics when upgrading Vitest.
 - **Process pollution**: `tsx --watch` leaves orphan processes. Styling issues → find the PID (`netstat -ano | findstr :3001` on Windows, `fuser -k 3001/tcp` on WSL/Linux) and kill it first.
 - **Test layers**: Unit (mock Prisma) / Integration (PGlite in-process, parallel-safe) / E2E in `tests/e2e/` (11 files: in-process Fastify + real chromium via Playwright).
-- **CI**: PRs run 7 jobs (static-analysis, unit-tests, integration-tests, security-scan, coverage, smoke, e2e-tests). No PostgreSQL service; the 6 consuming jobs run `npx prisma generate` before tsc/vitest (security-scan is static-only; generated client is gitignored).
+- **CI**: PRs run 9 jobs (static-analysis, unit-tests, integration-tests, security-scan, coverage, e2e-tests, smoke, commit-lint, version-consistency). No PostgreSQL service; the consuming jobs run `npx prisma generate` before tsc/vitest (security-scan and version-consistency are static-only; generated client is gitignored). **Integration suites must be named `*.integration.test.ts` (dot, not hyphen)** — the job glob is `tests/*.integration.test.ts` and the unit job excludes the same pattern, so a hyphenated name is silently selected by the wrong job.
 - **API bug triage**: curl → isolate backend first. htmx.ajax() `.then()` fires on 4xx with `undefined` arg.
+- **Commits**: Conventional Commits are enforced in CI by the `commit-lint` job (PR title blocking; branch range advisory). An opt-in local hook exists but is **not installed by default** — run `scripts/install-git-hooks.sh install` to enable it. See `docs/contributing.md`.
+- **Releasing**: `scripts/release.sh` is a **dry run by default**; pass `--execute` to release. It refuses to start unless `VERSION == package.json`, requires `GITHUB_TOKEN` when `github.release=true` (release-it otherwise skips the GitHub Release and still exits 0), and verifies the result afterwards. The `after:bump` hook key in `.release-it.json` must be the **bare** `after:bump`: a key naming a plugin namespace (e.g. `after:version:bump`) is never invoked, which leaves `VERSION` and `AGENTS.md` stale while still exiting 0 and still tagging. `tests/release-hook-key.test.ts` is the behavioural control proving this. Never force-move a released tag.
 
