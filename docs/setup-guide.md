@@ -203,8 +203,8 @@ node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"
 # 生成 Prisma Client
 npx prisma generate
 
-# 同步数据表结构到数据库
-npx prisma db push
+# 应用数据库迁移（issue #152：迁移文件是唯一 schema 来源）
+npx prisma migrate dev
 ```
 
 ### 验证:
@@ -290,7 +290,7 @@ pm2 startup   # 设置 Windows 开机自启
 - [ ] `npm install` 无报错
 - [ ] `.env` 已配置所有必填项
 - [ ] `npx prisma generate` 成功（生成 `src/generated/prisma`）
-- [ ] `npx prisma db push` 成功（数据表已创建）
+- [ ] `npx prisma migrate deploy` 成功（数据表已创建）
 - [ ] `npm run dev` 启动无报错
 - [ ] `curl http://localhost:3001/health` 返回正常响应
 - [ ] `npx vitest run` 测试通过（无需 PostgreSQL，使用 PGlite）
@@ -315,7 +315,7 @@ npm ci --ignore-scripts
 **A**: 检查：
 1. PostgreSQL 服务是否在运行（Windows 服务管理器 → PostgreSQL）
 2. `DATABASE_URL` 中的用户名/密码是否正确
-3. 数据库 `dialog_survey` 是否已存在（`npx prisma db push` 会自动创建）
+3. 数据库 `dialog_survey` 是否已存在（`npx prisma migrate dev` 会自动创建并应用迁移）
 
 ### Q: `npm run dev` 启动后钉钉 Stream 连接失败？
 

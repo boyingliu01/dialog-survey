@@ -22,7 +22,7 @@ The installer will:
 7. ✓ Generate `.env` from your configuration (including session keys)
 8. ✓ Install production dependencies (`npm install --omit=dev`)
 9. ✓ Install the Playwright Chromium browser (PDF export)
-10. ✓ Sync the schema with `prisma db push` (Prisma 7)
+10. ✓ Apply database migrations with `prisma migrate deploy` (Prisma 7)
 11. ✓ Start the service via PM2
 12. ✓ Verify health endpoint
 
@@ -137,7 +137,7 @@ npm run deploy
 # or manually:
 npm ci
 npx prisma generate
-npx prisma db push
+npx prisma migrate deploy
 npm run build
 npm start
 ```
@@ -255,9 +255,19 @@ pm2 restart dialog-survey
 ```
 
 ### Database Rollback
+
+Schema changes are versioned as SQL migrations under `prisma/migrations/`
+(issue #152 — `db push` was retired because it kept no history and silently
+skipped data updates for existing rows).
+
 ```bash
-# Prisma supports data migrations for schema changes
-# Before any schema change, create a backup:
+# Apply pending migrations (deploy, installer, manual):
+npx prisma migrate deploy
+
+# Create a new migration after editing prisma/schema.prisma:
+npx prisma migrate dev --name <description>
+
+# Before any schema change, keep a data backup anyway:
 pg_dump -U dialog_survey dialog_survey > backup-$(date +%Y%m%d).sql
 
 # Restore if needed:
@@ -310,9 +320,10 @@ PORT=3002 bash scripts/deploy.sh
 
 ### Prisma errors
 ```bash
-# Reset and regenerate
+# Regenerate the client and re-apply pending migrations
 npx prisma generate
-npx prisma db push
+npx prisma migrate status
+npx prisma migrate deploy
 
 # Check schema
 cat prisma/schema.prisma
