@@ -27,7 +27,7 @@
     "build": "tsc",
     "prisma:generate": "prisma generate",
     "test": "vitest",
-    "test:coverage": "vitest --coverage",
+    "test:coverage": "vitest run --coverage",
     "lint": "biome lint src",
     "lint:fix": "biome lint --write src",
     "type-check": "tsc --noEmit",

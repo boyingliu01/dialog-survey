@@ -1,0 +1,180 @@
+{
+  "version": 1,
+  "source": ".sprint-state/phase-outputs/specification.yaml (SPEC-153-001)",
+  "issue": 153,
+  "sprint": "sprint-20261001-30",
+  "slices": [
+    {
+      "id": "slice-1",
+      "title": "开发者提交不合规消息时被 CI 阻断，合规消息通过",
+      "type": "AFK",
+      "blocked_by": [],
+      "parent_story": "REQ-153-1",
+      "what_it_delivers": "commitlint 配置就位，CI 新增 commit-lint job（base ref 解析阻断 + PR 标题阻断 + 范围仅警告），并配有校验函数的单测",
+      "acceptance_criteria": [
+        "AC-1: commitlint.config.cjs 使用 @commitlint/config-conventional，且 ignores 与 §5.3 最终清单一致（仅含可观测模式：Merge/Revert/chore(release)/Merge pull request/Bump /chore(deps)）",
+        "AC-4: workflow 中 commit-lint 有 3 个阻断/警告 step，且含 §5.4 的运行时自检步骤（用已知坏输入断言必须被拒绝）",
+        "AC-12: commit-lint job 存在且无 needs；未新增发布类 job；job 总数仅信息性记录（不硬断言 8）"
+      ],
+      "effort": "M",
+      "loc_budget": 180,
+      "file_budget": 8,
+      "status": "pending",
+      "notes": "tracer bullet：选它先做，因为它最快暴露 CI 结构风险。需先实测现有 workflow 的 job 计数方式（已有 7 个，实测枚举过）。"
+    },
+    {
+      "id": "slice-2",
+      "title": "开发者执行 sync-version 时版本被扇出，且 --list-targets 只报真实目标",
+      "type": "AFK",
+      "blocked_by": [],
+      "parent_story": "REQ-153-5",
+      "what_it_delivers": "新增 scripts/sync-version.cjs（与 .sh 语义等价、幂等、不依赖 bash/PATH，是本 sprint 的实际交付物）；修复 .sh 的 --list-targets 只输出实际存在的目标；两者共享 fixture 的 parity 测试",
+      "acceptance_criteria": [
+        "AC-13: .cjs 与 .sh 对同一 fixture 产出相同的 package.json 与 AGENTS.md；同值重跑无改动",
+        "AC-14: --list-targets 输出集合 == 实际存在集合（本仓库为 package.json、AGENTS.md 共 2 项）",
+        "AC-15: node scripts/sync-version.cjs 在无 bash 依赖下 exit 0 且扇出生效"
+      ],
+      "effort": "M",
+      "loc_budget": 200,
+      "file_budget": 6,
+      "status": "pending",
+      "notes": "无依赖，可与 slice-1 并行。**本切片必须实际产出 scripts/sync-version.cjs 文件**（slice-4 的 release hook 依赖它）。AGENTS.md 采用锚定单行替换，只替换首个匹配，格式不符则非零退出。--list-targets 列的是 sync-version 的写入目标（不含 VERSION，VERSION 是输入/规范记录）。"
+    },
+    {
+      "id": "slice-3",
+      "title": "可选安装本地 hook 后不合规提交被拒，卸载后全局 hooksPath 精确恢复",
+      "type": "AFK",
+      "blocked_by": [
+        "slice-1"
+      ],
+      "parent_story": "REQ-153-2",
+      "what_it_delivers": "scripts/install-git-hooks.sh（幂等安装 / --uninstall 精确恢复 / --force 唯一语义）+ githooks/commit-msg（node 实现，不依赖 bash）+ 文档声明其代价",
+      "acceptance_criteria": [
+        "AC-2: 安装后非法消息提交非零退出；docs/contributing.md 声明'启用期间本仓库全局门禁临时失效'",
+        "AC-3: 安装后 feat:/fix:/chore(scope): 提交零退出",
+        "AC-9: 单测覆盖 4 种情形（首次安装/重复安装 no-op 且不覆盖记录值/卸载恢复原值/值变更时无 --force 中止、有 --force 恢复记录值并打印被覆盖值）",
+        "AC-8: 默认未安装状态下 core.hooksPath 与基线相等"
+      ],
+      "effort": "L",
+      "loc_budget": 200,
+      "file_budget": 8,
+      "status": "pending",
+      "notes": "依赖 slice-1（需 commitlint 配置存在）。记录文件写 .git/xp-gate-uninstall-record，哨兵 __UNSET__。hook 体用 node 执行 @commitlint/cli，避免 C2 的 PATH 失败类别。"
+    },
+    {
+      "id": "slice-4",
+      "title": "维护者执行发布时版本、CHANGELOG、tag 自动更新且三者一致",
+      "type": "HITL",
+      "blocked_by": [
+        "slice-2"
+      ],
+      "parent_story": "REQ-153-3",
+      "what_it_delivers": ".release-it.json（**hook 键为 bare after:bump**、tagName v${version}、npm.publish false、github.release true、数组形式）+ scripts/write-version.cjs（新增交付物）+ scripts/release.sh（dry-run 默认，--execute 才真发布）+ 含 changelog 插件的临时仓库集成测试",
+      "acceptance_criteria": [
+        "AC-5: 临时仓库真实 release 后 CHANGELOG.md 含新条目于顶部且 '## 1.8.9' 仍存在",
+        "AC-6: dry-run 在 §7.4 fixture 配置（github.release=false、requireBranch=false）上执行，断言 HEAD 与 tag 集合前后不变；git remote get-url 失败记 skipped（非 passed）；解析失败即失败（无 fallback）",
+        "AC-7: 集成层断言 VERSION=package.json=AGENTS.md，且 git show --name-only 含【四类文件】（VERSION/package.json/AGENTS.md/CHANGELOG.md）、git status --porcelain 为空",
+        "hook 键必须是 bare after:bump；fixture 必须包含 @release-it/conventional-changelog（§0.4：省略该插件会使 after:version:bump 静默失效，导致在错误配置上假通过）",
+        "scripts/write-version.cjs 已交付，且参数缺失/非 semver 时非零退出",
+        "scripts/release.sh 默认 dry-run；传 --execute 才真发布；透传退出码；执行前断言 VERSION==package.json"
+      ],
+      "effort": "L",
+      "loc_budget": 200,
+      "file_budget": 10,
+      "status": "pending",
+      "notes": "HITL：发布链路涉及不可逆外部副作用（tag/Release），需人工确认后再真正执行。依赖 slice-2 的 sync-version.cjs。**集成测试必须复刻生产配置（含 changelog 插件）**——这是 §0.4 实测教训：移除插件会改变 hook 触发行为并导致假通过。同时覆盖 github.release=false 与 requireBranch=false 以避开 token 依赖与分支名不符。"
+    },
+    {
+      "id": "slice-5",
+      "title": "维护者首次启用发布时基线 tag v1.10.0 被正确创建且可安全重跑",
+      "type": "AFK",
+      "blocked_by": [
+        "slice-4"
+      ],
+      "parent_story": "REQ-153-6",
+      "what_it_delivers": "scripts/release-bootstrap.sh（三分支 SHA 语义，记录 SHA 到 .git/xp-gate-bootstrap-sha）+ 单测",
+      "acceptance_criteria": [
+        "AC-11: 四分支语义 —— 不存在→创建并记录 SHA；SHA==记录值→警告+0；SHA!=记录值→报错+非零；记录缺失但 tag 是 HEAD 祖先→警告+0 并补记；记录缺失且 tag 非祖先→报错+非零"
+      ],
+      "effort": "S",
+      "loc_budget": 100,
+      "file_budget": 4,
+      "status": "pending",
+      "notes": "依赖 slice-4（需明确 tagName 规则）。比较对象是记录的 SHA 而非活动 HEAD。记录缺失时用祖先性校验（git merge-base --is-ancestor）区分'正常新克隆'与'真实漂移'。属发布前置，不实际执行发布。祖先性校验是启发式（回答 R2-A-F3），不视为完整性证明。"
+    }
+  ],
+  "execution_order": [
+    "slice-1",
+    "slice-2",
+    "slice-3",
+    "slice-4",
+    "slice-5"
+  ],
+  "dependency_graph": {
+    "slice-1": [],
+    "slice-2": [],
+    "slice-3": [
+      "slice-1"
+    ],
+    "slice-4": [
+      "slice-2"
+    ],
+    "slice-5": [
+      "slice-4"
+    ]
+  },
+  "parallel_groups": [
+    {
+      "group": 1,
+      "slices": [
+        "slice-1",
+        "slice-2"
+      ],
+      "reason": "无相互依赖，可并行"
+    },
+    {
+      "group": 2,
+      "slices": [
+        "slice-3"
+      ],
+      "reason": "依赖 slice-1 的 commitlint 配置"
+    },
+    {
+      "group": 3,
+      "slices": [
+        "slice-4"
+      ],
+      "reason": "依赖 slice-2 的 sync-version.cjs"
+    },
+    {
+      "group": 4,
+      "slices": [
+        "slice-5"
+      ],
+      "reason": "依赖 slice-4 的 tagName 规则"
+    }
+  ],
+  "validation": {
+    "cycle_detected": false,
+    "all_blocked_by_refs_exist": true,
+    "first_slice_unblocked": true,
+    "slice_count": 5,
+    "max_loc_budget": 200,
+    "max_file_budget": 10,
+    "within_limits": true
+  },
+  "cross_cutting_concerns": {
+    "handled_in": "slice-1",
+    "items": [
+      "CI job 结构（与既有 7 个 job 的一致性）",
+      "错误信息可读性（含合规示例）"
+    ]
+  },
+  "out_of_scope_reminders": [
+    "AC-10（分支保护）为运维步骤，需仓库管理员，不在任何切片内",
+    "AC-16（GitHub Release 首次创建）为人工清单项，不在任何切片内",
+    "不修改全局 ~/.config/xp-gate/",
+    "不改动现有 7 个 CI job 的语义",
+    "不迁移 CHANGELOG 历史"
+  ]
+}

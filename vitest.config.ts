@@ -13,6 +13,17 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
+      // Issue #150: these thresholds are what makes the CI "Coverage Check
+      // (80/80/70/80)" job blocking. They were silently dropped twice — once in
+      // a rebase-conflict resolution (PR #161) and never restored in the #149
+      // merge — while pr.yml still claimed "thresholds are enforced by
+      // vitest.config.ts". tests/coverage-gate.test.ts guards this block.
+      thresholds: {
+        statements: 80,
+        branches: 70,
+        functions: 80,
+        lines: 80,
+      },
       exclude: [
         'node_modules/',
         'dist/',
