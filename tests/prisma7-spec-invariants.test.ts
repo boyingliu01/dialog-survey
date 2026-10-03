@@ -240,7 +240,7 @@ describe('CI workflows are PG-free and generate-first (AC-004)', () => {
       ['static-analysis', pr, ['npx tsc --noEmit']],
       ['unit-tests', pr, ['npx vitest run']],
       ['integration-tests', pr, ['npx vitest run']],
-      ['coverage', pr, ['npx vitest --coverage']],
+      ['coverage', pr, ['npx vitest run --coverage']],
       ['e2e-tests', pr, ['npx vitest run']],
       ['smoke', pr, ['npm run smoke']],
       ['publish', publish, ['npm run test:coverage', 'npm run build']],
@@ -278,7 +278,7 @@ describe('release chain carries prisma config (AC-005)', () => {
     expect(verifyList, 'CLI must verify prisma.config.ts after install').toContain(
       "'prisma.config.ts'"
     );
-    expect(cli).toMatch(/npx --yes prisma@7\.10\.0 db push/);
+    expect(cli).toMatch(/npx --yes prisma@7\.10\.0 migrate deploy/);
     expect(cli).toContain('PRISMA_SKIP_GENERATE');
   });
 
