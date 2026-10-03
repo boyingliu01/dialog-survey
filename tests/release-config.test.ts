@@ -562,6 +562,26 @@ describe('scripts/release.sh', () => {
 
   /**
    * @test REQ-153-4
+   * @intent identifies the new tag without `comm`, which aborts the script under
+   *   `set -euo pipefail` when its input is not sorted
+   * @covers AC-153-4-01
+   */
+  it('identifies the new tag without using comm under set -e', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    // Measured: `comm` exits non-zero when either input is not in sorted order, and
+    // under `set -euo pipefail` that non-zero status inside a command substitution
+    // ABORTS the script - measured exit 1 with NO rollback guidance printed, leaving
+    // the operator with a pushed and possibly-inconsistent release. The tag-set
+    // difference is not worth that risk, so it is computed without comm.
+    expect(source).not.toMatch(/\| comm /);
+    expect(source).toMatch(/git tag -l --sort=-creatordate/);
+    // Membership is a plain string test, which cannot fail on ordering.
+    expect(source).toMatch(/grep -Fx -- "\$POST_NEW_TAG"/);
+  });
+
+  /**
+   * @test REQ-153-4
    * @intent always passes --ci so an unattended release cannot stall on an
    *   interactive prompt after the version hooks have already rewritten files
    * @covers AC-153-4-02

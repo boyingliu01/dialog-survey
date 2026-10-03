@@ -202,7 +202,26 @@ fi
 echo "release: verifying the release..."
 
 POST_FAIL=0
-POST_NEW_TAG="$(git tag -l | LC_ALL=C sort | comm -13 <(printf '%s\n' "$TAGS_BEFORE") - | tail -n 1)"
+
+# Identify the tag this release created. This must not use `comm`: comm exits
+# non-zero when either input is not in sorted order, and under `set -euo pipefail`
+# that non-zero status inside a command substitution ABORTS the script - measured,
+# exit 1 with no rollback guidance printed, leaving the operator with a pushed and
+# possibly-inconsistent release. A tag-set difference is not worth that risk.
+#
+# Instead, take the most recently created tag and confirm it was not already
+# present before the release. `--sort=-creatordate` is stable and cannot fail on
+# ordering, and the membership test is a plain string comparison.
+POST_NEW_TAG="$(git tag -l --sort=-creatordate | head -n 1)"
+if [ -n "$POST_NEW_TAG" ]; then
+  case "$(printf '%s\n' "$TAGS_BEFORE" | grep -Fx -- "$POST_NEW_TAG" || true)" in
+    "") ;; # not present before => this release created it
+    *)
+      # The newest tag predates this release, so the release created no tag.
+      POST_NEW_TAG=""
+      ;;
+  esac
+fi
 
 fail_post() {
   echo "release: POST-RELEASE CHECK FAILED: $1" >&2
