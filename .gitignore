@@ -121,6 +121,7 @@ worktrees/
 
 # Tool-generated sandboxes / runtime state
 .stryker-tmp/
+.stryker-report.json
 .sprint-state/
 .omo/run-continuation/
 .worktrees/
