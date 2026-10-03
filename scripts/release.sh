@@ -109,14 +109,22 @@ if [ "$DRY_RUN" -eq 0 ]; then
   fi
 fi
 
-# Pre-flight: a developer-global core.hooksPath puts the xp-gate chain in the path
-# of the release commit. That chain is slow and can hard-block, and it was measured
-# to hang fixture commits outright. Neutralise it for this repository so a release
-# does not depend on the operator's global git configuration.
-if [ -n "$(git config --get core.hooksPath 2>/dev/null || true)" ]; then
-  echo "release: local core.hooksPath is set; unsetting it for this repository so the"
-  echo "release: release commit does not run an unrelated global hook chain."
-  git config --local --unset core.hooksPath 2>/dev/null || true
+# Pre-flight: the release commit must not run an unrelated global hook chain.
+# A developer-global (or worktree-local) core.hooksPath puts the xp-gate 12-gate
+# chain in the path of the release commit. That chain is slow, and measured it
+# hard-blocks a repository without an architecture.yaml (Gate 6), aborting the
+# release AFTER the after:bump hooks have already rewritten VERSION and AGENTS.md -
+# leaving the tree dirty and the release half-applied.
+#
+# `git config --get` reads the EFFECTIVE value, so a globally-configured hooksPath
+# is detected too; the earlier form only looked at the local scope and therefore
+# missed exactly the case that was measured to fail. Overriding it in the local
+# scope shadows the global value for this repository only.
+EFFECTIVE_HOOKS_PATH="$(git config --get core.hooksPath 2>/dev/null || true)"
+if [ -n "$EFFECTIVE_HOOKS_PATH" ]; then
+  echo "release: core.hooksPath is '$EFFECTIVE_HOOKS_PATH'; overriding it locally for this"
+  echo "release: repository so the release commit does not run an unrelated global hook chain."
+  git config --local core.hooksPath "" 2>/dev/null || true
 fi
 
 ARGS=()
@@ -126,6 +134,14 @@ if [ "$DRY_RUN" -eq 1 ]; then
 else
   echo "release: EXECUTING a real release from $PWD"
 fi
+
+# --ci makes release-it non-interactive. Without it the "Commit (chore(release):
+# vX.Y.Z)?" prompt waits for input that a scripted or unattended run cannot
+# provide; measured, it then aborts with "User force closed the prompt" AFTER the
+# after:bump hooks have already rewritten VERSION and AGENTS.md, leaving the tree
+# modified and the release half-applied. The version files are written by the
+# hooks, so that state needs manual reconciliation. Always pass it.
+ARGS+=(--ci)
 
 if [ -n "$VERSION_ARG" ]; then
   ARGS+=("$VERSION_ARG")
@@ -168,6 +184,10 @@ fail_post() {
 }
 
 # 1. Three-way version equality.
+#    POST_AGENTS keeps the leading 'v' (the header form is "(v1.2.3)"), so it is
+#    compared against "v$POST_VERSION" - an earlier form compared it against the
+#    bare version and failed every correct release with
+#    "AGENTS.md (v1.11.0) != VERSION (1.11.0)".
 POST_VERSION="$(LC_ALL=C tr -d '[:space:]' < VERSION)"
 POST_PKG="$(node -p "require('./package.json').version")"
 POST_AGENTS="$(LC_ALL=C grep -oE '\(v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?\)' AGENTS.md | head -n 1 | tr -d '()')"
@@ -175,11 +195,10 @@ POST_AGENTS="$(LC_ALL=C grep -oE '\(v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?
 if [ "$POST_VERSION" != "$POST_PKG" ]; then
   fail_post "VERSION ($POST_VERSION) != package.json ($POST_PKG)"
 fi
-if [ -n "$POST_AGENTS" ] && [ "$POST_AGENTS" != "$POST_VERSION" ]; then
-  fail_post "AGENTS.md ($POST_AGENTS) != VERSION ($POST_VERSION)"
-fi
-if [ "$POST_AGENTS" != "v$POST_VERSION" ]; then
-  fail_post "AGENTS.md does not carry the released version (expected v$POST_VERSION, found '${POST_AGENTS:-none}')"
+if [ -z "$POST_AGENTS" ]; then
+  fail_post "AGENTS.md carries no (vX.Y.Z) header version"
+elif [ "$POST_AGENTS" != "v$POST_VERSION" ]; then
+  fail_post "AGENTS.md ($POST_AGENTS) != VERSION (v$POST_VERSION)"
 fi
 
 # 2. The release commit must carry the version records, not just the manifest.

@@ -498,9 +498,52 @@ describe('scripts/release.sh', () => {
   it('neutralises an inherited core.hooksPath before releasing', () => {
     const source = readFileSync(releaseSh, 'utf8');
 
-    // Measured: a globally configured core.hooksPath put the xp-gate chain in the
-    // path of fixture commits and hung them.
-    expect(source).toMatch(/git config --local --unset core\.hooksPath/);
+    // Measured: a GLOBALLY configured core.hooksPath puts the xp-gate chain in the
+    // path of the release commit, where Gate 6 hard-blocks a repository without an
+    // architecture.yaml - aborting the release after the version hooks have already
+    // rewritten VERSION and AGENTS.md.
+    //
+    // The earlier form used `git config --local --unset`, which cannot remove a
+    // value configured in the GLOBAL scope, so it silently did nothing for exactly
+    // the case that was measured to fail.
+    expect(source).toMatch(/git config --get core\.hooksPath/);
+    expect(source).toMatch(/git config --local core\.hooksPath ""/);
+    expect(source).not.toMatch(/--local --unset core\.hooksPath/);
+  });
+
+  /**
+   * @test REQ-153-4
+   * @intent always passes --ci so an unattended release cannot stall on an
+   *   interactive prompt after the version hooks have already rewritten files
+   * @covers AC-153-4-02
+   */
+  it('always passes --ci so a scripted release cannot stall on a prompt', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    // Measured: without --ci release-it waits at "Commit (chore(release): vX.Y.Z)?"
+    // and then aborts with "User force closed the prompt" AFTER the after:bump
+    // hooks have rewritten VERSION and AGENTS.md, leaving the tree modified and the
+    // release half-applied.
+    expect(source).toMatch(/ARGS\+=\(--ci\)/);
+  });
+
+  /**
+   * @test REQ-153-4
+   * @intent compares the AGENTS.md header against the v-prefixed version, so a
+   *   correct release is not reported as a failure
+   * @covers AC-153-4-01
+   */
+  it('compares the AGENTS.md header against the v-prefixed version', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    // Measured false failure: the header form is "(v1.11.0)" and keeps its 'v', so
+    // comparing it against the bare "1.11.0" failed EVERY correct release with
+    // "AGENTS.md (v1.11.0) != VERSION (1.11.0)". A post-check that always fails is
+    // worse than none: it trains the operator to ignore it.
+    expect(source).toMatch(/POST_AGENTS" != "v\$POST_VERSION"/);
+    expect(source).not.toMatch(/POST_AGENTS" != "\$POST_VERSION"/);
+    // A missing header must fail closed rather than skip.
+    expect(source).toMatch(/carries no \(vX\.Y\.Z\) header version/);
   });
 
   /**
