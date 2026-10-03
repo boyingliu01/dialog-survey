@@ -62,11 +62,10 @@ function defaultGit(args) {
 export function collectChangedFiles({ base, git = defaultGit }) {
   const files = new Set();
   if (base) {
-    const mergeBase = git(['merge-base', base, 'HEAD'])?.trim();
-    const rangeHead = mergeBase || base;
-    for (const file of selectMutableFiles(
-      git(['diff', '--name-only', `${rangeHead}...HEAD`]) ?? ''
-    )) {
+    // Three-dot means "merge-base(base, HEAD) vs HEAD" — exactly the PR's own
+    // changes. Git resolves the merge-base itself; computing it separately and
+    // feeding a two-dot range breaks when one side is an ancestor of the other.
+    for (const file of selectMutableFiles(git(['diff', '--name-only', `${base}...HEAD`]) ?? '')) {
       files.add(file);
     }
   }

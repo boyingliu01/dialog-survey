@@ -48,13 +48,12 @@ describe('mutation-test orchestrator (issue #155)', () => {
     expect(mod.selectMutableFiles(diff)).toEqual(['src/api/plans.ts']);
   });
 
-  it('AC-1: collectChangedFiles unions merge-base range with working tree and dedupes', async () => {
+  it('AC-1: collectChangedFiles unions base...HEAD range with working tree and dedupes', async () => {
     const mod = await loadModule();
     const calls: string[][] = [];
     const fakeGit = (args: string[]): string | null => {
       calls.push(args);
-      if (args[0] === 'merge-base') return 'abc123\n';
-      if (args.includes('abc123...HEAD')) return 'src/a.ts\nsrc/b.ts\n';
+      if (args[0] === 'diff' && args[2]?.includes('...HEAD')) return 'src/a.ts\nsrc/b.ts\n';
       if (args[0] === 'diff' && args[2] === 'HEAD') return 'src/b.ts\nsrc/c.ts\nREADME.md\n';
       return null;
     };
@@ -63,7 +62,8 @@ describe('mutation-test orchestrator (issue #155)', () => {
       'src/b.ts',
       'src/c.ts',
     ]);
-    expect(calls.some((args) => args[0] === 'merge-base')).toBe(true);
+    // The range must be delegated to git's own merge-base resolution.
+    expect(calls.some((args) => args.includes('origin/master...HEAD'))).toBe(true);
   });
 
   it('AC-1: passes the changed set to Stryker via --mutate (incremental entry)', async () => {
