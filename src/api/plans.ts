@@ -108,7 +108,10 @@ export async function interviewPlanRoutes(
       name: input.name,
       ...(input.description != null ? { description: input.description } : {}),
       templateId: input.templateId,
-      ...(input.targetDate != null ? { targetDate: new Date(input.targetDate) } : {}),
+      // An empty date input serializes as targetDate="" — treat it as unset.
+      ...(input.targetDate != null && input.targetDate !== ''
+        ? { targetDate: new Date(input.targetDate) }
+        : {}),
       ...(input.schedule != null ? { schedule: input.schedule } : {}),
     });
 
@@ -146,7 +149,10 @@ export async function interviewPlanRoutes(
       await planService.updatePlan(id, {
         name: input.name,
         ...(input.description != null ? { description: input.description } : {}),
-        ...(input.targetDate != null ? { targetDate: input.targetDate } : {}),
+        // An empty date input serializes as targetDate="" — treat it as unset.
+        ...(input.targetDate != null && input.targetDate !== ''
+          ? { targetDate: input.targetDate }
+          : {}),
         ...(input.schedule != null ? { schedule: input.schedule } : {}),
       });
       return { id };
