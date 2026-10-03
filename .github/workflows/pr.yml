@@ -355,7 +355,13 @@ jobs:
 
           # AGENTS.md carries the version in its header. Fail closed if the header
           # is absent rather than silently skipping the check.
-          HEADER_VERSION="$(grep -oE '\(v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?\)' AGENTS.md | head -n 1 | tr -d '()')"
+          #
+          # `|| true` is load-bearing, NOT defensive padding. grep exits 1 when it
+          # matches nothing, and under `set -euo pipefail` that status propagates
+          # through the pipeline and aborts the step BEFORE the -z check runs, so the
+          # intended ::error:: annotation would never be printed and the job would
+          # fail with no explanation of what was wrong.
+          HEADER_VERSION="$(grep -oE '\(v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?\)' AGENTS.md 2>/dev/null | head -n 1 | tr -d '()' || true)"
           if [ -z "$HEADER_VERSION" ]; then
             fail "AGENTS.md has no '(vX.Y.Z)' header version to compare"
           fi

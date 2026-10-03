@@ -234,7 +234,15 @@ fail_post() {
 #    "AGENTS.md (v1.11.0) != VERSION (1.11.0)".
 POST_VERSION="$(LC_ALL=C tr -d '[:space:]' < VERSION)"
 POST_PKG="$(node -p "require('./package.json').version")"
-POST_AGENTS="$(LC_ALL=C grep -oE '\(v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?\)' AGENTS.md | head -n 1 | tr -d '()')"
+# `|| true` is load-bearing, NOT defensive padding. grep exits 1 when it matches
+# nothing, and under `set -euo pipefail` that status propagates through the pipeline
+# and ABORTS the shell on the assignment - so the `-z` branch just below, which
+# exists precisely to report the missing header, would be unreachable. Measured:
+# without `|| true` a header-less AGENTS.md exits 1 having printed NO message, after
+# the commit and tag already exist, and the rollback guidance is skipped. This is the
+# same failure class as the `comm` bug, so every grep whose "no match" case is
+# handled by later logic needs it.
+POST_AGENTS="$(LC_ALL=C grep -oE '\(v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?\)' AGENTS.md 2>/dev/null | head -n 1 | tr -d '()' || true)"
 
 if [ "$POST_VERSION" != "$POST_PKG" ]; then
   fail_post "VERSION ($POST_VERSION) != package.json ($POST_PKG)"
