@@ -240,7 +240,7 @@ describe('CI workflows are PG-free and generate-first (AC-004)', () => {
       ['static-analysis', pr, ['npx tsc --noEmit']],
       ['unit-tests', pr, ['npx vitest run']],
       ['integration-tests', pr, ['npx vitest run']],
-      ['coverage', pr, ['npx vitest --coverage']],
+      ['coverage', pr, ['npx vitest run --coverage']],
       ['e2e-tests', pr, ['npx vitest run']],
       ['smoke', pr, ['npm run smoke']],
       ['publish', publish, ['npm run test:coverage', 'npm run build']],
