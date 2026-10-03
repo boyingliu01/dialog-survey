@@ -153,6 +153,46 @@ describe('Interview Plan API Endpoints', () => {
       expect(res.statusCode).toBe(400);
     });
 
+    it('should treat empty-string targetDate as unset on create and update (HTML date input sends "")', async () => {
+      // Regression: the plan form always serializes an untouched date input as
+      // targetDate=""; new Date("") is Invalid Date and used to 500 the request.
+      let templateId: string | undefined;
+      let planId: string | undefined;
+      try {
+        const template = await prisma.template.create({
+          data: { name: 'EmptyTargetDate Template', content: '{}', status: 'DRAFT' },
+        });
+        templateId = template.id;
+
+        const res = await fastify.inject({
+          method: 'POST',
+          url: '/api/plans',
+          payload: { name: 'No Date Plan', templateId: template.id, targetDate: '' },
+        });
+
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body) as { id: string };
+        planId = body.id;
+
+        const plan = await prisma.interviewPlan.findUnique({ where: { id: planId } });
+        expect(plan?.targetDate).toBeNull();
+
+        // PUT must tolerate the same empty-string serialization.
+        const putRes = await fastify.inject({
+          method: 'PUT',
+          url: `/api/plans/${planId}`,
+          payload: { name: 'No Date Plan v2', templateId: template.id, targetDate: '' },
+        });
+        expect(putRes.statusCode).toBe(200);
+        const afterPut = await prisma.interviewPlan.findUnique({ where: { id: planId } });
+        expect(afterPut?.name).toBe('No Date Plan v2');
+        expect(afterPut?.targetDate).toBeNull();
+      } finally {
+        if (planId) await prisma.interviewPlan.delete({ where: { id: planId } }).catch(() => {});
+        if (templateId) await prisma.template.delete({ where: { id: templateId } }).catch(() => {});
+      }
+    });
+
     it('should accept plan with targetDate', async () => {
       let templateId: string | undefined;
       let planId: string | undefined;
