@@ -94,7 +94,9 @@ log_info "✓ Dependencies installed"
 # ── Phase 4: Prisma setup ──────────────────────────────────────────────
 log_info "Setting up Prisma..."
 npx prisma generate
-npx prisma db push --accept-data-loss
+# Issue #152: migrations (prisma/migrations/) are the source of truth —
+# migrate deploy is replayable and rollback-able, unlike `db push`.
+npx prisma migrate deploy
 log_info "✓ Prisma ready"
 
 # ── Phase 5: Build ─────────────────────────────────────────────────────
