@@ -232,3 +232,149 @@ jobs:
 
       - name: Run smoke test
         run: npm run smoke
+
+  # Enforces Conventional Commits (issue #153, design doc §5). The repo
+  # squash-merges, so the PR title becomes the final commit message on master —
+  # that check is load-bearing, the branch-range check is advisory only.
+  commit-lint:
+    name: Commit Lint (Conventional Commits)
+    # Only meaningful on a pull_request: both the base-ref scope (github.base_ref)
+    # and the PR-title check (github.event.pull_request.title) are empty on
+    # workflow_dispatch, so running here would fail with a confusing "base ref is
+    # empty" error for a manual dispatch that has no branch to lint against.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # fetch-depth: 0 — without full history `origin/<base>` does not exist and
+      # the range check would silently lint nothing (§5.1).
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      # Prerequisite: every `npx --no-install` below resolves offline from here.
+      - name: Install dependencies (pinned, no registry drift)
+        run: npm ci
+
+      # Self-check (§5.4): a known-bad message MUST be rejected. If commitlint is
+      # missing, npx is unavailable, or the config is emptied, this step fails
+      # first — the gate can never silently fail-open.
+      - name: Self-check (lint command actually rejects bad input)
+        run: |
+          set -euo pipefail
+          # Must fail: non-conventional message.
+          if printf '%s' "bad message no type" | npx --no-install commitlint --verbose; then
+            echo "::error::commitlint accepted a non-conventional message — gate is fail-open"
+            exit 1
+          fi
+          # Must pass: conventional message.
+          printf '%s' "feat: self check" | npx --no-install commitlint --verbose
+
+      # step ① — base ref resolution is blocking: a missing base ref must fail
+      # loudly rather than let the range check pass vacuously (§5.1, R-6).
+      - name: Resolve base ref
+        id: base
+        run: |
+          set -euo pipefail
+          BASE_REF="${{ github.base_ref }}"
+          if [ -z "$BASE_REF" ]; then
+            echo "::error::base ref is empty (github.base_ref unset) — cannot scope commit range"
+            exit 1
+          fi
+          if ! git rev-parse --verify --quiet "origin/$BASE_REF"; then
+            echo "::error::base ref origin/$BASE_REF not found — is fetch-depth: 0 set?"
+            exit 1
+          fi
+          echo "base_ref=$BASE_REF" >> "$GITHUB_OUTPUT"
+
+      # step ② — PR title check (BLOCKING, load-bearing). commitlint reads the
+      # message from stdin; positional args are silently ignored, hence the pipe.
+      # Passed via env (not interpolated) and with printf (not echo) so titles
+      # containing quotes/backticks/$ or leading -n are handled safely (§5.2).
+      - name: Validate PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s' "$PR_TITLE" | npx --no-install commitlint --verbose
+
+      # step ③ — branch range check (ADVISORY). Intermediate commits are
+      # discarded by squash-merge, so linting them must not block the PR.
+      # If this repo ever moves to merge commits, promote this to blocking (§5.2).
+      - name: Validate commit range (advisory)
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ steps.base.outputs.base_ref }}
+        run: npx --no-install commitlint --from "origin/$BASE_REF" --to HEAD --verbose
+
+  version-consistency:
+    name: Version Consistency (VERSION / package.json / AGENTS.md)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      # Enforce version consistency at the MERGE boundary, not only at release
+      # time. xp-gate's Gate 0 claims to check this but does not: measured, it
+      # passes a staged VERSION that contradicts package.json (exit 0, the commit
+      # lands, nothing is healed). Without this job a drift can sit on the default
+      # branch indefinitely and is discovered only when a release runs — after a
+      # tag and a GitHub Release already exist, when retracting it is expensive.
+      #
+      # This is a ~10-line job on purpose: it needs no dependencies and no build,
+      # so it is fast and cannot be flaky.
+      - name: Assert VERSION, package.json and AGENTS.md agree
+        run: |
+          set -euo pipefail
+
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+
+          if [ ! -f VERSION ]; then
+            fail "VERSION file is missing"
+          fi
+
+          FILE_VERSION="$(tr -d '[:space:]' < VERSION)"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+
+          echo "VERSION      = ${FILE_VERSION}"
+          echo "package.json = ${PKG_VERSION}"
+
+          if [ -z "$FILE_VERSION" ]; then
+            fail "VERSION is empty"
+          fi
+          if [ "$FILE_VERSION" != "$PKG_VERSION" ]; then
+            fail "VERSION (${FILE_VERSION}) != package.json (${PKG_VERSION}) — reconcile before merging; VERSION is written by the after:bump hook (see docs/contributing.md)"
+          fi
+
+          # AGENTS.md carries the version in its header. Fail closed if the header
+          # is absent rather than silently skipping the check.
+          #
+          # `|| true` is load-bearing, NOT defensive padding. grep exits 1 when it
+          # matches nothing, and under `set -euo pipefail` that status propagates
+          # through the pipeline and aborts the step BEFORE the -z check runs, so the
+          # intended ::error:: annotation would never be printed and the job would
+          # fail with no explanation of what was wrong.
+          HEADER_VERSION="$(grep -oE '\(v[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?\)' AGENTS.md 2>/dev/null | head -n 1 | tr -d '()' || true)"
+          if [ -z "$HEADER_VERSION" ]; then
+            fail "AGENTS.md has no '(vX.Y.Z)' header version to compare"
+          fi
+
+          echo "AGENTS.md    = ${HEADER_VERSION}"
+
+          if [ "$HEADER_VERSION" != "v${FILE_VERSION}" ]; then
+            fail "AGENTS.md (${HEADER_VERSION}) != VERSION (v${FILE_VERSION}) — the sync-version fan-out did not run or did not complete (see docs/contributing.md)"
+          fi
+
+          echo "Version consistency OK: VERSION = package.json = AGENTS.md = ${FILE_VERSION}"

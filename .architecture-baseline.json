@@ -1,0 +1,6990 @@
+{
+  "schemaVersion": 1,
+  "archlintVersion": "0.16.0",
+  "generatedAt": "2026-10-02T13:27:26.518975300+00:00",
+  "commit": "f37235f",
+  "smells": [
+    {
+      "id": "clone:1c8781a67ef60545bbca8c01205e19032a1723d50ffc414a97f1cf79aa5d4721",
+      "smellType": "CodeClone",
+      "severity": "High",
+      "files": [
+        "tests/helpers/test-server.ts",
+        "src/server.ts"
+      ],
+      "metrics": {
+        "tokenCount": 159,
+        "cloneInstances": 2,
+        "cloneHash": "1c8781a67ef60545bbca8c01205e19032a1723d50ffc414a97f1cf79aa5d4721"
+      },
+      "details": {
+        "type": "codeClone",
+        "clone_hash": "1c8781a67ef60545bbca8c01205e19032a1723d50ffc414a97f1cf79aa5d4721",
+        "token_count": 159
+      },
+      "locations": [
+        {
+          "file": "src/server.ts",
+          "line": 148,
+          "column": 5,
+          "range": {
+            "start_line": 148,
+            "start_column": 5,
+            "end_line": 174,
+            "end_column": 79
+          },
+          "description": "Duplicated code (159 tokens, lines 148-174). Also found in: tests\\helpers\\test-server.ts:80-112"
+        },
+        {
+          "file": "tests/helpers/test-server.ts",
+          "line": 80,
+          "column": 3,
+          "range": {
+            "start_line": 80,
+            "start_column": 3,
+            "end_line": 112,
+            "end_column": 55
+          },
+          "description": "Duplicated code (159 tokens, lines 80-112). Also found in: src\\server.ts:148-174"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/api/admin-templates.ts:findInviteeInfo:135",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/api/admin-templates.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 16
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "findInviteeInfo",
+        "line": 135,
+        "complexity": 16
+      },
+      "locations": [
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 135,
+          "column": 10,
+          "range": {
+            "start_line": 135,
+            "start_column": 10,
+            "end_line": 135,
+            "end_column": 25
+          },
+          "description": "Function 'findInviteeInfo' (cognitive complexity: 16)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/api/admin-templates.ts:<anonymous>:256",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/api/admin-templates.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 19
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "<anonymous>",
+        "line": 256,
+        "complexity": 19
+      },
+      "locations": [
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 256,
+          "column": 5,
+          "range": {
+            "start_line": 256,
+            "start_column": 5,
+            "end_line": 315,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cognitive complexity: 19)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/api/admin-templates.ts:<anonymous>:483",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/api/admin-templates.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 22
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "<anonymous>",
+        "line": 483,
+        "complexity": 22
+      },
+      "locations": [
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 483,
+          "column": 5,
+          "range": {
+            "start_line": 483,
+            "start_column": 5,
+            "end_line": 574,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cognitive complexity: 22)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/api/admin-templates.ts:<anonymous>:743",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/api/admin-templates.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 17
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "<anonymous>",
+        "line": 743,
+        "complexity": 17
+      },
+      "locations": [
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 743,
+          "column": 5,
+          "range": {
+            "start_line": 743,
+            "start_column": 5,
+            "end_line": 787,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cognitive complexity: 17)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/utils/retry.ts:withRetry:29",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/utils/retry.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 20
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "withRetry",
+        "line": 29,
+        "complexity": 20
+      },
+      "locations": [
+        {
+          "file": "src/utils/retry.ts",
+          "line": 29,
+          "column": 23,
+          "range": {
+            "start_line": 29,
+            "start_column": 23,
+            "end_line": 29,
+            "end_column": 32
+          },
+          "description": "Function 'withRetry' (cognitive complexity: 20)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/alpine.min.js:mt:145",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 17
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "mt",
+        "line": 145,
+        "complexity": 17
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 145,
+          "column": 12,
+          "range": {
+            "start_line": 145,
+            "start_column": 12,
+            "end_line": 145,
+            "end_column": 14
+          },
+          "description": "Function 'mt' (cognitive complexity: 17)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/alpine.min.js:Qn:1080",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 22
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "Qn",
+        "line": 1080,
+        "complexity": 22
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 1080,
+          "column": 12,
+          "range": {
+            "start_line": 1080,
+            "start_column": 12,
+            "end_line": 1080,
+            "end_column": 14
+          },
+          "description": "Function 'Qn' (cognitive complexity: 22)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/alpine.min.js:U:1486",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 16
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "U",
+        "line": 1486,
+        "complexity": 16
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 1486,
+          "column": 12,
+          "range": {
+            "start_line": 1486,
+            "start_column": 12,
+            "end_line": 1486,
+            "end_column": 13
+          },
+          "description": "Function 'U' (cognitive complexity: 16)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/alpine.min.js:<anonymous>:1559",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 28
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "<anonymous>",
+        "line": 1559,
+        "complexity": 28
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 1559,
+          "column": 12,
+          "range": {
+            "start_line": 1559,
+            "start_column": 12,
+            "end_line": 1577,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cognitive complexity: 28)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/alpine.min.js:ae:2019",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 22
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "ae",
+        "line": 2019,
+        "complexity": 22
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 2019,
+          "column": 12,
+          "range": {
+            "start_line": 2019,
+            "start_column": 12,
+            "end_line": 2019,
+            "end_column": 14
+          },
+          "description": "Function 'ae' (cognitive complexity: 22)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/alpine.min.js:<anonymous>:2235",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 48
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "<anonymous>",
+        "line": 2235,
+        "complexity": 48
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 2235,
+          "column": 14,
+          "range": {
+            "start_line": 2235,
+            "start_column": 14,
+            "end_line": 2277,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cognitive complexity: 48)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/alpine.min.js:<anonymous>:2447",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 23
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "<anonymous>",
+        "line": 2447,
+        "complexity": 23
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 2447,
+          "column": 7,
+          "range": {
+            "start_line": 2447,
+            "start_column": 7,
+            "end_line": 2543,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cognitive complexity: 23)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:scripts/cli.mjs:installCommand:578",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "scripts/cli.mjs"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 24
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "installCommand",
+        "line": 578,
+        "complexity": 24
+      },
+      "locations": [
+        {
+          "file": "scripts/cli.mjs",
+          "line": 578,
+          "column": 23,
+          "range": {
+            "start_line": 578,
+            "start_column": 23,
+            "end_line": 578,
+            "end_column": 37
+          },
+          "description": "Function 'installCommand' (cognitive complexity: 24)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:scripts/cli.mjs:statusCommand:870",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "scripts/cli.mjs"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 18
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "statusCommand",
+        "line": 870,
+        "complexity": 18
+      },
+      "locations": [
+        {
+          "file": "scripts/cli.mjs",
+          "line": 870,
+          "column": 23,
+          "range": {
+            "start_line": 870,
+            "start_column": 23,
+            "end_line": 870,
+            "end_column": 36
+          },
+          "description": "Function 'statusCommand' (cognitive complexity: 18)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:p:515",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 40
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "p",
+        "line": 515,
+        "complexity": 40
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 515,
+          "column": 12,
+          "range": {
+            "start_line": 515,
+            "start_column": 12,
+            "end_line": 515,
+            "end_column": 13
+          },
+          "description": "Function 'p' (cognitive complexity: 40)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:_e:946",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 28
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "_e",
+        "line": 946,
+        "complexity": 28
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 946,
+          "column": 12,
+          "range": {
+            "start_line": 946,
+            "start_column": 12,
+            "end_line": 946,
+            "end_column": 14
+          },
+          "description": "Function '_e' (cognitive complexity: 28)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:$e:1011",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 41
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "$e",
+        "line": 1011,
+        "complexity": 41
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1011,
+          "column": 12,
+          "range": {
+            "start_line": 1011,
+            "start_column": 12,
+            "end_line": 1011,
+            "end_column": 14
+          },
+          "description": "Function '$e' (cognitive complexity: 41)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:Je:1114",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 19
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "Je",
+        "line": 1114,
+        "complexity": 19
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1114,
+          "column": 12,
+          "range": {
+            "start_line": 1114,
+            "start_column": 12,
+            "end_line": 1114,
+            "end_column": 14
+          },
+          "description": "Function 'Je' (cognitive complexity: 19)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:et:1144",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 17
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "et",
+        "line": 1144,
+        "complexity": 17
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1144,
+          "column": 12,
+          "range": {
+            "start_line": 1144,
+            "start_column": 12,
+            "end_line": 1144,
+            "end_column": 14
+          },
+          "description": "Function 'et' (cognitive complexity: 17)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:nt:1178",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 27
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "nt",
+        "line": 1178,
+        "complexity": 27
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1178,
+          "column": 12,
+          "range": {
+            "start_line": 1178,
+            "start_column": 12,
+            "end_line": 1178,
+            "end_column": 14
+          },
+          "description": "Function 'nt' (cognitive complexity: 27)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:it:1242",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 105
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "it",
+        "line": 1242,
+        "complexity": 105
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1242,
+          "column": 12,
+          "range": {
+            "start_line": 1242,
+            "start_column": 12,
+            "end_line": 1242,
+            "end_column": 14
+          },
+          "description": "Function 'it' (cognitive complexity: 105)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:ft:1365",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 19
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "ft",
+        "line": 1365,
+        "complexity": 19
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1365,
+          "column": 12,
+          "range": {
+            "start_line": 1365,
+            "start_column": 12,
+            "end_line": 1365,
+            "end_column": 14
+          },
+          "description": "Function 'ft' (cognitive complexity: 19)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:s:1467",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 39
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "s",
+        "line": 1467,
+        "complexity": 39
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1467,
+          "column": 13,
+          "range": {
+            "start_line": 1467,
+            "start_column": 13,
+            "end_line": 1467,
+            "end_column": 14
+          },
+          "description": "Function 's' (cognitive complexity: 39)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:It:1768",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 20
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "It",
+        "line": 1768,
+        "complexity": 20
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1768,
+          "column": 12,
+          "range": {
+            "start_line": 1768,
+            "start_column": 12,
+            "end_line": 1768,
+            "end_column": 14
+          },
+          "description": "Function 'It' (cognitive complexity: 20)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:gn:2312",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 53
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "gn",
+        "line": 2312,
+        "complexity": 53
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 2312,
+          "column": 12,
+          "range": {
+            "start_line": 2312,
+            "start_column": 12,
+            "end_line": 2312,
+            "end_column": 14
+          },
+          "description": "Function 'gn' (cognitive complexity: 53)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:yn:2388",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 29
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "yn",
+        "line": 2388,
+        "complexity": 29
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 2388,
+          "column": 12,
+          "range": {
+            "start_line": 2388,
+            "start_column": 12,
+            "end_line": 2388,
+            "end_column": 14
+          },
+          "description": "Function 'yn' (cognitive complexity: 29)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:bn:2424",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 23
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "bn",
+        "line": 2424,
+        "complexity": 23
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 2424,
+          "column": 12,
+          "range": {
+            "start_line": 2424,
+            "start_column": 12,
+            "end_line": 2424,
+            "end_column": 14
+          },
+          "description": "Function 'bn' (cognitive complexity: 23)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:de:2678",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 116
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "de",
+        "line": 2678,
+        "complexity": 116
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 2678,
+          "column": 12,
+          "range": {
+            "start_line": 2678,
+            "start_column": 12,
+            "end_line": 2678,
+            "end_column": 14
+          },
+          "description": "Function 'de' (cognitive complexity: 116)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:Nn:3009",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 21
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "Nn",
+        "line": 3009,
+        "complexity": 21
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 3009,
+          "column": 12,
+          "range": {
+            "start_line": 3009,
+            "start_column": 12,
+            "end_line": 3009,
+            "end_column": 14
+          },
+          "description": "Function 'Nn' (cognitive complexity: 21)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:public/js/htmx.min.js:Dn:3085",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 45
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "Dn",
+        "line": 3085,
+        "complexity": 45
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 3085,
+          "column": 12,
+          "range": {
+            "start_line": 3085,
+            "start_column": 12,
+            "end_line": 3085,
+            "end_column": 14
+          },
+          "description": "Function 'Dn' (cognitive complexity: 45)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/services/interview-plan-members.service.ts:InterviewPlanService.sendReminder:258",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-members.service.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 35
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "InterviewPlanService.sendReminder",
+        "line": 258,
+        "complexity": 35
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-members.service.ts",
+          "line": 258,
+          "column": 9,
+          "range": {
+            "start_line": 258,
+            "start_column": 9,
+            "end_line": 258,
+            "end_column": 21
+          },
+          "description": "Function 'InterviewPlanService.sendReminder' (cognitive complexity: 35)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/services/followup.service.ts:generateSmartResponse:100",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/services/followup.service.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 19
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "generateSmartResponse",
+        "line": 100,
+        "complexity": 19
+      },
+      "locations": [
+        {
+          "file": "src/services/followup.service.ts",
+          "line": 100,
+          "column": 23,
+          "range": {
+            "start_line": 100,
+            "start_column": 23,
+            "end_line": 100,
+            "end_column": 44
+          },
+          "description": "Function 'generateSmartResponse' (cognitive complexity: 19)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/services/interview-plan-send.service.ts:InterviewPlanSendService.sendInvitations:7",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-send.service.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 24
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "InterviewPlanSendService.sendInvitations",
+        "line": 7,
+        "complexity": 24
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-send.service.ts",
+          "line": 7,
+          "column": 9,
+          "range": {
+            "start_line": 7,
+            "start_column": 9,
+            "end_line": 7,
+            "end_column": 24
+          },
+          "description": "Function 'InterviewPlanSendService.sendInvitations' (cognitive complexity: 24)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/services/interview-plan-send.service.ts:InterviewPlanSendService.resendToInterview:108",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-send.service.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 16
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "InterviewPlanSendService.resendToInterview",
+        "line": 108,
+        "complexity": 16
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-send.service.ts",
+          "line": 108,
+          "column": 9,
+          "range": {
+            "start_line": 108,
+            "start_column": 9,
+            "end_line": 108,
+            "end_column": 26
+          },
+          "description": "Function 'InterviewPlanSendService.resendToInterview' (cognitive complexity: 16)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/services/stream-message.service.ts:StreamMessageService.processMessageInternal:116",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/services/stream-message.service.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 55
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "StreamMessageService.processMessageInternal",
+        "line": 116,
+        "complexity": 55
+      },
+      "locations": [
+        {
+          "file": "src/services/stream-message.service.ts",
+          "line": 116,
+          "column": 17,
+          "range": {
+            "start_line": 116,
+            "start_column": 17,
+            "end_line": 116,
+            "end_column": 39
+          },
+          "description": "Function 'StreamMessageService.processMessageInternal' (cognitive complexity: 55)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/services/export.service.ts:loadInviteeInfo:8",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/services/export.service.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 16
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "loadInviteeInfo",
+        "line": 8,
+        "complexity": 16
+      },
+      "locations": [
+        {
+          "file": "src/services/export.service.ts",
+          "line": 8,
+          "column": 10,
+          "range": {
+            "start_line": 8,
+            "start_column": 10,
+            "end_line": 8,
+            "end_column": 25
+          },
+          "description": "Function 'loadInviteeInfo' (cognitive complexity: 16)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/integrations/llm/openai-compatible.ts:OpenAICompatibleLLM.chat:21",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/integrations/llm/openai-compatible.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 16
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "OpenAICompatibleLLM.chat",
+        "line": 21,
+        "complexity": 16
+      },
+      "locations": [
+        {
+          "file": "src/integrations/llm/openai-compatible.ts",
+          "line": 21,
+          "column": 9,
+          "range": {
+            "start_line": 21,
+            "start_column": 9,
+            "end_line": 21,
+            "end_column": 13
+          },
+          "description": "Function 'OpenAICompatibleLLM.chat' (cognitive complexity: 16)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:tools/spike/prisma7-pglite-spike.mjs:c11_freshInstall:929",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "tools/spike/prisma7-pglite-spike.mjs"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 41
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "c11_freshInstall",
+        "line": 929,
+        "complexity": 41
+      },
+      "locations": [
+        {
+          "file": "tools/spike/prisma7-pglite-spike.mjs",
+          "line": 929,
+          "column": 16,
+          "range": {
+            "start_line": 929,
+            "start_column": 16,
+            "end_line": 929,
+            "end_column": 32
+          },
+          "description": "Function 'c11_freshInstall' (cognitive complexity: 41)"
+        }
+      ]
+    },
+    {
+      "id": "ccog:src/api/plans.ts:<anonymous>:336",
+      "smellType": "HighCognitiveComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/api/plans.ts"
+      ],
+      "metrics": {
+        "cognitiveComplexity": 34
+      },
+      "details": {
+        "type": "highCognitiveComplexity",
+        "name": "<anonymous>",
+        "line": 336,
+        "complexity": 34
+      },
+      "locations": [
+        {
+          "file": "src/api/plans.ts",
+          "line": 336,
+          "column": 5,
+          "range": {
+            "start_line": 336,
+            "start_column": 5,
+            "end_line": 439,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cognitive complexity: 34)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:src/api/admin-templates.ts:<anonymous>:256",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/api/admin-templates.ts"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 17
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "<anonymous>",
+        "line": 256,
+        "complexity": 17
+      },
+      "locations": [
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 256,
+          "column": 5,
+          "range": {
+            "start_line": 256,
+            "start_column": 5,
+            "end_line": 315,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cyclomatic complexity: 17)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/alpine.min.js:Yn:804",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 18
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "Yn",
+        "line": 804,
+        "complexity": 18
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 804,
+          "column": 12,
+          "range": {
+            "start_line": 804,
+            "start_column": 12,
+            "end_line": 804,
+            "end_column": 14
+          },
+          "description": "Function 'Yn' (cyclomatic complexity: 18)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/alpine.min.js:<anonymous>:1559",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 20
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "<anonymous>",
+        "line": 1559,
+        "complexity": 20
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 1559,
+          "column": 12,
+          "range": {
+            "start_line": 1559,
+            "start_column": 12,
+            "end_line": 1577,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cyclomatic complexity: 20)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/alpine.min.js:ae:2019",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 21
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "ae",
+        "line": 2019,
+        "complexity": 21
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 2019,
+          "column": 12,
+          "range": {
+            "start_line": 2019,
+            "start_column": 12,
+            "end_line": 2019,
+            "end_column": 14
+          },
+          "description": "Function 'ae' (cyclomatic complexity: 21)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/alpine.min.js:<anonymous>:2164",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 19
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "<anonymous>",
+        "line": 2164,
+        "complexity": 19
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 2164,
+          "column": 14,
+          "range": {
+            "start_line": 2164,
+            "start_column": 14,
+            "end_line": 2233,
+            "end_column": 4
+          },
+          "description": "Function '<anonymous>' (cyclomatic complexity: 19)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/alpine.min.js:<anonymous>:2235",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 20
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "<anonymous>",
+        "line": 2235,
+        "complexity": 20
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 2235,
+          "column": 14,
+          "range": {
+            "start_line": 2235,
+            "start_column": 14,
+            "end_line": 2277,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cyclomatic complexity: 20)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/alpine.min.js:<anonymous>:2447",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 19
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "<anonymous>",
+        "line": 2447,
+        "complexity": 19
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 2447,
+          "column": 7,
+          "range": {
+            "start_line": 2447,
+            "start_column": 7,
+            "end_line": 2543,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cyclomatic complexity: 19)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:scripts/cli.mjs:installCommand:578",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "scripts/cli.mjs"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 17
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "installCommand",
+        "line": 578,
+        "complexity": 17
+      },
+      "locations": [
+        {
+          "file": "scripts/cli.mjs",
+          "line": 578,
+          "column": 23,
+          "range": {
+            "start_line": 578,
+            "start_column": 23,
+            "end_line": 578,
+            "end_column": 37
+          },
+          "description": "Function 'installCommand' (cyclomatic complexity: 17)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/htmx.min.js:p:515",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 26
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "p",
+        "line": 515,
+        "complexity": 26
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 515,
+          "column": 12,
+          "range": {
+            "start_line": 515,
+            "start_column": 12,
+            "end_line": 515,
+            "end_column": 13
+          },
+          "description": "Function 'p' (cyclomatic complexity: 26)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/htmx.min.js:_e:946",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 17
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "_e",
+        "line": 946,
+        "complexity": 17
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 946,
+          "column": 12,
+          "range": {
+            "start_line": 946,
+            "start_column": 12,
+            "end_line": 946,
+            "end_column": 14
+          },
+          "description": "Function '_e' (cyclomatic complexity: 17)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/htmx.min.js:$e:1011",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 24
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "$e",
+        "line": 1011,
+        "complexity": 24
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1011,
+          "column": 12,
+          "range": {
+            "start_line": 1011,
+            "start_column": 12,
+            "end_line": 1011,
+            "end_column": 14
+          },
+          "description": "Function '$e' (cyclomatic complexity: 24)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/htmx.min.js:it:1242",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 34
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "it",
+        "line": 1242,
+        "complexity": 34
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1242,
+          "column": 12,
+          "range": {
+            "start_line": 1242,
+            "start_column": 12,
+            "end_line": 1242,
+            "end_column": 14
+          },
+          "description": "Function 'it' (cyclomatic complexity: 34)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/htmx.min.js:s:1467",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 22
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "s",
+        "line": 1467,
+        "complexity": 22
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1467,
+          "column": 13,
+          "range": {
+            "start_line": 1467,
+            "start_column": 13,
+            "end_line": 1467,
+            "end_column": 14
+          },
+          "description": "Function 's' (cyclomatic complexity: 22)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/htmx.min.js:gn:2312",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 19
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "gn",
+        "line": 2312,
+        "complexity": 19
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 2312,
+          "column": 12,
+          "range": {
+            "start_line": 2312,
+            "start_column": 12,
+            "end_line": 2312,
+            "end_column": 14
+          },
+          "description": "Function 'gn' (cyclomatic complexity: 19)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/htmx.min.js:yn:2388",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 22
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "yn",
+        "line": 2388,
+        "complexity": 22
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 2388,
+          "column": 12,
+          "range": {
+            "start_line": 2388,
+            "start_column": 12,
+            "end_line": 2388,
+            "end_column": 14
+          },
+          "description": "Function 'yn' (cyclomatic complexity: 22)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/htmx.min.js:de:2678",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 73
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "de",
+        "line": 2678,
+        "complexity": 73
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 2678,
+          "column": 12,
+          "range": {
+            "start_line": 2678,
+            "start_column": 12,
+            "end_line": 2678,
+            "end_column": 14
+          },
+          "description": "Function 'de' (cyclomatic complexity: 73)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/htmx.min.js:Nn:3009",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 16
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "Nn",
+        "line": 3009,
+        "complexity": 16
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 3009,
+          "column": 12,
+          "range": {
+            "start_line": 3009,
+            "start_column": 12,
+            "end_line": 3009,
+            "end_column": 14
+          },
+          "description": "Function 'Nn' (cyclomatic complexity: 16)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:public/js/htmx.min.js:Dn:3085",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 34
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "Dn",
+        "line": 3085,
+        "complexity": 34
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 3085,
+          "column": 12,
+          "range": {
+            "start_line": 3085,
+            "start_column": 12,
+            "end_line": 3085,
+            "end_column": 14
+          },
+          "description": "Function 'Dn' (cyclomatic complexity: 34)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:src/services/interview-plan-members.service.ts:InterviewPlanService.sendReminder:258",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-members.service.ts"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 17
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "InterviewPlanService.sendReminder",
+        "line": 258,
+        "complexity": 17
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-members.service.ts",
+          "line": 258,
+          "column": 9,
+          "range": {
+            "start_line": 258,
+            "start_column": 9,
+            "end_line": 258,
+            "end_column": 21
+          },
+          "description": "Function 'InterviewPlanService.sendReminder' (cyclomatic complexity: 17)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:src/services/followup.service.ts:generateSmartResponse:100",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/services/followup.service.ts"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 16
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "generateSmartResponse",
+        "line": 100,
+        "complexity": 16
+      },
+      "locations": [
+        {
+          "file": "src/services/followup.service.ts",
+          "line": 100,
+          "column": 23,
+          "range": {
+            "start_line": 100,
+            "start_column": 23,
+            "end_line": 100,
+            "end_column": 44
+          },
+          "description": "Function 'generateSmartResponse' (cyclomatic complexity: 16)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:src/services/interview-plan-send.service.ts:InterviewPlanSendService.sendInvitations:7",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-send.service.ts"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 18
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "InterviewPlanSendService.sendInvitations",
+        "line": 7,
+        "complexity": 18
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-send.service.ts",
+          "line": 7,
+          "column": 9,
+          "range": {
+            "start_line": 7,
+            "start_column": 9,
+            "end_line": 7,
+            "end_column": 24
+          },
+          "description": "Function 'InterviewPlanSendService.sendInvitations' (cyclomatic complexity: 18)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:src/services/stream-message.service.ts:StreamMessageService.processMessageInternal:116",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/services/stream-message.service.ts"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 28
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "StreamMessageService.processMessageInternal",
+        "line": 116,
+        "complexity": 28
+      },
+      "locations": [
+        {
+          "file": "src/services/stream-message.service.ts",
+          "line": 116,
+          "column": 17,
+          "range": {
+            "start_line": 116,
+            "start_column": 17,
+            "end_line": 116,
+            "end_column": 39
+          },
+          "description": "Function 'StreamMessageService.processMessageInternal' (cyclomatic complexity: 28)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:src/repositories/template.repository.ts:TemplateRepository.getUsageStats:234",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/repositories/template.repository.ts"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 20
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "TemplateRepository.getUsageStats",
+        "line": 234,
+        "complexity": 20
+      },
+      "locations": [
+        {
+          "file": "src/repositories/template.repository.ts",
+          "line": 234,
+          "column": 9,
+          "range": {
+            "start_line": 234,
+            "start_column": 9,
+            "end_line": 234,
+            "end_column": 22
+          },
+          "description": "Function 'TemplateRepository.getUsageStats' (cyclomatic complexity: 20)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:src/integrations/llm/openai-compatible.ts:OpenAICompatibleLLM.chat:21",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/integrations/llm/openai-compatible.ts"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 16
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "OpenAICompatibleLLM.chat",
+        "line": 21,
+        "complexity": 16
+      },
+      "locations": [
+        {
+          "file": "src/integrations/llm/openai-compatible.ts",
+          "line": 21,
+          "column": 9,
+          "range": {
+            "start_line": 21,
+            "start_column": 9,
+            "end_line": 21,
+            "end_column": 13
+          },
+          "description": "Function 'OpenAICompatibleLLM.chat' (cyclomatic complexity: 16)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:tools/spike/prisma7-pglite-spike.mjs:c11_freshInstall:929",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "tools/spike/prisma7-pglite-spike.mjs"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 35
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "c11_freshInstall",
+        "line": 929,
+        "complexity": 35
+      },
+      "locations": [
+        {
+          "file": "tools/spike/prisma7-pglite-spike.mjs",
+          "line": 929,
+          "column": 16,
+          "range": {
+            "start_line": 929,
+            "start_column": 16,
+            "end_line": 929,
+            "end_column": 32
+          },
+          "description": "Function 'c11_freshInstall' (cyclomatic complexity: 35)"
+        }
+      ]
+    },
+    {
+      "id": "ccycl:src/api/plans.ts:<anonymous>:336",
+      "smellType": "HighCyclomaticComplexity",
+      "severity": "Medium",
+      "files": [
+        "src/api/plans.ts"
+      ],
+      "metrics": {
+        "cyclomaticComplexity": 22
+      },
+      "details": {
+        "type": "highCyclomaticComplexity",
+        "name": "<anonymous>",
+        "line": 336,
+        "complexity": 22
+      },
+      "locations": [
+        {
+          "file": "src/api/plans.ts",
+          "line": 336,
+          "column": 5,
+          "range": {
+            "start_line": 336,
+            "start_column": 5,
+            "end_line": 439,
+            "end_column": 6
+          },
+          "description": "Function '<anonymous>' (cyclomatic complexity: 22)"
+        }
+      ]
+    },
+    {
+      "id": "params:src/core/nodes/interviewing.ts:routeAction:23",
+      "smellType": "LongParameterList",
+      "severity": "Medium",
+      "files": [
+        "src/core/nodes/interviewing.ts"
+      ],
+      "metrics": {
+        "parameterCount": 7
+      },
+      "details": {
+        "type": "longParameterList",
+        "count": 7,
+        "name": "routeAction"
+      },
+      "locations": [
+        {
+          "file": "src/core/nodes/interviewing.ts",
+          "line": 23,
+          "column": 10,
+          "range": {
+            "start_line": 23,
+            "start_column": 10,
+            "end_line": 23,
+            "end_column": 21
+          },
+          "description": "Function 'routeAction' has 7 parameters"
+        }
+      ]
+    },
+    {
+      "id": "params:public/js/alpine.min.js:U:1486",
+      "smellType": "LongParameterList",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "parameterCount": 6
+      },
+      "details": {
+        "type": "longParameterList",
+        "count": 6,
+        "name": "U"
+      },
+      "locations": [
+        {
+          "file": "public/js/alpine.min.js",
+          "line": 1486,
+          "column": 12,
+          "range": {
+            "start_line": 1486,
+            "start_column": 12,
+            "end_line": 1486,
+            "end_column": 13
+          },
+          "description": "Function 'U' has 6 parameters"
+        }
+      ]
+    },
+    {
+      "id": "params:public/js/htmx.min.js:de:2678",
+      "smellType": "LongParameterList",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "parameterCount": 6
+      },
+      "details": {
+        "type": "longParameterList",
+        "count": 6,
+        "name": "de"
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 2678,
+          "column": 12,
+          "range": {
+            "start_line": 2678,
+            "start_column": 12,
+            "end_line": 2678,
+            "end_column": 14
+          },
+          "description": "Function 'de' has 6 parameters"
+        }
+      ]
+    },
+    {
+      "id": "params:src/services/followup.service.ts:generateSmartResponse:100",
+      "smellType": "LongParameterList",
+      "severity": "Medium",
+      "files": [
+        "src/services/followup.service.ts"
+      ],
+      "metrics": {
+        "parameterCount": 7
+      },
+      "details": {
+        "type": "longParameterList",
+        "count": 7,
+        "name": "generateSmartResponse"
+      },
+      "locations": [
+        {
+          "file": "src/services/followup.service.ts",
+          "line": 100,
+          "column": 23,
+          "range": {
+            "start_line": 100,
+            "start_column": 23,
+            "end_line": 100,
+            "end_column": 44
+          },
+          "description": "Function 'generateSmartResponse' has 7 parameters"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/integrations/dingtalk/client.ts:DingTalkClient.generateSignature:101",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/integrations/dingtalk/client.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "DingTalkClient.generateSignature",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/integrations/dingtalk/client.ts",
+          "line": 101,
+          "column": 3,
+          "range": {
+            "start_line": 101,
+            "start_column": 3,
+            "end_line": 101,
+            "end_column": 20
+          },
+          "description": "Class Method 'DingTalkClient.generateSignature' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/integrations/llm/alibaba.ts:AlibabaLLM.chat:17",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/integrations/llm/alibaba.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "AlibabaLLM.chat",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/integrations/llm/alibaba.ts",
+          "line": 17,
+          "column": 9,
+          "range": {
+            "start_line": 17,
+            "start_column": 9,
+            "end_line": 17,
+            "end_column": 13
+          },
+          "description": "Class Method 'AlibabaLLM.chat' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/integrations/llm/alibaba.ts:AlibabaLLM.fromEnv:71",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/integrations/llm/alibaba.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "AlibabaLLM.fromEnv",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/integrations/llm/alibaba.ts",
+          "line": 71,
+          "column": 10,
+          "range": {
+            "start_line": 71,
+            "start_column": 10,
+            "end_line": 71,
+            "end_column": 17
+          },
+          "description": "Class Method 'AlibabaLLM.fromEnv' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-send.service.ts:InterviewPlanSendService.sendInvitations:7",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-send.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanSendService.sendInvitations",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-send.service.ts",
+          "line": 7,
+          "column": 9,
+          "range": {
+            "start_line": 7,
+            "start_column": 9,
+            "end_line": 7,
+            "end_column": 24
+          },
+          "description": "Class Method 'InterviewPlanSendService.sendInvitations' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-send.service.ts:InterviewPlanSendService.resendToInterview:108",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-send.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanSendService.resendToInterview",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-send.service.ts",
+          "line": 108,
+          "column": 9,
+          "range": {
+            "start_line": 108,
+            "start_column": 9,
+            "end_line": 108,
+            "end_column": 26
+          },
+          "description": "Class Method 'InterviewPlanSendService.resendToInterview' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-send.service.ts:InterviewPlanSendService.pausePlan:218",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-send.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanSendService.pausePlan",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-send.service.ts",
+          "line": 218,
+          "column": 9,
+          "range": {
+            "start_line": 218,
+            "start_column": 9,
+            "end_line": 218,
+            "end_column": 18
+          },
+          "description": "Class Method 'InterviewPlanSendService.pausePlan' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-send.service.ts:InterviewPlanSendService.resumePlan:222",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-send.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanSendService.resumePlan",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-send.service.ts",
+          "line": 222,
+          "column": 9,
+          "range": {
+            "start_line": 222,
+            "start_column": 9,
+            "end_line": 222,
+            "end_column": 19
+          },
+          "description": "Class Method 'InterviewPlanSendService.resumePlan' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-send.service.ts:InterviewPlanSendService.cancelPlan:226",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-send.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanSendService.cancelPlan",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-send.service.ts",
+          "line": 226,
+          "column": 9,
+          "range": {
+            "start_line": 226,
+            "start_column": 9,
+            "end_line": 226,
+            "end_column": 19
+          },
+          "description": "Class Method 'InterviewPlanSendService.cancelPlan' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-base.service.ts:InterviewPlanServiceBase.createPlan:30",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-base.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanServiceBase.createPlan",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 30,
+          "column": 9,
+          "range": {
+            "start_line": 30,
+            "start_column": 9,
+            "end_line": 30,
+            "end_column": 19
+          },
+          "description": "Class Method 'InterviewPlanServiceBase.createPlan' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-base.service.ts:InterviewPlanServiceBase.getPlan:47",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-base.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanServiceBase.getPlan",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 47,
+          "column": 9,
+          "range": {
+            "start_line": 47,
+            "start_column": 9,
+            "end_line": 47,
+            "end_column": 16
+          },
+          "description": "Class Method 'InterviewPlanServiceBase.getPlan' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-base.service.ts:InterviewPlanServiceBase.listPlans:66",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-base.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanServiceBase.listPlans",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 66,
+          "column": 9,
+          "range": {
+            "start_line": 66,
+            "start_column": 9,
+            "end_line": 66,
+            "end_column": 18
+          },
+          "description": "Class Method 'InterviewPlanServiceBase.listPlans' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-base.service.ts:InterviewPlanServiceBase.findByIdWithTemplate:109",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-base.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanServiceBase.findByIdWithTemplate",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 109,
+          "column": 9,
+          "range": {
+            "start_line": 109,
+            "start_column": 9,
+            "end_line": 109,
+            "end_column": 29
+          },
+          "description": "Class Method 'InterviewPlanServiceBase.findByIdWithTemplate' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-base.service.ts:InterviewPlanServiceBase.findByIdWithInterviewsAndCounts:116",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-base.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanServiceBase.findByIdWithInterviewsAndCounts",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 116,
+          "column": 9,
+          "range": {
+            "start_line": 116,
+            "start_column": 9,
+            "end_line": 116,
+            "end_column": 40
+          },
+          "description": "Class Method 'InterviewPlanServiceBase.findByIdWithInterviewsAndCounts' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-base.service.ts:InterviewPlanServiceBase.findByIdWithDeleteChecks:139",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-base.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanServiceBase.findByIdWithDeleteChecks",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 139,
+          "column": 9,
+          "range": {
+            "start_line": 139,
+            "start_column": 9,
+            "end_line": 139,
+            "end_column": 33
+          },
+          "description": "Class Method 'InterviewPlanServiceBase.findByIdWithDeleteChecks' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-base.service.ts:InterviewPlanServiceBase.findAllForSelect:146",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-base.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanServiceBase.findAllForSelect",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 146,
+          "column": 9,
+          "range": {
+            "start_line": 146,
+            "start_column": 9,
+            "end_line": 146,
+            "end_column": 25
+          },
+          "description": "Class Method 'InterviewPlanServiceBase.findAllForSelect' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-base.service.ts:InterviewPlanServiceBase.deletePlan:152",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-base.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanServiceBase.deletePlan",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 152,
+          "column": 9,
+          "range": {
+            "start_line": 152,
+            "start_column": 9,
+            "end_line": 152,
+            "end_column": 19
+          },
+          "description": "Class Method 'InterviewPlanServiceBase.deletePlan' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-base.service.ts:InterviewPlanServiceBase.deletePlanWithInterviews:156",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-base.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanServiceBase.deletePlanWithInterviews",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 156,
+          "column": 9,
+          "range": {
+            "start_line": 156,
+            "start_column": 9,
+            "end_line": 156,
+            "end_column": 33
+          },
+          "description": "Class Method 'InterviewPlanServiceBase.deletePlanWithInterviews' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-base.service.ts:InterviewPlanServiceBase.countByStatusForTemplate:204",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-base.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanServiceBase.countByStatusForTemplate",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 204,
+          "column": 9,
+          "range": {
+            "start_line": 204,
+            "start_column": 9,
+            "end_line": 204,
+            "end_column": 33
+          },
+          "description": "Class Method 'InterviewPlanServiceBase.countByStatusForTemplate' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-members.service.ts:InterviewPlanService.addMember:99",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-members.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanService.addMember",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-members.service.ts",
+          "line": 99,
+          "column": 9,
+          "range": {
+            "start_line": 99,
+            "start_column": 9,
+            "end_line": 99,
+            "end_column": 18
+          },
+          "description": "Class Method 'InterviewPlanService.addMember' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-members.service.ts:InterviewPlanService.removeMember:203",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-members.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanService.removeMember",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-members.service.ts",
+          "line": 203,
+          "column": 9,
+          "range": {
+            "start_line": 203,
+            "start_column": 9,
+            "end_line": 203,
+            "end_column": 21
+          },
+          "description": "Class Method 'InterviewPlanService.removeMember' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/interview-plan-members.service.ts:InterviewPlanService.sendReminder:258",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-members.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "InterviewPlanService.sendReminder",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-members.service.ts",
+          "line": 258,
+          "column": 9,
+          "range": {
+            "start_line": 258,
+            "start_column": 9,
+            "end_line": 258,
+            "end_column": 21
+          },
+          "description": "Class Method 'InterviewPlanService.sendReminder' definition"
+        }
+      ]
+    },
+    {
+      "id": "dead:src/services/prompt.service.ts:PromptService.getTemplate:226",
+      "smellType": "DeadSymbol",
+      "severity": "Medium",
+      "files": [
+        "src/services/prompt.service.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadSymbol",
+        "name": "PromptService.getTemplate",
+        "kind": "Class Method"
+      },
+      "locations": [
+        {
+          "file": "src/services/prompt.service.ts",
+          "line": 226,
+          "column": 3,
+          "range": {
+            "start_line": 226,
+            "start_column": 3,
+            "end_line": 226,
+            "end_column": 14
+          },
+          "description": "Class Method 'PromptService.getTemplate' definition"
+        }
+      ]
+    },
+    {
+      "id": "vendor:\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\repositories\\interview.repository.ts",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "tests/admin-templates-integration.test.ts",
+        "tests/admin-templates-extra.test.ts",
+        "src/api/admin-templates.ts",
+        "tests/admin-shell-csrf.test.ts",
+        "tests/admin-templates-import.test.ts",
+        "src/server.ts",
+        "tests/helpers/test-server.ts",
+        "tests/interview-repository.test.ts",
+        "tests/workflow-interview-lifecycle.test.ts",
+        "tests/admin-delete.test.ts",
+        "tests/admin-template-csrf.test.ts"
+      ],
+      "metrics": {
+        "dependentCount": 11
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\repositories\\interview.repository.ts"
+      },
+      "locations": [
+        {
+          "file": "tests/admin-templates-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-extra.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-shell-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/test-server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-repository.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/workflow-interview-lifecycle.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-delete.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-template-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\utils\\logger.ts",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "src/services/analysis.service.ts",
+        "src/services/report.service.ts",
+        "src/api/admin-templates.ts",
+        "src/services/audit-cleanup.service.ts",
+        "src/services/interview-plan-send.service.ts",
+        "src/services/interview-plan-members.service.ts",
+        "scripts/fix-max-followups.ts",
+        "src/integrations/llm/openai-compatible.ts",
+        "src/core/graph.ts",
+        "prisma/seed-test-interview.ts",
+        "src/services/stream-message.service.ts",
+        "src/core/nodes/interviewing.ts",
+        "src/repositories/interview-state.repository.ts",
+        "src/services/interview-plan-base.service.ts",
+        "src/services/export.service.ts",
+        "src/services/stream-message-utils.ts",
+        "tests/logger.test.ts",
+        "src/integrations/dingtalk/token-manager.ts",
+        "src/api/health.ts",
+        "src/server.ts",
+        "src/utils/markdown.ts",
+        "src/services/followup.service.ts",
+        "src/services/dead-letter.service.ts",
+        "src/integrations/dingtalk/stream-client.ts",
+        "src/services/analytics.service.ts",
+        "prisma/seed-satisfaction-survey.ts"
+      ],
+      "metrics": {
+        "dependentCount": 26
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\utils\\logger.ts"
+      },
+      "locations": [
+        {
+          "file": "src/services/analysis.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/report.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/audit-cleanup.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/interview-plan-send.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/interview-plan-members.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "scripts/fix-max-followups.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/integrations/llm/openai-compatible.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/graph.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "prisma/seed-test-interview.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/stream-message.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/nodes/interviewing.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/repositories/interview-state.repository.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/export.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/stream-message-utils.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/logger.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/integrations/dingtalk/token-manager.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/health.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/utils/markdown.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/followup.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/dead-letter.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/integrations/dingtalk/stream-client.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/analytics.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "prisma/seed-satisfaction-survey.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\repositories\\template.repository.ts",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "src/api/templates.ts",
+        "tests/helpers/test-server.ts",
+        "tests/admin-templates-import.test.ts",
+        "src/services/stream-message.service.ts",
+        "src/server.ts",
+        "tests/template-repository.integration.test.ts",
+        "tests/template-crud.test.ts",
+        "src/api/admin-templates.ts",
+        "tests/workflow-interview-lifecycle.test.ts",
+        "tests/admin-template-csrf.test.ts",
+        "tests/admin-delete.test.ts",
+        "tests/admin-templates.test.ts",
+        "tests/interviewing-node.test.ts",
+        "tests/admin-shell-csrf.test.ts",
+        "tests/admin-templates-integration.test.ts",
+        "src/core/nodes/template-utils.ts",
+        "tests/templates-api.test.ts",
+        "tests/admin-templates-extra.test.ts"
+      ],
+      "metrics": {
+        "dependentCount": 18
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\repositories\\template.repository.ts"
+      },
+      "locations": [
+        {
+          "file": "src/api/templates.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/test-server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/stream-message.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-repository.integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-crud.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/workflow-interview-lifecycle.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-template-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-delete.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interviewing-node.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-shell-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/nodes/template-utils.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/templates-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-extra.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\services\\analysis.service.ts",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "tests/admin-template-csrf.test.ts",
+        "tests/helpers/test-server.ts",
+        "tests/admin-shell-csrf.test.ts",
+        "tests/analysis-api.test.ts",
+        "tests/admin-templates-import.test.ts",
+        "tests/admin-templates-integration.test.ts",
+        "tests/workflow-interview-lifecycle.test.ts",
+        "tests/analysis.test.ts",
+        "src/server.ts",
+        "src/core/graph.ts",
+        "src/api/analysis.ts",
+        "src/api/admin-templates.ts",
+        "tests/admin-delete.test.ts",
+        "tests/admin-templates-extra.test.ts"
+      ],
+      "metrics": {
+        "dependentCount": 14
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\services\\analysis.service.ts"
+      },
+      "locations": [
+        {
+          "file": "tests/admin-template-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/test-server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-shell-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/analysis-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/workflow-interview-lifecycle.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/analysis.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/graph.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/analysis.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-delete.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-extra.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\services\\interview-plan.service.ts",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "tests/interview-plan-members-phone.test.ts",
+        "src/server.ts",
+        "tests/admin-plan-route-csrf.test.ts",
+        "tests/admin-templates-import.test.ts",
+        "tests/admin-templates-extra.test.ts",
+        "tests/admin-templates-integration.test.ts",
+        "tests/admin-plan-csrf.test.ts",
+        "tests/helpers/test-server.ts",
+        "tests/interview-plan-members.test.ts",
+        "tests/batch-import.test.ts",
+        "src/api/admin-templates.ts",
+        "src/api/plans.ts",
+        "tests/plans-api.test.ts",
+        "tests/admin-template-csrf.test.ts",
+        "tests/interview-plan-additional.test.ts",
+        "tests/workflow-interview-lifecycle.test.ts",
+        "tests/admin-shell-csrf.test.ts",
+        "tests/admin-delete.test.ts",
+        "tests/interview-plan.test.ts"
+      ],
+      "metrics": {
+        "dependentCount": 19
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\services\\interview-plan.service.ts"
+      },
+      "locations": [
+        {
+          "file": "tests/interview-plan-members-phone.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-plan-route-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-extra.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-plan-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/test-server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan-members.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/batch-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/plans.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/plans-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-template-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan-additional.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/workflow-interview-lifecycle.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-shell-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-delete.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:@fastify/secure-session",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "tests/admin-templates-integration.test.ts",
+        "tests/helpers/admin-auth.ts",
+        "src/server.ts",
+        "src/middleware/admin-auth.ts",
+        "tests/admin-templates-import.test.ts",
+        "tests/admin-shell-csrf.test.ts",
+        "src/middleware/session-auth.ts",
+        "tests/admin-csrf.test.ts",
+        "tests/admin-templates-extra.test.ts",
+        "tests/admin-plan-route-csrf.test.ts",
+        "tests/plans-api.test.ts",
+        "tests/admin-auth-integration.test.ts",
+        "tests/admin-template-csrf.test.ts",
+        "tests/admin-plan-csrf.test.ts",
+        "tests/admin-auth-routes.test.ts"
+      ],
+      "metrics": {
+        "dependentCount": 15
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "@fastify/secure-session"
+      },
+      "locations": [
+        {
+          "file": "tests/admin-templates-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/admin-auth.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/middleware/admin-auth.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-shell-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/middleware/session-auth.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-extra.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-plan-route-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/plans-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-auth-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-template-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-plan-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-auth-routes.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\core\\types\\index.ts",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "src/services/stream-message.service.ts",
+        "src/core/nodes/planning.ts",
+        "tests/state-integration.test.ts",
+        "src/services/followup.service.ts",
+        "tests/interviewing-node.test.ts",
+        "tests/followup-branches.test.ts",
+        "tests/smart-response.test.ts",
+        "tests/planning-node.test.ts",
+        "src/repositories/interview-state-mapper.ts",
+        "src/repositories/interview-state.repository.ts",
+        "src/core/nodes/template-utils.ts",
+        "src/core/graph.ts",
+        "tests/stream-message-full.test.ts",
+        "tests/interviewing-smart-response.test.ts",
+        "tests/stream-message-service.test.ts",
+        "tests/core-nodes-branches.test.ts",
+        "tests/interview-state-repository.integration.test.ts",
+        "src/core/nodes/interviewing.ts",
+        "tests/interview-state-repository.test.ts",
+        "tests/graph.test.ts",
+        "tests/interview-state-full.test.ts",
+        "src/services/interview-plan-members.service.ts",
+        "tests/conversation-engine.integration.test.ts",
+        "src/api/plans.ts"
+      ],
+      "metrics": {
+        "dependentCount": 24
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\core\\types\\index.ts"
+      },
+      "locations": [
+        {
+          "file": "src/services/stream-message.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/nodes/planning.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/state-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/followup.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interviewing-node.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/followup-branches.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/smart-response.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/planning-node.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/repositories/interview-state-mapper.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/repositories/interview-state.repository.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/nodes/template-utils.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/graph.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/stream-message-full.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interviewing-smart-response.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/stream-message-service.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/core-nodes-branches.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-state-repository.integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/nodes/interviewing.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-state-repository.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/graph.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-state-full.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/interview-plan-members.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/conversation-engine.integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/plans.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:@fastify/csrf-protection",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "tests/admin-plan-csrf.test.ts",
+        "tests/admin-template-csrf.test.ts",
+        "src/middleware/admin-csrf.ts",
+        "tests/admin-auth-routes.test.ts",
+        "tests/admin-templates-integration.test.ts",
+        "src/server.ts",
+        "tests/admin-plan-route-csrf.test.ts",
+        "tests/helpers/admin-auth.ts",
+        "tests/admin-shell-csrf.test.ts",
+        "tests/admin-templates-extra.test.ts",
+        "tests/plans-api.test.ts",
+        "tests/admin-templates-import.test.ts"
+      ],
+      "metrics": {
+        "dependentCount": 12
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "@fastify/csrf-protection"
+      },
+      "locations": [
+        {
+          "file": "tests/admin-plan-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-template-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/middleware/admin-csrf.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-auth-routes.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-plan-route-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/admin-auth.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-shell-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-extra.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/plans-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:vitest",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "tests/analysis-api.test.ts",
+        "tests/strip-extra-questions.test.ts",
+        "tests/path-resolver.test.ts",
+        "tests/token-manager.test.ts",
+        "tests/login-rate-limit.test.ts",
+        "tests/followup-branches.test.ts",
+        "tests/admin-plan-route-csrf.test.ts",
+        "tests/plan-form-tree-refresh.test.ts",
+        "tests/e2e/plan-lifecycle.e2e.test.ts",
+        "tests/plans-api.test.ts",
+        "tests/login-csrf.test.ts",
+        "tests/pii-anonymizer.test.ts",
+        "tests/db.test.ts",
+        "tests/admin-templates-extra.test.ts",
+        "tests/health-check.test.ts",
+        "tests/interviewing-node.test.ts",
+        "tests/admin-delete.test.ts",
+        "tests/prisma-client.test.ts",
+        "tests/langgraph.test.ts",
+        "tests/e2e/admin-auth.e2e.test.ts",
+        "tests/report.test.ts",
+        "tests/template-crud.test.ts",
+        "tests/state-persistence.test.ts",
+        "tests/message-repository.test.ts",
+        "tests/sync-version.test.ts",
+        "tests/template-schema.test.ts",
+        "tests/interview-plan.integration.test.ts",
+        "tests/template-version.test.ts",
+        "tests/message-sender.test.ts",
+        "tests/e2e/cli-install.e2e.test.ts",
+        "tests/admin-plan-csrf.test.ts",
+        "tests/project-structure.test.ts",
+        "tests/create-test-prisma.test.ts",
+        "tests/workflow-interview-lifecycle.test.ts",
+        "tests/stream-client-branches.test.ts",
+        "tests/core-nodes-branches.test.ts",
+        "tests/template-import-export.test.ts",
+        "tests/logger.test.ts",
+        "tests/webhook-message.test.ts",
+        "tests/e2e/member-management.e2e.test.ts",
+        "tests/cli.test.ts",
+        "tests/e2e/batch-import.e2e.test.ts",
+        "tests/batch-aggregate-api.test.ts",
+        "tests/dead-letter.test.ts",
+        "tests/admin-plan-matcher.test.ts",
+        "tests/admin-auth-integration.test.ts",
+        "tests/llm-followup-report.test.ts",
+        "tests/report-dimensions.test.ts",
+        "tests/smart-response.test.ts",
+        "tests/admin-tree.test.ts",
+        "tests/interviewing-smart-response.test.ts",
+        "tests/schema-analysis-dimensions.test.ts",
+        "vitest.config.ts",
+        "tests/templates-api.test.ts",
+        "tests/plan-form-tree-target.test.ts",
+        "tests/dingtalk-stream.test.ts",
+        "tests/server-lifecycle.test.ts",
+        "tests/interview-state-full.test.ts",
+        "tests/pglite-template.test.ts",
+        "tests/analysis.test.ts",
+        "tests/e2e/admin-tree-refresh.e2e.test.ts",
+        "tests/graph.test.ts",
+        "tests/report-api.test.ts",
+        "tests/interview-plan-additional.test.ts",
+        "tests/env-config.test.ts",
+        "tests/interview-state-repository.test.ts",
+        "tests/interview-plan-members-phone.test.ts",
+        "tests/admin-csrf.test.ts",
+        "tests/e2e/interview-flow.e2e.test.ts",
+        "tests/multi-turn-conversation.test.ts",
+        "tests/prisma-schema.test.ts",
+        "tests/stream-message-service.test.ts",
+        "tests/analytics.service.test.ts",
+        "tests/batch-aggregation.test.ts",
+        "tests/export.service.test.ts",
+        "tests/prisma7-spec-invariants.test.ts",
+        "tests/admin-templates.test.ts",
+        "tests/health-api.test.ts",
+        "tests/audit-cleanup.service.test.ts",
+        "tests/dingtalk-signature.test.ts",
+        "tests/admin-shell-csrf.test.ts",
+        "tests/retry.test.ts",
+        "tests/interview-state-repository.integration.test.ts",
+        "tests/analyze-with-dimensions.test.ts",
+        "tests/test-database.test.ts",
+        "tests/security.test.ts",
+        "tests/batch-import.test.ts",
+        "tests/dingtalk-services.test.ts",
+        "tests/interview-repository.test.ts",
+        "tests/dimension-validation.test.ts",
+        "tests/prisma-factory.test.ts",
+        "tests/dingtalk-client-get-by-mobile.test.ts",
+        "tests/state-integration.test.ts",
+        "tests/e2e/report-viewing.e2e.test.ts",
+        "tests/e2e/template-lifecycle.e2e.test.ts",
+        "tests/e2e/admin-template-crud.e2e.test.ts",
+        "tests/stream-message.integration.test.ts",
+        "tests/admin-auth.test.ts",
+        "tests/openai-compatible.test.ts",
+        "tests/interview-plan.test.ts",
+        "tests/admin-auth-routes.test.ts",
+        "tests/e2e/admin-core.e2e.test.ts",
+        "tests/server-api.test.ts",
+        "tests/member-verification.test.ts",
+        "tests/stream-message-full.test.ts",
+        "tests/template-repository.integration.test.ts",
+        "tests/admin-template-csrf.test.ts",
+        "tests/interview-plan-members.test.ts",
+        "tests/markdown.test.ts",
+        "tests/admin-templates-integration.test.ts",
+        "tests/session-auth.test.ts",
+        "tests/planning-node.test.ts",
+        "tests/conversation-engine.integration.test.ts",
+        "tests/export.integration.test.ts",
+        "tests/utils.test.ts",
+        "tests/analysis-features.test.ts",
+        "tests/admin-templates-import.test.ts",
+        "tests/e2e/helpers/admin-login.ts",
+        "tests/llm-clustering.test.ts",
+        "tests/template-dimensions-api.test.ts"
+      ],
+      "metrics": {
+        "dependentCount": 120
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "vitest"
+      },
+      "locations": [
+        {
+          "file": "tests/analysis-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/strip-extra-questions.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/path-resolver.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/token-manager.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/login-rate-limit.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/followup-branches.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-plan-route-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/plan-form-tree-refresh.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/plan-lifecycle.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/plans-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/login-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/pii-anonymizer.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/db.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-extra.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/health-check.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interviewing-node.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-delete.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/prisma-client.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/langgraph.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/admin-auth.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/report.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-crud.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/state-persistence.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/message-repository.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/sync-version.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-schema.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan.integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-version.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/message-sender.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/cli-install.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-plan-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/project-structure.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/create-test-prisma.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/workflow-interview-lifecycle.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/stream-client-branches.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/core-nodes-branches.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-import-export.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/logger.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/webhook-message.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/member-management.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/cli.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/batch-import.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/batch-aggregate-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/dead-letter.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-plan-matcher.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-auth-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/llm-followup-report.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/report-dimensions.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/smart-response.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-tree.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interviewing-smart-response.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/schema-analysis-dimensions.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "vitest.config.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/templates-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/plan-form-tree-target.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/dingtalk-stream.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/server-lifecycle.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-state-full.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/pglite-template.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/analysis.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/admin-tree-refresh.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/graph.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/report-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan-additional.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/env-config.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-state-repository.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan-members-phone.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/interview-flow.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/multi-turn-conversation.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/prisma-schema.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/stream-message-service.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/analytics.service.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/batch-aggregation.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/export.service.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/prisma7-spec-invariants.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/health-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/audit-cleanup.service.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/dingtalk-signature.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-shell-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/retry.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-state-repository.integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/analyze-with-dimensions.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/test-database.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/security.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/batch-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/dingtalk-services.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-repository.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/dimension-validation.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/prisma-factory.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/dingtalk-client-get-by-mobile.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/state-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/report-viewing.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/template-lifecycle.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/admin-template-crud.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/stream-message.integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-auth.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/openai-compatible.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-auth-routes.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/admin-core.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/server-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/member-verification.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/stream-message-full.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-repository.integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-template-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan-members.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/markdown.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/session-auth.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/planning-node.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/conversation-engine.integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/export.integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/utils.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/analysis-features.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/helpers/admin-login.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/llm-clustering.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-dimensions-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:nunjucks",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "tests/admin-delete.test.ts",
+        "tests/helpers/test-server.ts",
+        "tests/plan-form-tree-refresh.test.ts",
+        "tests/admin-templates-import.test.ts",
+        "tests/plan-form-tree-target.test.ts",
+        "tests/admin-shell-csrf.test.ts",
+        "tests/admin-auth-routes.test.ts",
+        "tests/workflow-interview-lifecycle.test.ts",
+        "src/server.ts",
+        "tests/admin-templates-integration.test.ts",
+        "tests/admin-templates-extra.test.ts",
+        "tests/login-csrf.test.ts"
+      ],
+      "metrics": {
+        "dependentCount": 12
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "nunjucks"
+      },
+      "locations": [
+        {
+          "file": "tests/admin-delete.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/test-server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/plan-form-tree-refresh.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/plan-form-tree-target.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-shell-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-auth-routes.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/workflow-interview-lifecycle.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-extra.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/login-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\services\\analytics.service.ts",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "tests/workflow-interview-lifecycle.test.ts",
+        "tests/admin-templates-integration.test.ts",
+        "tests/helpers/test-server.ts",
+        "src/server.ts",
+        "tests/admin-templates-import.test.ts",
+        "tests/admin-shell-csrf.test.ts",
+        "tests/admin-templates-extra.test.ts",
+        "tests/analytics.service.test.ts",
+        "tests/admin-delete.test.ts",
+        "src/api/admin-templates.ts",
+        "tests/admin-template-csrf.test.ts"
+      ],
+      "metrics": {
+        "dependentCount": 11
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\services\\analytics.service.ts"
+      },
+      "locations": [
+        {
+          "file": "tests/workflow-interview-lifecycle.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/test-server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-shell-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-extra.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/analytics.service.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-delete.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-template-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\utils\\prisma-client.ts",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "tests/prisma-client.test.ts",
+        "tests/admin-tree.test.ts",
+        "src/services/analysis.service.ts",
+        "tests/workflow-interview-lifecycle.test.ts",
+        "tests/template-dimensions-api.test.ts",
+        "tests/health-api.test.ts",
+        "src/services/export.service.ts",
+        "tests/analysis-api.test.ts",
+        "tests/interview-state-repository.test.ts",
+        "src/services/template-dimension.service.ts",
+        "tests/interview-plan-additional.test.ts",
+        "tests/templates-api.test.ts",
+        "tests/schema-analysis-dimensions.test.ts",
+        "tests/admin-templates.test.ts",
+        "tests/export.integration.test.ts",
+        "tests/batch-aggregate-api.test.ts",
+        "tests/e2e/helpers/mock-dingtalk.ts",
+        "tests/state-integration.test.ts",
+        "src/api/analysis.ts",
+        "src/utils/db.ts",
+        "tests/batch-import.test.ts",
+        "tests/audit-cleanup.service.test.ts",
+        "src/services/interview-plan-base.service.ts",
+        "tests/create-test-prisma.test.ts",
+        "tests/analysis.test.ts",
+        "src/core/graph.ts",
+        "tests/admin-delete.test.ts",
+        "src/core/nodes/template-utils.ts",
+        "tests/security.test.ts",
+        "tests/db.test.ts",
+        "tests/interview-plan.test.ts",
+        "src/api/admin-templates.ts",
+        "tests/export.service.test.ts",
+        "tests/admin-templates-integration.test.ts",
+        "tests/analytics.service.test.ts",
+        "src/services/interview-plan-members.service.ts",
+        "tests/e2e/plan-lifecycle.e2e.test.ts",
+        "src/services/interview-plan-send.service.ts",
+        "tests/admin-plan-csrf.test.ts",
+        "src/api/health.ts",
+        "src/services/audit-cleanup.service.ts",
+        "src/api/plans.ts",
+        "tests/interview-plan-members.test.ts",
+        "tests/planning-node.test.ts",
+        "src/utils/prisma-factory.ts",
+        "tests/helpers/test-server.ts",
+        "tests/helpers/test-db.ts",
+        "src/core/nodes/planning.ts",
+        "src/repositories/template.repository.ts",
+        "src/services/stream-message.service.ts",
+        "prisma/seed-satisfaction-survey.ts",
+        "tests/e2e/helpers/e2e-server.ts",
+        "tests/interview-state-full.test.ts",
+        "src/repositories/interview-state.repository.ts",
+        "tests/helpers/create-test-prisma.ts",
+        "tests/admin-templates-import.test.ts",
+        "tests/report-api.test.ts",
+        "src/services/dead-letter.service.ts",
+        "tests/template-import-export.test.ts",
+        "src/services/analytics.service.ts",
+        "tests/admin-templates-extra.test.ts",
+        "src/repositories/interview.repository.ts",
+        "src/utils/security.ts",
+        "tests/template-crud.test.ts",
+        "src/server.ts",
+        "tests/interview-plan-members-phone.test.ts",
+        "src/repositories/message.repository.ts",
+        "tests/prisma-factory.test.ts",
+        "tests/message-repository.test.ts",
+        "src/core/nodes/interviewing.ts",
+        "tests/state-persistence.test.ts",
+        "prisma/seed-test-interview.ts",
+        "tests/template-version.test.ts",
+        "src/api/templates.ts",
+        "tests/interview-repository.test.ts",
+        "tests/dead-letter.test.ts",
+        "tests/plans-api.test.ts"
+      ],
+      "metrics": {
+        "dependentCount": 77
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "\\\\?\\D:\\projects\\dialog-survey\\.worktrees\\sprint-20261001-230743\\src\\utils\\prisma-client.ts"
+      },
+      "locations": [
+        {
+          "file": "tests/prisma-client.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-tree.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/analysis.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/workflow-interview-lifecycle.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-dimensions-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/health-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/export.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/analysis-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-state-repository.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/template-dimension.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan-additional.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/templates-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/schema-analysis-dimensions.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/export.integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/batch-aggregate-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/helpers/mock-dingtalk.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/state-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/analysis.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/utils/db.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/batch-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/audit-cleanup.service.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/interview-plan-base.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/create-test-prisma.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/analysis.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/graph.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-delete.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/nodes/template-utils.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/security.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/db.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/export.service.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/analytics.service.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/interview-plan-members.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/plan-lifecycle.e2e.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/interview-plan-send.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-plan-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/health.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/audit-cleanup.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/plans.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan-members.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/planning-node.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/utils/prisma-factory.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/test-server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/test-db.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/nodes/planning.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/repositories/template.repository.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/stream-message.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "prisma/seed-satisfaction-survey.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/helpers/e2e-server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-state-full.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/repositories/interview-state.repository.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/create-test-prisma.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/report-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/dead-letter.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-import-export.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/services/analytics.service.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-extra.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/repositories/interview.repository.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/utils/security.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-crud.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan-members-phone.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/repositories/message.repository.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/prisma-factory.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/message-repository.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/core/nodes/interviewing.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/state-persistence.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "prisma/seed-test-interview.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/template-version.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/templates.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-repository.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/dead-letter.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/plans-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "vendor:fastify",
+      "smellType": "VendorCoupling",
+      "severity": "Medium",
+      "files": [
+        "src/api/admin-templates.ts",
+        "tests/plans-api.test.ts",
+        "src/server.ts",
+        "tests/admin-delete.test.ts",
+        "tests/analysis-api.test.ts",
+        "tests/helpers/test-server.ts",
+        "src/utils/security.ts",
+        "tests/batch-aggregate-api.test.ts",
+        "tests/report-api.test.ts",
+        "src/api/health.ts",
+        "tests/admin-templates-import.test.ts",
+        "src/middleware/admin-auth.ts",
+        "tests/admin-tree.test.ts",
+        "src/middleware/admin-csrf.ts",
+        "src/api/analysis.ts",
+        "src/api/plans.ts",
+        "tests/admin-templates-integration.test.ts",
+        "tests/interview-plan-members-phone.test.ts",
+        "src/api/templates.ts",
+        "tests/batch-import.test.ts",
+        "tests/admin-shell-csrf.test.ts",
+        "tests/admin-auth.test.ts",
+        "tests/server-lifecycle.test.ts",
+        "tests/admin-auth-integration.test.ts",
+        "tools/spike/prisma7-pglite-spike.mjs",
+        "src/routes/admin-auth.ts",
+        "tests/health-api.test.ts",
+        "tests/workflow-interview-lifecycle.test.ts",
+        "tests/admin-auth-routes.test.ts",
+        "tests/server-api.test.ts",
+        "tests/admin-plan-csrf.test.ts",
+        "tests/admin-template-csrf.test.ts",
+        "tests/admin-csrf.test.ts",
+        "tests/helpers/admin-auth.ts",
+        "tests/templates-api.test.ts",
+        "src/server-lifecycle.ts",
+        "tests/admin-templates-extra.test.ts",
+        "tests/admin-plan-route-csrf.test.ts",
+        "tests/e2e/helpers/e2e-server.ts",
+        "tests/security.test.ts"
+      ],
+      "metrics": {
+        "dependentCount": 40
+      },
+      "details": {
+        "type": "vendorCoupling",
+        "package": "fastify"
+      },
+      "locations": [
+        {
+          "file": "src/api/admin-templates.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/plans-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-delete.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/analysis-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/test-server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/utils/security.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/batch-aggregate-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/report-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/health.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/middleware/admin-auth.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-tree.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/middleware/admin-csrf.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/analysis.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/plans.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/interview-plan-members-phone.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/api/templates.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/batch-import.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-shell-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-auth.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/server-lifecycle.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-auth-integration.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tools/spike/prisma7-pglite-spike.mjs",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/routes/admin-auth.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/health-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/workflow-interview-lifecycle.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-auth-routes.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/server-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-plan-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-template-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/helpers/admin-auth.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/templates-api.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "src/server-lifecycle.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-templates-extra.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/admin-plan-route-csrf.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/e2e/helpers/e2e-server.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        },
+        {
+          "file": "tests/security.test.ts",
+          "line": 0,
+          "column": null,
+          "range": null,
+          "description": null
+        }
+      ]
+    },
+    {
+      "id": "nest:src/utils/retry.ts:withRetry:29",
+      "smellType": "DeepNesting",
+      "severity": "Medium",
+      "files": [
+        "src/utils/retry.ts"
+      ],
+      "metrics": {
+        "depth": 5
+      },
+      "details": {
+        "type": "deepNesting",
+        "name": "withRetry",
+        "depth": 5,
+        "line": 29
+      },
+      "locations": [
+        {
+          "file": "src/utils/retry.ts",
+          "line": 29,
+          "column": 23,
+          "range": {
+            "start_line": 29,
+            "start_column": 23,
+            "end_line": 29,
+            "end_column": 32
+          },
+          "description": "Function 'withRetry' is too deeply nested"
+        }
+      ]
+    },
+    {
+      "id": "nest:public/js/htmx.min.js:_e:946",
+      "smellType": "DeepNesting",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "depth": 6
+      },
+      "details": {
+        "type": "deepNesting",
+        "name": "_e",
+        "depth": 6,
+        "line": 946
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 946,
+          "column": 12,
+          "range": {
+            "start_line": 946,
+            "start_column": 12,
+            "end_line": 946,
+            "end_column": 14
+          },
+          "description": "Function '_e' is too deeply nested"
+        }
+      ]
+    },
+    {
+      "id": "nest:public/js/htmx.min.js:Je:1114",
+      "smellType": "DeepNesting",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "depth": 5
+      },
+      "details": {
+        "type": "deepNesting",
+        "name": "Je",
+        "depth": 5,
+        "line": 1114
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1114,
+          "column": 12,
+          "range": {
+            "start_line": 1114,
+            "start_column": 12,
+            "end_line": 1114,
+            "end_column": 14
+          },
+          "description": "Function 'Je' is too deeply nested"
+        }
+      ]
+    },
+    {
+      "id": "nest:public/js/htmx.min.js:nt:1178",
+      "smellType": "DeepNesting",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "depth": 5
+      },
+      "details": {
+        "type": "deepNesting",
+        "name": "nt",
+        "depth": 5,
+        "line": 1178
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1178,
+          "column": 12,
+          "range": {
+            "start_line": 1178,
+            "start_column": 12,
+            "end_line": 1178,
+            "end_column": 14
+          },
+          "description": "Function 'nt' is too deeply nested"
+        }
+      ]
+    },
+    {
+      "id": "nest:public/js/htmx.min.js:it:1242",
+      "smellType": "DeepNesting",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "depth": 8
+      },
+      "details": {
+        "type": "deepNesting",
+        "name": "it",
+        "depth": 8,
+        "line": 1242
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 1242,
+          "column": 12,
+          "range": {
+            "start_line": 1242,
+            "start_column": 12,
+            "end_line": 1242,
+            "end_column": 14
+          },
+          "description": "Function 'it' is too deeply nested"
+        }
+      ]
+    },
+    {
+      "id": "nest:public/js/htmx.min.js:gn:2312",
+      "smellType": "DeepNesting",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "depth": 5
+      },
+      "details": {
+        "type": "deepNesting",
+        "name": "gn",
+        "depth": 5,
+        "line": 2312
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 2312,
+          "column": 12,
+          "range": {
+            "start_line": 2312,
+            "start_column": 12,
+            "end_line": 2312,
+            "end_column": 14
+          },
+          "description": "Function 'gn' is too deeply nested"
+        }
+      ]
+    },
+    {
+      "id": "nest:public/js/htmx.min.js:de:2678",
+      "smellType": "DeepNesting",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "depth": 5
+      },
+      "details": {
+        "type": "deepNesting",
+        "name": "de",
+        "depth": 5,
+        "line": 2678
+      },
+      "locations": [
+        {
+          "file": "public/js/htmx.min.js",
+          "line": 2678,
+          "column": 12,
+          "range": {
+            "start_line": 2678,
+            "start_column": 12,
+            "end_line": 2678,
+            "end_column": 14
+          },
+          "description": "Function 'de' is too deeply nested"
+        }
+      ]
+    },
+    {
+      "id": "nest:src/services/interview-plan-members.service.ts:InterviewPlanService.sendReminder:258",
+      "smellType": "DeepNesting",
+      "severity": "Medium",
+      "files": [
+        "src/services/interview-plan-members.service.ts"
+      ],
+      "metrics": {
+        "depth": 5
+      },
+      "details": {
+        "type": "deepNesting",
+        "name": "InterviewPlanService.sendReminder",
+        "depth": 5,
+        "line": 258
+      },
+      "locations": [
+        {
+          "file": "src/services/interview-plan-members.service.ts",
+          "line": 258,
+          "column": 9,
+          "range": {
+            "start_line": 258,
+            "start_column": 9,
+            "end_line": 258,
+            "end_column": 21
+          },
+          "description": "Function 'InterviewPlanService.sendReminder' is too deeply nested"
+        }
+      ]
+    },
+    {
+      "id": "sideeffect:src/middleware/admin-auth.ts:1",
+      "smellType": "SideEffectImport",
+      "severity": "Medium",
+      "files": [
+        "src/middleware/admin-auth.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "sideEffectImport"
+      },
+      "locations": [
+        {
+          "file": "src/middleware/admin-auth.ts",
+          "line": 1,
+          "column": null,
+          "range": null,
+          "description": "Side-effect import of '@fastify/secure-session'"
+        }
+      ]
+    },
+    {
+      "id": "sideeffect:src/middleware/session-auth.ts:1",
+      "smellType": "SideEffectImport",
+      "severity": "Medium",
+      "files": [
+        "src/middleware/session-auth.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "sideEffectImport"
+      },
+      "locations": [
+        {
+          "file": "src/middleware/session-auth.ts",
+          "line": 1,
+          "column": null,
+          "range": null,
+          "description": "Side-effect import of '@fastify/secure-session'"
+        }
+      ]
+    },
+    {
+      "id": "sideeffect:prisma.config.ts:2",
+      "smellType": "SideEffectImport",
+      "severity": "Medium",
+      "files": [
+        "prisma.config.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "sideEffectImport"
+      },
+      "locations": [
+        {
+          "file": "prisma.config.ts",
+          "line": 2,
+          "column": null,
+          "range": null,
+          "description": "Side-effect import of 'dotenv/config'"
+        }
+      ]
+    },
+    {
+      "id": "sideeffect:src/middleware/admin-csrf.ts:1",
+      "smellType": "SideEffectImport",
+      "severity": "Medium",
+      "files": [
+        "src/middleware/admin-csrf.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "sideEffectImport"
+      },
+      "locations": [
+        {
+          "file": "src/middleware/admin-csrf.ts",
+          "line": 1,
+          "column": null,
+          "range": null,
+          "description": "Side-effect import of '@fastify/csrf-protection'"
+        }
+      ]
+    },
+    {
+      "id": "deadcode:7b4a21bc",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        ".sprint-history/sprint-20260929-01/phase-outputs/prisma-codemod.mjs"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:0550c5a5",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        ".sprint-history/sprint-20260929-01/phase-outputs/db-residue-check.mjs"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:9d2a4276",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        "scripts/fix-max-followups.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:1ab86911",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        ".sprint-history/sprint-20260929-01/phase-outputs/delphi-final-walkthrough.mjs"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:ffac86d1",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        "docs/sprints/2026-09-24-issue-149/phase-outputs/_gen-requirements-evidence.cjs"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:148173dc",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        ".sprint-history/sprint-20260929-01/tools/delphi-gateway-review.mjs"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:aa46d52f",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        ".sprint-history/sprint-20260929-01/phase-outputs/pglite-dispose-probe.mjs"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:307016a8",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        ".sprint-history/sprint-20260929-01/phase-outputs/pglite-fastpath-probe.mjs"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:d6d99899",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        "prisma/seed-test-interview.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:44f09f09",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:048e43e5",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        "tools/spike/prisma7-pglite-spike.mjs"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:893f6ed7",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:3671edeb",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        ".sprint-history/sprint-20260929-01/phase-outputs/apply-a22.mjs"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:33d3c2f0",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        ".sprint-history/sprint-20260929-01/phase-outputs/pglite-failed-init-close-probe.mjs"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:540f4fcb",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        ".sprint-history/sprint-20260929-01/tools/gen-requirements-evidence.cjs"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "deadcode:d8b35dc2",
+      "smellType": "DeadCode",
+      "severity": "Medium",
+      "files": [
+        "prisma/seed-satisfaction-survey.ts"
+      ],
+      "metrics": {},
+      "details": {
+        "type": "deadCode"
+      }
+    },
+    {
+      "id": "largefile:public/js/alpine.min.js",
+      "smellType": "LargeFile",
+      "severity": "Medium",
+      "files": [
+        "public/js/alpine.min.js"
+      ],
+      "metrics": {
+        "lines": 2671
+      },
+      "details": {
+        "type": "largeFile"
+      }
+    },
+    {
+      "id": "largefile:tools/spike/prisma7-pglite-spike.mjs",
+      "smellType": "LargeFile",
+      "severity": "Medium",
+      "files": [
+        "tools/spike/prisma7-pglite-spike.mjs"
+      ],
+      "metrics": {
+        "lines": 1154
+      },
+      "details": {
+        "type": "largeFile"
+      }
+    },
+    {
+      "id": "largefile:src/api/admin-templates.ts",
+      "smellType": "LargeFile",
+      "severity": "Medium",
+      "files": [
+        "src/api/admin-templates.ts"
+      ],
+      "metrics": {
+        "lines": 1089
+      },
+      "details": {
+        "type": "largeFile"
+      }
+    },
+    {
+      "id": "largefile:public/js/htmx.min.js",
+      "smellType": "LargeFile",
+      "severity": "Medium",
+      "files": [
+        "public/js/htmx.min.js"
+      ],
+      "metrics": {
+        "lines": 3423
+      },
+      "details": {
+        "type": "largeFile"
+      }
+    },
+    {
+      "id": "largefile:scripts/cli.mjs",
+      "smellType": "LargeFile",
+      "severity": "Medium",
+      "files": [
+        "scripts/cli.mjs"
+      ],
+      "metrics": {
+        "lines": 1050
+      },
+      "details": {
+        "type": "largeFile"
+      }
+    },
+    {
+      "id": "clone:5090868a5f4f5c33b1c360a6cf91294e3c82c9f0b863f988da79bb5480e83902",
+      "smellType": "CodeClone",
+      "severity": "Medium",
+      "files": [
+        "src/services/export.service.ts"
+      ],
+      "metrics": {
+        "tokenCount": 61,
+        "cloneInstances": 2,
+        "cloneHash": "5090868a5f4f5c33b1c360a6cf91294e3c82c9f0b863f988da79bb5480e83902"
+      },
+      "details": {
+        "type": "codeClone",
+        "clone_hash": "5090868a5f4f5c33b1c360a6cf91294e3c82c9f0b863f988da79bb5480e83902",
+        "token_count": 61
+      },
+      "locations": [
+        {
+          "file": "src/services/export.service.ts",
+          "line": 48,
+          "column": 9,
+          "range": {
+            "start_line": 48,
+            "start_column": 9,
+            "end_line": 65,
+            "end_column": 61
+          },
+          "description": "Duplicated code (61 tokens, lines 48-65). Also found in: src\\services\\export.service.ts:106-123"
+        },
+        {
+          "file": "src/services/export.service.ts",
+          "line": 106,
+          "column": 9,
+          "range": {
+            "start_line": 106,
+            "start_column": 9,
+            "end_line": 123,
+            "end_column": 38
+          },
+          "description": "Duplicated code (61 tokens, lines 106-123). Also found in: src\\services\\export.service.ts:48-65"
+        }
+      ]
+    },
+    {
+      "id": "clone:a7153bf2599dbcfdc1af6c155e30369ed49ff90e5ef21aa01686e537205b2132",
+      "smellType": "CodeClone",
+      "severity": "Medium",
+      "files": [
+        ".sprint-history/sprint-20260929-01/tools/gen-requirements-evidence.cjs",
+        "docs/sprints/2026-09-24-issue-149/phase-outputs/_gen-requirements-evidence.cjs"
+      ],
+      "metrics": {
+        "cloneInstances": 2,
+        "cloneHash": "a7153bf2599dbcfdc1af6c155e30369ed49ff90e5ef21aa01686e537205b2132",
+        "tokenCount": 57
+      },
+      "details": {
+        "type": "codeClone",
+        "clone_hash": "a7153bf2599dbcfdc1af6c155e30369ed49ff90e5ef21aa01686e537205b2132",
+        "token_count": 57
+      },
+      "locations": [
+        {
+          "file": ".sprint-history/sprint-20260929-01/tools/gen-requirements-evidence.cjs",
+          "line": 52,
+          "column": 1,
+          "range": {
+            "start_line": 52,
+            "start_column": 1,
+            "end_line": 59,
+            "end_column": 31
+          },
+          "description": "Duplicated code (57 tokens, lines 52-59). Also found in: docs\\sprints\\2026-09-24-issue-149\\phase-outputs\\_gen-requirements-evidence.cjs:85-93"
+        },
+        {
+          "file": "docs/sprints/2026-09-24-issue-149/phase-outputs/_gen-requirements-evidence.cjs",
+          "line": 85,
+          "column": 1,
+          "range": {
+            "start_line": 85,
+            "start_column": 1,
+            "end_line": 93,
+            "end_column": 31
+          },
+          "description": "Duplicated code (57 tokens, lines 85-93). Also found in: .sprint-history\\sprint-20260929-01\\tools\\gen-requirements-evidence.cjs:52-59"
+        }
+      ]
+    },
+    {
+      "id": "clone:a635b2e7001980c8bb1c7476622132222dea35d5d120a786d35cd6d88bbf49ba",
+      "smellType": "CodeClone",
+      "severity": "Medium",
+      "files": [
+        "src/services/analysis.service.ts",
+        "tests/analysis-features.test.ts"
+      ],
+      "metrics": {
+        "cloneInstances": 2,
+        "cloneHash": "a635b2e7001980c8bb1c7476622132222dea35d5d120a786d35cd6d88bbf49ba",
+        "tokenCount": 53
+      },
+      "details": {
+        "type": "codeClone",
+        "clone_hash": "a635b2e7001980c8bb1c7476622132222dea35d5d120a786d35cd6d88bbf49ba",
+        "token_count": 53
+      },
+      "locations": [
+        {
+          "file": "src/services/analysis.service.ts",
+          "line": 207,
+          "column": 5,
+          "range": {
+            "start_line": 207,
+            "start_column": 5,
+            "end_line": 223,
+            "end_column": 38
+          },
+          "description": "Duplicated code (53 tokens, lines 207-223). Also found in: tests\\analysis-features.test.ts:15-31"
+        },
+        {
+          "file": "tests/analysis-features.test.ts",
+          "line": 15,
+          "column": 5,
+          "range": {
+            "start_line": 15,
+            "start_column": 5,
+            "end_line": 31,
+            "end_column": 113
+          },
+          "description": "Duplicated code (53 tokens, lines 15-31). Also found in: src\\services\\analysis.service.ts:207-223"
+        }
+      ]
+    },
+    {
+      "id": "clone:6abdb504c56c59025382f9ac6883db273a774ad8dd7aeed30e9a091e4d56cfc3",
+      "smellType": "CodeClone",
+      "severity": "Medium",
+      "files": [
+        "src/services/analysis.service.ts",
+        "src/services/export.service.ts"
+      ],
+      "metrics": {
+        "cloneInstances": 2,
+        "tokenCount": 52,
+        "cloneHash": "6abdb504c56c59025382f9ac6883db273a774ad8dd7aeed30e9a091e4d56cfc3"
+      },
+      "details": {
+        "type": "codeClone",
+        "clone_hash": "6abdb504c56c59025382f9ac6883db273a774ad8dd7aeed30e9a091e4d56cfc3",
+        "token_count": 52
+      },
+      "locations": [
+        {
+          "file": "src/services/analysis.service.ts",
+          "line": 237,
+          "column": 3,
+          "range": {
+            "start_line": 237,
+            "start_column": 3,
+            "end_line": 283,
+            "end_column": 4
+          },
+          "description": "Duplicated code (52 tokens, lines 237-283). Also found in: src\\services\\export.service.ts:262-283"
+        },
+        {
+          "file": "src/services/export.service.ts",
+          "line": 262,
+          "column": 3,
+          "range": {
+            "start_line": 262,
+            "start_column": 3,
+            "end_line": 283,
+            "end_column": 4
+          },
+          "description": "Duplicated code (52 tokens, lines 262-283). Also found in: src\\services\\analysis.service.ts:237-283"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "totalSmells": 142,
+    "filesAnalyzed": 206,
+    "cycles": 0,
+    "godModules": 0,
+    "deadCode": 16,
+    "deadSymbols": 22,
+    "layerViolations": 0,
+    "highCyclomaticComplexity": 26,
+    "highCognitiveComplexity": 39,
+    "hubModules": 0
+  },
+  "grade": "ArchitectureGrade { score: 4.26699, level: Moderate, density: 13.932039 }"
+}
