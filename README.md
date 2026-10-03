@@ -94,7 +94,7 @@ npx dialog-survey install \
   --dingtalk-agent-id "xxx"
 ```
 
-This generates `.env`, syncs the schema with `prisma db push` (Prisma 7), and sets up PM2 (Linux/macOS) or direct node launch (Windows).
+This generates `.env`, applies database migrations with `prisma migrate deploy` (Prisma 7), and sets up PM2 (Linux/macOS) or direct node launch (Windows).
 
 #### Option B: Docker Compose (recommended for evaluation)
 
@@ -113,7 +113,7 @@ cd dialog-survey
 npm install
 cp .env.example .env
 # Edit .env with your config
-npx prisma generate && npx prisma db push
+npx prisma generate && npx prisma migrate dev
 npm run dev
 ```
 

@@ -94,7 +94,7 @@ npx dialog-survey install \
   --dingtalk-agent-id "xxx"
 ```
 
-CLI 会自动生成 `.env`、通过 `prisma db push` 同步表结构（Prisma 7）、并配置 PM2（Linux/macOS）或直接 node 启动（Windows）。
+CLI 会自动生成 `.env`、通过 `prisma migrate deploy` 应用数据库迁移（Prisma 7）、并配置 PM2（Linux/macOS）或直接 node 启动（Windows）。
 
 #### 方式 B：Docker Compose（评估推荐）
 
@@ -113,7 +113,7 @@ cd dialog-survey
 npm install
 cp .env.example .env
 # 编辑 .env 填入你的配置
-npx prisma generate && npx prisma db push
+npx prisma generate && npx prisma migrate dev
 npm run dev
 ```
 

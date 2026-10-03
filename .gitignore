@@ -92,7 +92,7 @@ coverage/
 *.tsbuildinfo
 
 # Prisma
-prisma/migrations/
+# Migrations are tracked (issue #152): db push left no rollback history.
 src/generated/
 
 # Vitest

@@ -717,20 +717,22 @@ export async function installCommand(flags) {
     log("    Run 'npx playwright install chromium' manually if PDF export is needed.");
   }
 
-  // Step 9: prisma db push
+  // Step 9: prisma migrate deploy (issue #152)
   // No generate step here: the package ships the compiled client
   // (dist/src/generated/prisma) and devDeps are absent in the install.
   // PRISMA_SKIP_GENERATE keeps the installed tree read-only — --no-generate
   // does not exist in prisma@7.10.0 (spike #11 verified the env flag).
-  log('Pushing schema to database...');
+  // Migrations ship inside prisma/ (filesToCopy); deploy replays them in
+  // order, which `db push` never did (no history, no rollback).
+  log('Applying database migrations...');
   try {
-    exec('npx --yes prisma@7.10.0 db push', {
+    exec('npx --yes prisma@7.10.0 migrate deploy', {
       cwd: INSTALL_DIR,
       env: { ...process.env, PRISMA_SKIP_GENERATE: '1' },
     });
-    log('  Schema pushed ✓');
+    log('  Migrations applied ✓');
   } catch (err) {
-    logError(`prisma db push failed: ${err.message}`);
+    logError(`prisma migrate deploy failed: ${err.message}`);
     process.exitCode = 1;
     return;
   }
