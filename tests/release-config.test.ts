@@ -469,6 +469,56 @@ describe('scripts/release.sh', () => {
 
   /**
    * @test REQ-153-4
+   * @intent refuses to run a real release without GITHUB_TOKEN when
+   *   github.release is enabled, because release-it otherwise skips the GitHub
+   *   Release and still exits 0
+   * @covers AC-153-4-02
+   */
+  it('fails fast on a tokenless execute run and allows an explicit override', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    // Measured: with github.release=true and no GITHUB_TOKEN, release-it prints a
+    // warning, falls back to a web URL, completes the commit and tag, and returns
+    // 0. An unattended run therefore "succeeds" while silently omitting a
+    // configured artifact.
+    expect(source).toMatch(
+      /GITHUB_TOKEN is not set but \.release-it\.json has github\.release=true/
+    );
+    expect(source).toMatch(/RELEASE_ALLOW_NO_GITHUB_TOKEN/);
+    // The guard must apply to --execute only; a dry run changes nothing.
+    expect(source).toMatch(/if \[ "\$DRY_RUN" -eq 0 \]; then/);
+  });
+
+  /**
+   * @test REQ-153-4
+   * @intent neutralises a developer-global core.hooksPath so a release does not
+   *   depend on the operator's global git configuration
+   * @covers AC-153-4-02
+   */
+  it('neutralises an inherited core.hooksPath before releasing', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    // Measured: a globally configured core.hooksPath put the xp-gate chain in the
+    // path of fixture commits and hung them.
+    expect(source).toMatch(/git config --local --unset core\.hooksPath/);
+  });
+
+  /**
+   * @test REQ-153-4
+   * @intent names the exact files the post-release check requires, so the
+   *   assertion is implementable from the script rather than from prose
+   * @covers AC-153-4-01
+   */
+  it('enumerates the release commit contents explicitly', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    // The four files a healthy release commit must contain. AGENTS.md and VERSION
+    // are the ones a silently-dead hook omits, which is why they are asserted.
+    expect(source).toMatch(/for expected in VERSION AGENTS\.md package\.json CHANGELOG\.md/);
+  });
+
+  /**
+   * @test REQ-153-4
    * @intent verifies the release AFTER it runs, because the pre-check cannot
    *   detect a release that misbehaves and Gate 0 does not reject a staged
    *   VERSION that contradicts package.json

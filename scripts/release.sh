@@ -86,6 +86,39 @@ if [ "$FILE_VERSION" != "$PKG_VERSION" ]; then
   exit 1
 fi
 
+# Pre-flight: an absent GITHUB_TOKEN makes release-it skip the GitHub Release and
+# still exit 0. Measured: with github.release=true and no token, release-it prints
+# a warning, falls back to a web URL, completes the commit and tag, and returns 0.
+# An unattended run therefore "succeeds" while silently omitting a configured
+# artifact. Fail fast when that is about to happen instead of reporting success;
+# RELEASE_ALLOW_NO_GITHUB_TOKEN=1 is the explicit override for someone who really
+# does want a tag-only release.
+if [ "$DRY_RUN" -eq 0 ]; then
+  GITHUB_RELEASE_ENABLED="$(node -p "String(require('./.release-it.json').github?.release ?? true)")"
+  if [ "$GITHUB_RELEASE_ENABLED" = "true" ] && [ -z "${GITHUB_TOKEN:-}" ]; then
+    if [ "${RELEASE_ALLOW_NO_GITHUB_TOKEN:-}" = "1" ]; then
+      echo "release: WARNING GITHUB_TOKEN is unset; continuing because RELEASE_ALLOW_NO_GITHUB_TOKEN=1." >&2
+      echo "release: no GitHub Release will be created for this tag." >&2
+    else
+      echo "release: GITHUB_TOKEN is not set but .release-it.json has github.release=true." >&2
+      echo "release: release-it would skip the GitHub Release and still exit 0, so this" >&2
+      echo "release: run would report success while silently omitting it." >&2
+      echo "release: set GITHUB_TOKEN, or pass RELEASE_ALLOW_NO_GITHUB_TOKEN=1 to release a tag only." >&2
+      exit 1
+    fi
+  fi
+fi
+
+# Pre-flight: a developer-global core.hooksPath puts the xp-gate chain in the path
+# of the release commit. That chain is slow and can hard-block, and it was measured
+# to hang fixture commits outright. Neutralise it for this repository so a release
+# does not depend on the operator's global git configuration.
+if [ -n "$(git config --get core.hooksPath 2>/dev/null || true)" ]; then
+  echo "release: local core.hooksPath is set; unsetting it for this repository so the"
+  echo "release: release commit does not run an unrelated global hook chain."
+  git config --local --unset core.hooksPath 2>/dev/null || true
+fi
+
 ARGS=()
 if [ "$DRY_RUN" -eq 1 ]; then
   ARGS+=(--dry-run)
@@ -150,9 +183,10 @@ if [ "$POST_AGENTS" != "v$POST_VERSION" ]; then
 fi
 
 # 2. The release commit must carry the version records, not just the manifest.
-#    A silently-dead hook yields a commit without VERSION or AGENTS.md.
+#    A silently-dead hook yields a commit without VERSION or AGENTS.md. The
+#    changelog plugin's omission is equally invisible, so CHANGELOG.md is included.
 RELEASE_FILES="$(git show --name-only --format= HEAD | LC_ALL=C sort | tr '\n' ' ')"
-for expected in VERSION AGENTS.md package.json; do
+for expected in VERSION AGENTS.md package.json CHANGELOG.md; do
   case " $RELEASE_FILES " in
     *" $expected "*) ;;
     *) fail_post "release commit is missing $expected (found: ${RELEASE_FILES:-none})" ;;

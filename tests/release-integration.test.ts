@@ -265,6 +265,32 @@ describe.skipIf(!capability.ok)('release chain integration (REQ-153-4 / AC-153-4
 
   /**
    * @test REQ-153-3
+   * @intent derives CHANGELOG content from conventional commit types, not merely
+   *   the version number, so the "auto CHANGELOG" half of #153 is actually proven
+   * @covers AC-153-3-01
+   */
+  it('derives CHANGELOG sections from the conventional commit types', () => {
+    // Frequency alone is not the claim under test. Issue #153 promises that
+    // Conventional Commits DRIVE the changelog, so a `feat:` must land under a
+    // Features heading and a `fix:` under Bug Fixes. Without this, a changelog
+    // plugin replaced by a plugin that only bumps the version number would still
+    // satisfy every other assertion in this file.
+    const changelog = readFileSync(join(cloneDir, 'CHANGELOG.md'), 'utf8');
+
+    // The fixture's release range carries a feat: commit.
+    expect(changelog).toMatch(/###\s+Features/);
+    // Scoped to the new 1.11.0 entry, not the preserved historical one.
+    const newEntry = changelog.slice(changelog.indexOf('1.11.0'));
+    const oldEntryStart = newEntry.indexOf('1.8.9');
+    const current = oldEntryStart === -1 ? newEntry : newEntry.slice(0, oldEntryStart);
+
+    expect(current).toMatch(/###\s+Features/);
+    // The commit subject (not only the hash) must be rendered.
+    expect(current).toMatch(/add a feature for the release/);
+  });
+
+  /**
+   * @test REQ-153-3
    * @intent creates the tag with the literal v prefix from tagName
    * @covers AC-153-3-02
    */
