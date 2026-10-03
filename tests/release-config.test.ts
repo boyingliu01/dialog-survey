@@ -491,11 +491,11 @@ describe('scripts/release.sh', () => {
 
   /**
    * @test REQ-153-4
-   * @intent neutralises a developer-global core.hooksPath so a release does not
-   *   depend on the operator's global git configuration
+   * @intent suppresses an inherited core.hooksPath for the release WITHOUT
+   *   persisting any change to the repository's git config
    * @covers AC-153-4-02
    */
-  it('neutralises an inherited core.hooksPath before releasing', () => {
+  it('suppresses an inherited core.hooksPath without persisting it', () => {
     const source = readFileSync(releaseSh, 'utf8');
 
     // Measured: a GLOBALLY configured core.hooksPath puts the xp-gate chain in the
@@ -503,12 +503,61 @@ describe('scripts/release.sh', () => {
     // architecture.yaml - aborting the release after the version hooks have already
     // rewritten VERSION and AGENTS.md.
     //
-    // The earlier form used `git config --local --unset`, which cannot remove a
-    // value configured in the GLOBAL scope, so it silently did nothing for exactly
-    // the case that was measured to fail.
+    // Two earlier forms were wrong and are both guarded against here:
+    //   1. `git config --local --unset` cannot remove a GLOBAL value, so it did
+    //      nothing in exactly the case measured to fail.
+    //   2. Writing `core.hooksPath=""` into the local config silenced the gate chain
+    //      for every LATER commit in the clone and deactivated any hook installed by
+    //      install-git-hooks.sh. An EXIT trap would still leave the window open on
+    //      SIGKILL.
     expect(source).toMatch(/git config --get core\.hooksPath/);
-    expect(source).toMatch(/git config --local core\.hooksPath ""/);
+    // The override is process-scoped via git's environment mechanism...
+    expect(source).toMatch(/GIT_CONFIG_COUNT=1/);
+    expect(source).toMatch(/GIT_CONFIG_KEY_0=core\.hooksPath/);
+    expect(source).toMatch(/export GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0/);
+    // ...and nothing is written to any config file.
+    expect(source).not.toMatch(/git config --local core\.hooksPath/);
     expect(source).not.toMatch(/--local --unset core\.hooksPath/);
+  });
+
+  /**
+   * @test REQ-153-4
+   * @intent compares the effective hooksPath against the DEFAULT hooks directory,
+   *   not against a query that already honours core.hooksPath
+   * @covers AC-153-4-02
+   */
+  it('does not compare the effective hooksPath against git rev-parse --git-path hooks', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    // Measured: `git rev-parse --git-path hooks` HONOURS core.hooksPath, so it
+    // returns the configured path rather than the default. Comparing the effective
+    // value against it is always equal, so the suppression branch never ran and the
+    // guard silently did nothing - the release still hit Gate 6. The default hooks
+    // directory must be derived with core.hooksPath suppressed for that one query.
+    expect(source).toMatch(/DEFAULT_HOOKS_PATH=/);
+    expect(source).toMatch(
+      /GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core\.hooksPath GIT_CONFIG_VALUE_0=/
+    );
+    expect(source).not.toMatch(/THIS_REPO_HOOKS="\$\(git rev-parse --git-path hooks/);
+  });
+
+  /**
+   * @test REQ-153-4
+   * @intent pins HEAD before the release so the post-check inspects the release
+   *   commit rather than whatever HEAD happens to be
+   * @covers AC-153-4-01
+   */
+  it('pins HEAD before the release and requires it to have moved', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    // Without this, a release whose commit step was skipped would have the file
+    // check describe the PREVIOUS commit and pass or fail for reasons unrelated to
+    // this release.
+    expect(source).toMatch(/HEAD_BEFORE="\$\(git rev-parse HEAD\)"/);
+    expect(source).toMatch(/HEAD_AFTER="\$\(git rev-parse HEAD\)"/);
+    expect(source).toMatch(/no release commit was created/);
+    // The inspected commit must be HEAD_AFTER, not bare HEAD.
+    expect(source).toMatch(/git show --name-only --format= "\$HEAD_AFTER"/);
   });
 
   /**

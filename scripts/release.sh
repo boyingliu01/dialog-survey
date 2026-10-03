@@ -110,21 +110,43 @@ if [ "$DRY_RUN" -eq 0 ]; then
 fi
 
 # Pre-flight: the release commit must not run an unrelated global hook chain.
-# A developer-global (or worktree-local) core.hooksPath puts the xp-gate 12-gate
-# chain in the path of the release commit. That chain is slow, and measured it
-# hard-blocks a repository without an architecture.yaml (Gate 6), aborting the
-# release AFTER the after:bump hooks have already rewritten VERSION and AGENTS.md -
-# leaving the tree dirty and the release half-applied.
+# A developer-global core.hooksPath puts the xp-gate 12-gate chain in the path of
+# the release commit. That chain is slow, and measured it hard-blocks a repository
+# without an architecture.yaml (Gate 6), aborting the release AFTER the after:bump
+# hooks have already rewritten VERSION and AGENTS.md - leaving the tree dirty and
+# the release half-applied.
 #
-# `git config --get` reads the EFFECTIVE value, so a globally-configured hooksPath
-# is detected too; the earlier form only looked at the local scope and therefore
-# missed exactly the case that was measured to fail. Overriding it in the local
-# scope shadows the global value for this repository only.
+# The override must not PERSIST. Writing `core.hooksPath=""` into the local config
+# and leaving it there would silently disable the gate chain for every later commit
+# in this clone and deactivate any hook installed by install-git-hooks.sh - the
+# exact hazard that installer guards with a record file. An EXIT trap would still
+# leave the window open on SIGKILL.
+#
+# Instead the override is scoped to this process tree via git's GIT_CONFIG_COUNT
+# environment mechanism, which release-it's own `git commit` inherits. Nothing is
+# written to any config file, so there is no state to restore and no trap to get
+# wrong. The variables are unset before the post-release checks, which read config
+# and should see the operator's real environment.
+LOCAL_HOOKS_PATH="$(git config --local --get core.hooksPath 2>/dev/null || true)"
 EFFECTIVE_HOOKS_PATH="$(git config --get core.hooksPath 2>/dev/null || true)"
-if [ -n "$EFFECTIVE_HOOKS_PATH" ]; then
-  echo "release: core.hooksPath is '$EFFECTIVE_HOOKS_PATH'; overriding it locally for this"
-  echo "release: repository so the release commit does not run an unrelated global hook chain."
-  git config --local core.hooksPath "" 2>/dev/null || true
+
+# NOTE: `git rev-parse --git-path hooks` HONOURS core.hooksPath, so it returns the
+# configured path rather than the default hooks directory. Comparing the effective
+# value against it is therefore always equal and the override below would never
+# run - measured, and it is why the first version of this guard silently did
+# nothing. The default hooks directory is derived from the git dir instead, with
+# core.hooksPath suppressed for that one query.
+DEFAULT_HOOKS_PATH="$(GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0= \
+  git rev-parse --git-path hooks 2>/dev/null || true)"
+
+if [ -n "$EFFECTIVE_HOOKS_PATH" ] && [ "$EFFECTIVE_HOOKS_PATH" != "$DEFAULT_HOOKS_PATH" ]; then
+  echo "release: core.hooksPath resolves to '$EFFECTIVE_HOOKS_PATH'; suppressing it for the"
+  echo "release: duration of this release so the release commit does not run an unrelated"
+  echo "release: hook chain. No config file is modified; this is process-scoped."
+  GIT_CONFIG_COUNT=1
+  GIT_CONFIG_KEY_0=core.hooksPath
+  GIT_CONFIG_VALUE_0=
+  export GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
 fi
 
 ARGS=()
@@ -148,8 +170,12 @@ if [ -n "$VERSION_ARG" ]; then
 fi
 
 # Capture the tag set and HEAD before the release so the post-check can identify
-# what actually changed without guessing.
+# what actually changed without guessing. HEAD_BEFORE is load-bearing: without it
+# the post-check cannot tell "the release commit" from "whatever HEAD happens to
+# be", so a release whose commit step was skipped would inspect the PREVIOUS commit
+# and pass or fail for the wrong reason.
 TAGS_BEFORE="$(git tag -l | LC_ALL=C sort)"
+HEAD_BEFORE="$(git rev-parse HEAD)"
 
 npx --no-install release-it "${ARGS[@]}"
 RELEASE_EXIT=$?
@@ -201,10 +227,19 @@ elif [ "$POST_AGENTS" != "v$POST_VERSION" ]; then
   fail_post "AGENTS.md ($POST_AGENTS) != VERSION (v$POST_VERSION)"
 fi
 
-# 2. The release commit must carry the version records, not just the manifest.
+# 2. There must BE a release commit, and it must carry the version records.
+#    Verify the commit explicitly rather than assuming HEAD moved: a release whose
+#    commit step was skipped would otherwise have `git show HEAD` describe the
+#    PREVIOUS commit, and the file check below would pass or fail for reasons that
+#    have nothing to do with this release.
+HEAD_AFTER="$(git rev-parse HEAD)"
+if [ "$HEAD_AFTER" = "$HEAD_BEFORE" ]; then
+  fail_post "no release commit was created (HEAD is unchanged at $HEAD_AFTER)"
+fi
+
 #    A silently-dead hook yields a commit without VERSION or AGENTS.md. The
 #    changelog plugin's omission is equally invisible, so CHANGELOG.md is included.
-RELEASE_FILES="$(git show --name-only --format= HEAD | LC_ALL=C sort | tr '\n' ' ')"
+RELEASE_FILES="$(git show --name-only --format= "$HEAD_AFTER" | LC_ALL=C sort | tr '\n' ' ')"
 for expected in VERSION AGENTS.md package.json CHANGELOG.md; do
   case " $RELEASE_FILES " in
     *" $expected "*) ;;
