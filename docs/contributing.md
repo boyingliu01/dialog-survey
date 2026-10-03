@@ -101,3 +101,57 @@ npm run test         # vitest
 If a gate ever blocks a commit for a type or lint error that you cannot reproduce,
 re-run the failing command directly first: some gates report a pipeline's exit
 status rather than the tool's.
+
+## Releasing
+
+`scripts/release.sh` is a dry run by default and changes nothing; pass `--execute`
+for a real release. It refuses to start unless `VERSION` already equals
+`package.json`.
+
+```bash
+scripts/release-bootstrap.sh        # once: create the baseline annotated tag
+scripts/release.sh                  # dry run (safe)
+scripts/release.sh --execute        # real release: commit + tag + GitHub Release
+```
+
+### Why the release is verified twice
+
+A release is checked **before** it starts and **after** it finishes, because the
+pre-check alone cannot detect a release that misbehaves:
+
+- The `after:bump` hook in `.release-it.json` is what writes `VERSION` and
+  `AGENTS.md`. If that hook does not run, release-it still exits 0, still commits
+  and still tags — it simply leaves `VERSION` and `AGENTS.md` stale. There is no
+  error to notice.
+- The hook key must be the **bare `after:bump`**. A key naming a plugin namespace,
+  such as `after:version:bump`, is never invoked at all: release-it emits only the
+  bare `after:<name>` form. `tests/release-hook-key.test.ts` is a behavioural
+  negative control that runs a real release with each key and asserts the hook
+  observably runs for one and not the other.
+- xp-gate's Gate 0 does **not** catch this. Measured, it passes a staged `VERSION`
+  that contradicts `package.json` (exit 0, commit lands), so it cannot be relied
+  on as a consistency guard.
+
+After a successful `--execute` run, `release.sh` therefore asserts that `VERSION`,
+`package.json` and `AGENTS.md` agree, that the release commit contains all three
+plus `CHANGELOG.md`, that the tree is clean, and that a new `v`-prefixed tag
+exists. If any check fails it exits non-zero and prints the rollback steps.
+
+### Release rollback
+
+If a release is published but the post-release checks fail, the released tree may
+be inconsistent. Retract it before re-releasing:
+
+```bash
+git tag -d <tag>                      # 1. delete locally
+git push origin :refs/tags/<tag>      #    and on the remote
+git revert --no-edit HEAD             # 2. revert the release commit
+git push                              # 3. push the revert
+```
+
+4. Delete or re-cut the GitHub Release for that tag.
+5. Fix the cause, then re-run `scripts/release.sh --execute`.
+
+Never move or force-update an existing tag: re-pointing a released tag rewrites
+release history for anyone who already fetched it. `scripts/release-bootstrap.sh`
+refuses to move one for the same reason.

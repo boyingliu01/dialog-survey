@@ -442,4 +442,52 @@ describe('scripts/release.sh', () => {
 
     expect(readFileSync(join(repoRoot, 'VERSION'), 'utf8').trim()).toBe(before);
   });
+
+  /**
+   * @test REQ-153-4
+   * @intent verifies the release AFTER it runs, because the pre-check cannot
+   *   detect a release that misbehaves and Gate 0 does not reject a staged
+   *   VERSION that contradicts package.json
+   * @covers AC-153-4-01
+   */
+  it('verifies the release AFTER it runs, not only before', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    expect(source).toMatch(/POST-RELEASE CHECK FAILED/);
+    // The four post-release assertions.
+    expect(source).toMatch(/VERSION \(\$POST_VERSION\) != package\.json/);
+    expect(source).toMatch(/release commit is missing/);
+    expect(source).toMatch(/working tree is dirty after the release/);
+    expect(source).toMatch(/no new tag was created/);
+    expect(source).toMatch(/missing the 'v' prefix/);
+  });
+
+  /**
+   * @test REQ-153-3
+   * @intent prints actionable rollback steps and exits non-zero when a
+   *   post-release check fails, because the release is already published
+   * @covers AC-153-3-02
+   */
+  it('prints rollback steps and exits non-zero when a post-release check fails', () => {
+    const source = readFileSync(releaseSh, 'utf8');
+
+    expect(source).toMatch(/Roll back before re-releasing/);
+    expect(source).toMatch(/git tag -d <tag> && git push origin :refs\/tags\/<tag>/);
+    expect(source).toMatch(/git revert --no-edit HEAD/);
+    expect(source).toMatch(/if \[ "\$POST_FAIL" -ne 0 \]; then[\s\S]*?exit 1/);
+  });
+
+  /**
+   * @test REQ-153-3
+   * @intent documents the release rollback procedure so a failed post-release
+   *   check is recoverable without improvisation
+   * @covers AC-153-3-02
+   */
+  it('documents the release rollback procedure in docs/contributing.md', () => {
+    const doc = readFileSync(join(repoRoot, 'docs', 'contributing.md'), 'utf8');
+
+    expect(doc).toMatch(/[Rr]ollback/);
+    expect(doc).toMatch(/git tag -d/);
+    expect(doc).toMatch(/git push origin :refs\/tags\//);
+  });
 });
