@@ -192,6 +192,11 @@ describe('opt-in local commit-msg hook installer', () => {
   });
 
   describe('AC-8: default state is untouched', () => {
+    /**
+     * @test REQ-153-2
+     * @intent does not change core.hooksPath until explicitly invoked
+     * @covers AC-153-2-01
+     */
     it('does not change core.hooksPath until explicitly invoked', () => {
       const dir = repo();
 
@@ -203,6 +208,11 @@ describe('opt-in local commit-msg hook installer', () => {
       expect(existsSync(join(dir, RECORD_FILE))).toBe(false);
     });
 
+    /**
+     * @test REQ-153-7
+     * @intent never writes to the global config, only the repository config
+     * @covers AC-153-2-02
+     */
     it('never writes to the global config, only the repository config', () => {
       const dir = repo();
       const globalBefore = readGlobalHooksPath();
@@ -217,6 +227,11 @@ describe('opt-in local commit-msg hook installer', () => {
   });
 
   describe('AC-9 (1): first install', () => {
+    /**
+     * @test REQ-153-7
+     * @intent sets core.hooksPath and records the previous unset state
+     * @covers AC-153-2-03
+     */
     it('sets core.hooksPath and records the previous unset state', () => {
       const dir = repo();
 
@@ -230,6 +245,11 @@ describe('opt-in local commit-msg hook installer', () => {
       expect(readRecord(dir)).toBe(SENTINEL_UNSET);
     });
 
+    /**
+     * @test REQ-153-7
+     * @intent installs a commit-msg hook that refuses a non-conventional message
+     * @covers AC-153-7-01
+     */
     it('installs a commit-msg hook that refuses a non-conventional message', () => {
       const dir = repo();
       linkCommitlint(dir);
@@ -259,6 +279,11 @@ describe('opt-in local commit-msg hook installer', () => {
       expect(rejected).toBe(true);
     });
 
+    /**
+     * @test REQ-153-2
+     * @intent accepts conventional messages once installed
+     * @covers AC-153-2-01
+     */
     it('accepts conventional messages once installed', () => {
       const dir = repo();
       linkCommitlint(dir);
@@ -283,6 +308,11 @@ describe('opt-in local commit-msg hook installer', () => {
   });
 
   describe('AC-9 (2): repeat install is a no-op that never clobbers the record', () => {
+    /**
+     * @test REQ-153-2
+     * @intent keeps the original recorded value on a second install
+     * @covers AC-153-2-02
+     */
     it('keeps the original recorded value on a second install', () => {
       const dir = repo();
       runInstaller(dir);
@@ -294,6 +324,11 @@ describe('opt-in local commit-msg hook installer', () => {
       expect(readRecord(dir)).toBe(firstRecord);
     });
 
+    /**
+     * @test REQ-153-2
+     * @intent keeps a pre-existing recorded value on a second install
+     * @covers AC-153-2-03
+     */
     it('keeps a pre-existing recorded value on a second install', () => {
       const dir = repo('C:/some/previous/hooks');
       runInstaller(dir);
@@ -307,6 +342,11 @@ describe('opt-in local commit-msg hook installer', () => {
   });
 
   describe('AC-9 (3): uninstall restores the original value exactly', () => {
+    /**
+     * @test REQ-153-2
+     * @intent restores an unset hooksPath by unsetting it
+     * @covers AC-153-7-01
+     */
     it('restores an unset hooksPath by unsetting it', () => {
       const dir = repo();
       runInstaller(dir);
@@ -319,6 +359,11 @@ describe('opt-in local commit-msg hook installer', () => {
       expect(readRecord(dir)).toBeNull();
     });
 
+    /**
+     * @test REQ-153-2
+     * @intent restores a previously set hooksPath verbatim
+     * @covers AC-153-2-01
+     */
     it('restores a previously set hooksPath verbatim', () => {
       const dir = repo('C:/some/previous/hooks');
       runInstaller(dir);
@@ -330,6 +375,11 @@ describe('opt-in local commit-msg hook installer', () => {
   });
 
   describe('AC-9 (4): a mutated value needs --force', () => {
+    /**
+     * @test REQ-153-2
+     * @intent aborts without --force and leaves the current value in place
+     * @covers AC-153-2-02
+     */
     it('aborts without --force and leaves the current value in place', () => {
       const dir = repo();
       runInstaller(dir);
@@ -342,6 +392,11 @@ describe('opt-in local commit-msg hook installer', () => {
       expect(gitConfigGet(dir, 'core.hooksPath')).toBe('C:/someone/else/hooks');
     });
 
+    /**
+     * @test REQ-153-2
+     * @intent with --force restores the recorded value and reports what it overwrote
+     * @covers AC-153-2-03
+     */
     it('with --force restores the recorded value and reports what it overwrote', () => {
       const dir = repo();
       runInstaller(dir);
@@ -356,6 +411,11 @@ describe('opt-in local commit-msg hook installer', () => {
       expect(result.output).toContain('C:/someone/else/hooks');
     });
 
+    /**
+     * @test REQ-153-2
+     * @intent fails when the record file is missing, for both --uninstall and --force
+     * @covers AC-153-7-01
+     */
     it('fails when the record file is missing, for both --uninstall and --force', () => {
       const dir = repo();
       runInstaller(dir);
@@ -367,6 +427,11 @@ describe('opt-in local commit-msg hook installer', () => {
   });
 
   describe('AC-2: the documented cost is declared', () => {
+    /**
+     * @test REQ-153-2
+     * @intent warns that the global xp-gate gate chain stops applying while installed
+     * @covers AC-153-2-01
+     */
     it('warns that the global xp-gate gate chain stops applying while installed', () => {
       const dir = repo();
 
@@ -380,6 +445,11 @@ describe('opt-in local commit-msg hook installer', () => {
   });
 
   describe('design §3: --force persists an audit trail, not just stderr', () => {
+    /**
+     * @test REQ-153-7
+     * @intent appends the overwritten value to .git/xp-gate-uninstall.log
+     * @covers AC-153-2-02
+     */
     it('appends the overwritten value to .git/xp-gate-uninstall.log', () => {
       const dir = repo();
       runInstaller(dir);
@@ -396,6 +466,11 @@ describe('opt-in local commit-msg hook installer', () => {
       expect(log).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/);
     });
 
+    /**
+     * @test REQ-153-2
+     * @intent writes no audit entry on an ordinary, non-destructive uninstall
+     * @covers AC-153-2-03
+     */
     it('writes no audit entry on an ordinary, non-destructive uninstall', () => {
       const dir = repo();
       runInstaller(dir);
@@ -408,6 +483,11 @@ describe('opt-in local commit-msg hook installer', () => {
   });
 
   describe('design §3: --reset-unset is a separate single-meaning escape hatch', () => {
+    /**
+     * @test REQ-153-2
+     * @intent unsets the local core.hooksPath without needing a record file
+     * @covers AC-153-7-01
+     */
     it('unsets the local core.hooksPath without needing a record file', () => {
       const dir = repo();
       runInstaller(dir);
@@ -421,6 +501,11 @@ describe('opt-in local commit-msg hook installer', () => {
       expect(gitConfigGet(dir, 'core.hooksPath')).toBeNull();
     });
 
+    /**
+     * @test REQ-153-7
+     * @intent works even when nothing was ever installed
+     * @covers AC-153-2-01
+     */
     it('works even when nothing was ever installed', () => {
       const dir = repo();
 
@@ -430,6 +515,11 @@ describe('opt-in local commit-msg hook installer', () => {
       expect(gitConfigGet(dir, 'core.hooksPath')).toBeNull();
     });
 
+    /**
+     * @test REQ-153-2
+     * @intent is distinct from --uninstall, which still refuses without a record
+     * @covers AC-153-2-02
+     */
     it('is distinct from --uninstall, which still refuses without a record', () => {
       const dir = repo();
       runInstaller(dir);

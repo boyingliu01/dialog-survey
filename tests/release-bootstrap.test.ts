@@ -93,11 +93,21 @@ describe('scripts/release-bootstrap.sh (AC-11)', () => {
     }
   });
 
+  /**
+   * @test REQ-153-6
+   * @intent exists
+   * @covers AC-153-6-01
+   */
   it('exists', () => {
     expect(existsSync(bootstrap)).toBe(true);
   });
 
   describe('branch 1: no tag yet', () => {
+    /**
+     * @test REQ-153-6
+     * @intent creates the tag at HEAD, records its SHA, and prints the tag name
+     * @covers AC-153-6-01
+     */
     it('creates the tag at HEAD, records its SHA, and prints the tag name', () => {
       const dir = repo();
 
@@ -113,6 +123,11 @@ describe('scripts/release-bootstrap.sh (AC-11)', () => {
       expect(readSha(dir)).toBe(tagSha);
     });
 
+    /**
+     * @test REQ-153-6
+     * @intent creates an annotated tag, not a lightweight one
+     * @covers AC-153-6-01
+     */
     it('creates an annotated tag, not a lightweight one', () => {
       const dir = repo();
 
@@ -124,6 +139,11 @@ describe('scripts/release-bootstrap.sh (AC-11)', () => {
   });
 
   describe('branch 2: SHA equals the recorded value', () => {
+    /**
+     * @test REQ-153-6
+     * @intent warns, exits 0, and does not move the tag
+     * @covers AC-153-6-01
+     */
     it('warns, exits 0, and does not move the tag', () => {
       const dir = repo();
       runBootstrap(dir);
@@ -139,6 +159,11 @@ describe('scripts/release-bootstrap.sh (AC-11)', () => {
   });
 
   describe('branch 3: SHA differs from the recorded value', () => {
+    /**
+     * @test REQ-153-6
+     * @intent fails non-zero rather than silently re-pointing the tag
+     * @covers AC-153-6-01
+     */
     it('fails non-zero rather than silently re-pointing the tag', () => {
       const dir = repo();
       runBootstrap(dir);
@@ -157,6 +182,11 @@ describe('scripts/release-bootstrap.sh (AC-11)', () => {
   });
 
   describe('branch 4: tag exists but the record is missing', () => {
+    /**
+     * @test REQ-153-6
+     * @intent warns and exits 0 when the tag is an ancestor of HEAD (fresh clone)
+     * @covers AC-153-6-01
+     */
     it('warns and exits 0 when the tag is an ancestor of HEAD (fresh clone)', () => {
       const dir = repo();
       runBootstrap(dir);
@@ -172,6 +202,11 @@ describe('scripts/release-bootstrap.sh (AC-11)', () => {
       expect(readSha(dir)).toBe(tagSha);
     });
 
+    /**
+     * @test REQ-153-6
+     * @intent fails non-zero when the tag is not an ancestor of HEAD (real drift)
+     * @covers AC-153-6-01
+     */
     it('fails non-zero when the tag is not an ancestor of HEAD (real drift)', () => {
       const dir = repo();
       runBootstrap(dir);

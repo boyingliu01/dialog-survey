@@ -75,16 +75,31 @@ function jobBlock(name: string): string {
 }
 
 describe('commitlint configuration (AC-1)', () => {
+  /**
+   * @test REQ-153-1
+   * @intent exists as a .cjs file so it loads under the ESM "type": "module" package
+   * @covers AC-153-1-01
+   */
   it('exists as a .cjs file so it loads under the ESM "type": "module" package', () => {
     const { name } = findCommitlintConfig();
     expect(name).toBe('commitlint.config.cjs');
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent extends @commitlint/config-conventional
+   * @covers AC-153-1-02
+   */
   it('extends @commitlint/config-conventional', () => {
     const { body } = findCommitlintConfig();
     expect(body).toMatch(/['"]@commitlint\/config-conventional['"]/);
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent declares the exact §5.3 ignores list (only observable patterns)
+   * @covers AC-153-1-04
+   */
   it('declares the exact §5.3 ignores list (only observable patterns)', () => {
     const { body } = findCommitlintConfig();
     // commitlint requires function entries: string/RegExp values are rejected
@@ -112,21 +127,41 @@ describe('commitlint configuration (AC-1)', () => {
     expect(ruleLines).not.toContain('dependabot');
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent is loadable by commitlint and rejects a non-conventional message
+   * @covers AC-153-1-01
+   */
   it('is loadable by commitlint and rejects a non-conventional message', () => {
     expect(lintMessage('bad message no type')).not.toBe(0);
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent accepts a conventional message
+   * @covers AC-153-1-02
+   */
   it('accepts a conventional message', () => {
     // A passing run exits 0 and prints nothing to stdout, so status is the assertion.
     expect(lintMessage('feat: self check')).toBe(0);
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent accepts ignored bot/merge forms (§5.3) while still rejecting bad input
+   * @covers AC-153-1-04
+   */
   it('accepts ignored bot/merge forms (§5.3) while still rejecting bad input', () => {
     expect(lintMessage('Bump lodash from 1 to 2')).toBe(0);
     expect(lintMessage('chore(release): 1.2.3')).toBe(0);
     expect(lintMessage('foo: bar')).not.toBe(0);
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent declares the commitlint packages the config and CI job depend on
+   * @covers AC-153-1-01
+   */
   it('declares the commitlint packages the config and CI job depend on', () => {
     // Guard against a silently dropped dependency. These were once missing from
     // package.json while the commit claiming to add them stayed green: absent
@@ -144,6 +179,11 @@ describe('commitlint configuration (AC-1)', () => {
     );
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent pins a commitlint range that still supports this repository\u2019s Node floor
+   * @covers AC-153-1-02
+   */
   it('pins a commitlint range that still supports this repository\u2019s Node floor', () => {
     const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
 
@@ -155,12 +195,22 @@ describe('commitlint configuration (AC-1)', () => {
 });
 
 describe('commit-lint job in .github/workflows/pr.yml (AC-4 / AC-12)', () => {
+  /**
+   * @test REQ-153-1
+   * @intent exists as a job named commit-lint without needs
+   * @covers AC-153-1-04
+   */
   it('exists as a job named commit-lint without needs (AC-12)', () => {
     const block = jobBlock('commit-lint');
     expect(block).not.toBe('');
     expect(block).not.toMatch(/^\s{4}needs:/m);
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent does not add any release/publish job
+   * @covers AC-153-1-01
+   */
   it('does not add any release/publish job', () => {
     const jobNames = workflow
       .split('\n')
@@ -172,12 +222,22 @@ describe('commit-lint job in .github/workflows/pr.yml (AC-4 / AC-12)', () => {
     expect(jobNames).toContain('commit-lint');
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent checks out full history for the origin/<base>..HEAD range (§5.1)
+   * @covers AC-153-1-02
+   */
   it('checks out full history for the origin/<base>..HEAD range (§5.1)', () => {
     const block = jobBlock('commit-lint');
     expect(block).toMatch(/fetch-depth:\s*0/);
     expect(block).toMatch(/github\.base_ref/);
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent installs dependencies with npm ci before any npx --no-install invocation
+   * @covers AC-153-1-04
+   */
   it('installs dependencies with npm ci before any npx --no-install invocation', () => {
     const block = jobBlock('commit-lint');
     const ciIndex = block.indexOf('npm ci');
@@ -187,6 +247,11 @@ describe('commit-lint job in .github/workflows/pr.yml (AC-4 / AC-12)', () => {
     expect(ciIndex).toBeLessThan(npxIndex);
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent has a blocking PR-title step that pipes the title via env + printf (§5.2)
+   * @covers AC-153-1-01
+   */
   it('has a blocking PR-title step that pipes the title via env + printf (§5.2)', () => {
     const block = jobBlock('commit-lint');
     // The title must be passed through env, never interpolated into the script.
@@ -199,6 +264,11 @@ describe('commit-lint job in .github/workflows/pr.yml (AC-4 / AC-12)', () => {
     expect(step).not.toMatch(/continue-on-error:\s*true/);
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent steps are split per §5.1: base-ref resolution blocks, range check warns
+   * @covers AC-153-1-02
+   */
   it('steps are split per §5.1: base-ref resolution blocks, range check warns', () => {
     const block = jobBlock('commit-lint');
     // base ref resolution must fail loudly, never silently continue.
@@ -210,6 +280,11 @@ describe('commit-lint job in .github/workflows/pr.yml (AC-4 / AC-12)', () => {
     expect(rangeMatch).not.toBeNull();
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent runs the full expected command sequence
+   * @covers AC-153-1-04
+   */
   it('runs the full expected command sequence', () => {
     const block = jobBlock('commit-lint');
     expect(block).toMatch(/--from "origin\/\$BASE_REF" --to HEAD/);
@@ -218,6 +293,11 @@ describe('commit-lint job in .github/workflows/pr.yml (AC-4 / AC-12)', () => {
     expect(block).not.toMatch(/npx commitlint/);
   });
 
+  /**
+   * @test REQ-153-1
+   * @intent contains the §5.4 runtime self-check asserting a known-bad message is rejected
+   * @covers AC-153-1-01
+   */
   it('contains the §5.4 runtime self-check asserting a known-bad message is rejected', () => {
     const block = jobBlock('commit-lint');
     expect(block).toMatch(/self-check/i);

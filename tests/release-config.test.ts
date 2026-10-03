@@ -24,8 +24,18 @@ const releaseItConfig = join(repoRoot, '.release-it.json');
 const writeVersion = join(repoRoot, 'scripts', 'write-version.cjs');
 const releaseSh = join(repoRoot, 'scripts', 'release.sh');
 
-function readConfig(): Record<string, any> {
-  return JSON.parse(readFileSync(releaseItConfig, 'utf8'));
+/** A release-it config block with the nested sections the assertions read. */
+interface ReleaseItConfig {
+  hooks: Record<string, string[]>;
+  plugins: Record<string, Record<string, string>>;
+  git: Record<string, unknown>;
+  npm: Record<string, unknown>;
+  github: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+function readConfig(): ReleaseItConfig {
+  return JSON.parse(readFileSync(releaseItConfig, 'utf8')) as ReleaseItConfig;
 }
 
 function resolveBashCommand(): string {
@@ -61,6 +71,11 @@ function runWriteVersion(cwd: string, args: string[]): { status: number; output:
 }
 
 describe('.release-it.json (AC-5 / AC-6 / AC-7, design §4.2)', () => {
+  /**
+   * @test REQ-153-3
+   * @intent exists and is valid JSON parsed as JSON (not JSON5)
+   * @covers AC-153-3-01
+   */
   it('exists and is valid JSON parsed as JSON (not JSON5)', () => {
     expect(existsSync(releaseItConfig)).toBe(true);
     // Would throw on comments/trailing commas, which release-it rejects too.
@@ -68,6 +83,11 @@ describe('.release-it.json (AC-5 / AC-6 / AC-7, design §4.2)', () => {
   });
 
   describe('the hook key is the bare after:bump (§0.4)', () => {
+    /**
+     * @test REQ-153-3
+     * @intent uses "after:bump" and never the silently-dead "after:version:bump"
+     * @covers AC-153-3-02
+     */
     it('uses "after:bump" and never the silently-dead "after:version:bump"', () => {
       const config = readConfig();
 
@@ -76,6 +96,11 @@ describe('.release-it.json (AC-5 / AC-6 / AC-7, design §4.2)', () => {
       expect(Object.keys(config['hooks'])).not.toContain('after:version:bump');
     });
 
+    /**
+     * @test REQ-153-3
+     * @intent lists the hook commands as an array, never an && chain
+     * @covers AC-153-3-03
+     */
     it('lists the hook commands as an array, never an && chain', () => {
       const config = readConfig();
 
@@ -87,6 +112,11 @@ describe('.release-it.json (AC-5 / AC-6 / AC-7, design §4.2)', () => {
       expect(`${hook[1]}`).not.toContain('${version}');
     });
 
+    /**
+     * @test REQ-153-3
+     * @intent runs write-version.cjs with the interpolated version, then sync-version.cjs
+     * @covers AC-153-3-01
+     */
     it('runs write-version.cjs with the interpolated version, then sync-version.cjs', () => {
       const config = readConfig();
 
@@ -97,16 +127,26 @@ describe('.release-it.json (AC-5 / AC-6 / AC-7, design §4.2)', () => {
   });
 
   describe('the changelog plugin is present (fixture realism, DD-009)', () => {
+    /**
+     * @test REQ-153-4
+     * @intent configures @release-it/conventional-changelog with the conventionalcommits preset
+     * @covers AC-153-3-02
+     */
     it('configures @release-it/conventional-changelog with the conventionalcommits preset', () => {
       const config = readConfig();
 
       // Omitting this plugin flips the hook behaviour and yields FALSE PASSES.
       const plugin = config['plugins']['@release-it/conventional-changelog'];
       expect(plugin).toBeDefined();
-      expect(plugin.preset).toBe('conventionalcommits');
-      expect(plugin.infile).toBe('CHANGELOG.md');
+      expect(plugin['preset']).toBe('conventionalcommits');
+      expect(plugin['infile']).toBe('CHANGELOG.md');
     });
 
+    /**
+     * @test REQ-153-3
+     * @intent declares both release-it packages as installed dependencies
+     * @covers AC-153-3-03
+     */
     it('declares both release-it packages as installed dependencies', () => {
       const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
       const declared = { ...pkg.dependencies, ...pkg.devDependencies };
@@ -121,6 +161,11 @@ describe('.release-it.json (AC-5 / AC-6 / AC-7, design §4.2)', () => {
       ).toBe(true);
     });
 
+    /**
+     * @test REQ-153-3
+     * @intent pins a range that still supports this repository\u2019s Node floor
+     * @covers AC-153-3-01
+     */
     it('pins a range that still supports this repository\u2019s Node floor', () => {
       const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'));
       const floor = /(\d+)\.(\d+)/.exec(`${pkg.engines?.node ?? ''}>=`);
@@ -135,14 +180,24 @@ describe('.release-it.json (AC-5 / AC-6 / AC-7, design §4.2)', () => {
   });
 
   describe('git / npm / github settings', () => {
+    /**
+     * @test REQ-153-3
+     * @intent pins tagName to the literal v${version}
+     * @covers AC-153-3-02
+     */
     it('pins tagName to the literal v${version}', () => {
       const config = readConfig();
 
       // With zero existing tags release-it degrades to no "v" prefix, so this
       // must be explicit.
-      expect(config['git'].tagName).toBe('v${version}');
+      expect(config['git']['tagName']).toBe('v${version}');
     });
 
+    /**
+     * @test REQ-153-3
+     * @intent sets requireBranch to the repository\u2019s actual default branch
+     * @covers AC-153-3-03
+     */
     it('sets requireBranch to the repository\u2019s actual default branch', () => {
       const config = readConfig();
 
@@ -155,31 +210,51 @@ describe('.release-it.json (AC-5 / AC-6 / AC-7, design §4.2)', () => {
         .trim()
         .replace(/^origin\//, '');
 
-      expect(config['git'].requireBranch).toBe(defaultBranch);
+      expect(config['git']['requireBranch']).toBe(defaultBranch);
     });
 
+    /**
+     * @test REQ-153-3
+     * @intent requires a clean working directory
+     * @covers AC-153-3-01
+     */
     it('requires a clean working directory', () => {
-      expect(readConfig()['git'].requireCleanWorkingDir).toBe(true);
+      expect(readConfig()['git']['requireCleanWorkingDir']).toBe(true);
     });
 
+    /**
+     * @test REQ-153-3
+     * @intent never publishes to npm
+     * @covers AC-153-3-02
+     */
     it('never publishes to npm', () => {
-      expect(readConfig()['npm'].publish).toBe(false);
+      expect(readConfig()['npm']['publish']).toBe(false);
     });
 
+    /**
+     * @test REQ-153-3
+     * @intent creates a published (non-draft, non-prerelease) GitHub Release
+     * @covers AC-153-3-03
+     */
     it('creates a published (non-draft, non-prerelease) GitHub Release', () => {
       const { github } = readConfig();
 
-      expect(github.release).toBe(true);
-      expect(github.draft).toBe(false);
-      expect(github.preRelease).toBe(false);
+      expect(github['release']).toBe(true);
+      expect(github['draft']).toBe(false);
+      expect(github['preRelease']).toBe(false);
     });
 
+    /**
+     * @test REQ-153-3
+     * @intent uses a conventional commit message for the release commit
+     * @covers AC-153-3-01
+     */
     it('uses a conventional commit message for the release commit', () => {
       const config = readConfig();
 
       // Must itself be a valid conventional commit, or the release commit would
       // be rejected by this very feature's own lint rules.
-      expect(config['git'].commitMessage).toMatch(/^chore\(release\): /);
+      expect(config['git']['commitMessage']).toMatch(/^chore\(release\): /);
     });
   });
 });
@@ -193,10 +268,20 @@ describe('scripts/write-version.cjs', () => {
     return dir;
   }
 
+  /**
+   * @test REQ-153-3
+   * @intent exists
+   * @covers AC-153-3-02
+   */
   it('exists', () => {
     expect(existsSync(writeVersion)).toBe(true);
   });
 
+  /**
+   * @test REQ-153-3
+   * @intent writes the given version to VERSION
+   * @covers AC-153-3-03
+   */
   it('writes the given version to VERSION', () => {
     const dir = fixture();
 
@@ -206,6 +291,11 @@ describe('scripts/write-version.cjs', () => {
     expect(readFileSync(join(dir, 'VERSION'), 'utf8').trim()).toBe('1.2.3');
   });
 
+  /**
+   * @test REQ-153-4
+   * @intent refuses a missing argument with a non-zero exit and writes nothing
+   * @covers AC-153-3-01
+   */
   it('refuses a missing argument with a non-zero exit and writes nothing', () => {
     const dir = fixture();
 
@@ -215,6 +305,11 @@ describe('scripts/write-version.cjs', () => {
     expect(existsSync(join(dir, 'VERSION'))).toBe(false);
   });
 
+  /**
+   * @test REQ-153-4
+   * @intent refuses a non-semver argument with a non-zero exit and writes nothing
+   * @covers AC-153-3-02
+   */
   it('refuses a non-semver argument with a non-zero exit and writes nothing', () => {
     const dir = fixture();
 
@@ -224,6 +319,11 @@ describe('scripts/write-version.cjs', () => {
     expect(existsSync(join(dir, 'VERSION'))).toBe(false);
   });
 
+  /**
+   * @test REQ-153-4
+   * @intent accepts a semver prerelease
+   * @covers AC-153-3-03
+   */
   it('accepts a semver prerelease', () => {
     const dir = fixture();
 
@@ -235,10 +335,20 @@ describe('scripts/write-version.cjs', () => {
 });
 
 describe('scripts/release.sh', () => {
+  /**
+   * @test REQ-153-4
+   * @intent exists
+   * @covers AC-153-3-01
+   */
   it('exists', () => {
     expect(existsSync(releaseSh)).toBe(true);
   });
 
+  /**
+   * @test REQ-153-3
+   * @intent defaults to a dry run
+   * @covers AC-153-3-02
+   */
   it('defaults to a dry run', () => {
     const source = readFileSync(releaseSh, 'utf8');
 
@@ -248,6 +358,11 @@ describe('scripts/release.sh', () => {
     expect(source).toMatch(/--execute/);
   });
 
+  /**
+   * @test REQ-153-3
+   * @intent pre-checks that VERSION matches package.json and fails otherwise
+   * @covers AC-153-3-03
+   */
   it('pre-checks that VERSION matches package.json and fails otherwise', () => {
     const dir = mkdtempSync(join(tmpdir(), 'release-sh-'));
     try {
@@ -270,6 +385,11 @@ describe('scripts/release.sh', () => {
     }
   });
 
+  /**
+   * @test REQ-153-4
+   * @intent operates on the caller\u2019s repository, not the one the script lives in
+   * @covers AC-153-3-01
+   */
   it('operates on the caller\u2019s repository, not the one the script lives in', () => {
     // Regression guard. An earlier revision `cd`-ed to the script's own parent,
     // so running it from a fixture silently fell through to THIS repository and
@@ -298,6 +418,11 @@ describe('scripts/release.sh', () => {
     }
   });
 
+  /**
+   * @test REQ-153-3
+   * @intent never mutates the live repository\u2019s VERSION when run against a fixture
+   * @covers AC-153-3-02
+   */
   it('never mutates the live repository\u2019s VERSION when run against a fixture', () => {
     // The concrete damage seen in practice: a fixture-based run wrote
     // 1.2.3-rc.1 into the real repository's VERSION, desynchronising it from

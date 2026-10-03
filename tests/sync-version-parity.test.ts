@@ -129,6 +129,11 @@ describe('sync-version .sh/.cjs parity', () => {
     }
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-14: --list-targets reports only paths that exist in the target root
+   * @covers AC-153-4-02
+   */
   it('AC-14: --list-targets reports only paths that exist in the target root', () => {
     const liveTargets = runSh(repoRoot, ['--list-targets'])
       .trim()
@@ -142,6 +147,11 @@ describe('sync-version .sh/.cjs parity', () => {
     }
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-14: --list-targets output equals the actually-existing subset on a fixture
+   * @covers AC-153-5-01
+   */
   it('AC-14: --list-targets output equals the actually-existing subset on a fixture', () => {
     const f = fixture();
     f.writePackageJson('package.json', '1.0.0');
@@ -159,6 +169,11 @@ describe('sync-version .sh/.cjs parity', () => {
     }
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-14: --list-targets never reports the five absent npm-package/plugin paths
+   * @covers AC-153-4-03
+   */
   it('AC-14: --list-targets never reports the five absent npm-package/plugin paths', () => {
     const output = runSh(repoRoot, ['--list-targets']);
     expect(output).not.toContain('src/npm-package/package.json');
@@ -168,6 +183,11 @@ describe('sync-version .sh/.cjs parity', () => {
     expect(output).not.toContain('src/npm-package/plugins/opencode/package.json');
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-14: --list-targets performs no writes (query mode only)
+   * @covers AC-153-4-02
+   */
   it('AC-14: --list-targets performs no writes (query mode only)', () => {
     const f = fixture();
     f.writePackageJson('package.json', '1.0.0');
@@ -179,6 +199,11 @@ describe('sync-version .sh/.cjs parity', () => {
     expect(snapshotTree(f.dir)).toEqual(before);
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-13: .sh and .cjs produce byte-identical --list-targets output
+   * @covers AC-153-5-01
+   */
   it('AC-13: .sh and .cjs produce byte-identical --list-targets output', () => {
     const f = fixture();
     f.writePackageJson('package.json', '1.0.0');
@@ -188,6 +213,11 @@ describe('sync-version .sh/.cjs parity', () => {
     expect(runCjs(f.dir, ['--list-targets'])).toBe(runSh(f.dir, ['--list-targets']));
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-13: .sh and .cjs produce byte-identical file trees after a sync
+   * @covers AC-153-4-03
+   */
   it('AC-13: .sh and .cjs produce byte-identical file trees after a sync', () => {
     const configure = (f: Fixture): void => {
       f.writePackageJson('package.json', '1.0.0');
@@ -219,6 +249,11 @@ describe('sync-version .sh/.cjs parity', () => {
     );
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-13: both implementations are idempotent (second run is a no-op)
+   * @covers AC-153-4-02
+   */
   it('AC-13: both implementations are idempotent (second run is a no-op)', () => {
     for (const run of [runSh, runCjs]) {
       const f = fixture();
@@ -233,6 +268,11 @@ describe('sync-version .sh/.cjs parity', () => {
     }
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-13/AC-15: both implementations fail closed on an invalid VERSION
+   * @covers AC-153-5-01
+   */
   it('AC-13/AC-15: both implementations fail closed on an invalid VERSION', () => {
     for (const run of [runSh, runCjs]) {
       const f = fixture('not-a-version');
@@ -244,6 +284,11 @@ describe('sync-version .sh/.cjs parity', () => {
     }
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-13: both implementations fail closed when the AGENTS.md header format is wrong
+   * @covers AC-153-4-03
+   */
   it('AC-13: both implementations fail closed when the AGENTS.md header format is wrong', () => {
     for (const run of [runSh, runCjs]) {
       const f = fixture();
@@ -257,6 +302,11 @@ describe('sync-version .sh/.cjs parity', () => {
     }
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-13: both implementations skip a wholly absent AGENTS.md (optional target)
+   * @covers AC-153-4-02
+   */
   it('AC-13: both implementations skip a wholly absent AGENTS.md (optional target)', () => {
     for (const run of [runSh, runCjs]) {
       const f = fixture();
@@ -271,6 +321,11 @@ describe('sync-version .sh/.cjs parity', () => {
     }
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-13: both implementations only rewrite the first header match, not body tokens
+   * @covers AC-153-5-01
+   */
   it('AC-13: both implementations only rewrite the first header match, not body tokens', () => {
     for (const run of [runSh, runCjs]) {
       const f = fixture();
@@ -285,6 +340,11 @@ describe('sync-version .sh/.cjs parity', () => {
     }
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-13: both implementations skip a target whose name is a directory, not a file
+   * @covers AC-153-4-03
+   */
   it('AC-13: both implementations skip a target whose name is a directory, not a file', () => {
     // `[ -f "$pkg" ]` in the .sh means "regular file only". A bare existence check in the
     // .cjs would instead throw EISDIR on a directory named package.json and diverge.
@@ -301,6 +361,11 @@ describe('sync-version .sh/.cjs parity', () => {
     }
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-13: neither implementation rewrites anything outside the root
+   * @covers AC-153-4-02
+   */
   it('AC-13: neither implementation rewrites anything outside the root', () => {
     // SYNC_VERSION_ROOT must be honoured: a sync against a fixture may never touch the
     // live repository's own version-bearing files.
@@ -321,6 +386,11 @@ describe('sync-version .sh/.cjs parity', () => {
     expect(readFileSync(join(repoRoot, 'AGENTS.md'), 'utf8')).toBe(liveAgents);
   });
 
+  /**
+   * @test REQ-153-5
+   * @intent aC-15: node runs the .cjs without any bash on PATH
+   * @covers AC-153-5-01
+   */
   it('AC-15: node runs the .cjs without any bash on PATH', () => {
     const f = fixture();
     f.writePackageJson('package.json', '1.0.0');
