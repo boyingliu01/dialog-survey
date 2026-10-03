@@ -28,6 +28,8 @@
     "prisma:generate": "prisma generate",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:mutation": "stryker run",
+    "test:mutation:incremental": "node scripts/mutation-test.mjs",
     "lint": "biome lint src",
     "lint:fix": "biome lint --write src",
     "type-check": "tsc --noEmit",

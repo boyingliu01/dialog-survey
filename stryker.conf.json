@@ -1,0 +1,28 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Full-run config (issue #155). Incremental PR runs go through scripts/mutation-test.mjs which overrides `mutate` via --mutate from git diff. concurrency is raised to >=4 by the orchestrator; CI sets it explicitly.",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.mutation.ts"
+  },
+  "mutate": ["src/**/*.ts", "!src/generated/**"],
+  "concurrency": 4,
+  "timeoutMS": 60000,
+  "timeoutFactor": 2,
+  "dryRunTimeoutMinutes": 15,
+  "thresholds": { "high": 80, "low": 60, "break": 0 },
+  "reporters": ["clear-text", "json"],
+  "jsonReporter": { "fileName": ".stryker-report.json" },
+  "logLevel": "info",
+  "tempDirName": ".stryker-tmp",
+  "ignorePatterns": [
+    "coverage",
+    "reports",
+    ".xp-gate",
+    ".quality-history.jsonl",
+    "**/*.pdf",
+    "**/*.otf"
+  ],
+  "disableTypeChecks": true,
+  "symlinkNodeModules": true
+}
