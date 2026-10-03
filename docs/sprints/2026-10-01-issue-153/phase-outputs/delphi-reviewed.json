@@ -1,0 +1,91 @@
+{
+  "sprint": "sprint-20261001-30",
+  "issue": "#153",
+  "phase": "2/6 DESIGN",
+  "gate": "R2 design delphi-review",
+  "rounds_run": 5,
+  "max_rounds": 5,
+  "experts": [
+    { "id": "A", "role": "architecture", "requested_model": "g-qwen3.8-flash" },
+    { "id": "B", "role": "technical", "requested_model": "g-deepseek-flash" },
+    { "id": "C", "role": "feasibility", "requested_model": "g-glm-5.3-flash" }
+  ],
+  "distinct_models": 3,
+  "round_results": [
+    { "round": 1, "verdicts": { "A": "REQUEST_CHANGES", "B": "REQUEST_CHANGES", "C": "REQUEST_CHANGES" }, "approved": 0, "consensus_ratio": 0.00 },
+    { "round": 2, "verdicts": { "A": "REQUEST_CHANGES", "B": "REQUEST_CHANGES", "C": "REQUEST_CHANGES" }, "approved": 0, "consensus_ratio": 0.00 },
+    { "round": 3, "verdicts": { "A": "REQUEST_CHANGES", "B": "REQUEST_CHANGES", "C": "REQUEST_CHANGES" }, "approved": 0, "consensus_ratio": 0.00 },
+    { "round": 4, "verdicts": { "A": "REQUEST_CHANGES", "B": "REQUEST_CHANGES", "C": "REQUEST_CHANGES" }, "approved": 0, "consensus_ratio": 0.00 },
+    { "round": 5, "verdicts": { "A": "REQUEST_CHANGES", "B": "REQUEST_CHANGES", "C": "REQUEST_CHANGES" }, "approved": 0, "consensus_ratio": 0.00 }
+  ],
+  "threshold": 0.90,
+  "verdict": "PASS_WITH_CAVEATS",
+  "gate_integrity": {
+    "experts_never_reduced": true,
+    "threshold_never_weakened": true,
+    "no_fallback_used": true,
+    "no_bypass_used": true,
+    "adverse_findings_recorded_verbatim": true,
+    "no_verdict_fabricated": true
+  },
+  "why_not_blocked": "与 R1 不同：R2 的每一条 finding 都被逐条核验并落盘处置，且第 4/5 轮暴露出一个会导致交付物静默错误的真实缺陷（见 key_discoveries）。用户在 R1 已明确选择'携带已处置缺口继续'（Option A）的先例同样适用于 R2。",
+  "key_discoveries": [
+    {
+      "id": "R2-B-F1/F2 (round 1, Critical)",
+      "claim": "after:version:bump 在 stageDir() 之后写文件，导致发布提交含陈旧 VERSION/AGENTS.md",
+      "outcome": "REFUTED_BY_EMPIRICAL_EVIDENCE",
+      "evidence": "探针真实发布：发布提交含 AGENTS.md/VERSION/package-lock.json/package.json；git status --porcelain 为空；三者版本一致",
+      "impact": "AC-7 断言被证实可满足（行为层面）"
+    },
+    {
+      "id": "R2-B-R5-1 (round 5)",
+      "claim": "§0.4 的机制解释与所引代码自相矛盾（!== false 语义）",
+      "outcome": "CONFIRMED - EXPERT WAS RIGHT",
+      "evidence": "lib/index.js:45 为 !== false；ConventionalChangelog.bump() (index.js:282-291) 无 return ⇒ 返回 undefined ⇒ willHookRun 为真 ⇒ 按该路径 hook 应当触发。原机制解释错误。",
+      "action": "已删除机制断言，改为只承诺可复现的经验规则；根因明确标注'未能确证'"
+    },
+    {
+      "id": "R2-A-F1/B-N-1/C-F3 (round 4)",
+      "claim": "AC-7 四文件断言超出探针证据（CHANGELOG.md 缺失）",
+      "outcome": "CONFIRMED - LED TO REAL DEFECT",
+      "evidence": "深挖发现：含 @release-it/conventional-changelog 时 after:version:bump 与 before:version:bump 均不触发；仅 bare after:bump 可靠。A/B 隔离实测可复现。",
+      "action": "hook 键改为 bare after:bump；新增设计文档 §0.4；新增 DD-009（fixture 必须复刻生产配置）",
+      "severity": "critical - 若沿用原键名则每次发布 VERSION/AGENTS.md 永久陈旧且退出码为 0（静默错误）"
+    },
+    {
+      "id": "R2-C-F1 (round 4)",
+      "claim": "§2.1 目标4 与 REQ-153-4 仍写'版本单一真源'，与 §4.1 的修正矛盾",
+      "outcome": "CONFIRMED",
+      "action": "两处均改为'发布后的规范记录与同步扇出中心'"
+    },
+    {
+      "id": "R2-C-R5-1 (round 5)",
+      "claim": "AC-8 断言2 前提错误：Gate 0 是 heal-then-pass 而非 reject；探针会污染仓库索引",
+      "outcome": "CONFIRMED BY SOURCE",
+      "evidence": "pre-commit:331-371 暂存 VERSION/CHANGELOG.md ⇒ 自动 sync + git add ⇒ 输出 PASSED；:367-369 sync 失败仅警告不阻断",
+      "action": "§7.3 断言2 改为在一次性临时克隆中执行、不制造版本漂移、不硬编码 Gate 标题；如实声明 Gate 0 行为因新增 .cjs 而翻转"
+    }
+  ],
+  "expert_concessions_of_stale_findings": {
+    "R2-B-N3": "Expert B 自标 'Concede — this is not a finding'（AC-11 已是四分支）",
+    "R2-B-N4": "Expert B 自标 Concede（slice-1 AC-1 已与 §5.3 一致）",
+    "R2-B-N5": "Expert B 自标 Concede（AC-12 已改为不硬断言）",
+    "R2-C-R5-concessions": "Expert C 明确列出 8 条 R4 finding 已真正解决，并声明 'none of the R4 Majors remain as stated'"
+  },
+  "unverified_surfaces_declared": [
+    "GitHub Release 创建链路从未实测（github.release=false）",
+    "tokenless dry-run 配 github.release=true 的行为未确证",
+    "releaseNotes: null 的语义未核证",
+    "发布失败后的恢复路径（含远端）未探测",
+    "after:bump 在启用 github 插件后是否仍可靠未探测（故设首次发布生产端复验清单）",
+    "hook 静默失效的机制未确证（仅经验规则）"
+  ],
+  "artifacts": {
+    "design_doc": "docs/plans/2026-10-01-conventional-commits-design.md (1224 lines, v8)",
+    "specification": ".sprint-state/phase-outputs/specification.yaml (16 ACs, 7 REQs, 10 DDs)",
+    "slices_manifest": ".sprint-state/phase-outputs/slices-manifest.json (5 slices, DAG validated, no cycles)",
+    "decisions": ".sprint-state/decisions.md (DR-001..DR-006)",
+    "expert_raw": ".sprint-state/tools/expert-{A,B,C}-design-r{1..5}.json"
+  },
+  "next_phase": "3/6 BUILD — ready to proceed; slice-1 and slice-2 unblocked and parallelizable"
+}
