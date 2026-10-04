@@ -242,7 +242,9 @@ jobs:
 
       - name: Run incremental mutation tests
         continue-on-error: true
-        run: npm run test:mutation:incremental -- --base "origin/${{ github.base_ref }}"
+        # github.base_ref is empty on workflow_dispatch; fall back to master so
+        # a manual dispatch runs against origin/master instead of no-op'ing.
+        run: npm run test:mutation:incremental -- --base "origin/${{ github.base_ref || 'master' }}"
         env:
           NODE_ENV: test
           DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || 'dummy-ci-client-id' }}

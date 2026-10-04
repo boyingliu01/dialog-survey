@@ -285,10 +285,20 @@ describe('Admin UI Coverage Matrix (Playwright E2E, issue #154)', () => {
         confirmButton.click(),
       ]);
 
-      // executeDelete reloads the page; the plan must be gone everywhere.
-      await page.waitForLoadState('load');
-      const sidebar = await page.textContent('aside');
-      expect(sidebar ?? '').not.toContain('E2E-154 级联删除计划');
+      // executeDelete fires location.reload() from a fetch .then(); wait for
+      // the reload to COMMIT (not just for load state on the old document),
+      // then poll until the sidebar actually re-rendered without the plan.
+      await Promise.race([
+        page.waitForNavigation({ waitUntil: 'load', timeout: 10_000 }),
+        page.waitForLoadState('load'),
+      ]);
+      await vi.waitFor(
+        async () => {
+          const sidebar = await page.textContent('aside');
+          expect(sidebar ?? '').not.toContain('E2E-154 级联删除计划');
+        },
+        { timeout: 15_000, interval: 250 }
+      );
       const stillThere = await server.prisma.interviewPlan
         .findUnique({ where: { id: planId } })
         .catch(() => null);
@@ -367,6 +377,12 @@ describe('Admin UI Coverage Matrix (Playwright E2E, issue #154)', () => {
           });
           expect(report).not.toBeNull();
           expect(report?.content).not.toBe('旧版报告内容');
+          // Shape check, not just "changed": the no-LLM fallback embeds the
+          // transcript as Q/A pairs (report.service.ts generateReport), so a
+          // regenerated report must contain the seeded answer — an empty or
+          // garbage report would pass a mere inequality assertion.
+          expect(report?.content).toContain('问答记录');
+          expect(report?.content).toContain('整体方向很好，细节需要完善。');
         },
         { timeout: 15_000 }
       );

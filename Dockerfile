@@ -34,7 +34,7 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/src/views ./src/views
 COPY --from=builder /app/public ./public
 
-# Runtime files needed by the Prisma CLI (container-side db push, DD-009)
+# Runtime files needed by the Prisma CLI (container-side migrate deploy, DD-009 / #152)
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
 # Copy environment template
@@ -49,4 +49,10 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 EXPOSE 3001
 
-CMD ["node", "dist/src/server.js"]
+# Apply pending migrations before boot (issue #152: prisma/migrations/ is the
+# source of truth; migrate deploy is a no-op when the schema is already up to
+# date). A failed migration must not start the app against a stale schema.
+# Direct node invocation of the CLI entry: `npx` may try to FETCH prisma@latest
+# because the runner stage installs deps with --ignore-scripts and never links
+# the bin shim, which would silently upgrade the pinned 7.10.0.
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy && node dist/src/server.js"]
