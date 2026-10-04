@@ -733,6 +733,27 @@ export async function installCommand(flags) {
     log('  Migrations applied ✓');
   } catch (err) {
     logError(`prisma migrate deploy failed: ${err.message}`);
+    // Most common cause on upgrades from <=v1.9: the DB schema already exists
+    // (created by the old `prisma db push`) but has no migration history, so
+    // deploying the init migration collides with existing tables. Tell the
+    // operator how to baseline it instead of leaving a raw P3005/P3018 dump.
+    if (
+      /already exists|P3005|P3018|migration.*conflict/i.test(
+        String(err.stdout ?? '') + String(err.stderr ?? '') + err.message
+      )
+    ) {
+      logError(
+        [
+          'This database looks like it was created by the old `prisma db push`',
+          '(tables exist, but there is no migration history). To upgrade without',
+          'losing data, mark the initial migration as already applied once:',
+          '',
+          '  npx --yes prisma@7.10.0 migrate resolve --applied 20261004000000_init',
+          '',
+          'then re-run this installer. See DEPLOY.md "Database Rollback" for details.',
+        ].join('\n')
+      );
+    }
     process.exitCode = 1;
     return;
   }
