@@ -61,11 +61,22 @@ function defaultGit(args) {
 
 export function collectChangedFiles({ base, git = defaultGit }) {
   const files = new Set();
+  let diffFailed = false;
   if (base) {
     // Three-dot means "merge-base(base, HEAD) vs HEAD" — exactly the PR's own
     // changes. Git resolves the merge-base itself; computing it separately and
     // feeding a two-dot range breaks when one side is an ancestor of the other.
-    for (const file of selectMutableFiles(git(['diff', '--name-only', `${base}...HEAD`]) ?? '')) {
+    const rangeDiff = git(['diff', '--name-only', `${base}...HEAD`]);
+    if (rangeDiff === null) {
+      // A FAILED range (shallow clone without merge-base, orphan branch, typo'd
+      // ref) must not masquerade as "nothing changed" — that would be a green
+      // no-op, which is the worst possible outcome for a quality job.
+      diffFailed = true;
+      console.error(
+        `mutation-test: ERROR: git diff ${base}...HEAD failed; cannot compute the incremental set.`
+      );
+    }
+    for (const file of selectMutableFiles(rangeDiff ?? '')) {
       files.add(file);
     }
   }
@@ -78,7 +89,7 @@ export function collectChangedFiles({ base, git = defaultGit }) {
   )) {
     files.add(file);
   }
-  return [...files].sort();
+  return { files: [...files].sort(), diffFailed };
 }
 
 export function parseArgs(argv) {
@@ -119,14 +130,26 @@ export function main({
 
   let files = options.files;
   if (!options.full && files === undefined) {
+    const requestedBase = options.base ?? '';
+    // An empty or placeholder-resolved ref (e.g. GitHub's `${{ github.base_ref }}`
+    // expanding to "" on workflow_dispatch → "origin/") is not a real base —
+    // fall back to the candidate list instead of failing the diff silently.
+    const usableBase = /^origin\/?$/.test(requestedBase) ? '' : requestedBase;
     const base =
-      options.base ??
+      usableBase ||
       resolveBaseRef(
         DEFAULT_BASE_CANDIDATES,
         (ref) => git(['rev-parse', '--verify', ref]) !== null
       );
-    files = collectChangedFiles({ base, git });
+    const collected = collectChangedFiles({ base, git });
+    files = collected.files;
     if (files.length === 0) {
+      if (collected.diffFailed) {
+        console.error(
+          'mutation-test: nothing mutable found AND the base diff failed — refusing to report success.'
+        );
+        return 3;
+      }
       console.log('mutation-test: no mutable source files changed — skipping Stryker run.');
       return 0;
     }

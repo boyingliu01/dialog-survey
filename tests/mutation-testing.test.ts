@@ -24,7 +24,7 @@ interface MutationTestModule {
   collectChangedFiles: (opts: {
     base?: string;
     git: (args: string[]) => string | null;
-  }) => string[];
+  }) => { files: string[]; diffFailed: boolean };
   main: (opts: Record<string, unknown>) => number;
 }
 
@@ -58,7 +58,7 @@ describe('mutation-test orchestrator (issue #155)', () => {
       if (args[0] === 'ls-files') return 'src/d.ts\nnotes.txt\n';
       return null;
     };
-    expect(mod.collectChangedFiles({ base: 'origin/master', git: fakeGit })).toEqual([
+    expect(mod.collectChangedFiles({ base: 'origin/master', git: fakeGit }).files).toEqual([
       'src/a.ts',
       'src/b.ts',
       'src/c.ts',
@@ -66,6 +66,19 @@ describe('mutation-test orchestrator (issue #155)', () => {
     ]);
     // The range must be delegated to git's own merge-base resolution.
     expect(calls.some((args) => args.includes('origin/master...HEAD'))).toBe(true);
+  });
+
+  it('AC-1: a FAILED base diff is reported, not swallowed as an empty set', async () => {
+    const mod = await loadModule();
+    const fakeGit = (args: string[]): string | null => {
+      if (args[0] === 'diff' && args[2]?.includes('...HEAD')) return null; // exit != 0
+      if (args[0] === 'diff') return '';
+      if (args[0] === 'ls-files') return '';
+      return null;
+    };
+    const result = mod.collectChangedFiles({ base: 'origin/typo', git: fakeGit });
+    expect(result.files).toEqual([]);
+    expect(result.diffFailed).toBe(true);
   });
 
   it('AC-1: passes the changed set to Stryker via --mutate (incremental entry)', async () => {
@@ -117,11 +130,19 @@ describe('mutation testing configuration contract (issue #155)', () => {
     const yml = read('.github/workflows/pr.yml');
     expect(yml).toContain('mutation-tests:');
     expect(yml).toContain('npm run test:mutation:incremental');
-    // Advisory: must never block the pipeline. Job body = up to the next job key.
+    // Advisory must be enforced at the JOB level: a step-level coe does not
+    // absorb a killed job, and a substring search over the whole body would
+    // pass even after someone deletes the job-level flag (the step-level one
+    // appears inside `steps:`). Assert it BEFORE `steps:`.
     const jobStart = yml.indexOf('  mutation-tests:');
     const nextJob = yml.slice(jobStart + 1).search(/^ {2}\S/m);
     const jobBody = yml.slice(jobStart, nextJob === -1 ? undefined : jobStart + 1 + nextJob);
-    expect(jobBody).toContain('continue-on-error: true');
+    const stepsAt = jobBody.indexOf('\n    steps:');
+    const jobHeader = stepsAt === -1 ? jobBody : jobBody.slice(0, stepsAt);
+    expect(jobHeader).toMatch(/^ {4}continue-on-error:\s*true$/m);
+    // Dispatch runs have no base_ref — the command must not degrade to "origin/".
+    expect(jobBody).not.toMatch(/--base "origin\/\$\{\{ github\.base_ref \}\}"/);
+    expect(jobBody).toContain("github.base_ref || 'master'");
   });
 
   it('npm scripts expose full and incremental mutation entry points', () => {
@@ -170,5 +191,45 @@ describe('behavioural proof of the incremental skip path', () => {
     });
     expect(exitCode).toBe(0);
     expect(launched).toBe(false);
+  });
+
+  it('exits non-zero when the base diff fails and no files were found (no green no-op)', async () => {
+    const mod = await loadModule();
+    const exitCode = mod.main({
+      argv: ['--base', 'origin/does-not-exist'],
+      env: {},
+      git: (args: string[]) => {
+        if (args[0] === 'rev-parse') return null;
+        // The base...HEAD range FAILS; the working-tree commands succeed empty.
+        if (args[0] === 'diff' && args[2]?.includes('...HEAD')) return null;
+        if (args[0] === 'diff') return '';
+        if (args[0] === 'ls-files') return '';
+        return null;
+      },
+      spawn: () => ({ status: 0 }),
+      cpuCount: 8,
+    });
+    expect(exitCode).not.toBe(0);
+  });
+
+  it('falls back to base candidates when --base resolves to a bare "origin/"', async () => {
+    const mod = await loadModule();
+    const bases: string[] = [];
+    const exitCode = mod.main({
+      argv: ['--base', 'origin/'],
+      env: {},
+      git: (args: string[]) => {
+        if (args[0] === 'rev-parse') return args[2] === 'origin/master' ? 'sha\n' : null;
+        if (args[0] === 'diff' && args[2]) bases.push(args[2]);
+        if (args[0] === 'diff') return 'src/x.ts\n';
+        if (args[0] === 'ls-files') return '';
+        return null;
+      },
+      spawn: () => ({ status: 0 }),
+      cpuCount: 8,
+    });
+    // It must have resolved origin/master as the range base, not "origin/".
+    expect(bases.some((b) => b.startsWith('origin/master...'))).toBe(true);
+    expect(exitCode).toBe(0);
   });
 });
