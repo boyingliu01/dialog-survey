@@ -260,6 +260,26 @@ Schema changes are versioned as SQL migrations under `prisma/migrations/`
 (issue #152 — `db push` was retired because it kept no history and silently
 skipped data updates for existing rows).
 
+#### Upgrading a database created by `db push` (≤ v1.9)
+
+Databases built with the old `prisma db push` workflow already contain every
+table, but have no `_prisma_migrations` history — so the first
+`migrate deploy` collides with the existing objects (`already exists`,
+P3005/P3018). Back up first, then baseline the initial migration once:
+
+```bash
+pg_dump -U dialog_survey dialog_survey > backup-before-baseline.sql
+
+# Mark the init migration as already applied (does NOT touch data):
+npx prisma migrate resolve --applied 20261004000000_init
+
+# From here on, normal deploys work:
+npx prisma migrate deploy
+```
+
+`scripts/deploy.sh` and the CLI installer print these same instructions when
+they detect this situation.
+
 ```bash
 # Apply pending migrations (deploy, installer, manual):
 npx prisma migrate deploy

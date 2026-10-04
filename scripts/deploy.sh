@@ -96,7 +96,17 @@ log_info "Setting up Prisma..."
 npx prisma generate
 # Issue #152: migrations (prisma/migrations/) are the source of truth —
 # migrate deploy is replayable and rollback-able, unlike `db push`.
-npx prisma migrate deploy
+if ! npx prisma migrate deploy; then
+  # Upgrades from <=v1.9: the DB was created by the old push-based workflow,
+  # so tables exist but there is no migration history — the init migration
+  # collides. Baseline it once instead of failing with a raw P3005/P3018 dump.
+  log_warn "migrate deploy failed — this database may predate issue #152"
+  log_warn "(created via the old schema-push flow: tables exist, migration history does not)."
+  log_warn "If the schema is already current, baseline the initial migration once:"
+  log_warn "  npx prisma migrate resolve --applied 20261004000000_init"
+  log_warn "then re-run this script. See DEPLOY.md 'Database Rollback'."
+  exit 1
+fi
 log_info "✓ Prisma ready"
 
 # ── Phase 5: Build ─────────────────────────────────────────────────────
