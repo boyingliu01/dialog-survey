@@ -12,6 +12,9 @@ const OWNED_ENV_KEYS = [
   'ADMIN_PASSWORD_HASH',
   'DINGTALK_CLIENT_ID',
   'DINGTALK_CLIENT_SECRET',
+  'LLM_BASE_URL',
+  'LLM_API_KEY',
+  'LLM_MODEL',
 ] as const;
 
 type OwnedEnvKey = (typeof OWNED_ENV_KEYS)[number];
@@ -80,6 +83,13 @@ export async function createE2EServer(port = 0): Promise<E2EServer> {
   if (!process.env['DINGTALK_CLIENT_ID']) process.env['DINGTALK_CLIENT_ID'] = 'e2e-dummy-client-id';
   if (!process.env['DINGTALK_CLIENT_SECRET'])
     process.env['DINGTALK_CLIENT_SECRET'] = 'e2e-dummy-client-secret';
+  // Issue #172: force the no-LLM fallback path unconditionally. A host .env with a
+  // reachable LLM gateway would otherwise make report content model-generated and
+  // non-deterministic (server.ts dotenv keeps already-set vars, so this beats .env
+  // too). Port 9 (discard) refuses connections instantly, matching CI.
+  process.env['LLM_BASE_URL'] = 'http://127.0.0.1:9/v1';
+  process.env['LLM_API_KEY'] = 'e2e-dummy-llm-key';
+  process.env['LLM_MODEL'] = 'e2e-dummy-model';
 
   try {
     testDb = new TestDatabase();
