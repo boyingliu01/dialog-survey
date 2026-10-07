@@ -174,7 +174,15 @@ export async function buildApp(options: BuildAppOptions = {}) {
     const applicationPrisma = (options.prismaFactory ?? createPrismaClient)();
     prisma = applicationPrisma;
     const templateRepo = new TemplateRepository(applicationPrisma);
-    const streamClient = DingTalkStreamClient.fromEnv();
+    const dingTalkStreamConfigured = !!(
+      process.env['DINGTALK_CLIENT_ID'] && process.env['DINGTALK_CLIENT_SECRET']
+    );
+    if (!dingTalkStreamConfigured) {
+      warn(
+        'DingTalk credentials not configured: starting credential-free (read-only; no stream, no outbound messages)'
+      );
+    }
+    const streamClient = dingTalkStreamConfigured ? DingTalkStreamClient.fromEnv() : undefined;
     const interviewPlanService = new InterviewPlanService(
       applicationPrisma,
       undefined,
@@ -318,31 +326,43 @@ export async function runPostListenStartup({
   lifecycle,
   prisma,
 }: Awaited<ReturnType<typeof buildApp>>): Promise<void> {
-  const sender = new DingTalkMessageSender();
-  const stalledInterviews = await prisma.interview.findMany({
-    where: { status: { in: ['ACTIVE', 'PROCESSING'] } },
-    include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
-  });
-  for (const iv of stalledInterviews) {
-    const lastMsg = iv.messages[0];
-    if (!lastMsg || lastMsg.role !== 'assistant') continue;
-    info('Resending unsent message on startup', {
-      interviewId: iv.id,
-      userId: iv.userId,
-    });
-    sender.sendTextMessage([iv.userId], lastMsg.content).catch((e: unknown) => {
-      error('Failed to resend on startup', {
-        interviewId: iv.id,
-        error: e instanceof Error ? e.message : String(e),
-      });
-    });
-  }
-
   const clientId = process.env['DINGTALK_CLIENT_ID'];
   const clientSecret = process.env['DINGTALK_CLIENT_SECRET'];
   const agentId = process.env['DINGTALK_AGENT_ID'];
+  const dingTalkConfigured = !!(clientId && clientSecret && agentId);
+  const resendDisabled = ['1', 'true', 'yes'].includes(
+    (process.env['DISABLE_STARTUP_RESEND'] || '').toLowerCase()
+  );
 
-  if (clientId && clientSecret && agentId) {
+  // Startup resend is an outbound side effect on real users (production incident
+  // lesson, issue #171): it requires full credentials and honors an explicit opt-out.
+  if (resendDisabled) {
+    info('Startup message resend disabled via DISABLE_STARTUP_RESEND');
+  } else if (!dingTalkConfigured) {
+    warn('Skipping startup message resend: DingTalk credentials not configured');
+  } else {
+    const sender = new DingTalkMessageSender();
+    const stalledInterviews = await prisma.interview.findMany({
+      where: { status: { in: ['ACTIVE', 'PROCESSING'] } },
+      include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    });
+    for (const iv of stalledInterviews) {
+      const lastMsg = iv.messages[0];
+      if (!lastMsg || lastMsg.role !== 'assistant') continue;
+      info('Resending unsent message on startup', {
+        interviewId: iv.id,
+        userId: iv.userId,
+      });
+      sender.sendTextMessage([iv.userId], lastMsg.content).catch((e: unknown) => {
+        error('Failed to resend on startup', {
+          interviewId: iv.id,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      });
+    }
+  }
+
+  if (dingTalkConfigured) {
     const client = DingTalkStreamClient.fromEnv();
     lifecycle.ownStream(client);
 
