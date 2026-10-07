@@ -12,9 +12,38 @@ const OWNED_ENV_KEYS = [
   'ADMIN_PASSWORD_HASH',
   'DINGTALK_CLIENT_ID',
   'DINGTALK_CLIENT_SECRET',
+  'LLM_BASE_URL',
+  'LLM_API_KEY',
+  'LLM_MODEL',
+  'VOLCENGINE_BASE_URL',
+  'VOLCENGINE_API_KEY',
+  'VOLCENGINE_MODEL',
+  'ANTHROPIC_AUTH_TOKEN',
 ] as const;
 
 type OwnedEnvKey = (typeof OWNED_ENV_KEYS)[number];
+
+export const OWNED_ENV_KEYS_LIST: readonly OwnedEnvKey[] = OWNED_ENV_KEYS;
+
+// Issue #172: every credential/endpoint key OpenAICompatibleLLM.fromEnv() can
+// resolve (including the VOLCENGINE_*/ANTHROPIC_AUTH_TOKEN fallbacks), pinned to
+// values that cannot reach any real gateway. Unconditional override is intentional:
+// it also blocks `npm run dev`-style debugging env from leaking into E2E.
+export const E2E_LLM_ENV: Readonly<Record<string, string>> = Object.freeze({
+  LLM_BASE_URL: 'http://127.0.0.1:9/v1',
+  LLM_API_KEY: 'e2e-dummy-llm-key',
+  LLM_MODEL: 'e2e-dummy-model',
+  VOLCENGINE_BASE_URL: 'http://127.0.0.1:9/v1',
+  VOLCENGINE_API_KEY: 'e2e-dummy-volcengine-key',
+  VOLCENGINE_MODEL: 'e2e-dummy-model',
+  ANTHROPIC_AUTH_TOKEN: 'e2e-dummy-anthropic-token',
+});
+
+export function forceHermeticLLMEnv(): void {
+  for (const [key, value] of Object.entries(E2E_LLM_ENV)) {
+    process.env[key] = value;
+  }
+}
 
 function snapshotEnvironment(): ReadonlyMap<OwnedEnvKey, string | undefined> {
   return new Map(OWNED_ENV_KEYS.map((key) => [key, process.env[key]]));
@@ -80,6 +109,12 @@ export async function createE2EServer(port = 0): Promise<E2EServer> {
   if (!process.env['DINGTALK_CLIENT_ID']) process.env['DINGTALK_CLIENT_ID'] = 'e2e-dummy-client-id';
   if (!process.env['DINGTALK_CLIENT_SECRET'])
     process.env['DINGTALK_CLIENT_SECRET'] = 'e2e-dummy-client-secret';
+  // Issue #172: force the no-LLM fallback path unconditionally. A host .env with a
+  // reachable LLM gateway would otherwise make report content model-generated and
+  // non-deterministic (server.ts dotenv keeps already-set vars, so this beats .env
+  // too). Port 9 has no listener, so every attempt fails fast with ECONNREFUSED —
+  // CI and developer machines now take the identical retry-then-fallback path.
+  forceHermeticLLMEnv();
 
   try {
     testDb = new TestDatabase();
