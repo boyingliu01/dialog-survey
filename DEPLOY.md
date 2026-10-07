@@ -90,6 +90,7 @@ DASHSCOPE_API_KEY=<YOUR_LLM_API_KEY>  # LLM API key
 DINGTALK_CLIENT_ID=<YOUR_CLIENT_ID>   # DingTalk Stream credentials
 DINGTALK_CLIENT_SECRET=<YOUR_CLIENT_SECRET>
 DINGTALK_AGENT_ID=<YOUR_AGENT_ID>
+DISABLE_STARTUP_RESEND=            # Optional: 1/true/yes skips the startup resend of unsent messages
 LOG_LEVEL=info                   # info | warn | error (debug for troubleshooting)
 
 # Admin browser login (required for the admin UI)

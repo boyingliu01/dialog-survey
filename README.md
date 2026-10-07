@@ -143,9 +143,11 @@ Key environment variables (see `.env.example` for the full list):
 | `DINGTALK_CLIENT_ID` | DingTalk Client ID | From DingTalk Open Platform |
 | `DINGTALK_CLIENT_SECRET` | DingTalk Client Secret | From DingTalk Open Platform |
 | `DINGTALK_AGENT_ID` | DingTalk Agent ID | From DingTalk Open Platform |
+| `DISABLE_STARTUP_RESEND` | Skip the startup resend of unsent messages (`1`/`true`/`yes`) | `1` |
 | `ADMIN_API_KEY` | Admin panel API key | Your custom key |
 
 > Leave `LLM_API_KEY` empty to use a local LLM at `http://localhost:11434/v1`.
+> Without `DINGTALK_CLIENT_ID`/`DINGTALK_CLIENT_SECRET` the server boots read-only (no Stream connection, no outbound messages). Startup resend additionally requires `DINGTALK_AGENT_ID`.
 
 ---
 

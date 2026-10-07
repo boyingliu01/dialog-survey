@@ -143,9 +143,11 @@ npx dialog-survey help       # 查看所有命令
 | `DINGTALK_CLIENT_ID` | 钉钉 Client ID | 从钉钉开放平台获取 |
 | `DINGTALK_CLIENT_SECRET` | 钉钉 Client Secret | 从钉钉开放平台获取 |
 | `DINGTALK_AGENT_ID` | 钉钉 Agent ID | 从钉钉开放平台获取 |
+| `DISABLE_STARTUP_RESEND` | 跳过启动时未发消息补发（`1`/`true`/`yes`） | `1` |
 | `ADMIN_API_KEY` | 管理后台 API Key | 自定义密钥 |
 
 > 留空 `LLM_API_KEY` 则默认使用本地 LLM (`http://localhost:11434/v1`)。
+> 未配置 `DINGTALK_CLIENT_ID`/`DINGTALK_CLIENT_SECRET` 时服务以只读模式启动（不建立 Stream 连接、不发送任何出站消息）；启动补发还需 `DINGTALK_AGENT_ID`。
 
 ---
 

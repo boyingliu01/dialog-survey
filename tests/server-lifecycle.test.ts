@@ -41,7 +41,9 @@ const lifecycle = vi.hoisted(() => ({
   cleanupOldLogs: vi.fn<() => Promise<void>>(),
   createVerifyApiKeyError: undefined as Error | undefined,
   disconnect: vi.fn<() => Promise<void>>(),
+  interviewFindMany: vi.fn<() => Promise<unknown[]>>(),
   processMessage: vi.fn<() => Promise<void>>(),
+  sendText: vi.fn<() => Promise<unknown>>(),
   staticPluginError: undefined as Error | undefined,
   nextDestroyError: undefined as Error | undefined,
   onDestroy: undefined as (() => void) | undefined,
@@ -85,7 +87,7 @@ vi.mock('../src/utils/prisma-client.js', async (importOriginal) => {
       return {
         $disconnect: lifecycle.disconnect,
         auditLog: { create: vi.fn().mockResolvedValue({}) },
-        interview: { findMany: vi.fn().mockResolvedValue([]) },
+        interview: { findMany: lifecycle.interviewFindMany },
         interviewPlan: {
           create: vi.fn().mockResolvedValue({}),
           findMany: vi.fn().mockResolvedValue([]),
@@ -112,6 +114,17 @@ vi.mock('../src/services/audit-cleanup.service.js', () => ({
 
 vi.mock('../src/integrations/dingtalk/stream-client.js', () => ({
   DingTalkStreamClient: class FakeDingTalkStreamClient {
+    // Mirrors the real constructor contract (stream-client.ts throws without
+    // clientId/clientSecret) so credential-free startup is behaviourally tested.
+    constructor() {
+      if (!process.env['DINGTALK_CLIENT_ID']) {
+        throw new Error('clientId is required');
+      }
+      if (!process.env['DINGTALK_CLIENT_SECRET']) {
+        throw new Error('clientSecret is required');
+      }
+    }
+
     static fromEnv(): FakeDingTalkStreamClient {
       return new FakeDingTalkStreamClient();
     }
@@ -138,6 +151,14 @@ vi.mock('../src/integrations/dingtalk/stream-client.js', () => ({
 
 vi.mock('../src/services/stream-message.service.js', () => ({
   processStreamMessage: lifecycle.processMessage,
+}));
+
+vi.mock('../src/integrations/dingtalk/message-sender.js', () => ({
+  DingTalkMessageSender: class FakeDingTalkMessageSender {
+    sendTextMessage(): Promise<unknown> {
+      return lifecycle.sendText();
+    }
+  },
 }));
 
 vi.mock('../src/utils/security.js', () => ({
@@ -215,6 +236,12 @@ describe('server resource lifecycle', () => {
     lifecycle.createVerifyApiKeyError = undefined;
     lifecycle.cleanupOldLogs.mockReset().mockResolvedValue(undefined);
     lifecycle.disconnect.mockReset().mockResolvedValue(undefined);
+    lifecycle.interviewFindMany.mockReset().mockResolvedValue([]);
+    lifecycle.sendText.mockReset().mockResolvedValue({
+      taskId: 'test-task',
+      successCount: 1,
+      failedUserIds: [],
+    });
     lifecycle.nextDestroyError = undefined;
     lifecycle.onDestroy = undefined;
     lifecycle.onStreamDisconnect = undefined;
@@ -393,6 +420,45 @@ describe('server resource lifecycle', () => {
     finishMessage?.();
     await close;
     expect(lifecycle.disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts and resends without DingTalk credentials only when configured (issue #171)', async () => {
+    const stalled = [
+      {
+        id: 'iv-resend-1',
+        userId: 'user-1',
+        messages: [{ role: 'assistant', content: 'follow-up?' }],
+      },
+    ];
+
+    vi.stubEnv('DINGTALK_AGENT_ID', 'test-agent-id');
+    lifecycle.interviewFindMany.mockResolvedValue(stalled);
+    const serverModule = await loadServerLifecycleApi();
+
+    const defaultBuilt = await serverModule.buildApp();
+    await serverModule.runPostListenStartup(defaultBuilt);
+    expect(lifecycle.sendText).toHaveBeenCalledTimes(1);
+    await defaultBuilt.fastify.close();
+
+    lifecycle.sendText.mockClear();
+    vi.stubEnv('DISABLE_STARTUP_RESEND', '1');
+    const disabledBuilt = await serverModule.buildApp();
+    await serverModule.runPostListenStartup(disabledBuilt);
+    expect(lifecycle.sendText).not.toHaveBeenCalled();
+    await disabledBuilt.fastify.close();
+
+    vi.unstubAllEnvs();
+    vi.stubEnv('SESSION_SECRET', 'a'.repeat(32));
+    vi.stubEnv('SESSION_SALT', 'b'.repeat(32));
+    vi.stubEnv('DATABASE_URL', 'postgresql://test:test@localhost:5432/dialog_survey_test');
+    vi.stubEnv('DISABLE_STARTUP_RESEND', '');
+    vi.stubEnv('DINGTALK_CLIENT_ID', '');
+    vi.stubEnv('DINGTALK_CLIENT_SECRET', '');
+    vi.stubEnv('DINGTALK_AGENT_ID', '');
+    const credentialFreeBuilt = await serverModule.buildApp();
+    await serverModule.runPostListenStartup(credentialFreeBuilt);
+    expect(lifecycle.sendText).not.toHaveBeenCalled();
+    await credentialFreeBuilt.fastify.close();
   });
 
   it('disconnects a partially initialized stream while preserving startup error', async () => {
