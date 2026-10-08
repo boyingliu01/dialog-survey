@@ -3,6 +3,7 @@ import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { templateRoutes } from '../src/api/templates.js';
 import { TemplateRepository } from '../src/repositories/template.repository.js';
+import { TemplateDimensionService } from '../src/services/template-dimension.service.js';
 import { type PrismaClient, TemplateStatus } from '../src/utils/prisma-client.js';
 import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
@@ -24,7 +25,10 @@ describe('Template API Endpoints', () => {
 
   beforeAll(async () => {
     fastify = Fastify({ logger: false });
-    await templateRoutes(fastify, { templateRepo: new TemplateRepository(prisma), prisma });
+    await templateRoutes(fastify, {
+      templateRepo: new TemplateRepository(prisma),
+      templateDimensionService: new TemplateDimensionService(prisma),
+    });
     await fastify.ready();
   });
 

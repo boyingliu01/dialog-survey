@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { InterviewPlanRepository } from '../src/repositories/interview-plan.repository.js';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { registerTestAdminAuth } from './helpers/admin-auth.js';
 import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
@@ -80,7 +81,7 @@ describe('Batch Import API', () => {
     });
     await interviewPlanRoutes(fastify, {
       interviewPlanService: new InterviewPlanService(prisma),
-      prisma,
+      interviewPlanRepo: new InterviewPlanRepository(prisma),
     });
     await fastify.ready();
   });

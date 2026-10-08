@@ -6,11 +6,13 @@ import Fastify from 'fastify';
 import nunjucks from 'nunjucks';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { adminTemplatesRoutes } from '../src/api/admin-templates.js';
+import { InterviewPlanRepository } from '../src/repositories/interview-plan.repository.js';
 import { InterviewRepository } from '../src/repositories/interview.repository.js';
 import { TemplateRepository } from '../src/repositories/template.repository.js';
 import { AnalysisService } from '../src/services/analysis.service.js';
 import { AnalyticsService } from '../src/services/analytics.service.js';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
+import { TemplateDimensionService } from '../src/services/template-dimension.service.js';
 import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
 function cookieHeader(...setCookieHeaders: (string | string[] | undefined)[]): string {
@@ -61,9 +63,10 @@ describe('admin shell CSRF transport', async () => {
       templateRepo: new TemplateRepository(prisma),
       interviewPlanService: new InterviewPlanService(prisma),
       interviewRepo: new InterviewRepository(prisma),
+      interviewPlanRepo: new InterviewPlanRepository(prisma),
       analysisService: new AnalysisService(prisma),
       analyticsService: new AnalyticsService(prisma),
-      prisma,
+      templateDimensionService: new TemplateDimensionService(prisma),
     });
     await app.ready();
     const sessionResponse = await app.inject({ method: 'POST', url: '/test/session' });
