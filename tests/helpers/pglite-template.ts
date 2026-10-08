@@ -22,6 +22,14 @@ const CACHE_DIR = process.env['PGLITE_TEST_CACHE_DIR']
   ? path.resolve(process.env['PGLITE_TEST_CACHE_DIR'])
   : path.join(ROOT, 'node_modules', '.cache', 'dialog-survey');
 const DDL_CACHE_PATH = path.join(CACHE_DIR, 'test-schema.sql');
+// Shared, never-isolated location of the DDL cache; see loadOrBuildDdl.
+const DEFAULT_DDL_CACHE_PATH = path.join(
+  ROOT,
+  'node_modules',
+  '.cache',
+  'dialog-survey',
+  'test-schema.sql'
+);
 const TEMPLATE_FILE_PREFIX = 'pglite-template-';
 const TEMPLATE_FILE_SUFFIX = '.tar';
 
@@ -60,8 +68,24 @@ export async function getTestSchemaDdl(): Promise<string> {
 async function loadOrBuildDdl(): Promise<string> {
   const schema = fs.readFileSync(path.join(ROOT, 'prisma', 'schema.prisma'), 'utf8');
   const hash = sha256(schema);
-  const cached = readDdlCache();
+  const cached = readDdlCacheAt(DDL_CACHE_PATH);
   if (cached?.hash === hash && cached.ddl) return cached.ddl;
+
+  // The shared repo-local cache is content-hash validated (the hash is taken
+  // over the current prisma/schema.prisma content, so it certifies exactly
+  // the schema under test), making its DDL equivalent to a fresh generation.
+  // Prefer it over spawning when the isolated cache misses: some hardened
+  // environments (local AV filter drivers) block every process spawn
+  // initiated by a node process with a transient-looking EBUSY. This is
+  // always announced loudly so the fallback can never silently mask a real
+  // DDL-generation problem.
+  const shared = readDdlCacheAt(DEFAULT_DDL_CACHE_PATH);
+  if (shared?.hash === hash && shared.ddl) {
+    process.stderr.write(
+      '[pglite-template] isolated DDL cache miss - serving schema DDL from the shared repo-local cache (content-hash validated); a fresh prisma migrate diff was NOT run\n'
+    );
+    return shared.ddl;
+  }
 
   const ddl = generateDdl();
   try {
@@ -76,19 +100,29 @@ async function loadOrBuildDdl(): Promise<string> {
   return ddl;
 }
 
-function readDdlCache(): { hash?: string; ddl?: string } | undefined {
+function readDdlCacheAt(cachePath: string): { hash?: string; ddl?: string } | undefined {
   try {
-    return JSON.parse(fs.readFileSync(DDL_CACHE_PATH, 'utf8')) as { hash?: string; ddl?: string };
+    return JSON.parse(fs.readFileSync(cachePath, 'utf8')) as { hash?: string; ddl?: string };
   } catch {
     return undefined;
   }
 }
 
 function generateDdl(): string {
+  // Spawn the prisma CLI JS entry with the current node binary instead of
+  // `npx` + shell: on Windows spawnSync(shell) goes through cmd.exe, which
+  // local AV products (e.g. Huorong / Feilian) intermittently hold an EBUSY
+  // lock on, while a direct node spawn bypasses the shell entirely.
+  const prismaCli = path.join(ROOT, 'node_modules', 'prisma', 'build', 'index.js');
+  if (!fs.existsSync(prismaCli)) {
+    throw new Error(
+      `prisma CLI entry not found at ${prismaCli} - this helper is coupled to the prisma package layout; run \`npm ci\` or update the path after a prisma upgrade.`
+    );
+  }
   const result = spawnSync(
-    'npx',
+    process.execPath,
     [
-      'prisma',
+      prismaCli,
       'migrate',
       'diff',
       '--from-empty',
@@ -99,15 +133,18 @@ function generateDdl(): string {
     {
       cwd: ROOT,
       encoding: 'utf8',
-      shell: process.platform === 'win32',
       timeout: 180_000,
       maxBuffer: 64 * 1024 * 1024,
     }
   );
   if (result.error || result.status !== 0) {
     const cause = (result.error?.message ?? result.stderr ?? result.stdout ?? '').trim();
+    const spawnBlocked = result.error !== undefined && result.status === null;
+    const hint = spawnBlocked
+      ? ' Note: process spawning appears unavailable in this environment (spawn error with no exit status). To seed the shared DDL cache, run any database test once on an unrestricted machine - it writes node_modules/.cache/dialog-survey/test-schema.sql - then re-run here.'
+      : '';
     throw new Error(
-      `Failed to generate the test schema DDL (\`prisma migrate diff\`). Run \`npm run prisma:generate\` (or \`npm ci\`) first, then re-run the tests. Cause: ${cause || `exit code ${String(result.status)}`}`
+      `Failed to generate the test schema DDL (\`prisma migrate diff\`). Run \`npm run prisma:generate\` (or \`npm ci\`) first, then re-run the tests. Cause: ${cause || `exit code ${String(result.status)}`}.${hint}`
     );
   }
   return result.stdout;

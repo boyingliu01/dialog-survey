@@ -22,6 +22,7 @@ import cron from 'node-cron';
 import { adminTemplatesRoutes } from './api/admin-templates.js';
 import { analysisRoutes } from './api/analysis.js';
 import { healthRoutes } from './api/health.js';
+import { metricsOnRequest, metricsOnResponse, metricsRoutes } from './api/metrics.js';
 import { interviewPlanRoutes, isAdministrativePlanMutation } from './api/plans.js';
 import { templateRoutes } from './api/templates.js';
 import { DEFAULT_SESSION_MAX_AGE } from './config/constants.js';
@@ -92,13 +93,11 @@ export async function checkDatabaseConnection(
   }
 }
 
-export async function buildApp(options: BuildAppOptions = {}) {
-  const isProduction = NODE_ENV === 'production';
-
-  const prodLoggerConfig: Record<string, unknown> = {
-    level: LOG_LEVEL,
-  };
-  const devLoggerConfig: Record<string, unknown> = {
+function createLoggerConfig(isProduction: boolean): Record<string, unknown> {
+  if (isProduction) {
+    return { level: LOG_LEVEL };
+  }
+  return {
     level: LOG_LEVEL,
     transport: {
       target: 'pino-pretty',
@@ -108,9 +107,123 @@ export async function buildApp(options: BuildAppOptions = {}) {
       },
     },
   };
+}
 
+/** Minimal nunjucks engine shape used by @fastify/view (configure + filters). */
+interface NunjucksEngine {
+  configure(templatesDir: string | string[], opts: Record<string, unknown>): nunjucks.Environment;
+}
+
+function createNunjucksEngine(): NunjucksEngine {
+  return {
+    ...nunjucks,
+    configure(templatesDir: string | string[], opts: Record<string, unknown>) {
+      const env = nunjucks.configure(templatesDir, opts);
+      env.addFilter('date', (input: Date | string | null, format?: string) => {
+        if (!input) return '';
+        const date = new Date(input);
+        if (Number.isNaN(date.getTime())) return '';
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        const HH = String(date.getHours()).padStart(2, '0');
+        const MM = String(date.getMinutes()).padStart(2, '0');
+        if (format === 'Y-m-d H:i') return `${yyyy}-${mm}-${dd} ${HH}:${MM}`;
+        return `${yyyy}-${mm}-${dd}`;
+      });
+      env.addFilter('markdown', (input: string | null | undefined) => renderMarkdown(input));
+      return env;
+    },
+  };
+}
+
+function createDingTalkStreamClientOrWarn(): DingTalkStreamClient | undefined {
+  const configured = !!(process.env['DINGTALK_CLIENT_ID'] && process.env['DINGTALK_CLIENT_SECRET']);
+  if (!configured) {
+    warn(
+      'DingTalk credentials not configured: starting credential-free (read-only; no stream, no outbound messages)'
+    );
+    return undefined;
+  }
+  return DingTalkStreamClient.fromEnv();
+}
+
+function assertSessionEnv(): { secret: string; salt: string } {
+  const secret = process.env['SESSION_SECRET'];
+  if (!secret || secret.length < 32) {
+    throw new Error('SESSION_SECRET must be at least 32 characters');
+  }
+  const salt = process.env['SESSION_SALT'];
+  if (!salt) {
+    throw new Error('SESSION_SALT environment variable is required');
+  }
+  return { secret, salt };
+}
+
+function addSecurityHeadersHook(fastify: FastifyInstance): void {
+  // Content-Security-Policy header
+  fastify.addHook('onSend', (_request, reply, payload, done) => {
+    reply.header(
+      'Content-Security-Policy',
+      "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.tailwindcss.com https://cdn.jsdelivr.net; " +
+        "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; " +
+        "img-src 'self' data:; " +
+        "font-src 'self'; " +
+        "connect-src 'self'"
+    );
+    done(null, payload);
+  });
+}
+
+interface ApiRouteDeps {
+  prisma: PrismaClient;
+  templateRepo: TemplateRepository;
+  interviewRepo: InterviewRepository;
+  interviewPlanService: InterviewPlanService;
+  analysisService: AnalysisService;
+  analyticsService: AnalyticsService;
+  exportService: ExportService;
+}
+
+async function registerApiRoutes(
+  fastify: FastifyInstance,
+  deps: ApiRouteDeps,
+  verifyApiKey: ReturnType<typeof createVerifyApiKey>
+): Promise<void> {
+  await fastify.register(healthRoutes, { prisma: deps.prisma });
+
+  await fastify.register(async (api) => {
+    api.addHook('preHandler', async (request, reply) => {
+      if (
+        isAdministrativePlanMutation(request.method, request.url) &&
+        request.headers['x-api-key'] === undefined
+      )
+        return;
+      await verifyApiKey(request, reply);
+    });
+    await api.register(interviewPlanRoutes, {
+      interviewPlanService: deps.interviewPlanService,
+      prisma: deps.prisma,
+    });
+    await api.register(templateRoutes, { templateRepo: deps.templateRepo, prisma: deps.prisma });
+    await api.register(analysisRoutes, { prisma: deps.prisma });
+  });
+
+  await fastify.register(adminTemplatesRoutes, {
+    templateRepo: deps.templateRepo,
+    interviewPlanService: deps.interviewPlanService,
+    interviewRepo: deps.interviewRepo,
+    analysisService: deps.analysisService,
+    analyticsService: deps.analyticsService,
+    exportService: deps.exportService,
+    prisma: deps.prisma,
+  });
+}
+
+export async function buildApp(options: BuildAppOptions = {}) {
   const fastify = (options.fastifyFactory ?? createFastify)({
-    logger: isProduction ? prodLoggerConfig : devLoggerConfig,
+    logger: createLoggerConfig(NODE_ENV === 'production'),
   });
   let prisma: PrismaClient | undefined;
   const activeAuditCleanups = new Set<Promise<unknown>>();
@@ -145,28 +258,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
       limits: { fileSize: 1 * 1024 * 1024, parts: 1 },
     });
 
-    const customNunjucks = {
-      ...nunjucks,
-      configure(templatesDir: string | string[], opts: Record<string, unknown>) {
-        const env = nunjucks.configure(templatesDir, opts);
-        env.addFilter('date', (input: Date | string | null, format?: string) => {
-          if (!input) return '';
-          const date = new Date(input);
-          if (Number.isNaN(date.getTime())) return '';
-          const yyyy = date.getFullYear();
-          const mm = String(date.getMonth() + 1).padStart(2, '0');
-          const dd = String(date.getDate()).padStart(2, '0');
-          const HH = String(date.getHours()).padStart(2, '0');
-          const MM = String(date.getMinutes()).padStart(2, '0');
-          if (format === 'Y-m-d H:i') return `${yyyy}-${mm}-${dd} ${HH}:${MM}`;
-          return `${yyyy}-${mm}-${dd}`;
-        });
-        env.addFilter('markdown', (input: string | null | undefined) => renderMarkdown(input));
-        return env;
-      },
-    };
     await fastify.register(fastifyView, {
-      engine: { nunjucks: customNunjucks as unknown as typeof nunjucks },
+      engine: { nunjucks: createNunjucksEngine() as unknown as typeof nunjucks },
       templates: viewsDir,
       options: { autoescape: true, noCache: true },
     });
@@ -174,38 +267,26 @@ export async function buildApp(options: BuildAppOptions = {}) {
     const applicationPrisma = (options.prismaFactory ?? createPrismaClient)();
     prisma = applicationPrisma;
     const templateRepo = new TemplateRepository(applicationPrisma);
-    const dingTalkStreamConfigured = !!(
-      process.env['DINGTALK_CLIENT_ID'] && process.env['DINGTALK_CLIENT_SECRET']
-    );
-    if (!dingTalkStreamConfigured) {
-      warn(
-        'DingTalk credentials not configured: starting credential-free (read-only; no stream, no outbound messages)'
-      );
-    }
-    const streamClient = dingTalkStreamConfigured ? DingTalkStreamClient.fromEnv() : undefined;
+    const streamClient = createDingTalkStreamClientOrWarn();
     const interviewPlanService = new InterviewPlanService(
       applicationPrisma,
       undefined,
       streamClient,
       tokenManager
     );
-    const interviewRepo = new InterviewRepository(applicationPrisma);
-    const analysisService = new AnalysisService(applicationPrisma);
-    const analyticsService = new AnalyticsService(applicationPrisma);
-    const exportService = new ExportService(applicationPrisma);
+    const deps: ApiRouteDeps = {
+      prisma: applicationPrisma,
+      templateRepo,
+      interviewRepo: new InterviewRepository(applicationPrisma),
+      interviewPlanService,
+      analysisService: new AnalysisService(applicationPrisma),
+      analyticsService: new AnalyticsService(applicationPrisma),
+      exportService: new ExportService(applicationPrisma),
+    };
 
     await securityMiddleware(fastify, applicationPrisma);
 
-    const sessionSecret = process.env['SESSION_SECRET'];
-    if (!sessionSecret || sessionSecret.length < 32) {
-      throw new Error('SESSION_SECRET must be at least 32 characters');
-    }
-
-    const sessionSalt = process.env['SESSION_SALT'];
-    if (!sessionSalt) {
-      throw new Error('SESSION_SALT environment variable is required');
-    }
-
+    const { secret: sessionSecret, salt: sessionSalt } = assertSessionEnv();
     await fastify.register(secureSession, {
       secret: sessionSecret,
       salt: Buffer.from(sessionSalt, 'hex'),
@@ -223,6 +304,13 @@ export async function buildApp(options: BuildAppOptions = {}) {
       sessionPlugin: '@fastify/secure-session',
     });
 
+    // Observability (issue #178): root-level HTTP metric hooks + /metrics endpoint.
+    // Root-context hooks are inherited by every child context on ready(); the
+    // placement here is for readability, not for hook scoping.
+    await fastify.register(metricsRoutes);
+    fastify.addHook('onRequest', metricsOnRequest);
+    fastify.addHook('onResponse', metricsOnResponse);
+
     await fastify.register(adminAuthRoutes);
 
     // Rate limiting — skip in test environment since fastify.inject() bypasses the hook
@@ -238,19 +326,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
       });
     }
 
-    // Content-Security-Policy header
-    fastify.addHook('onSend', (_request, reply, payload, done) => {
-      reply.header(
-        'Content-Security-Policy',
-        "default-src 'self'; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com https://cdn.tailwindcss.com https://cdn.jsdelivr.net; " +
-          "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; " +
-          "img-src 'self' data:; " +
-          "font-src 'self'; " +
-          "connect-src 'self'"
-      );
-      done(null, payload);
-    });
+    addSecurityHeadersHook(fastify);
 
     // Schedule daily audit log cleanup at 2:00 AM
     const auditCleanup = new AuditCleanupService(applicationPrisma);
@@ -269,36 +345,7 @@ export async function buildApp(options: BuildAppOptions = {}) {
     });
     info('Audit cleanup cron scheduled (daily at 2:00 AM)');
 
-    const verifyApiKey = createVerifyApiKey(applicationPrisma);
-
-    await fastify.register(healthRoutes, { prisma: applicationPrisma });
-
-    await fastify.register(async (api) => {
-      api.addHook('preHandler', async (request, reply) => {
-        if (
-          isAdministrativePlanMutation(request.method, request.url) &&
-          request.headers['x-api-key'] === undefined
-        )
-          return;
-        await verifyApiKey(request, reply);
-      });
-      await api.register(interviewPlanRoutes, {
-        interviewPlanService,
-        prisma: applicationPrisma,
-      });
-      await api.register(templateRoutes, { templateRepo, prisma: applicationPrisma });
-      await api.register(analysisRoutes, { prisma: applicationPrisma });
-    });
-
-    await fastify.register(adminTemplatesRoutes, {
-      templateRepo,
-      interviewPlanService,
-      interviewRepo,
-      analysisService,
-      analyticsService,
-      exportService,
-      prisma: applicationPrisma,
-    });
+    await registerApiRoutes(fastify, deps, createVerifyApiKey(applicationPrisma));
 
     return {
       fastify,
@@ -321,15 +368,96 @@ export async function buildApp(options: BuildAppOptions = {}) {
 
 export { startApplication } from './server-lifecycle.js';
 
+type BuildAppResult = Awaited<ReturnType<typeof buildApp>>;
+
+async function fetchStalledInterviews(prisma: PrismaClient) {
+  return prisma.interview.findMany({
+    where: { status: { in: ['ACTIVE', 'PROCESSING'] } },
+    include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
+  });
+}
+
+type StalledInterview = Awaited<ReturnType<typeof fetchStalledInterviews>>[number];
+
+function isDingTalkConfigured(): boolean {
+  return !!(
+    process.env['DINGTALK_CLIENT_ID'] &&
+    process.env['DINGTALK_CLIENT_SECRET'] &&
+    process.env['DINGTALK_AGENT_ID']
+  );
+}
+
+function resendLastAssistantMessage(sender: DingTalkMessageSender, iv: StalledInterview): void {
+  const lastMsg = iv.messages[0];
+  if (!lastMsg || lastMsg.role !== 'assistant') {
+    return;
+  }
+  info('Resending unsent message on startup', {
+    interviewId: iv.id,
+    userId: iv.userId,
+  });
+  sender.sendTextMessage([iv.userId], lastMsg.content).catch((e: unknown) => {
+    error('Failed to resend on startup', {
+      interviewId: iv.id,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  });
+}
+
+async function resendUnsentMessages(prisma: PrismaClient): Promise<void> {
+  const sender = new DingTalkMessageSender();
+  const stalledInterviews = await fetchStalledInterviews(prisma);
+  for (const iv of stalledInterviews) {
+    resendLastAssistantMessage(sender, iv);
+  }
+}
+
+function wireDingTalkStream(lifecycle: BuildAppResult['lifecycle'], prisma: PrismaClient): void {
+  const client = DingTalkStreamClient.fromEnv();
+  lifecycle.ownStream(client);
+
+  client.on('connected', () => {
+    info('DingTalk Stream connected');
+  });
+
+  client.on('message', (message: unknown) => {
+    info('Received DingTalk message', {
+      topic: (message as StreamMessage)?.headers?.topic,
+      messageId: (message as StreamMessage)?.headers?.messageId,
+    });
+    const messageRun = processStreamMessage(message as StreamMessage, prisma)
+      .catch((err: unknown) => {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        error('Failed to process message', { error: errMsg });
+      })
+      .finally(() => {
+        lifecycle.activeMessageHandlers.delete(messageRun);
+      });
+    lifecycle.activeMessageHandlers.add(messageRun);
+  });
+
+  client.on('error', (err: unknown) => {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    error('DingTalk Stream error', { error: errMsg });
+  });
+
+  client.on('disconnected', () => {
+    info('DingTalk Stream disconnected');
+  });
+
+  client.connect().catch((err: unknown) => {
+    warn('DingTalk Stream connection failed, server continues without it', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
+}
+
 export async function runPostListenStartup({
   fastify: app,
   lifecycle,
   prisma,
 }: Awaited<ReturnType<typeof buildApp>>): Promise<void> {
-  const clientId = process.env['DINGTALK_CLIENT_ID'];
-  const clientSecret = process.env['DINGTALK_CLIENT_SECRET'];
-  const agentId = process.env['DINGTALK_AGENT_ID'];
-  const dingTalkConfigured = !!(clientId && clientSecret && agentId);
+  const dingTalkConfigured = isDingTalkConfigured();
   const resendDisabled = ['1', 'true', 'yes'].includes(
     (process.env['DISABLE_STARTUP_RESEND'] || '').toLowerCase()
   );
@@ -341,65 +469,11 @@ export async function runPostListenStartup({
   } else if (!dingTalkConfigured) {
     warn('Skipping startup message resend: DingTalk credentials not configured');
   } else {
-    const sender = new DingTalkMessageSender();
-    const stalledInterviews = await prisma.interview.findMany({
-      where: { status: { in: ['ACTIVE', 'PROCESSING'] } },
-      include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
-    });
-    for (const iv of stalledInterviews) {
-      const lastMsg = iv.messages[0];
-      if (!lastMsg || lastMsg.role !== 'assistant') continue;
-      info('Resending unsent message on startup', {
-        interviewId: iv.id,
-        userId: iv.userId,
-      });
-      sender.sendTextMessage([iv.userId], lastMsg.content).catch((e: unknown) => {
-        error('Failed to resend on startup', {
-          interviewId: iv.id,
-          error: e instanceof Error ? e.message : String(e),
-        });
-      });
-    }
+    await resendUnsentMessages(prisma);
   }
 
   if (dingTalkConfigured) {
-    const client = DingTalkStreamClient.fromEnv();
-    lifecycle.ownStream(client);
-
-    client.on('connected', () => {
-      info('DingTalk Stream connected');
-    });
-
-    client.on('message', (message: unknown) => {
-      info('Received DingTalk message', {
-        topic: (message as StreamMessage)?.headers?.topic,
-        messageId: (message as StreamMessage)?.headers?.messageId,
-      });
-      const messageRun = processStreamMessage(message as StreamMessage, prisma)
-        .catch((err: unknown) => {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          error('Failed to process message', { error: errMsg });
-        })
-        .finally(() => {
-          lifecycle.activeMessageHandlers.delete(messageRun);
-        });
-      lifecycle.activeMessageHandlers.add(messageRun);
-    });
-
-    client.on('error', (err: unknown) => {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      error('DingTalk Stream error', { error: errMsg });
-    });
-
-    client.on('disconnected', () => {
-      info('DingTalk Stream disconnected');
-    });
-
-    client.connect().catch((err: unknown) => {
-      warn('DingTalk Stream connection failed, server continues without it', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    });
+    wireDingTalkStream(lifecycle, prisma);
   } else {
     info('DingTalk Stream mode not configured, skipping WebSocket connection');
   }
@@ -415,6 +489,13 @@ export async function runPostListenStartup({
   });
 }
 
+function buildListenOptions(): { port: number; host: string } {
+  return {
+    port: Number(process.env['PORT']) || 3001,
+    host: process.env['HOST'] || '0.0.0.0',
+  };
+}
+
 export async function startServer(): Promise<ReturnType<typeof Fastify>> {
   const dbOk = await checkDatabaseConnection();
   if (!dbOk) {
@@ -424,10 +505,7 @@ export async function startServer(): Promise<ReturnType<typeof Fastify>> {
   try {
     return await startApplication({
       build: buildApp,
-      listenOptions: {
-        port: Number(process.env['PORT']) || 3001,
-        host: process.env['HOST'] || '0.0.0.0',
-      },
+      listenOptions: buildListenOptions(),
       onCleanupError: (cleanupError) => {
         error('Server startup cleanup failed', {
           error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),

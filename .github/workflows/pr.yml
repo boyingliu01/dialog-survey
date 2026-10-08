@@ -99,8 +99,70 @@ jobs:
           DINGTALK_CLIENT_ID: ${{ secrets.DINGTALK_CLIENT_ID || 'dummy-ci-client-id' }}
           DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || 'dummy-ci-client-secret' }}
 
+  backup-drill:
+    # Automated restore drill (issue #179, code-walkthrough F1): a backup is
+    # only "working" once a restore from it has been verified. Runs on every
+    # PR so the drill is continuous, not a one-off.
+    name: Backup/Restore Drill (real PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dialog_survey
+          POSTGRES_PASSWORD: drill
+          POSTGRES_DB: dialog_survey
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dialog_survey -d dialog_survey"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: drill
+      BACKUP_DIR: /tmp/drill-backups
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client matching server major
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-16
+
+      - name: Seed probe data
+        run: |
+          psql -h 127.0.0.1 -U dialog_survey -d dialog_survey \
+            -c "CREATE TABLE drill_probe (id int primary key, note text);" \
+            -c "INSERT INTO drill_probe VALUES (1, 'pre-drill');"
+
+      - name: Run backup.sh
+        run: ./scripts/backup.sh
+        env:
+          DATABASE_URL: postgres://dialog_survey:drill@127.0.0.1:5432/dialog_survey
+
+      - name: Corrupt data (simulate the incident)
+        run: |
+          psql -h 127.0.0.1 -U dialog_survey -d dialog_survey \
+            -c "UPDATE drill_probe SET note = 'corrupted';"
+
+      - name: Restore backup into scratch database
+        run: |
+          psql -h 127.0.0.1 -U dialog_survey -d postgres -c "CREATE DATABASE dialog_survey_drill;"
+          FORCE_RESTORE=1 RESTORE_FORCE_CONFIRM=1 \
+          DATABASE_URL=postgres://dialog_survey:drill@127.0.0.1:5432/dialog_survey_drill \
+          ./scripts/restore.sh "${BACKUP_DIR}"/dialog-survey-*.dump
+
+      - name: Verify restored data
+        run: |
+          RESULT=$(psql -h 127.0.0.1 -U dialog_survey -d dialog_survey_drill -t -c "SELECT note FROM drill_probe WHERE id = 1;")
+          echo "restored note: ${RESULT}"
+          [ "${RESULT}" = " pre-drill" ] || { echo "DRILL FAILED: data did not round-trip"; exit 1; }
+          echo "Drill passed: backup round-trips and restores correctly."
+
   security-scan:
-    name: Security Scan (semgrep + gitleaks)
+    name: Security Scan (semgrep + gitleaks + checkov)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -116,6 +178,19 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: checkov IaC scan (Dockerfile)
+        run: |
+          pipx install checkov
+          checkov -f Dockerfile --framework dockerfile --quiet --compact
+
+      # docker-compose has no dedicated framework in checkov 3.x; auto-detection
+      # scans it with the secrets runner only — compose-level hardening (ports,
+      # resource limits) is not covered by automated checks here.
+      - name: checkov secrets scan (docker-compose)
+        run: |
+          pipx install checkov
+          checkov -f docker-compose.yml --compact
 
       - name: semgrep SAST scan
         continue-on-error: true

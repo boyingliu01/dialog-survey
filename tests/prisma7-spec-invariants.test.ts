@@ -216,18 +216,46 @@ describe('template fast-path failure semantics (AC-003-02)', () => {
   );
 });
 
+/** Body of one top-level job (2-space indent key), including its nested blocks. */
+function jobBlock(yml: string, job: string): string {
+  const lines = yml.split('\n');
+  const start = lines.findIndex((line) => line === `  ${job}:`);
+  if (start === -1) return '';
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^ {2}\S/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  return lines.slice(start, end).join('\n');
+}
+
 /**
  * @test REQ-PRISMA7-004
  * @intent AC-PRISMA7-004-01 workflows 不再声明 postgres service / db push，node 版本取自
  * .nvmrc；AC-PRISMA7-004-02 六个消费 job 与 publish job 的 prisma generate 先于 tsc/vitest/build。
+ * 例外：backup-drill (#179) 对真实 PostgreSQL 演练 pg_dump/pg_restore 往返，属于
+ * Prisma-free 的运维 job，是唯一允许声明 postgres service 的 job，且不得对其跑任何
+ * prisma 命令。
  * @covers AC-PRISMA7-004-01, AC-PRISMA7-004-02
  */
 describe('CI workflows are PG-free and generate-first (AC-004)', () => {
   const pr = read('.github/workflows/pr.yml');
   const publish = read('.github/workflows/publish.yml');
 
-  it('declares no postgres service and no db push step', () => {
-    for (const yml of [pr, publish]) {
+  it('declares no postgres service outside the prisma-free backup drill', () => {
+    const drill = jobBlock(pr, 'backup-drill');
+    expect(drill).not.toBe('');
+    expect(drill).toMatch(/^ {4}services:$/m);
+    expect(drill).toMatch(/image:\s*postgres:16-alpine/);
+    // Case-insensitive and unrestricted: also rejects alias forms such as
+    // `npx @prisma/cli`, `node_modules/.bin/prisma`, `pnpm prisma` or a bare
+    // `node node_modules/prisma/build/index.js` invocation.
+    expect(drill).not.toMatch(/prisma/i);
+
+    const prismaSide = pr.replace(drill, '');
+    for (const yml of [prismaSide, publish]) {
       expect(yml).not.toMatch(/^\s*services:/m);
       expect(yml).not.toMatch(/image:\s*postgres/i);
       expect(yml).not.toMatch(/prisma db push/);
