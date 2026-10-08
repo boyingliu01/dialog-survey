@@ -100,7 +100,7 @@ jobs:
           DINGTALK_CLIENT_SECRET: ${{ secrets.DINGTALK_CLIENT_SECRET || 'dummy-ci-client-secret' }}
 
   security-scan:
-    name: Security Scan (semgrep + gitleaks)
+    name: Security Scan (semgrep + gitleaks + checkov)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -116,6 +116,11 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: checkov IaC scan (Dockerfile + docker-compose)
+        run: |
+          pipx install checkov
+          checkov -f Dockerfile -f docker-compose.yml --framework dockerfile --quiet --compact
 
       - name: semgrep SAST scan
         continue-on-error: true
