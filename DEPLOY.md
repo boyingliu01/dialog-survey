@@ -251,8 +251,10 @@ curl http://localhost:3001/metrics
 ```
 
 Optional access control — set `METRICS_TOKEN` in `.env`, scrapers must send
-`Authorization: Bearer <METRICS_TOKEN>`. See `docs/operations.md` for a ready-made
-`scrape_configs` block and starter alerts.
+`Authorization: Bearer <METRICS_TOKEN>`. `/metrics` reveals route names, request
+rates and process memory: keep the port firewalled to your monitoring host or
+set the token (production logs a warning when both are missing). See
+`docs/operations.md` for a ready-made `scrape_configs` block and starter alerts.
 
 ### Scheduled Backups (issue #179)
 

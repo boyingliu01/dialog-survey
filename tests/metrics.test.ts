@@ -27,6 +27,16 @@ describe('Counter', () => {
 
     expect(c.render()).toContain('plain_total 1');
   });
+
+  it('should not merge series whose values contain the key separators', () => {
+    const c = new Counter('collide_total', 'collision');
+    c.inc({ a: 'b|c', d: 'e' }, 1);
+    c.inc({ a: 'b', 'c|d': 'e' }, 1);
+
+    const rendered = c.render();
+    expect(rendered).toContain('collide_total{a="b|c",d="e"} 1');
+    expect(rendered).toContain('collide_total{a="b",c|d="e"} 1');
+  });
 });
 
 describe('Histogram', () => {
@@ -51,6 +61,15 @@ describe('Histogram', () => {
 
     expect(h.render()).toContain('dur_ms_bucket{le="10",route="/a"} 1');
     expect(h.render()).toContain('dur_ms_count{route="/a"} 2');
+  });
+
+  it('should count a value exactly at the bucket upper bound into that bucket', () => {
+    const h = new Histogram('dur_ms', 'duration', [10, 100]);
+    h.observe(undefined, 10);
+    h.observe(undefined, 100);
+
+    expect(h.render()).toContain('dur_ms_bucket{le="10"} 1');
+    expect(h.render()).toContain('dur_ms_bucket{le="100"} 2');
   });
 });
 

@@ -58,8 +58,10 @@ describe('GET /metrics', () => {
     expect(response.body).toContain('route="/metrics",status="200"');
   });
 
-  it('should reject unauthenticated scrapes when METRICS_TOKEN is set', async () => {
+  it('should reject unauthenticated scrapes when METRICS_TOKEN is set at startup', async () => {
     process.env['METRICS_TOKEN'] = 'secret-token';
+    await app.close();
+    app = await buildApp();
 
     const denied = await app.inject({ method: 'GET', url: '/metrics' });
     expect(denied.statusCode).toBe(403);
@@ -70,6 +72,19 @@ describe('GET /metrics', () => {
       headers: { authorization: 'Bearer secret-token' },
     });
     expect(allowed.statusCode).toBe(200);
+
+    delete process.env['METRICS_TOKEN'];
+    await app.close();
+    app = await buildApp();
+  });
+
+  it('should treat an empty METRICS_TOKEN as unauthenticated scrape mode', async () => {
+    process.env['METRICS_TOKEN'] = '';
+    await app.close();
+    app = await buildApp();
+
+    const response = await app.inject({ method: 'GET', url: '/metrics' });
+    expect(response.statusCode).toBe(200);
   });
 
   it('should count requests recorded through the shared counter', () => {

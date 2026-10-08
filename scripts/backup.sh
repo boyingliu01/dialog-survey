@@ -13,6 +13,9 @@
 # Schedule with cron:      0 2 * * * /opt/dialog-survey/scripts/backup.sh >> /var/log/dialog-survey-backup.log 2>&1
 # Or with systemd:         see docs/operations.md for the timer unit.
 set -eu
+# Dumps contain the full database (interviews, user ids, message content — PII).
+# Keep them private to the invoking user regardless of cron/systemd umask.
+umask 077
 
 DATABASE_URL="${DATABASE_URL:?DATABASE_URL is required (postgres://user:pass@host:port/db)}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/dialog-survey}"
@@ -36,21 +39,32 @@ command -v pg_dump >/dev/null 2>&1 || fail "pg_dump not found in PATH"
 
 mkdir -p "${BACKUP_DIR}" || fail "cannot create backup directory ${BACKUP_DIR}"
 
+# Write to a temp name first so a failed pg_dump never leaves a truncated
+# file that retention could later pick as a restore source.
+TMP_TARGET="${TARGET}.partial"
+
 log "starting backup to ${TARGET}"
 pg_dump --format=custom --no-owner --no-privileges \
-  --file="${TARGET}" \
-  "${DATABASE_URL}" || fail "pg_dump failed (see PostgreSQL output above)"
+  --file="${TMP_TARGET}" \
+  "${DATABASE_URL}" || {
+  rm -f "${TMP_TARGET}"
+  fail "pg_dump failed (see PostgreSQL output above)"
+}
 
 # Custom-format dumps are already compressed; verify the file is non-empty.
-if [ ! -s "${TARGET}" ]; then
-  rm -f "${TARGET}"
+if [ ! -s "${TMP_TARGET}" ]; then
+  rm -f "${TMP_TARGET}"
   fail "pg_dump produced an empty file, removed"
 fi
+
+mv "${TMP_TARGET}" "${TARGET}"
 
 SIZE="$(du -h "${TARGET}" | cut -f1)"
 log "backup completed: ${TARGET} (${SIZE})"
 
-DELETED=$(find "${BACKUP_DIR}" -name 'dialog-survey-*.dump' -type f -mtime "+${RETENTION_DAYS}" -print -delete | wc -l)
+# Prune only this host's dumps — a shared BACKUP_DIR (e.g. NFS) must not
+# let one host delete another host's backups.
+DELETED=$(find "${BACKUP_DIR}" -name "dialog-survey-${HOSTNAME_TAG}-*.dump" -type f -mtime "+${RETENTION_DAYS}" -print -delete | wc -l)
 if [ "${DELETED}" -gt 0 ]; then
   log "retention: removed ${DELETED} backup(s) older than ${RETENTION_DAYS} days"
 fi

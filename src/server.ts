@@ -109,7 +109,12 @@ function createLoggerConfig(isProduction: boolean): Record<string, unknown> {
   };
 }
 
-function createNunjucksEngine() {
+/** Minimal nunjucks engine shape used by @fastify/view (configure + filters). */
+interface NunjucksEngine {
+  configure(templatesDir: string | string[], opts: Record<string, unknown>): nunjucks.Environment;
+}
+
+function createNunjucksEngine(): NunjucksEngine {
   return {
     ...nunjucks,
     configure(templatesDir: string | string[], opts: Record<string, unknown>) {
@@ -300,7 +305,8 @@ export async function buildApp(options: BuildAppOptions = {}) {
     });
 
     // Observability (issue #178): root-level HTTP metric hooks + /metrics endpoint.
-    // Must be registered before the route plugins below so they inherit the hooks.
+    // Root-context hooks are inherited by every child context on ready(); the
+    // placement here is for readability, not for hook scoping.
     await fastify.register(metricsRoutes);
     fastify.addHook('onRequest', metricsOnRequest);
     fastify.addHook('onResponse', metricsOnResponse);

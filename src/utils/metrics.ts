@@ -17,8 +17,10 @@ function seriesKey(name: string, labels: MetricLabels | undefined): string {
   if (keys.length === 0) {
     return name;
   }
-  const parts = keys.map((k) => `${k}=${normalized[k]}`);
-  return `${name}|${parts.join('|')}`;
+  // JSON-encode the entries so values containing the separators ("|", "=")
+  // cannot collide with a different label set.
+  const entries = keys.map((k) => [k, normalized[k]]);
+  return `${name}|${JSON.stringify(entries)}`;
 }
 
 function escapeLabelValue(value: string): string {

@@ -2,6 +2,23 @@
 
 > Updated: 2026-10-08 (issues #178 #179). Covers scheduled backups, restore drill, and Prometheus scraping.
 
+## 0. Before you rely on this
+
+- **First restore drill is a release gate**: automated backups are NOT considered
+  working until one full backup → restore → `/health` verification has been
+  completed and recorded (see §2). Until then, treat the data as unprotected.
+- **Prerequisites**: install `postgresql-client` matching your PostgreSQL major
+  version (e.g. `postgresql-client-16` for PG 16) — `pg_dump`/`pg_restore` must be
+  on the PATH of the user running the timer.
+- **Capacity**: keep free space in `BACKUP_DIR` of ≥ 1.2× the current database
+  size; a dump failing midway on a full disk still consumes the temp space.
+- **Metrics exposure**: `/metrics` reveals route names, request rates, memory and
+  pid. Keep the port firewalled to your monitoring host or set `METRICS_TOKEN`;
+  production logs a warning when neither is configured.
+- **Scale assumption**: these docs assume a single app instance. With multiple
+  replicas, scrape each instance separately (`static_configs` with one target per
+  replica) — counters and gauges are per-process.
+
 ## 1. Automated backups (issue #179)
 
 `scripts/backup.sh` performs a `pg_dump` in PostgreSQL custom format (`-Fc`, already
@@ -50,6 +67,13 @@ Persistent=true
 
 [Install]
 WantedBy=timers.target
+```
+
+If the PostgreSQL client lives outside the default systemd PATH, add:
+
+```ini
+[Service]
+Environment=PATH=/usr/lib/postgresql/16/bin:/usr/bin:/bin
 ```
 
 Enable:
