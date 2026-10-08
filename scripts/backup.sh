@@ -6,7 +6,9 @@
 #   BACKUP_DIR=/var/backups RETENTION_DAYS=14 ./scripts/backup.sh
 #
 # Environment:
-#   DATABASE_URL    postgres://user:pass@host:port/db   (required)
+#   DATABASE_URL    postgres://user:pass@host:port/db   (either this or PG* below)
+#   PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE   standard libpq variables
+#                   (preferred: keeps the password out of the process list)
 #   BACKUP_DIR      backup target directory            (default /var/backups/dialog-survey)
 #   RETENTION_DAYS  delete backups older than N days   (default 14)
 #
@@ -17,9 +19,13 @@ set -eu
 # Keep them private to the invoking user regardless of cron/systemd umask.
 umask 077
 
-DATABASE_URL="${DATABASE_URL:?DATABASE_URL is required (postgres://user:pass@host:port/db)}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/dialog-survey}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
+
+if [ -z "${DATABASE_URL:-}" ] && [ -z "${PGHOST:-}" ]; then
+  echo "ERROR: set DATABASE_URL, or standard PGHOST/PGUSER/PGPASSWORD/PGDATABASE variables" >&2
+  exit 1
+fi
 
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 HOSTNAME_TAG="$(hostname -s 2>/dev/null || echo host)"
@@ -44,9 +50,13 @@ mkdir -p "${BACKUP_DIR}" || fail "cannot create backup directory ${BACKUP_DIR}"
 TMP_TARGET="${TARGET}.partial"
 
 log "starting backup to ${TARGET}"
-pg_dump --format=custom --no-owner --no-privileges \
-  --file="${TMP_TARGET}" \
-  "${DATABASE_URL}" || {
+# When DATABASE_URL is unset, pg_dump falls back to PG* libpq environment
+# variables — the password never appears in the process list.
+set -- --format=custom --no-owner --no-privileges --file="${TMP_TARGET}"
+if [ -n "${DATABASE_URL:-}" ]; then
+  set -- "$@" "${DATABASE_URL}"
+fi
+pg_dump "$@" || {
   rm -f "${TMP_TARGET}"
   fail "pg_dump failed (see PostgreSQL output above)"
 }
@@ -63,8 +73,9 @@ SIZE="$(du -h "${TARGET}" | cut -f1)"
 log "backup completed: ${TARGET} (${SIZE})"
 
 # Prune only this host's dumps — a shared BACKUP_DIR (e.g. NFS) must not
-# let one host delete another host's backups.
-DELETED=$(find "${BACKUP_DIR}" -name "dialog-survey-${HOSTNAME_TAG}-*.dump" -type f -mtime "+${RETENTION_DAYS}" -print -delete | wc -l)
+# let one host delete another host's backups. Also remove stale .partial
+# files left behind by a SIGKILLed run (code-walkthrough N2).
+DELETED=$(find "${BACKUP_DIR}" \( -name "dialog-survey-${HOSTNAME_TAG}-*.dump" -o -name "dialog-survey-${HOSTNAME_TAG}-*.dump.partial" \) -type f -mtime "+${RETENTION_DAYS}" -print -delete | wc -l)
 if [ "${DELETED}" -gt 0 ]; then
   log "retention: removed ${DELETED} backup(s) older than ${RETENTION_DAYS} days"
 fi

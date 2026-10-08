@@ -19,6 +19,8 @@ const elapsedStart = new WeakMap<FastifyRequest, bigint>();
  * registered in child plugins is covered. Labels are bounded: method +
  * route pattern (Fastify route URL, not raw path — no request ids, no
  * query strings, no PII). Unmatched requests are labeled `unmatched`.
+ * Requests to /metrics itself are not counted — scrape frequency would
+ * otherwise pollute the request counters (code-walkthrough F9).
  */
 export const metricsOnRequest: onRequestHookHandler = async (request) => {
   elapsedStart.set(request, process.hrtime.bigint());
@@ -26,6 +28,9 @@ export const metricsOnRequest: onRequestHookHandler = async (request) => {
 
 export const metricsOnResponse: onResponseHookHandler = async (request, reply) => {
   const route = request.routeOptions?.url ?? 'unmatched';
+  if (route === '/metrics') {
+    return;
+  }
   const labels = { method: request.method, route, status: String(reply.statusCode) };
   httpRequestsTotal.inc(labels);
   const start = elapsedStart.get(request);
@@ -46,6 +51,7 @@ function bearerTokenMatches(headerValue: string | undefined, token: string): boo
 
 export async function metricsRoutes(fastify: FastifyInstance): Promise<void> {
   // Read once at registration; empty string means "no auth" (same as unset).
+  // Changing METRICS_TOKEN requires a process restart.
   const token = process.env['METRICS_TOKEN'] ?? '';
   if (!token && process.env['NODE_ENV'] === 'production') {
     warn('/metrics is unauthenticated; set METRICS_TOKEN or restrict access at the network layer');

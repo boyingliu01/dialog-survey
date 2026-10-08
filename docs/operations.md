@@ -7,6 +7,9 @@
 - **First restore drill is a release gate**: automated backups are NOT considered
   working until one full backup → restore → `/health` verification has been
   completed and recorded (see §2). Until then, treat the data as unprotected.
+  The CI `Backup/Restore Drill` job runs this continuously for the scripts
+  themselves — the on-server drill validates YOUR backup directory and
+  credentials, which CI cannot.
 - **Prerequisites**: install `postgresql-client` matching your PostgreSQL major
   version (e.g. `postgresql-client-16` for PG 16) — `pg_dump`/`pg_restore` must be
   on the PATH of the user running the timer.
@@ -28,9 +31,9 @@ compressed) into `BACKUP_DIR`, then prunes backups older than `RETENTION_DAYS`.
 
 | Variable | Default | Notes |
 |----------|---------|-------|
-| `DATABASE_URL` | — (required) | `postgres://user:pass@host:port/db` |
-| `BACKUP_DIR` | `/var/backups/dialog-survey` | must be writable by the cron user |
-| `RETENTION_DAYS` | `14` | older `dialog-survey-*.dump` files are deleted |
+| `DATABASE_URL` | — (or PG* vars) | `postgres://user:pass@host:port/db`; alternatively set standard `PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE` (preferred — keeps the password out of the process list) |
+| `BACKUP_DIR` | `/var/backups/dialog-survey` | must be writable by the cron user; retention only touches `dialog-survey-<this-host>-*.dump` files |
+| `RETENTION_DAYS` | `14` | older backups of **this host** are deleted |
 
 ### Schedule with cron
 
@@ -86,14 +89,27 @@ systemctl list-timers | grep dialog-survey
 
 ### Alerting hook
 
-The script writes one `backup completed` / `ERROR` line per run to stdout/stderr —
-tail the log with your existing log monitor, or add `OnFailure=` to the unit to
-notify on failure:
+The script writes one `backup completed` / `ERROR` line per run to stdout/stderr.
+Failure alerting requires a consumer — for systemd, ship this unit so
+`OnFailure=` has something to call (adapt the webhook URL):
+
+`/etc/systemd/system/notify-admin@.service`:
 
 ```ini
 [Unit]
-OnFailure=notify-admin@%n.service
+Description=Notify admin of failed %i
+
+[Service]
+Type=oneshot
+# POST the failure to your alerting endpoint (Slack/DingTalk webhook, PagerDuty…)
+ExecStart=/usr/bin/curl -fsS -X POST -H "Content-Type: application/json" \
+  -d '{"msgtype":"text","text":{"content":"dialog-survey %i FAILED on %H"}}' \
+  https://your-webhook.example.com/hook
 ```
+
+For cron deployments, monitor the log for `ERROR:` lines, or alert on the age of
+the newest `dialog-survey-*.dump` in `BACKUP_DIR` (a backup older than ~25h means
+the schedule silently broke).
 
 ## 2. Restore drill (run monthly)
 

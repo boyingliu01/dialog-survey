@@ -52,10 +52,11 @@ describe('GET /metrics', () => {
     expect(response.body).toContain('dialog_survey_http_request_duration_ms_count');
   });
 
-  it('should record the /metrics scrape itself', async () => {
+  it('should not count scrapes of /metrics itself', async () => {
     const response = await app.inject({ method: 'GET', url: '/metrics' });
 
-    expect(response.body).toContain('route="/metrics",status="200"');
+    expect(response.statusCode).toBe(200);
+    expect(response.body).not.toContain('route="/metrics"');
   });
 
   it('should reject unauthenticated scrapes when METRICS_TOKEN is set at startup', async () => {
