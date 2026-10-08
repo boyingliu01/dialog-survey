@@ -27,8 +27,9 @@ jobs:
       # npm >= 11.5.1 is required for Trusted Publishing (OIDC); Node 20/22
       # bundle npm 10.x, which fails with ENEEDAUTH because it cannot exchange
       # the GitHub Actions OIDC token for an ephemeral publish token.
+      # Pinned to ^11: npm 12.x dropped Node 20 support (EBADENGINE).
       - name: Upgrade npm for Trusted Publishing (OIDC)
-        run: npm install -g npm@latest
+        run: npm install -g npm@^11.5.1
 
       - name: Install dependencies
         run: npm ci
