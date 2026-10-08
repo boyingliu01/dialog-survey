@@ -240,6 +240,33 @@ echo "logs/server.log {
 }" | sudo tee /etc/logrotate.d/dialog-survey
 ```
 
+### Prometheus Metrics (issue #178)
+
+`GET /metrics` exposes Prometheus text-format metrics: HTTP request counters and
+duration histogram (labeled by method + route pattern + status, no PII), process
+uptime, and memory usage.
+
+```bash
+curl http://localhost:3001/metrics
+```
+
+Optional access control — set `METRICS_TOKEN` in `.env`, scrapers must send
+`Authorization: Bearer <METRICS_TOKEN>`. `/metrics` reveals route names, request
+rates and process memory: keep the port firewalled to your monitoring host or
+set the token (production logs a warning when both are missing). Token changes
+take effect on process restart. See `docs/operations.md` for a ready-made
+`scrape_configs` block and starter alerts.
+
+### Scheduled Backups (issue #179)
+
+```bash
+# One-shot manual backup
+DATABASE_URL='postgres://...' ./scripts/backup.sh
+
+# Daily 02:00 via cron or systemd timer (recommended) — full setup + restore
+# drill runbook: docs/operations.md
+```
+
 ## Rollback
 
 ### Code Rollback
