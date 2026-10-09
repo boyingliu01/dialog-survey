@@ -3,9 +3,10 @@
 > 状态：**基线已建立（PGlite 相对口径，harness v2）**。绝对 sizing 权威口径 = CI
 > `loadtest` job 的真实 PostgreSQL 复测（`.github/workflows/loadtest.yml`，手动/每月
 > 触发，结果自动 commit 到 `loadtest-baseline` 分支）与 #183 服务器侧容量复测。
-> CI job 可行性在合并前以 workflow_dispatch 冒烟验证（job 能跑通）；首次产出权威
-> sizing 数字的完整实跑安排在合并后。本报告数字用于**版本间相对回归**与部署规格
-> 的**量级判断**。
+> GitHub 平台约束：workflow_dispatch 仅能触发默认分支上存在的 workflow，因此
+> job 的冒烟验证安排在**合并后、打 tag 前立即执行**（作为发布门禁）；首次产出
+> 权威 sizing 数字的完整实跑随后进行。本报告数字用于**版本间相对回归**与部署
+> 规格的**量级判断**。
 
 ## 1. 方法学
 
