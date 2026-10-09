@@ -8,10 +8,12 @@ import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import nunjucks from 'nunjucks';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { InterviewPlanRepository } from '../src/repositories/interview-plan.repository.js';
 import type { InterviewRepository } from '../src/repositories/interview.repository.js';
 import type { AnalysisService } from '../src/services/analysis.service.js';
 import type { AnalyticsService } from '../src/services/analytics.service.js';
 import type { InterviewPlanService } from '../src/services/interview-plan.service.js';
+import type { TemplateDimensionService } from '../src/services/template-dimension.service.js';
 import type { Template, TemplateStatus } from '../src/utils/prisma-client.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -169,7 +171,8 @@ describe('Admin Templates Import', () => {
       interviewRepo: {} as unknown as InterviewRepository,
       analysisService: {} as unknown as AnalysisService,
       analyticsService: {} as unknown as AnalyticsService,
-      prisma,
+      interviewPlanRepo: {} as unknown as InterviewPlanRepository,
+      templateDimensionService: {} as unknown as TemplateDimensionService,
     });
     await app.ready();
     return app;

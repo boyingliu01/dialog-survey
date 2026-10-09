@@ -1,13 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { TemplateRepository } from '../repositories/template.repository.js';
-import { updateTemplateDimensions } from '../services/template-dimension.service.js';
-import type { PrismaClient } from '../utils/prisma-client.js';
+import type { TemplateDimensionService } from '../services/template-dimension.service.js';
 import { TemplateStatus } from '../utils/prisma-client.js';
 
 export interface TemplateRoutesOptions {
   templateRepo: TemplateRepository;
-  prisma: PrismaClient;
+  templateDimensionService: TemplateDimensionService;
 }
 
 /** Helper to format template response object (avoids duplication) */
@@ -47,7 +46,7 @@ const updateTemplateSchema = z.object({
 });
 
 export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRoutesOptions) {
-  const { templateRepo, prisma } = opts;
+  const { templateRepo, templateDimensionService } = opts;
 
   fastify.post('/api/templates', async (request, _reply) => {
     const input = createTemplateSchema.parse(request.body);
@@ -121,7 +120,7 @@ export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRou
     }
 
     try {
-      const template = await updateTemplateDimensions(prisma, id, body.dimensions);
+      const template = await templateDimensionService.updateTemplateDimensions(id, body.dimensions);
       return {
         id: template.id,
         name: template.name,

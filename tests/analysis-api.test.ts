@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { AnalysisService } from '../src/services/analysis.service.js';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
@@ -20,7 +21,7 @@ beforeAll(async () => {
 async function createApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   const { analysisRoutes } = await import('../src/api/analysis.js');
-  await app.register(analysisRoutes, { prisma });
+  await app.register(analysisRoutes, { analysisService: new AnalysisService(prisma) });
   await app.ready();
   return app;
 }
@@ -287,7 +288,7 @@ describe('Analysis API error paths via mock service', () => {
     AnalysisService.prototype.batchAnalyze = vi.fn().mockRejectedValue(new Error('DB error'));
     app = Fastify({ logger: false });
     const { analysisRoutes } = await import('../src/api/analysis.js');
-    await app.register(analysisRoutes, { prisma });
+    await app.register(analysisRoutes, { analysisService: new AnalysisService(prisma) });
     await app.ready();
     const res = await app.inject({
       method: 'POST',
@@ -309,7 +310,7 @@ describe('Analysis API error paths via mock service', () => {
       .mockRejectedValue(new Error('Cluster error'));
     app = Fastify({ logger: false });
     const { analysisRoutes } = await import('../src/api/analysis.js');
-    await app.register(analysisRoutes, { prisma });
+    await app.register(analysisRoutes, { analysisService: new AnalysisService(prisma) });
     await app.ready();
     const res = await app.inject({
       method: 'GET',
@@ -330,7 +331,7 @@ describe('Analysis API error paths via mock service', () => {
       .mockRejectedValue(new Error('Aggregate error'));
     app = Fastify({ logger: false });
     const { analysisRoutes } = await import('../src/api/analysis.js');
-    await app.register(analysisRoutes, { prisma });
+    await app.register(analysisRoutes, { analysisService: new AnalysisService(prisma) });
     await app.ready();
     const res = await app.inject({
       method: 'POST',
@@ -351,7 +352,7 @@ describe('Analysis API error paths via mock service', () => {
       .mockResolvedValue({ kind: 'plan-not-found' });
     app = Fastify({ logger: false });
     const { analysisRoutes } = await import('../src/api/analysis.js');
-    await app.register(analysisRoutes, { prisma });
+    await app.register(analysisRoutes, { analysisService: new AnalysisService(prisma) });
     await app.ready();
     const res = await app.inject({
       method: 'POST',
@@ -372,7 +373,7 @@ describe('Analysis API error paths via mock service', () => {
       .mockRejectedValue(new Error('Fetch error'));
     app = Fastify({ logger: false });
     const { analysisRoutes } = await import('../src/api/analysis.js');
-    await app.register(analysisRoutes, { prisma });
+    await app.register(analysisRoutes, { analysisService: new AnalysisService(prisma) });
     await app.ready();
     const res = await app.inject({
       method: 'GET',

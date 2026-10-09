@@ -29,6 +29,8 @@ import { DEFAULT_SESSION_MAX_AGE } from './config/constants.js';
 import { DingTalkMessageSender } from './integrations/dingtalk/message-sender.js';
 import { DingTalkStreamClient } from './integrations/dingtalk/stream-client.js';
 import { tokenManager } from './integrations/dingtalk/token-manager.js';
+import { DatabaseHealthRepository } from './repositories/database-health.repository.js';
+import { InterviewPlanRepository } from './repositories/interview-plan.repository.js';
 import { InterviewRepository } from './repositories/interview.repository.js';
 import { TemplateRepository } from './repositories/template.repository.js';
 import { adminAuthRoutes } from './routes/admin-auth.js';
@@ -44,6 +46,7 @@ import { AuditCleanupService } from './services/audit-cleanup.service.js';
 import { ExportService } from './services/export.service.js';
 import { InterviewPlanService } from './services/interview-plan.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
+import { TemplateDimensionService } from './services/template-dimension.service.js';
 import { error, info, warn } from './utils/logger.js';
 import { renderMarkdown } from './utils/markdown.js';
 import { resolveAssetRoots } from './utils/path-resolver.js';
@@ -177,13 +180,15 @@ function addSecurityHeadersHook(fastify: FastifyInstance): void {
 }
 
 interface ApiRouteDeps {
-  prisma: PrismaClient;
   templateRepo: TemplateRepository;
   interviewRepo: InterviewRepository;
+  interviewPlanRepo: InterviewPlanRepository;
   interviewPlanService: InterviewPlanService;
   analysisService: AnalysisService;
   analyticsService: AnalyticsService;
   exportService: ExportService;
+  databaseHealth: DatabaseHealthRepository;
+  templateDimensionService: TemplateDimensionService;
 }
 
 async function registerApiRoutes(
@@ -191,7 +196,7 @@ async function registerApiRoutes(
   deps: ApiRouteDeps,
   verifyApiKey: ReturnType<typeof createVerifyApiKey>
 ): Promise<void> {
-  await fastify.register(healthRoutes, { prisma: deps.prisma });
+  await fastify.register(healthRoutes, { databaseHealth: deps.databaseHealth });
 
   await fastify.register(async (api) => {
     api.addHook('preHandler', async (request, reply) => {
@@ -204,10 +209,13 @@ async function registerApiRoutes(
     });
     await api.register(interviewPlanRoutes, {
       interviewPlanService: deps.interviewPlanService,
-      prisma: deps.prisma,
+      interviewPlanRepo: deps.interviewPlanRepo,
     });
-    await api.register(templateRoutes, { templateRepo: deps.templateRepo, prisma: deps.prisma });
-    await api.register(analysisRoutes, { prisma: deps.prisma });
+    await api.register(templateRoutes, {
+      templateRepo: deps.templateRepo,
+      templateDimensionService: deps.templateDimensionService,
+    });
+    await api.register(analysisRoutes, { analysisService: deps.analysisService });
   });
 
   await fastify.register(adminTemplatesRoutes, {
@@ -217,7 +225,8 @@ async function registerApiRoutes(
     analysisService: deps.analysisService,
     analyticsService: deps.analyticsService,
     exportService: deps.exportService,
-    prisma: deps.prisma,
+    interviewPlanRepo: deps.interviewPlanRepo,
+    templateDimensionService: deps.templateDimensionService,
   });
 }
 
@@ -275,13 +284,15 @@ export async function buildApp(options: BuildAppOptions = {}) {
       tokenManager
     );
     const deps: ApiRouteDeps = {
-      prisma: applicationPrisma,
       templateRepo,
       interviewRepo: new InterviewRepository(applicationPrisma),
+      interviewPlanRepo: new InterviewPlanRepository(applicationPrisma),
       interviewPlanService,
       analysisService: new AnalysisService(applicationPrisma),
       analyticsService: new AnalyticsService(applicationPrisma),
       exportService: new ExportService(applicationPrisma),
+      databaseHealth: new DatabaseHealthRepository(applicationPrisma),
+      templateDimensionService: new TemplateDimensionService(applicationPrisma),
     };
 
     await securityMiddleware(fastify, applicationPrisma);

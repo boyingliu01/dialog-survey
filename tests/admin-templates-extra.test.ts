@@ -101,16 +101,23 @@ async function createTestApp() {
   const { adminTemplatesRoutes } = await import('../src/api/admin-templates.js');
   const { TemplateRepository } = await import('../src/repositories/template.repository.js');
   const { InterviewRepository } = await import('../src/repositories/interview.repository.js');
+  const { InterviewPlanRepository } = await import(
+    '../src/repositories/interview-plan.repository.js'
+  );
   const { AnalysisService } = await import('../src/services/analysis.service.js');
   const { AnalyticsService } = await import('../src/services/analytics.service.js');
   const { InterviewPlanService } = await import('../src/services/interview-plan.service.js');
+  const { TemplateDimensionService } = await import(
+    '../src/services/template-dimension.service.js'
+  );
   await app.register(adminTemplatesRoutes, {
     templateRepo: new TemplateRepository(prisma),
     interviewPlanService: new InterviewPlanService(prisma),
     interviewRepo: new InterviewRepository(prisma),
+    interviewPlanRepo: new InterviewPlanRepository(prisma),
     analysisService: new AnalysisService(prisma),
     analyticsService: new AnalyticsService(prisma),
-    prisma,
+    templateDimensionService: new TemplateDimensionService(prisma),
   });
 
   return app;

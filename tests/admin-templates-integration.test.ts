@@ -229,9 +229,15 @@ describe('Admin Templates Integration — save → load → render', () => {
     const { PrismaClient } = await import('../src/utils/prisma-client.js');
     const { TemplateRepository } = await import('../src/repositories/template.repository.js');
     const { InterviewRepository } = await import('../src/repositories/interview.repository.js');
+    const { InterviewPlanRepository } = await import(
+      '../src/repositories/interview-plan.repository.js'
+    );
     const { AnalysisService } = await import('../src/services/analysis.service.js');
     const { AnalyticsService } = await import('../src/services/analytics.service.js');
     const { InterviewPlanService } = await import('../src/services/interview-plan.service.js');
+    const { TemplateDimensionService } = await import(
+      '../src/services/template-dimension.service.js'
+    );
     // This file mocks the facade with a no-arg fake, while the real Prisma 7 ctor
     // requires an adapter — cast so the mock-domain construction stays type-legal.
     const prisma = new (PrismaClient as unknown as new () => InstanceType<typeof PrismaClient>)();
@@ -239,9 +245,10 @@ describe('Admin Templates Integration — save → load → render', () => {
       templateRepo: new TemplateRepository(prisma),
       interviewPlanService: new InterviewPlanService(prisma),
       interviewRepo: new InterviewRepository(prisma),
+      interviewPlanRepo: new InterviewPlanRepository(prisma),
       analysisService: new AnalysisService(prisma),
       analyticsService: new AnalyticsService(prisma),
-      prisma,
+      templateDimensionService: new TemplateDimensionService(prisma),
     });
     await app.ready();
   }

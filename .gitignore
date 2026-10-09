@@ -143,3 +143,7 @@ reports/*.pdf
 # Code race 8th submission materials (private until published)
 docs/code-race-8th/
 .workbuddy/
+
+# Local loadtest runs produce timestamped result JSONs; the CI loadtest job
+# commits the representative real-PG one back with git add -f.
+docs/reports/loadtest-results-*.json

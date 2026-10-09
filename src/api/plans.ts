@@ -1,9 +1,9 @@
 import { parse } from 'csv-parse/sync';
 import type { FastifyInstance, preHandlerAsyncHookHandler } from 'fastify';
 import { z } from 'zod';
-import { DEFAULT_MAX_FOLLOWUPS } from '../core/types/index.js';
 import { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { createAdminMutationGuard } from '../middleware/admin-csrf.js';
+import type { InterviewPlanRepository } from '../repositories/interview-plan.repository.js';
 import {
   InterviewNotFoundError,
   type InterviewPlanService,
@@ -14,7 +14,7 @@ import {
   PlanNotFoundError,
 } from '../services/interview-plan.service.js';
 import { normalizePhone } from '../services/member-verification.service.js';
-import type { PlanStatus, PrismaClient } from '../utils/prisma-client.js';
+import type { PlanStatus } from '../utils/prisma-client.js';
 
 const createPlanSchema = z.object({
   name: z.string().min(1),
@@ -80,7 +80,10 @@ function mapServiceErrorToStatus(err: unknown): { status: number; message: strin
 
 export async function interviewPlanRoutes(
   fastify: FastifyInstance,
-  opts: { interviewPlanService: InterviewPlanService; prisma: PrismaClient }
+  opts: {
+    interviewPlanService: InterviewPlanService;
+    interviewPlanRepo: InterviewPlanRepository;
+  }
 ) {
   const planService = opts.interviewPlanService;
   const adminMutationGuard = createAdminMutationGuard(fastify.csrfProtection);
@@ -342,7 +345,7 @@ export async function interviewPlanRoutes(
     async (request, reply) => {
       const { id } = request.params as { id: string };
       try {
-        const plan = await opts.prisma.interviewPlan.findUnique({ where: { id } });
+        const plan = await opts.interviewPlanRepo.findById(id);
         if (!plan) return reply.code(404).send({ error: 'Plan not found' });
         if (plan.status !== 'PENDING' && plan.status !== 'READY') {
           return reply.code(400).send({ error: '计划当前状态不允许导入成员' });
@@ -473,96 +476,37 @@ export async function interviewPlanRoutes(
 
       if (rows.length === 0) return reply.code(400).send({ error: 'no rows to import' });
 
-      const prisma = opts.prisma;
+      const planService = opts.interviewPlanService;
 
-      const plan = await prisma.interviewPlan.findUnique({ where: { id } });
-      if (!plan) return reply.code(404).send({ error: 'Plan not found' });
-      if (plan.status !== 'PENDING' && plan.status !== 'READY') {
-        return reply.code(400).send({ error: '计划当前状态不允许导入成员' });
-      }
-
-      const userIds = rows.map((r) => r.userId);
-
-      const crossPlanDups = await prisma.interview.findMany({
-        where: {
-          userId: { in: userIds },
-          planId: { not: id },
-          status: { notIn: ['COMPLETED', 'CANCELLED'] },
-        },
-        select: { userId: true, planId: true },
-      });
-      if (crossPlanDups.length > 0) {
-        const conflicts = crossPlanDups.map(
-          (d) => `userId=${d.userId} 在计划 ${d.planId} 中有未完成的访谈`
-        );
-        return reply
-          .code(409)
-          .send({ error: `以下成员已有尚未完成的访谈：${conflicts.join('；')}` });
-      }
-
-      const existingInPlan = await prisma.interview.findMany({
-        where: { planId: id, userId: { in: userIds } },
-        select: { userId: true },
-      });
-      const existingUserIdSet = new Set(existingInPlan.map((e) => e.userId));
-      const newRows = rows.filter((r) => !existingUserIdSet.has(r.userId));
-      const skipped = rows.length - newRows.length;
-
-      if (newRows.length === 0 && skipped > 0) {
-        return { imported: 0, skipped, interviewIds: [] };
-      }
-
-      const templateId = plan.templateId;
-      let interviewIds: string[];
+      let importResult: { imported: number; skipped: number; interviewIds: string[] };
       try {
-        interviewIds = await prisma.$transaction(async (tx) => {
-          const ids: string[] = [];
-          for (const row of newRows) {
-            const interview = await tx.interview.create({
-              data: {
-                userId: row.userId,
-                templateId,
-                planId: id,
-                status: 'PENDING',
-                maxFollowups: DEFAULT_MAX_FOLLOWUPS,
-              },
-            });
-            ids.push(interview.id);
-          }
-
-          const existingInvitees = Array.isArray(plan.inviteeData)
-            ? (plan.inviteeData as unknown as Array<{ userId: string; name: string }>)
-            : [];
-          const newInvitees = newRows.map((r) => ({
+        importResult = await planService.importMembers(
+          id,
+          rows.map((r) => ({
             userId: r.userId,
-            name: r.dingtalkName || r.inputName || '',
-          }));
-          await tx.interviewPlan.update({
-            where: { id },
-            data: { inviteeData: [...existingInvitees, ...newInvitees] },
-          });
-
-          await tx.auditLog.create({
-            data: {
-              action: 'BATCH_IMPORT',
-              entityType: 'InterviewPlan',
-              entityId: id,
-              details: JSON.stringify({
-                imported: newRows.length,
-                skipped,
-                totalRows: rows.length,
-              }),
-            },
-          });
-
-          return ids;
-        });
-      } catch (e: unknown) {
+            ...(r.inputName !== undefined ? { inputName: r.inputName } : {}),
+            ...(r.dingtalkName !== undefined ? { dingtalkName: r.dingtalkName } : {}),
+          }))
+        );
+      } catch (e) {
+        if (e instanceof PlanNotFoundError) {
+          return reply.code(404).send({ error: 'Plan not found' });
+        }
+        if (e instanceof InvalidStateError) {
+          return reply.code(400).send({ error: e.message });
+        }
+        if (e instanceof MemberConflictError) {
+          return reply.code(409).send({ error: e.message });
+        }
         const message = e instanceof Error ? e.message : '未知错误';
         return reply.code(500).send({ error: `数据库写入失败：${message}` });
       }
 
-      return { imported: newRows.length, skipped, interviewIds };
+      return {
+        imported: importResult.imported,
+        skipped: importResult.skipped,
+        interviewIds: importResult.interviewIds,
+      };
     }
   );
 }

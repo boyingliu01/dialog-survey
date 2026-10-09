@@ -14,6 +14,7 @@
       "dist/",
       "build/",
       "docs/sprints/",
+      "docs/reports/*.json",
       "src/generated/",
       "public/js/*.min.js"
     ]

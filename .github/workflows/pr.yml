@@ -35,6 +35,9 @@ jobs:
       - name: TypeScript type check
         run: npx tsc --noEmit
 
+      - name: TypeScript type check (scripts)
+        run: npx tsc -p tsconfig.scripts.json --noEmit
+
       - name: ast-grep lint (no raw Prisma in API, advisory only)
         run: npx --package=@ast-grep/cli sg scan --rule tools/.ast-grep/rules/no-raw-prisma-in-api.yml || true
 

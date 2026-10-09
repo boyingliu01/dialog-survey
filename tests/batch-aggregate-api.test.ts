@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { analysisRoutes } from '../src/api/analysis.js';
+import { AnalysisService } from '../src/services/analysis.service.js';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
@@ -16,7 +17,7 @@ describe('POST /api/analysis/aggregate/:planId', () => {
 
   beforeAll(async () => {
     fastify = Fastify({ logger: false });
-    await analysisRoutes(fastify, { prisma });
+    await analysisRoutes(fastify, { analysisService: new AnalysisService(prisma) });
     await fastify.ready();
   });
 
