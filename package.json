@@ -14,7 +14,8 @@
     "public/",
     "prisma/",
     "prisma.config.ts",
-    "ecosystem.config.cjs"
+    "ecosystem.config.cjs",
+    "!scripts/loadtest"
   ],
   "bin": {
     "dialog-survey": "scripts/cli.mjs"
@@ -32,7 +33,7 @@
     "test:mutation:incremental": "node scripts/mutation-test.mjs",
     "lint": "biome lint src",
     "lint:fix": "biome lint --write src",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.scripts.json --noEmit",
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "format": "biome format --write .",
@@ -89,6 +90,7 @@
     "@types/nunjucks": "^3.2.6",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.2",
+    "autocannon": "^8.0.0",
     "jscpd": "^4.2.4",
     "pglite-prisma-adapter": "0.7.2",
     "prisma": "7.10.0",

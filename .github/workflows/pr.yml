@@ -33,7 +33,7 @@ jobs:
         run: npx biome check src/
 
       - name: TypeScript type check
-        run: npx tsc --noEmit
+        run: npm run type-check
 
       - name: ast-grep lint (no raw Prisma in API, advisory only)
         run: npx --package=@ast-grep/cli sg scan --rule tools/.ast-grep/rules/no-raw-prisma-in-api.yml || true

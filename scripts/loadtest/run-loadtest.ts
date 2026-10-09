@@ -1,4 +1,7 @@
 // @no-test-required: manually/CI-driven harness; its correctness gate is the loadtest run itself (npm run loadtest)
+import type { AutocannonOptions, AutocannonResult } from 'autocannon';
+import type { BootedLoadtestApp } from './boot-loadtest-app.js';
+
 /**
  * Loadtest runner (REQ-180 / DR-001 / design.md §Slice B).
  *
@@ -69,19 +72,6 @@ function percentile(sorted: number[], p: number): number {
   return sorted[Math.max(0, idx)];
 }
 
-type AutocannonResult = {
-  requests: { average: number };
-  latency: {
-    average: number;
-    p50: number;
-    p90: number;
-    p97_5: number;
-    p99: number;
-  };
-  errors: number;
-  non2xx: number;
-};
-
 /**
  * autocannon v8 latency histogram has no p95 bucket (nearest: p90, p97_5);
  * interpolate linearly between the two adjacent quantiles.
@@ -93,31 +83,30 @@ function interpolateP95(lat: AutocannonResult['latency']): number {
 }
 
 type AutocannonFn = (
-  opts: Record<string, unknown>,
+  opts: AutocannonOptions,
   cb: (err: Error | null, result: AutocannonResult) => void
 ) => unknown;
+
+const WARMUP_SEC = 5;
 
 async function runAutocannonScenario(
   autocannon: AutocannonFn,
   scenario: string,
   tier: number,
   durationSec: number,
-  baseOpts: Record<string, unknown>
+  baseOpts: Omit<AutocannonOptions, 'connections' | 'duration'>
 ): Promise<ScenarioResult> {
-  const run = (tierConnections: number): Promise<AutocannonResult> =>
+  const run = (tierConnections: number, duration: number): Promise<AutocannonResult> =>
     new Promise((resolve, reject) => {
-      autocannon(
-        { ...baseOpts, connections: tierConnections, duration: durationSec },
-        (err, result) => {
-          if (err) reject(err);
-          else resolve(result);
-        }
-      );
+      autocannon({ ...baseOpts, connections: tierConnections, duration }, (err, result) => {
+        if (err) reject(err);
+        else resolve(result);
+      });
     });
 
-  // Warmup pass — discarded by design (skips JIT/socket/PGlite cold paths).
-  await run(tier);
-  const measured = await run(tier);
+  // Warmup pass (5s) — discarded by design (skips JIT/socket/DB cold paths).
+  await run(tier, WARMUP_SEC);
+  const measured = await run(tier, durationSec);
   return {
     scenario,
     tier,
@@ -196,16 +185,11 @@ function writeOut(text: string): void {
   process.stdout.write(text);
 }
 
-async function main(): Promise<void> {
-  const { quick } = parseArgs();
-  const tiers = quick ? QUICK_TIERS : FULL_TIERS;
-  const durationSec = quick ? 8 : 30;
-
-  writeOut('[loadtest] booting app (PGlite in-process; set LOADTEST_USE_REAL_PG=1 for real PG)\n');
-  const { bootLoadtestApp } = await import('./boot-loadtest-app.js');
-  const app = await bootLoadtestApp();
-  writeOut(`[loadtest] app ready at ${app.baseUrl}\n`);
-
+async function runAllScenarios(
+  app: BootedLoadtestApp,
+  tiers: number[],
+  durationSec: number
+): Promise<LoadtestReport> {
   const authHeaders = { 'x-api-key': app.seed.apiKey };
   const metricsHeaders = { authorization: 'Bearer loadtest-metrics-token' };
   const postPlanBody = JSON.stringify({
@@ -215,7 +199,10 @@ async function main(): Promise<void> {
 
   const [{ default: autocannon }] = await Promise.all([import('autocannon')]);
 
-  const scenarios: Array<{ name: string; opts: Record<string, unknown> }> = [
+  const scenarios: Array<{
+    name: string;
+    opts: Omit<AutocannonOptions, 'connections' | 'duration'>;
+  }> = [
     { name: 'S1-health', opts: { url: `${app.baseUrl}/health` } },
     {
       name: 'S2-metrics',
@@ -255,42 +242,67 @@ async function main(): Promise<void> {
   const { InterviewStateRepository } = await import(
     '../../src/repositories/interview-state.repository.js'
   );
-  const svc = new StreamMessageService(new InterviewStateRepository(app.prisma as never));
+  const svc = new StreamMessageService(new InterviewStateRepository(app.prisma));
   const runId = Date.now().toString(36);
   const counter = { value: 0 };
   const s6Tiers: NonNullable<LoadtestReport['s6']>['tiers'] = [];
   for (const tier of tiers) {
+    writeOut(`[loadtest] S6 tier=${tier} (warmup) ...\n`);
+    await runS6Tier(
+      tier,
+      WARMUP_SEC,
+      (m) => svc.processStreamMessage(m, 0, app.prisma),
+      `${runId}-w`,
+      counter
+    );
     writeOut(`[loadtest] S6 tier=${tier} ...\n`);
     s6Tiers.push(
       await runS6Tier(
         tier,
         durationSec,
-        (m) => svc.processStreamMessage(m, 0, app.prisma as never),
+        (m) => svc.processStreamMessage(m, 0, app.prisma),
         runId,
         counter
       )
     );
   }
 
-  await app.close();
-
-  const report: LoadtestReport = {
+  return {
     meta: {
       timestamp: new Date().toISOString(),
       db: process.env['LOADTEST_USE_REAL_PG'] === '1' ? 'postgres' : 'pglite',
       node: process.version,
       durationSec,
-      warmupSec: 5,
+      warmupSec: WARMUP_SEC,
       tiers,
       notes: [
         'PGlite runs in-process: client+server share one event loop/CPU; numbers are an upper-bound throughput / lower-bound latency baseline for relative regression only.',
         'S6 outbound DingTalk replies are stubbed via the SSRF allowlist; LLM runs the credential-free fallback path (LLM latency not included).',
-        'Warmup passes (5 s per tier) are run and discarded before each measurement.',
+        'Warmup passes (5 s per tier) are run and discarded before each measurement (S1-S6).',
+        'Percentile provenance: S1-S5 p95 interpolated from the autocannon histogram (p90/p97_5); S6 nearest-rank over raw handler samples.',
       ],
     },
     results,
     s6: { tiers: s6Tiers },
   };
+}
+
+async function main(): Promise<void> {
+  const { quick } = parseArgs();
+  const tiers = quick ? QUICK_TIERS : FULL_TIERS;
+  const durationSec = quick ? 8 : 30;
+
+  writeOut('[loadtest] booting app (PGlite in-process; set LOADTEST_USE_REAL_PG=1 for real PG)\n');
+  const { bootLoadtestApp } = await import('./boot-loadtest-app.js');
+  const app = await bootLoadtestApp();
+  writeOut(`[loadtest] app ready at ${app.baseUrl}\n`);
+
+  let report: LoadtestReport;
+  try {
+    report = await runAllScenarios(app, tiers, durationSec);
+  } finally {
+    await app.close();
+  }
 
   const { mkdirSync, writeFileSync } = await import('node:fs');
   const { resolve } = await import('node:path');
@@ -303,12 +315,12 @@ async function main(): Promise<void> {
   writeFileSync(outFile, JSON.stringify(report, null, 2));
 
   writeOut('\n=== Loadtest results ===\n');
-  for (const r of results) {
+  for (const r of report.results) {
     writeOut(
       `${r.scenario.padEnd(18)} tier=${String(r.tier).padEnd(4)} rps=${String(r.rps).padEnd(7)} p50=${String(r.p50Ms).padEnd(8)} p95=${String(r.p95Ms).padEnd(8)} p99=${String(r.p99Ms).padEnd(8)} err=${r.errors} non2xx=${r.non2xx}\n`
     );
   }
-  for (const t of s6Tiers) {
+  for (const t of report.s6?.tiers ?? []) {
     writeOut(
       `S6-handler         tier=${String(t.tier).padEnd(4)} rps=${String(t.rps).padEnd(7)} p50=${String(t.p50Ms).padEnd(8)} p95=${String(t.p95Ms).padEnd(8)} p99=${String(t.p99Ms).padEnd(8)} ok=${t.successRate}%\n`
     );

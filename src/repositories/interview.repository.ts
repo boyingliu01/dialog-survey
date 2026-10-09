@@ -99,24 +99,4 @@ export class InterviewRepository {
       },
     });
   }
-
-  /** Members of other plans with an unfinished interview for any of the given users (import-commit guard). */
-  findActiveInOtherPlans(userIds: string[], excludingPlanId: string) {
-    return this.prisma.interview.findMany({
-      where: {
-        userId: { in: userIds },
-        planId: { not: excludingPlanId },
-        status: { notIn: ['COMPLETED', 'CANCELLED'] },
-      },
-      select: { userId: true, planId: true },
-    });
-  }
-
-  /** Users among the given ones that already have an interview in the plan. */
-  findUserIdsInPlan(planId: string, userIds: string[]) {
-    return this.prisma.interview.findMany({
-      where: { planId, userId: { in: userIds } },
-      select: { userId: true },
-    });
-  }
 }
