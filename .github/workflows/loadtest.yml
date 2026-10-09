@@ -52,7 +52,7 @@ jobs:
         run: npx prisma generate
 
       - name: Apply schema to real PostgreSQL
-        run: npx prisma db push --skip-generate
+        run: npx prisma db push
 
       - name: Run loadtest (S1-S6, real pool)
         run: npm run loadtest
