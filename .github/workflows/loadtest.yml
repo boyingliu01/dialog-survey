@@ -16,6 +16,8 @@ jobs:
     name: Loadtest (real PostgreSQL, non-blocking)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: write
     services:
       postgres:
         image: postgres:16-alpine
@@ -55,20 +57,28 @@ jobs:
       - name: Run loadtest (S1-S6, real pool)
         run: npm run loadtest
 
-      # Commit the real-PG results JSON back to the repo so the cross-version
-      # capacity regression series survives artifact expiry (90 days). The
-      # pattern is gitignored (local runs must not dirty the tree), hence -f.
-      - name: Commit results to docs/reports
+      # Commit the real-PG results JSON to a dedicated (non-protected) branch so
+      # the cross-version capacity regression series survives artifact expiry
+      # (90 days) and the protected default branch policy is not involved.
+      # The pattern is gitignored (local runs must not dirty the tree), hence -f.
+      - name: Commit results to the loadtest-baseline branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          BRANCH=loadtest-baseline
+          git fetch origin "$BRANCH" 2>/dev/null || true
+          if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
+            git checkout -B "$BRANCH" "origin/$BRANCH"
+          else
+            git checkout -B "$BRANCH"
+          fi
           git add -f docs/reports/loadtest-results-*.json
           if git diff --cached --quiet; then
             echo "No new results to commit"
             exit 0
           fi
           git commit -m "chore(loadtest): record real-PG baseline results [skip ci]"
-          git push
+          git push origin "$BRANCH"
 
       - name: Upload results
         uses: actions/upload-artifact@v4

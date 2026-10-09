@@ -4,6 +4,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["scripts/loadtest/**/*"],
+  "include": ["scripts/loadtest/**/*", "scripts/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

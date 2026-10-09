@@ -22,6 +22,9 @@ const CREDENTIAL_ENV_VARS = [
   'DINGTALK_CLIENT_ID',
   'DINGTALK_CLIENT_SECRET',
   'DINGTALK_AGENT_ID',
+  // Aliases read by src/integrations/dingtalk/token-manager.ts
+  'DINGTALK_APP_KEY',
+  'DINGTALK_APP_SECRET',
   'DASHSCOPE_API_KEY',
   'DASHSCOPE_MODEL',
   'DASHSCOPE_EMBEDDING_MODEL',
