@@ -15,12 +15,15 @@ import { interviewPlanRoutes } from '../../src/api/plans.js';
 import { templateRoutes } from '../../src/api/templates.js';
 import { DingTalkStreamClient } from '../../src/integrations/dingtalk/stream-client.js';
 import { tokenManager } from '../../src/integrations/dingtalk/token-manager.js';
+import { DatabaseHealthRepository } from '../../src/repositories/database-health.repository.js';
+import { InterviewPlanRepository } from '../../src/repositories/interview-plan.repository.js';
 import { InterviewRepository } from '../../src/repositories/interview.repository.js';
 import { TemplateRepository } from '../../src/repositories/template.repository.js';
 import { AnalysisService } from '../../src/services/analysis.service.js';
 import { AnalyticsService } from '../../src/services/analytics.service.js';
 import { ExportService } from '../../src/services/export.service.js';
 import { InterviewPlanService } from '../../src/services/interview-plan.service.js';
+import { TemplateDimensionService } from '../../src/services/template-dimension.service.js';
 import { renderMarkdown } from '../../src/utils/markdown.js';
 import { createVerifyApiKey, securityMiddleware } from '../../src/utils/security.js';
 import { registerTestAdminAuth } from './admin-auth.js';
@@ -118,6 +121,9 @@ export async function createTestServer(): Promise<TestServer> {
     tokenManager
   );
   const interviewRepo = new InterviewRepository(prisma);
+  const interviewPlanRepo = new InterviewPlanRepository(prisma);
+  const databaseHealth = new DatabaseHealthRepository(prisma);
+  const templateDimensionService = new TemplateDimensionService(prisma);
   const analysisService = new AnalysisService(prisma);
   const analyticsService = new AnalyticsService(prisma);
   const exportService = new ExportService(prisma);
@@ -144,13 +150,13 @@ export async function createTestServer(): Promise<TestServer> {
 
   const verifyApiKey = createVerifyApiKey(prisma);
 
-  await fastify.register(healthRoutes, { prisma });
+  await fastify.register(healthRoutes, { databaseHealth });
 
   await fastify.register(async (api) => {
     api.addHook('preHandler', verifyApiKey);
-    await api.register(interviewPlanRoutes, { interviewPlanService, prisma });
-    await api.register(templateRoutes, { templateRepo, prisma });
-    await api.register(analysisRoutes, { prisma });
+    await api.register(interviewPlanRoutes, { interviewPlanService, interviewPlanRepo });
+    await api.register(templateRoutes, { templateRepo, templateDimensionService });
+    await api.register(analysisRoutes, { analysisService });
   });
 
   await fastify.register(adminTemplatesRoutes, {
@@ -160,7 +166,8 @@ export async function createTestServer(): Promise<TestServer> {
     analysisService,
     analyticsService,
     exportService,
-    prisma,
+    interviewPlanRepo,
+    templateDimensionService,
   });
 
   // Skip DingTalk Stream connection in tests

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { InterviewPlanRepository } from '../src/repositories/interview-plan.repository.js';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { registerTestAdminAuth } from './helpers/admin-auth.js';
 import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
@@ -71,7 +72,7 @@ describe('Phone member tests (real DB integration)', () => {
     await registerTestAdminAuth(fastify, 'test-admin-key');
     await interviewPlanRoutes(fastify, {
       interviewPlanService: new InterviewPlanService(prisma),
-      prisma,
+      interviewPlanRepo: new InterviewPlanRepository(prisma),
     });
     await fastify.ready();
   });

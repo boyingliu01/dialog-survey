@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { interviewPlanRoutes } from '../src/api/plans.js';
+import { InterviewPlanRepository } from '../src/repositories/interview-plan.repository.js';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
 import { PlanStatus, type PrismaClient } from '../src/utils/prisma-client.js';
 import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
@@ -49,7 +50,7 @@ describe('Interview Plan API Endpoints', () => {
     });
     await interviewPlanRoutes(fastify, {
       interviewPlanService: new InterviewPlanService(prisma),
-      prisma,
+      interviewPlanRepo: new InterviewPlanRepository(prisma),
     });
     await fastify.ready();
   });

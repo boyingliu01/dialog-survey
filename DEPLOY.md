@@ -379,6 +379,28 @@ cat prisma/schema.prisma
 
 ## Performance Tuning
 
+### Capacity Baseline (1.11.0)
+Full methodology, numbers and error bounds: `docs/reports/loadtest-baseline-2026-10.md`
+(issue #180). **All numbers below are local PGlite estimates pending calibration by the
+CI `loadtest` job (real PostgreSQL) and the #183 server-side re-test — do not treat them
+as production-sizing authority.**
+
+- Single instance saturates at **~250–400 req/s** of business API traffic (single-process
+  event loop ceiling, measured in-process) — plan with **≥180 req/s** as a conservative,
+  *uncalibrated* local estimate; scale horizontally beyond that.
+- DingTalk message handler chain (in-flight conversations) sustains **~30–50
+  handler-calls/s per process** (application layer only, LLM round-trip excluded —
+  see caveat below). Keep concurrent message users **≤ 50 per instance** as a
+  conservative local lower-bound estimate (P50 reaches ~3.8s at 200 concurrent);
+  the real safe ceiling is expected to be higher once client and server are
+  separated — enforce rate limiting / queueing for bursts, and re-calibrate after
+  #183. **LLM caveat**: S6 latency covers the application layer only (credential-free
+  LLM fallback, zero network I/O). In real deployments the LLM round-trip (hundreds
+  of ms to seconds) dominates message-handling latency — the real concurrent-user
+  ceiling is governed by your LLM provider's quota and latency, not by these numbers.
+- Metrics/health endpoints are never the bottleneck (>1k req/s).
+- Scale-out triggers: read P95 > 1s for 5 min, or message-handler P95 > 500ms.
+
 ### Production Defaults
 - **Log level**: `info` (JSON format, no pretty printing)
 - **DB connection limit**: Environment-specific

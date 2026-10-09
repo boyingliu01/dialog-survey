@@ -3,6 +3,7 @@ import secureSession from '@fastify/secure-session';
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { interviewPlanRoutes, isAdministrativePlanMutation } from '../src/api/plans.js';
+import { InterviewPlanRepository } from '../src/repositories/interview-plan.repository.js';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { createVerifyApiKey, hashApiKey } from '../src/utils/security.js';
@@ -75,7 +76,7 @@ describe('browser-driven plan mutation CSRF', async () => {
       });
       await api.register(interviewPlanRoutes, {
         interviewPlanService: new InterviewPlanService(prisma),
-        prisma,
+        interviewPlanRepo: new InterviewPlanRepository(prisma),
       });
     });
     await app.ready();

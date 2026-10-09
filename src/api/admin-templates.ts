@@ -3,15 +3,15 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { adminAuth } from '../middleware/admin-auth.js';
 import { createAdminMutationGuard } from '../middleware/admin-csrf.js';
+import type { InterviewPlanRepository } from '../repositories/interview-plan.repository.js';
 import type { InterviewRepository } from '../repositories/interview.repository.js';
 import type { TemplateRepository } from '../repositories/template.repository.js';
 import type { AnalysisService } from '../services/analysis.service.js';
 import type { AnalyticsService } from '../services/analytics.service.js';
 import type { ExportService } from '../services/export.service.js';
 import type { InterviewPlanService } from '../services/interview-plan.service.js';
-import { updateTemplateDimensions } from '../services/template-dimension.service.js';
+import type { TemplateDimensionService } from '../services/template-dimension.service.js';
 import { error, info } from '../utils/logger.js';
-import type { PrismaClient } from '../utils/prisma-client.js';
 
 export interface AdminTemplatesRoutesOptions {
   templateRepo: TemplateRepository;
@@ -20,7 +20,8 @@ export interface AdminTemplatesRoutesOptions {
   analysisService: AnalysisService;
   analyticsService: AnalyticsService;
   exportService?: ExportService;
-  prisma: PrismaClient;
+  interviewPlanRepo: InterviewPlanRepository;
+  templateDimensionService: TemplateDimensionService;
 }
 
 const createTemplateSchema = z.object({
@@ -176,7 +177,8 @@ export async function adminTemplatesRoutes(
     analysisService,
     analyticsService,
     exportService,
-    prisma,
+    interviewPlanRepo,
+    templateDimensionService,
   } = opts;
   const BASE_PATH = '/admin';
   const API_PATH = '/admin/api';
@@ -294,7 +296,7 @@ export async function adminTemplatesRoutes(
         // Save dimensions to the DB-level column if provided
         if (dimensions && Array.isArray(dimensions) && dimensions.length > 0) {
           try {
-            await updateTemplateDimensions(prisma, created.id, dimensions);
+            await templateDimensionService.updateTemplateDimensions(created.id, dimensions);
           } catch (e) {
             const dimErr = e instanceof Error ? e.message : 'Invalid dimensions';
             error('Template created but dimensions import failed', {
@@ -433,26 +435,7 @@ export async function adminTemplatesRoutes(
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { interviewId } = request.params as { interviewId: string };
-      const interview = await prisma.interview.findUnique({
-        where: { id: interviewId },
-        select: {
-          id: true,
-          userId: true,
-          status: true,
-          planId: true,
-          createdAt: true,
-          completedAt: true,
-          template: { select: { content: true } },
-          messages: {
-            select: { role: true, content: true },
-            orderBy: { createdAt: 'asc' },
-          },
-          responses: {
-            select: { questionId: true, content: true, isFollowup: true, followupDepth: true },
-            orderBy: { createdAt: 'asc' },
-          },
-        },
-      });
+      const interview = await interviewRepo.findByIdForReportDetail(interviewId);
       if (!interview) return reply.status(404).type('text/html').send('访谈不存在');
       const report = await analysisService.getReportByInterviewId(interviewId);
 
@@ -460,10 +443,7 @@ export async function adminTemplatesRoutes(
 
       let inviteeInfo: { name?: string; phone?: string } = {};
       if (interview.planId) {
-        const plan = await prisma.interviewPlan.findUnique({
-          where: { id: interview.planId },
-          select: { inviteeData: true },
-        });
+        const plan = await interviewPlanRepo.findInviteeData(interview.planId);
         inviteeInfo = findInviteeInfo(plan?.inviteeData, interview.userId);
       }
 
@@ -482,19 +462,7 @@ export async function adminTemplatesRoutes(
     { preHandler: adminAuth },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const { interviewId } = request.params as { interviewId: string };
-      const interview = await prisma.interview.findUnique({
-        where: { id: interviewId },
-        select: {
-          id: true,
-          userId: true,
-          status: true,
-          planId: true,
-          messages: {
-            select: { role: true, content: true },
-            orderBy: { createdAt: 'asc' },
-          },
-        },
-      });
+      const interview = await interviewRepo.findByIdForReportExport(interviewId);
       if (!interview) {
         return reply.status(404).type('text/plain').send('Interview not found');
       }
@@ -503,10 +471,7 @@ export async function adminTemplatesRoutes(
 
       let inviteeInfo: { name?: string; phone?: string } = {};
       if (interview.planId) {
-        const plan = await prisma.interviewPlan.findUnique({
-          where: { id: interview.planId },
-          select: { inviteeData: true },
-        });
+        const plan = await interviewPlanRepo.findInviteeData(interview.planId);
         inviteeInfo = findInviteeInfo(plan?.inviteeData, interview.userId);
       }
 
@@ -1045,29 +1010,13 @@ export async function adminTemplatesRoutes(
       const { interviewId } = request.params as { interviewId: string };
       try {
         const report = await analysisService.getReportByInterviewId(interviewId);
-        const interviewData = await prisma.interview.findUnique({
-          where: { id: interviewId },
-          select: {
-            id: true,
-            userId: true,
-            status: true,
-            planId: true,
-            createdAt: true,
-            messages: {
-              select: { role: true, content: true },
-              orderBy: { createdAt: 'asc' },
-            },
-          },
-        });
+        const interviewData = await interviewRepo.findByIdForAnalysisView(interviewId);
         if (!interviewData)
           return reply.status(404).view('error.njk', { message: 'Interview not found' });
 
         let inviteeInfo: { name?: string; phone?: string } = {};
         if (interviewData.planId) {
-          const plan = await prisma.interviewPlan.findUnique({
-            where: { id: interviewData.planId },
-            select: { inviteeData: true },
-          });
+          const plan = await interviewPlanRepo.findInviteeData(interviewData.planId);
           inviteeInfo = findInviteeInfo(plan?.inviteeData, interviewData.userId);
         }
 

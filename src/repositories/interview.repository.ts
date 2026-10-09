@@ -38,4 +38,65 @@ export class InterviewRepository {
       select: { id: true, userId: true, status: true, createdAt: true },
     });
   }
+
+  // ---- Readers migrated verbatim from src/api/admin-templates.ts (REQ-181) ----
+
+  /** GET /admin/content/reports/:interviewId — full detail with template content, messages and responses. */
+  findByIdForReportDetail(id: string) {
+    return this.prisma.interview.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        planId: true,
+        createdAt: true,
+        completedAt: true,
+        template: { select: { content: true } },
+        messages: {
+          select: { role: true, content: true },
+          orderBy: { createdAt: 'asc' },
+        },
+        responses: {
+          select: { questionId: true, content: true, isFollowup: true, followupDepth: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+  }
+
+  /** GET /admin/api/reports/:interviewId/download — transcript projection for the Markdown export. */
+  findByIdForReportExport(id: string) {
+    return this.prisma.interview.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        planId: true,
+        messages: {
+          select: { role: true, content: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+  }
+
+  /** GET reports/:interviewId — analysis view with createdAt and messages. */
+  findByIdForAnalysisView(id: string) {
+    return this.prisma.interview.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        planId: true,
+        createdAt: true,
+        messages: {
+          select: { role: true, content: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+  }
 }

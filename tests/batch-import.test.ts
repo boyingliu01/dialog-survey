@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import Fastify from 'fastify';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { InterviewPlanRepository } from '../src/repositories/interview-plan.repository.js';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { registerTestAdminAuth } from './helpers/admin-auth.js';
 import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
@@ -68,19 +69,23 @@ const NO_PHONE_COLUMN_CSV = makeCsv('name,age', '张三,30');
 
 describe('Batch Import API', () => {
   let fastify: FastifyInstance;
+  let planService: InstanceType<
+    typeof import('../src/services/interview-plan.service.js').InterviewPlanService
+  >;
 
   beforeAll(async () => {
     vi.stubEnv('ADMIN_API_KEY', 'test-admin-key');
     const { interviewPlanRoutes } = await import('../src/api/plans.js');
     const { InterviewPlanService } = await import('../src/services/interview-plan.service.js');
+    planService = new InterviewPlanService(prisma);
     fastify = Fastify({ logger: false });
     await registerTestAdminAuth(fastify, 'test-admin-key');
     await fastify.register((await import('@fastify/multipart')).default, {
       limits: { fileSize: 1 * 1024 * 1024, parts: 1 },
     });
     await interviewPlanRoutes(fastify, {
-      interviewPlanService: new InterviewPlanService(prisma),
-      prisma,
+      interviewPlanService: planService,
+      interviewPlanRepo: new InterviewPlanRepository(prisma),
     });
     await fastify.ready();
   });
@@ -552,6 +557,61 @@ describe('Batch Import API', () => {
         }
         if (template1Id)
           await prisma.template.delete({ where: { id: template1Id } }).catch(() => {});
+      }
+    });
+
+    it('should map a non-existent plan to 404 (route-level error mapping)', async () => {
+      const res = await fastify.inject({
+        method: 'POST',
+        url: '/api/plans/does-not-exist/import-commit',
+        headers: { 'x-admin-key': 'test-admin-key' },
+        payload: {
+          rows: [
+            {
+              rowIndex: 2,
+              phone: '13800138000',
+              status: 'ok',
+              userId: 'batch-user-zhangsan',
+              dingtalkName: '张三',
+              message: '验证通过',
+            },
+          ],
+        },
+      });
+
+      expect(res.statusCode).toBe(404);
+      expect(JSON.parse(res.body).error).toBe('Plan not found');
+    });
+
+    it('should map an unexpected service error to 500 with the database-write message', async () => {
+      const spy = vi
+        .spyOn(planService, 'importMembers')
+        .mockRejectedValueOnce(new Error('db connection reset'));
+
+      try {
+        const res = await fastify.inject({
+          method: 'POST',
+          url: '/api/plans/some-plan-id/import-commit',
+          headers: { 'x-admin-key': 'test-admin-key' },
+          payload: {
+            rows: [
+              {
+                rowIndex: 2,
+                phone: '13800138000',
+                status: 'ok',
+                userId: 'batch-user-zhangsan',
+                dingtalkName: '张三',
+                message: '验证通过',
+              },
+            ],
+          },
+        });
+
+        expect(spy).toHaveBeenCalledOnce();
+        expect(res.statusCode).toBe(500);
+        expect(JSON.parse(res.body).error).toBe('数据库写入失败：db connection reset');
+      } finally {
+        spy.mockRestore();
       }
     });
 

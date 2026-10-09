@@ -3,6 +3,7 @@ import secureSession from '@fastify/secure-session';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { interviewPlanRoutes, isAdministrativePlanMutation } from '../src/api/plans.js';
+import { InterviewPlanRepository } from '../src/repositories/interview-plan.repository.js';
 import { InterviewPlanService } from '../src/services/interview-plan.service.js';
 import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
@@ -144,7 +145,7 @@ describe('plan route session CSRF', async () => {
       });
       await api.register(interviewPlanRoutes, {
         interviewPlanService: new InterviewPlanService(prisma),
-        prisma,
+        interviewPlanRepo: new InterviewPlanRepository(prisma),
       });
     });
     await app.ready();

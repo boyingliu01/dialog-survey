@@ -382,4 +382,103 @@ export class InterviewPlanService extends InterviewPlanSendService {
   ): Promise<void> {
     return super.updatePlan(planId, input);
   }
+
+  /**
+   * Batch member import moved verbatim from the /api/plans/:id/import-commit
+   * route (REQ-181): same queries, same order, same error strings. The route
+   * maps the thrown typed errors onto HTTP codes.
+   */
+  async importMembers(
+    planId: string,
+    rows: ImportMemberRow[]
+  ): Promise<{ imported: number; skipped: number; interviewIds: string[] }> {
+    const plan = await this.prisma.interviewPlan.findUnique({ where: { id: planId } });
+    if (!plan) {
+      throw new PlanNotFoundError(planId);
+    }
+    if (plan.status !== 'PENDING' && plan.status !== 'READY') {
+      throw new InvalidStateError('计划当前状态不允许导入成员');
+    }
+
+    const userIds = rows.map((r) => r.userId);
+
+    const crossPlanDups = await this.prisma.interview.findMany({
+      where: {
+        userId: { in: userIds },
+        planId: { not: planId },
+        status: { notIn: ['COMPLETED', 'CANCELLED'] },
+      },
+      select: { userId: true, planId: true },
+    });
+    if (crossPlanDups.length > 0) {
+      const conflicts = crossPlanDups.map(
+        (d) => `userId=${d.userId} 在计划 ${d.planId} 中有未完成的访谈`
+      );
+      throw new MemberConflictError(`以下成员已有尚未完成的访谈：${conflicts.join('；')}`);
+    }
+
+    const existingInPlan = await this.prisma.interview.findMany({
+      where: { planId, userId: { in: userIds } },
+      select: { userId: true },
+    });
+    const existingUserIdSet = new Set(existingInPlan.map((e) => e.userId));
+    const newRows = rows.filter((r) => !existingUserIdSet.has(r.userId));
+    const skipped = rows.length - newRows.length;
+
+    if (newRows.length === 0 && skipped > 0) {
+      return { imported: 0, skipped, interviewIds: [] };
+    }
+
+    const templateId = plan.templateId;
+    const interviewIds = await this.prisma.$transaction(async (tx) => {
+      const ids: string[] = [];
+      for (const row of newRows) {
+        const interview = await tx.interview.create({
+          data: {
+            userId: row.userId,
+            templateId,
+            planId,
+            status: 'PENDING',
+            maxFollowups: DEFAULT_MAX_FOLLOWUPS,
+          },
+        });
+        ids.push(interview.id);
+      }
+
+      const existingInvitees = Array.isArray(plan.inviteeData)
+        ? (plan.inviteeData as unknown as Array<{ userId: string; name: string }>)
+        : [];
+      const newInvitees = newRows.map((r) => ({
+        userId: r.userId,
+        name: r.dingtalkName || r.inputName || '',
+      }));
+      await tx.interviewPlan.update({
+        where: { id: planId },
+        data: { inviteeData: [...existingInvitees, ...newInvitees] },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          action: 'BATCH_IMPORT',
+          entityType: 'InterviewPlan',
+          entityId: planId,
+          details: JSON.stringify({
+            imported: newRows.length,
+            skipped,
+            totalRows: rows.length,
+          }),
+        },
+      });
+
+      return ids;
+    });
+
+    return { imported: newRows.length, skipped, interviewIds };
+  }
+}
+
+export interface ImportMemberRow {
+  userId: string;
+  inputName?: string;
+  dingtalkName?: string;
 }

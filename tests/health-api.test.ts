@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { DatabaseHealthRepository } from '../src/repositories/database-health.repository.js';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 vi.mock('../src/utils/logger.js', () => ({
@@ -31,7 +32,9 @@ async function rebuildApp(): Promise<FastifyInstance> {
   const { default: Fastify } = await import('fastify');
   const app = Fastify({ logger: false });
   const { healthRoutes } = await import('../src/api/health.js');
-  await app.register(healthRoutes, { prisma: new MockPrismaClient() as unknown as PrismaClient });
+  await app.register(healthRoutes, {
+    databaseHealth: new DatabaseHealthRepository(new MockPrismaClient() as unknown as PrismaClient),
+  });
   await app.ready();
   await app.ready();
   return app;

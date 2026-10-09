@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
+import type { DatabaseHealthRepository } from '../repositories/database-health.repository.js';
 import { error, info } from '../utils/logger.js';
-import type { PrismaClient } from '../utils/prisma-client.js';
 
 interface HealthResponse {
   status: 'healthy' | 'degraded' | 'unhealthy';
@@ -17,23 +17,6 @@ interface HealthResponse {
 }
 
 let llmCacheTime: number | null = null;
-
-async function checkDatabase(prisma: PrismaClient): Promise<{
-  status: 'ok' | 'error';
-  latencyMs?: number;
-  error?: string;
-}> {
-  try {
-    const start = Date.now();
-    await prisma.$queryRaw`SELECT 1`;
-    const latencyMs = Date.now() - start;
-    return { status: 'ok', latencyMs };
-  } catch (e) {
-    const errMsg = e instanceof Error ? e.message : 'Unknown error';
-    error('Database health check failed', { error: errMsg });
-    return { status: 'error', error: errMsg };
-  }
-}
 
 async function checkLLM(): Promise<{
   status: 'ok' | 'error' | 'degraded';
@@ -123,12 +106,15 @@ async function checkDingTalk(): Promise<{
   return { status: 'ok' };
 }
 
-export async function healthRoutes(fastify: FastifyInstance, opts: { prisma: PrismaClient }) {
+export async function healthRoutes(
+  fastify: FastifyInstance,
+  opts: { databaseHealth: DatabaseHealthRepository }
+) {
   fastify.get<{ Reply: HealthResponse }>('/health', async (_request, reply) => {
     info('Health check requested');
 
     const [dbCheck, llmCheck, dingtalkCheck] = await Promise.all([
-      checkDatabase(opts.prisma),
+      opts.databaseHealth.check(),
       checkLLM(),
       checkDingTalk(),
     ]);

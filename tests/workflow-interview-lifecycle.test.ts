@@ -84,16 +84,23 @@ async function createAdminApp() {
   const { adminTemplatesRoutes } = await import('../src/api/admin-templates.js');
   const { TemplateRepository } = await import('../src/repositories/template.repository.js');
   const { InterviewRepository } = await import('../src/repositories/interview.repository.js');
+  const { InterviewPlanRepository } = await import(
+    '../src/repositories/interview-plan.repository.js'
+  );
   const { AnalysisService } = await import('../src/services/analysis.service.js');
   const { AnalyticsService } = await import('../src/services/analytics.service.js');
   const { InterviewPlanService } = await import('../src/services/interview-plan.service.js');
+  const { TemplateDimensionService } = await import(
+    '../src/services/template-dimension.service.js'
+  );
   await app.register(adminTemplatesRoutes, {
     templateRepo: new TemplateRepository(prisma),
     interviewPlanService: new InterviewPlanService(prisma),
     interviewRepo: new InterviewRepository(prisma),
+    interviewPlanRepo: new InterviewPlanRepository(prisma),
     analysisService: new AnalysisService(prisma),
     analyticsService: new AnalyticsService(prisma),
-    prisma,
+    templateDimensionService: new TemplateDimensionService(prisma),
   });
 
   return app;
@@ -123,9 +130,12 @@ async function createPlansApp() {
 
   const { interviewPlanRoutes } = await import('../src/api/plans.js');
   const { InterviewPlanService } = await import('../src/services/interview-plan.service.js');
+  const { InterviewPlanRepository } = await import(
+    '../src/repositories/interview-plan.repository.js'
+  );
   await app.register(interviewPlanRoutes, {
     interviewPlanService: new InterviewPlanService(prisma),
-    prisma,
+    interviewPlanRepo: new InterviewPlanRepository(prisma),
   });
 
   return app;
@@ -134,8 +144,9 @@ async function createPlansApp() {
 async function createAnalysisApp() {
   const { default: Fastify } = await import('fastify');
   const app = Fastify({ logger: false });
+  const { AnalysisService } = await import('../src/services/analysis.service.js');
   const { analysisRoutes } = await import('../src/api/analysis.js');
-  await app.register(analysisRoutes, { prisma });
+  await app.register(analysisRoutes, { analysisService: new AnalysisService(prisma) });
   await app.ready();
   return app;
 }
