@@ -379,6 +379,19 @@ cat prisma/schema.prisma
 
 ## Performance Tuning
 
+### Capacity Baseline (1.11.0)
+Full methodology, numbers and error bounds: `docs/reports/loadtest-baseline-2026-10.md`
+(issue #180). Highlights for operators (local PGlite baseline, conservative extrapolation;
+authoritative numbers come from the CI `loadtest` job and #183 server re-test):
+
+- Single instance saturates at **~400 req/s** of business API traffic (single-process
+  event loop ceiling) — scale horizontally beyond that; plan with ≥250 req/s conservatively.
+- DingTalk message handler chain sustains **~400 handler-calls/s**; keep concurrent
+  message users **≤ 100 per instance** (P95 ≈ 0.2s). Above 100, tail latency degrades
+  sharply (P95 ≈ 3.5s at 200) — enforce rate limiting / queueing for bursts.
+- Metrics/health endpoints are never the bottleneck (>1k req/s).
+- Scale-out triggers: read P95 > 1s for 5 min, or message-handler P95 > 500ms.
+
 ### Production Defaults
 - **Log level**: `info` (JSON format, no pretty printing)
 - **DB connection limit**: Environment-specific

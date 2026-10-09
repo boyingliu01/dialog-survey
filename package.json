@@ -40,7 +40,8 @@
     "test:e2e": "vitest run tests/e2e/*.e2e.test.ts --reporter=verbose",
     "smoke": "npm run type-check && npm run lint && vitest run tests/health-check.test.ts tests/project-structure.test.ts tests/env-config.test.ts tests/health-api.test.ts tests/server-api.test.ts",
     "start": "node dist/src/server.js",
-    "deploy": "bash scripts/deploy.sh"
+    "deploy": "bash scripts/deploy.sh",
+    "loadtest": "tsx scripts/loadtest/run-loadtest.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
