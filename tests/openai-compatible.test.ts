@@ -1,5 +1,48 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_MODEL, OpenAICompatibleLLM } from '../src/integrations/llm/openai-compatible.js';
+import {
+  DEFAULT_MODEL,
+  normalizeLlmBaseUrl,
+  OpenAICompatibleLLM,
+} from '../src/integrations/llm/openai-compatible.js';
+
+describe('normalizeLlmBaseUrl (#189)', () => {
+  it('should return empty string for undefined/empty input', () => {
+    expect(normalizeLlmBaseUrl(undefined)).toBe('');
+    expect(normalizeLlmBaseUrl('')).toBe('');
+  });
+
+  it('should leave a complete endpoint unchanged', () => {
+    expect(normalizeLlmBaseUrl('https://api.example.com/v1/chat/completions')).toBe(
+      'https://api.example.com/v1/chat/completions'
+    );
+  });
+
+  it('should strip a single trailing slash', () => {
+    expect(normalizeLlmBaseUrl('https://api.example.com/v1/chat/completions/')).toBe(
+      'https://api.example.com/v1/chat/completions'
+    );
+  });
+
+  it('should trim surrounding whitespace', () => {
+    expect(normalizeLlmBaseUrl('  https://api.example.com/v1/chat/completions  ')).toBe(
+      'https://api.example.com/v1/chat/completions'
+    );
+  });
+
+  it('should append /chat/completions to a bare base URL (the #189 fix)', () => {
+    expect(normalizeLlmBaseUrl('https://api.example.com/v1')).toBe(
+      'https://api.example.com/v1/chat/completions'
+    );
+    expect(normalizeLlmBaseUrl('http://localhost:11434/v1/')).toBe(
+      'http://localhost:11434/v1/chat/completions'
+    );
+  });
+
+  it('should not double-append when path already ends with /chat/completions', () => {
+    const input = 'https://api.example.com/v1/chat/completions';
+    expect(normalizeLlmBaseUrl(input)).toBe(input);
+  });
+});
 
 describe('OpenAICompatibleLLM', () => {
   const mockApiKey = 'test-api-key';

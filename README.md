@@ -138,7 +138,7 @@ Key environment variables (see `.env.example` for the full list):
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/dialog_survey` |
-| `LLM_BASE_URL` | LLM endpoint (OpenAI-compatible) | `http://localhost:11434/v1` |
+| `LLM_BASE_URL` | LLM endpoint (OpenAI-compatible) — MUST be the full chat completions URL | `http://localhost:11434/v1/chat/completions` |
 | `LLM_MODEL` | Model name | `qwen2.5` |
 | `DINGTALK_CLIENT_ID` | DingTalk Client ID | From DingTalk Open Platform |
 | `DINGTALK_CLIENT_SECRET` | DingTalk Client Secret | From DingTalk Open Platform |
@@ -146,7 +146,8 @@ Key environment variables (see `.env.example` for the full list):
 | `DISABLE_STARTUP_RESEND` | Skip the startup resend of unsent messages (`1`/`true`/`yes`) | `1` |
 | `ADMIN_API_KEY` | Admin panel API key | Your custom key |
 
-> Leave `LLM_API_KEY` empty to use a local LLM at `http://localhost:11434/v1`.
+> Leave `LLM_API_KEY` empty to use a local LLM at `http://localhost:11434/v1/chat/completions`.
+> `LLM_BASE_URL` must be the COMPLETE chat completions endpoint (…/v1/chat/completions), not a gateway base — a base URL makes `/health` and every LLM call return HTTP 404.
 > Without `DINGTALK_CLIENT_ID`/`DINGTALK_CLIENT_SECRET` the server boots read-only (no Stream connection, no outbound messages). Startup resend additionally requires `DINGTALK_AGENT_ID`.
 
 ---

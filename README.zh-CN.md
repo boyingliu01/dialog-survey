@@ -138,7 +138,7 @@ npx dialog-survey help       # 查看所有命令
 | 变量 | 说明 | 示例 |
 |------|------|------|
 | `DATABASE_URL` | PostgreSQL 连接串 | `postgresql://user:pass@localhost:5432/dialog_survey` |
-| `LLM_BASE_URL` | LLM 服务地址（OpenAI 兼容） | `http://localhost:11434/v1` |
+| `LLM_BASE_URL` | LLM 服务地址（OpenAI 兼容）—— 必须是完整的 chat completions 端点 | `http://localhost:11434/v1/chat/completions` |
 | `LLM_MODEL` | 模型名称 | `qwen2.5` |
 | `DINGTALK_CLIENT_ID` | 钉钉 Client ID | 从钉钉开放平台获取 |
 | `DINGTALK_CLIENT_SECRET` | 钉钉 Client Secret | 从钉钉开放平台获取 |
@@ -146,7 +146,8 @@ npx dialog-survey help       # 查看所有命令
 | `DISABLE_STARTUP_RESEND` | 跳过启动时未发消息补发（`1`/`true`/`yes`） | `1` |
 | `ADMIN_API_KEY` | 管理后台 API Key | 自定义密钥 |
 
-> 留空 `LLM_API_KEY` 则默认使用本地 LLM (`http://localhost:11434/v1`)。
+> 留空 `LLM_API_KEY` 则默认使用本地 LLM（`http://localhost:11434/v1/chat/completions`）。
+> `LLM_BASE_URL` 必须是**完整的** chat completions 端点（`…/v1/chat/completions`），而非网关基址——填基址会让 `/health` 和每次 LLM 调用返回 HTTP 404。
 > 未配置 `DINGTALK_CLIENT_ID`/`DINGTALK_CLIENT_SECRET` 时服务以只读模式启动（不建立 Stream 连接、不发送任何出站消息）；启动补发还需 `DINGTALK_AGENT_ID`。
 
 ---
@@ -156,14 +157,14 @@ npx dialog-survey help       # 查看所有命令
 **Linux / macOS** (PM2)：
 ```bash
 npm run build
-pm2 start dist/src/server.js --name dialog-survey
+pm2 start dist/src/server-entry.js --name dialog-survey
 pm2 save && pm2 startup
 ```
 
 **Windows**（直接 node 启动）：
 ```bash
 npm run build
-node dist/src/server.js
+node dist/src/server-entry.js
 ```
 
 **Docker**：

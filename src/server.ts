@@ -15,9 +15,13 @@ import nunjucks from 'nunjucks';
 import type { PrismaClient } from './utils/prisma-client.js';
 import { createPrismaClient } from './utils/prisma-factory.js';
 
-// Load .env early but explicitly (not via side-effect import).
-// Use override only outside tests so vi.stubEnv() controls env in test runs.
-dotenv.config({ override: process.env['NODE_ENV'] !== 'test' });
+// Load .env for DEFAULTS only. Process-injected environment variables
+// (PM2 env_production/env_staging, container env, systemd EnvironmentFile, CI)
+// MUST win over values in .env, so .env never overrides keys that already
+// exist. The previous `override: true` silently discarded PM2-injected
+// PORT/NODE_ENV and secrets, making the documented staging/second-instance
+// deployment impossible (issue #192).
+dotenv.config({ override: false });
 import cron from 'node-cron';
 import { adminTemplatesRoutes } from './api/admin-templates.js';
 import { analysisRoutes } from './api/analysis.js';
@@ -50,6 +54,7 @@ import { TemplateDimensionService } from './services/template-dimension.service.
 import { error, info, warn } from './utils/logger.js';
 import { renderMarkdown } from './utils/markdown.js';
 import { resolveAssetRoots } from './utils/path-resolver.js';
+import { getAppVersion } from './utils/app-version.js';
 import { createVerifyApiKey, securityMiddleware } from './utils/security.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -508,6 +513,7 @@ function buildListenOptions(): { port: number; host: string } {
 }
 
 export async function startServer(): Promise<ReturnType<typeof Fastify>> {
+  info('dialog-survey starting', { version: getAppVersion() });
   const dbOk = await checkDatabaseConnection();
   if (!dbOk) {
     throw new Error('Database connection check failed');
