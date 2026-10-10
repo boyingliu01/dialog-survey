@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.11.1](https://github.com/boyingliu01/dialog-survey/compare/v1.11.0...v1.11.1) (2026-10-10)
+
+### Bug Fixes
+
+* address deployment and installer issues ([#186](https://github.com/boyingliu01/dialog-survey/issues/186)-[#192](https://github.com/boyingliu01/dialog-survey/issues/192)) ([a6ff006](https://github.com/boyingliu01/dialog-survey/commit/a6ff006a985ad147b6cf2271e38a79f86420537b)), closes [#183](https://github.com/boyingliu01/dialog-survey/issues/183)
+
 ## 1.10.0 - 2026-09-30
 
 ### Changed
@@ -551,4 +557,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Quality
 - Pre-commit hook: Score 10.0/10, all 9 gates passed
 - Resolved Gate 6 Architecture Code Clone warnings for source files
-
