@@ -10,7 +10,7 @@
 
 import { execSync } from 'node:child_process';
 import crypto from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync } from 'node:fs';
 import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import net from 'node:net';
@@ -68,6 +68,16 @@ function logError(msg) {
 async function startViaServiceManager() {
   const platformCheck = checkPlatformDeps();
   if (platformCheck.serviceManager === 'pm2') {
+    // Fail loudly if the published entry point is missing, instead of letting
+    // PM2 report a cryptic "Script not found" after npm install / migrations
+    // have already run (issue #186).
+    const entry = join(INSTALL_DIR, 'dist/src/server-entry.js');
+    if (!existsSync(entry)) {
+      logError(`Expected entry point not found in package: ${entry}`);
+      logError('The installed package is inconsistent — aborting PM2 start.');
+      process.exitCode = 1;
+      return;
+    }
     try {
       exec(`pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production`, {
         cwd: INSTALL_DIR,
@@ -160,6 +170,125 @@ export function validateConfig(config) {
   ];
   const missing = required.filter((key) => !config[key]);
   return { valid: missing.length === 0, missing };
+}
+
+// Canonical config keys shared by every non-interactive input channel.
+export const CONFIG_KEYS = [
+  'DATABASE_URL',
+  'LLM_API_KEY',
+  'LLM_BASE_URL',
+  'LLM_MODEL',
+  'DINGTALK_CLIENT_ID',
+  'DINGTALK_CLIENT_SECRET',
+  'DINGTALK_AGENT_ID',
+  'ADMIN_USERNAME',
+  'ADMIN_PASSWORD',
+];
+
+/**
+ * Build a config object from DIALOG_SURVEY_* environment variables. Reading
+ * secrets from the environment (not argv) keeps them out of `ps` and the npm
+ * debug logs under ~/.npm/_logs (issue #190).
+ */
+export function generateConfigFromEnv() {
+  return {
+    DATABASE_URL: process.env['DIALOG_SURVEY_DATABASE_URL'] || '',
+    LLM_API_KEY: process.env['DIALOG_SURVEY_LLM_API_KEY'] || '',
+    LLM_BASE_URL: process.env['DIALOG_SURVEY_LLM_BASE_URL'] || '',
+    LLM_MODEL: process.env['DIALOG_SURVEY_LLM_MODEL'] || '',
+    DINGTALK_CLIENT_ID: process.env['DIALOG_SURVEY_DINGTALK_CLIENT_ID'] || '',
+    DINGTALK_CLIENT_SECRET: process.env['DIALOG_SURVEY_DINGTALK_CLIENT_SECRET'] || '',
+    DINGTALK_AGENT_ID: process.env['DIALOG_SURVEY_DINGTALK_AGENT_ID'] || '',
+    ADMIN_USERNAME: process.env['DIALOG_SURVEY_ADMIN_USERNAME'] || '',
+    ADMIN_PASSWORD: process.env['DIALOG_SURVEY_ADMIN_PASSWORD'] || '',
+  };
+}
+
+/**
+ * Parse a KEY=VALUE config file (the format produced by --config). Both plain
+ * names (DATABASE_URL=...) and DIALOG_SURVEY_-prefixed names are accepted and
+ * mapped to the canonical config key. Comments (#) and blank lines are ignored;
+ * surrounding quotes are stripped.
+ */
+export function parseConfigFile(content) {
+  const config = {};
+  for (const rawLine of content.split('\n')) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    let value = line.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    const canonical = key.startsWith('DIALOG_SURVEY_')
+      ? key.slice('DIALOG_SURVEY_'.length)
+      : key;
+    if (CONFIG_KEYS.includes(canonical)) {
+      config[canonical] = value;
+    }
+  }
+  return config;
+}
+
+/**
+ * Merge several partial config sources. Later sources only fill keys that are
+ * still empty, so precedence is: CLI flags > --config file > DIALOG_SURVEY_*
+ * environment variables.
+ */
+export function mergeConfig(...sources) {
+  const out = {};
+  for (const src of sources) {
+    for (const key of CONFIG_KEYS) {
+      // First non-empty source wins, so precedence is: CLI flags > --config
+      // file > DIALOG_SURVEY_* environment variables. The environment is the
+      // last-resort fallback channel (issue #190), never an override.
+      if (src && src[key] && !out[key]) out[key] = src[key];
+    }
+  }
+  return out;
+}
+
+/** Read all of stdin as a UTF-8 string (used for --config -). */
+export function readStdin() {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    process.stdin.setEncoding('utf-8');
+    process.stdin.on('data', (chunk) => {
+      data += chunk;
+    });
+    process.stdin.on('end', () => resolve(data));
+    process.stdin.on('error', reject);
+  });
+}
+
+/**
+ * Install production dependencies in the install directory.
+ *
+ * Prefers `npm ci` when a lockfile ships with the package (it now does — see the
+ * `files` field), giving a deterministic tree that sidesteps the arborist
+ * `edgesOut` crash that bare `npm install --omit=dev` hit on 1.11.0 (issue
+ * #188). Falls back to `npm install --omit=dev --legacy-peer-deps` when there is
+ * no lockfile or `npm ci` fails. Returns the command that succeeded.
+ *
+ * @param {string} installDir
+ * @returns {string}
+ */
+export function installDependencies(installDir) {
+  if (existsSync(join(installDir, 'package-lock.json'))) {
+    try {
+      exec('npm ci --omit=dev --ignore-scripts', { cwd: installDir });
+      return 'npm ci';
+    } catch (err) {
+      logError(`npm ci failed (${err.message}); falling back to npm install --legacy-peer-deps`);
+    }
+  }
+  exec('npm install --omit=dev --ignore-scripts --legacy-peer-deps', { cwd: installDir });
+  return 'npm install --legacy-peer-deps';
 }
 
 // ─── Interactive Prompts ─────────────────────────────────────────────────────
@@ -362,6 +491,7 @@ export async function checkPrerequisites(databaseUrl, options = {}) {
 export function verifyInstallation(installDir) {
   const requiredFiles = [
     'ecosystem.config.cjs',
+    'dist/src/server-entry.js',
     'dist/src/server.js',
     '.env',
     'node_modules',
@@ -443,7 +573,7 @@ export function checkPlatformDeps() {
  * @param {string} cwd
  */
 export function startViaNode(cwd) {
-  exec('node dist/src/server.js &', { cwd });
+  exec('node dist/src/server-entry.js &', { cwd });
 }
 
 /**
@@ -583,44 +713,73 @@ export async function installCommand(flags) {
   const fromFlags = generateConfigFromFlags(flags);
   const flagValidation = validateConfig(fromFlags);
 
-  if (flagValidation.valid) {
+  // Non-interactive when explicitly requested, when stdin is not a TTY (piped /
+  // CI / SSH), or when there is nothing to fall back to interactively.
+  const nonInteractive =
+    flags['non-interactive'] === 'true' ||
+    flags['non-interactive'] === true ||
+    !process.stdin.isTTY;
+
+  const PROVIDED_FLAGS = [
+    'db-url',
+    'llm-api-key',
+    'llm-base-url',
+    'llm-model',
+    'dingtalk-client-id',
+    'dingtalk-client-secret',
+    'dingtalk-agent-id',
+    'admin-username',
+    'admin-password',
+  ];
+  const anyFlagProvided = PROVIDED_FLAGS.some((f) => flags[f] !== undefined);
+
+  if (flagValidation.valid && anyFlagProvided) {
     config = fromFlags;
     log('Using configuration from CLI flags.\n');
   } else if (flags.help) {
     printInstallHelp();
     return;
-  } else {
-    // Detect if any non-interactive flags were provided
-    const PROVIDED_FLAGS = [
-      'db-url',
-      'llm-api-key',
-      'llm-base-url',
-      'llm-model',
-      'dingtalk-client-id',
-      'dingtalk-client-secret',
-      'dingtalk-agent-id',
-      'admin-username',
-      'admin-password',
-    ];
-    const anyFlagProvided = PROVIDED_FLAGS.some((f) => flags[f] !== undefined);
-
-    if (anyFlagProvided) {
+  } else if (nonInteractive) {
+    // Non-interactive: merge CLI flags, an optional --config file, and
+    // DIALOG_SURVEY_* environment variables. Secrets travel via the environment
+    // or a file, never argv, so they stay out of `ps` and the npm debug logs
+    // (issue #190).
+    let fileConfig = {};
+    if (flags.config) {
+      const content =
+        flags.config === '-' ? await readStdin() : readFileSync(flags.config, 'utf-8');
+      fileConfig = parseConfigFile(content);
+    }
+    const envConfig = generateConfigFromEnv();
+    config = mergeConfig(fromFlags, fileConfig, envConfig);
+    const mergedValidation = validateConfig(config);
+    if (!mergedValidation.valid) {
       logError(
-        `Non-interactive install requires all flags. Missing: ${flagValidation.missing.join(', ')}`
+        `Non-interactive install incomplete. Missing: ${mergedValidation.missing.join(', ')}`
       );
-      log('Usage: npx dialog-survey install \\');
-      log('  --db-url "postgresql://..." \\');
-      log('  --dingtalk-client-id "xxx" \\');
-      log('  --dingtalk-client-secret "xxx" \\');
-      log('  --dingtalk-agent-id "xxx"');
-      log('  [--llm-api-key "xxx"]');
-      log('  [--llm-base-url "http://localhost:11434/v1"]');
-      log('  [--llm-model "qwen2.5"]');
-      log('  [--skip-port-check]');
+      log(
+        'Provide them via DIALOG_SURVEY_* environment variables, --config <file>, or CLI flags.'
+      );
       process.exitCode = 1;
       return;
     }
-
+    log('Using configuration from environment / --config / flags (non-interactive).\n');
+  } else if (anyFlagProvided) {
+    logError(
+      `Non-interactive install requires all flags. Missing: ${flagValidation.missing.join(', ')}`
+    );
+    log('Usage: npx dialog-survey install \\');
+    log('  --db-url "postgresql://..." \\');
+    log('  --dingtalk-client-id "xxx" \\');
+    log('  --dingtalk-client-secret "xxx" \\');
+    log('  --dingtalk-agent-id "xxx"');
+    log('  [--llm-api-key "xxx"]');
+    log('  [--llm-base-url "http://localhost:11434/v1/chat/completions"]');
+    log('  [--llm-model "qwen2.5"]');
+    log('  [--skip-port-check]');
+    process.exitCode = 1;
+    return;
+  } else {
     log('No flags provided. Starting interactive mode...\n');
     config = await collectConfigInteractive();
     const interactiveValidation = validateConfig(config);
@@ -670,6 +829,7 @@ export async function installCommand(flags) {
   log('Copying package files...');
   const filesToCopy = [
     'package.json',
+    'package-lock.json',
     'dist',
     'prisma',
     'src/views',
@@ -689,19 +849,30 @@ export async function installCommand(flags) {
   // Step 6: Generate .env
   log('Generating .env file...');
   const envContent = generateEnvContent(config);
-  await writeFile(join(INSTALL_DIR, '.env'), envContent, 'utf-8');
-  log(`  Created ${INSTALL_DIR}/.env`);
+  // The .env holds DB credentials, LLM keys, DingTalk secret and session
+  // secrets — write it readable only by the owner (issue #190).
+  await writeFile(join(INSTALL_DIR, '.env'), envContent, { encoding: 'utf-8', mode: 0o600 });
+  chmodSync(join(INSTALL_DIR, '.env'), 0o600);
+  log(`  Created ${INSTALL_DIR}/.env (mode 0600)`);
 
   // Step 7: npm install
-  // Use npm install instead of npm ci because package-lock.json is never
-  // included in npm published packages by design. npm install generates
-  // its own lock file from package.json.
-  log('Installing dependencies (npm install --omit=dev)...');
+  // The package now ships package-lock.json (added to the `files` field), so we
+  // prefer `npm ci` for a deterministic, reproducible tree that avoids the
+  // arborist `edgesOut` crash that bare `npm install --omit=dev` hit on 1.11.0
+  // (issue #188). Fall back to `npm install --omit=dev --legacy-peer-deps` when
+  // no lockfile is present or `npm ci` fails.
+  log('Installing dependencies...');
   try {
-    exec('npm install --omit=dev --ignore-scripts', { cwd: INSTALL_DIR });
-    log('  Dependencies installed ✓');
+    const which = installDependencies(INSTALL_DIR);
+    log(`  Dependencies installed ✓ (${which})`);
   } catch (err) {
     logError(`npm install failed: ${err.message}`);
+    const npmLog = process.env['npm_config_logfile'];
+    if (npmLog) {
+      logError(`npm debug log: ${npmLog}`);
+    }
+    logError('If the error mentions "edgesOut" or peer dependencies, retry with legacy-peer-deps:');
+    logError('  echo "legacy-peer-deps=true" >> ~/.dialog-survey/.npmrc');
     process.exitCode = 1;
     return;
   }
@@ -787,6 +958,22 @@ export async function installCommand(flags) {
       log(`   Check logs: pm2 logs ${PM2_APP_NAME}`);
     }
     process.exitCode = 1;
+  }
+
+  // Security notice when secrets were passed on the command line. npm records the
+  // full argv (including flag values) in ~/.npm/_logs/*.debug-0.log, so prefer
+  // DIALOG_SURVEY_* environment variables or --config <file> next time (issue #190).
+  const usedSecretFlags = [
+    'db-url',
+    'llm-api-key',
+    'dingtalk-client-secret',
+    'admin-password',
+  ].some((f) => flags[f] !== undefined);
+  if (usedSecretFlags) {
+    log('\n⚠ Security notice: secrets were passed via CLI flags.');
+    log('  npm records the full command (including flag values) in ~/.npm/_logs/*.debug-0.log.');
+    log('  Prefer DIALOG_SURVEY_* environment variables or --config <file> next time.');
+    log('  Consider removing those log files and rotating the exposed secrets.');
   }
 }
 
@@ -963,14 +1150,21 @@ Commands:
 
 Install Options:
   --db-url <url>                  PostgreSQL connection string (required)
-  --llm-api-key <key>             LLM API key (required, or leave empty for local setup)
-  --llm-base-url <url>            LLM base URL (optional, e.g. http://localhost:11434/v1)
+  --llm-api-key <key>             LLM API key (optional for local LLM)
+  --llm-base-url <url>            LLM base URL (optional, e.g. http://localhost:11434/v1/chat/completions)
   --llm-model <name>              LLM model name (optional, e.g. qwen2.5)
   --dingtalk-client-id <id>       DingTalk client ID (required)
   --dingtalk-client-secret <sec>  DingTalk client secret (required)
   --dingtalk-agent-id <id>        DingTalk agent ID (required)
   --admin-username <name>         Admin UI username (default: admin)
   --admin-password <pass>         Admin UI password (default: auto-generated, shown once)
+  --non-interactive               Read config from DIALOG_SURVEY_* env vars / --config (no prompts)
+  --config <path>                 Read KEY=VALUE config from a file ("-" for stdin)
+  --skip-port-check               Skip port availability check
+
+  Secrets are safest via environment variables, NOT flags:
+    DIALOG_SURVEY_DATABASE_URL=... DIALOG_SURVEY_LLM_API_KEY=... npx dialog-survey install --non-interactive
+  (flags are written verbatim into ~/.npm/_logs — avoid passing real secrets there.)
 
 Uninstall Options:
   --remove-db                     Also print instructions to drop the database
@@ -979,7 +1173,13 @@ Examples:
   # Interactive install
   npx dialog-survey install
 
-  # Non-interactive install
+  # Non-interactive install — secrets via env vars (recommended, keeps them out of npm logs)
+  DIALOG_SURVEY_DATABASE_URL="postgresql://user:pass@localhost:5432/db" \\
+  DIALOG_SURVEY_DINGTALK_CLIENT_ID="xxx" DIALOG_SURVEY_DINGTALK_CLIENT_SECRET="xxx" \\
+  DIALOG_SURVEY_DINGTALK_AGENT_ID="xxx" \\
+    npx dialog-survey install --non-interactive
+
+  # Non-interactive install — all values via flags (secrets will land in npm logs)
   npx dialog-survey install \\
     --db-url "postgresql://user:pass@localhost:5432/db" \\
     --llm-api-key "sk-xxx" \\
@@ -1005,21 +1205,31 @@ Usage:
 Options:
   --db-url <url>                  PostgreSQL connection string (required)
   --llm-api-key <key>             LLM API key (optional for local LLM)
-  --llm-base-url <url>            LLM base URL (optional, e.g. http://localhost:11434/v1)
+  --llm-base-url <url>            LLM base URL (optional, e.g. http://localhost:11434/v1/chat/completions)
   --llm-model <name>              LLM model name (optional, e.g. qwen2.5)
   --dingtalk-client-id <id>       DingTalk client ID (required)
   --dingtalk-client-secret <sec>  DingTalk client secret (required)
   --dingtalk-agent-id <id>        DingTalk agent ID (required)
   --admin-username <name>         Admin UI username (default: admin)
   --admin-password <pass>         Admin UI password (default: auto-generated, shown once)
+  --non-interactive               Read config from DIALOG_SURVEY_* env vars / --config (no prompts)
+  --config <path>                 Read KEY=VALUE config from a file ("-" for stdin)
   --skip-port-check               Skip port availability check
   --help                          Show this help message
 
-If any required option is missing, the installer falls back to interactive mode.
+Non-interactive installs read config from DIALOG_SURVEY_* environment variables,
+an optional --config <file>, and CLI flags (precedence: flags > file > env).
+Prefer env vars over flags so secrets are NOT written into ~/.npm/_logs.
 
 Examples:
   # Interactive — prompts for each value
   npx dialog-survey install
+
+  # Non-interactive — secrets via env vars (recommended)
+  DIALOG_SURVEY_DATABASE_URL="postgresql://user:pass@localhost:5432/db" \\
+  DIALOG_SURVEY_DINGTALK_CLIENT_ID="xxx" DIALOG_SURVEY_DINGTALK_CLIENT_SECRET="xxx" \\
+  DIALOG_SURVEY_DINGTALK_AGENT_ID="xxx" \\
+    npx dialog-survey install --non-interactive
 
   # Non-interactive — all values via flags
   npx dialog-survey install \\

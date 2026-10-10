@@ -15,6 +15,8 @@
     "prisma/",
     "prisma.config.ts",
     "ecosystem.config.cjs",
+    "VERSION",
+    "package-lock.json",
     "!scripts/loadtest"
   ],
   "bin": {
@@ -40,7 +42,7 @@
     "lint:prisma": "ast-grep scan --rule tools/.ast-grep/rules/no-raw-prisma-in-api.yml",
     "test:e2e": "vitest run tests/e2e/*.e2e.test.ts --reporter=verbose",
     "smoke": "npm run type-check && npm run lint && vitest run tests/health-check.test.ts tests/project-structure.test.ts tests/env-config.test.ts tests/health-api.test.ts tests/server-api.test.ts",
-    "start": "node dist/src/server.js",
+    "start": "node dist/src/server-entry.js",
     "deploy": "bash scripts/deploy.sh",
     "loadtest": "tsx scripts/loadtest/run-loadtest.ts"
   },

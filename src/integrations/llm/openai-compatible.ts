@@ -6,6 +6,35 @@ import type { LLMOptions, LLMRequest, LLMResponse, LLMService } from './base.js'
 // doubao-seed-code, minimax-m2.5, glm-4.7, deepseek-v3.2, kimi-k2.5
 export const DEFAULT_MODEL = 'deepseek-v3.2';
 
+const CHAT_COMPLETIONS_SUFFIX = '/chat/completions';
+
+/**
+ * Normalize an LLM base URL into a COMPLETE chat completions endpoint.
+ *
+ * Both the client (chat()) and the /health probe fetch() the URL directly as
+ * the request target, so it must be the full endpoint (…/v1/chat/completions),
+ * not a gateway base (…/v1). Historically README and the CLI suggested the base
+ * form, which produced a permanent HTTP 404 at /health and on every LLM call
+ * (issue #189).
+ *
+ * Rules:
+ *   - empty input is returned unchanged (constructor falls back to the default)
+ *   - surrounding whitespace is trimmed
+ *   - a single trailing slash is stripped
+ *   - if the path does not already end with /chat/completions, it is appended
+ */
+export function normalizeLlmBaseUrl(raw: string | undefined): string {
+  if (!raw) return raw ?? '';
+  let url = raw.trim();
+  if (url.endsWith('/')) {
+    url = url.slice(0, -1);
+  }
+  if (!url.toLowerCase().endsWith(CHAT_COMPLETIONS_SUFFIX)) {
+    url = `${url}${CHAT_COMPLETIONS_SUFFIX}`;
+  }
+  return url;
+}
+
 export class OpenAICompatibleLLM implements LLMService {
   private apiKey: string;
   private baseUrl: string;
@@ -14,7 +43,8 @@ export class OpenAICompatibleLLM implements LLMService {
   constructor(options: LLMOptions) {
     this.apiKey = options.apiKey;
     this.baseUrl =
-      options.baseUrl || 'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions';
+      normalizeLlmBaseUrl(options.baseUrl) ||
+      'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions';
     this.model = options.model || DEFAULT_MODEL;
   }
 
@@ -109,7 +139,7 @@ export class OpenAICompatibleLLM implements LLMService {
       process.env['VOLCENGINE_API_KEY'] ||
       process.env['ANTHROPIC_AUTH_TOKEN'] ||
       '';
-    const baseUrl =
+    const rawBaseUrl =
       process.env['LLM_BASE_URL'] ||
       process.env['VOLCENGINE_BASE_URL'] ||
       'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions';
@@ -117,6 +147,11 @@ export class OpenAICompatibleLLM implements LLMService {
 
     if (!apiKey) {
       throw new Error('LLM_API_KEY or VOLCENGINE_API_KEY or ANTHROPIC_AUTH_TOKEN not configured');
+    }
+
+    const baseUrl = normalizeLlmBaseUrl(rawBaseUrl);
+    if (baseUrl !== rawBaseUrl) {
+      info('LLM_BASE_URL normalized', { from: rawBaseUrl, to: baseUrl });
     }
 
     return new OpenAICompatibleLLM({
