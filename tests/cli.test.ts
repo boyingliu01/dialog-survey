@@ -663,7 +663,7 @@ describe('CLI', () => {
         const cmd = cli.installDependencies(tmp);
         expect(cmd).toBe('npm ci');
         rmSync(tmp, { recursive: true, force: true });
-        vi.unmock('node:child_process');
+        vi.doUnmock('node:child_process');
         vi.resetModules();
       });
 
@@ -678,7 +678,7 @@ describe('CLI', () => {
         const cmd = cli.installDependencies(tmp);
         expect(cmd).toBe('npm install --legacy-peer-deps');
         rmSync(tmp, { recursive: true, force: true });
-        vi.unmock('node:child_process');
+        vi.doUnmock('node:child_process');
         vi.resetModules();
       });
     });
