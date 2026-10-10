@@ -9,12 +9,15 @@ import {
   checkPm2,
   checkPostgres,
   exec,
+  generateConfigFromEnv,
   generateConfigFromFlags,
   generateEnvContent,
   isDirectServiceRunning,
   isWindows,
   main,
+  mergeConfig,
   parseArgs,
+  parseConfigFile,
   resolveAdminCredentials,
   startViaNode,
   stopDirectService,
@@ -556,6 +559,131 @@ describe('CLI', () => {
     });
   });
 
+  describe('non-interactive config helpers (#186/#188/#190)', () => {
+    describe('parseConfigFile', () => {
+      it('should parse plain KEY=VALUE lines', () => {
+        const config = parseConfigFile(
+          'DATABASE_URL=postgresql://localhost/db\nDINGTALK_CLIENT_ID=dt-id'
+        );
+        expect(config.DATABASE_URL).toBe('postgresql://localhost/db');
+        expect(config.DINGTALK_CLIENT_ID).toBe('dt-id');
+      });
+
+      it('should accept DIALOG_SURVEY_-prefixed names and map to canonical keys', () => {
+        const config = parseConfigFile('DIALOG_SURVEY_DATABASE_URL=postgresql://x/db');
+        expect(config.DATABASE_URL).toBe('postgresql://x/db');
+      });
+
+      it('should strip surrounding quotes', () => {
+        const config = parseConfigFile('DATABASE_URL="postgresql://x/db"');
+        expect(config.DATABASE_URL).toBe('postgresql://x/db');
+      });
+
+      it('should ignore comments and blank lines', () => {
+        const config = parseConfigFile(
+          '# a comment\n\nDATABASE_URL=postgresql://x/db\n   # trailing comment'
+        );
+        expect(config.DATABASE_URL).toBe('postgresql://x/db');
+        expect(Object.keys(config)).toHaveLength(1);
+      });
+
+      it('should ignore keys that are not in CONFIG_KEYS', () => {
+        const config = parseConfigFile('NODE_ENV=production\nDATABASE_URL=postgresql://x/db');
+        expect(config.DATABASE_URL).toBe('postgresql://x/db');
+        expect(config.NODE_ENV).toBeUndefined();
+      });
+
+      it('should handle lines without an equals sign', () => {
+        const config = parseConfigFile('DATABASE_URL=postgresql://x/db\nNOT_A_KEY');
+        expect(config.DATABASE_URL).toBe('postgresql://x/db');
+        expect(Object.keys(config)).toHaveLength(1);
+      });
+    });
+
+    describe('generateConfigFromEnv', () => {
+      it('should read DIALOG_SURVEY_* environment variables', () => {
+        vi.stubEnv('DIALOG_SURVEY_DATABASE_URL', 'postgresql://env/db');
+        vi.stubEnv('DIALOG_SURVEY_DINGTALK_CLIENT_ID', 'env-dt');
+        const config = generateConfigFromEnv();
+        expect(config.DATABASE_URL).toBe('postgresql://env/db');
+        expect(config.DINGTALK_CLIENT_ID).toBe('env-dt');
+      });
+
+      it('should default to empty string when env vars are unset', () => {
+        const config = generateConfigFromEnv();
+        expect(config.DATABASE_URL).toBe('');
+        expect(config.LLM_API_KEY).toBe('');
+      });
+    });
+
+    describe('mergeConfig precedence', () => {
+      it('should let the first non-empty source win (flags > file > env)', () => {
+        const flags = { DATABASE_URL: 'from-flags', LLM_API_KEY: 'flag-key' };
+        const file = { DATABASE_URL: 'from-file', DINGTALK_CLIENT_ID: 'file-dt' };
+        const env = { DATABASE_URL: 'from-env', DINGTALK_CLIENT_SECRET: 'env-secret' };
+        const merged = mergeConfig(flags, file, env);
+        expect(merged.DATABASE_URL).toBe('from-flags');
+        expect(merged.LLM_API_KEY).toBe('flag-key');
+        expect(merged.DINGTALK_CLIENT_ID).toBe('file-dt');
+        expect(merged.DINGTALK_CLIENT_SECRET).toBe('env-secret');
+      });
+
+      it('should fall back to later sources for keys absent earlier', () => {
+        const flags = { DATABASE_URL: 'from-flags' };
+        const env = { DINGTALK_CLIENT_ID: 'env-dt', DINGTALK_CLIENT_SECRET: 'env-secret' };
+        const merged = mergeConfig(flags, {}, env);
+        expect(merged.DATABASE_URL).toBe('from-flags');
+        expect(merged.DINGTALK_CLIENT_ID).toBe('env-dt');
+        expect(merged.DINGTALK_CLIENT_SECRET).toBe('env-secret');
+      });
+
+      it('should not let env override a flag that is already set', () => {
+        const flags = { DATABASE_URL: 'from-flags' };
+        const env = { DATABASE_URL: 'from-env' };
+        const merged = mergeConfig(flags, {}, env);
+        expect(merged.DATABASE_URL).toBe('from-flags');
+      });
+    });
+
+    describe('installDependencies (#188)', () => {
+      // cli.mjs ships no type declarations, so type the slice we exercise here.
+      interface CliModule {
+        installDependencies: (installDir: string) => string;
+      }
+
+      it('should prefer npm ci when a lockfile is present', async () => {
+        vi.doMock('node:child_process', () => ({
+          execSync: vi.fn(() => ''),
+        }));
+        vi.resetModules();
+        // @ts-expect-error - cli.mjs has no type declarations
+        const cli = (await import('../scripts/cli.mjs')) as unknown as CliModule;
+        const tmp = mkdtempSync(join(tmpdir(), 'ds-instdep-'));
+        writeFileSync(join(tmp, 'package-lock.json'), '{}');
+        const cmd = cli.installDependencies(tmp);
+        expect(cmd).toBe('npm ci');
+        rmSync(tmp, { recursive: true, force: true });
+        vi.unmock('node:child_process');
+        vi.resetModules();
+      });
+
+      it('should fall back to npm install --legacy-peer-deps without a lockfile', async () => {
+        vi.doMock('node:child_process', () => ({
+          execSync: vi.fn(() => ''),
+        }));
+        vi.resetModules();
+        // @ts-expect-error - cli.mjs has no type declarations
+        const cli = (await import('../scripts/cli.mjs')) as unknown as CliModule;
+        const tmp = mkdtempSync(join(tmpdir(), 'ds-instdep-'));
+        const cmd = cli.installDependencies(tmp);
+        expect(cmd).toBe('npm install --legacy-peer-deps');
+        rmSync(tmp, { recursive: true, force: true });
+        vi.unmock('node:child_process');
+        vi.resetModules();
+      });
+    });
+  });
+
   describe('verifyInstallation (#158)', () => {
     let tmpDir: string;
 
@@ -572,6 +700,7 @@ describe('CLI', () => {
       mkdirSync(join(tmpDir, 'node_modules'), { recursive: true });
       writeFileSync(join(tmpDir, 'ecosystem.config.cjs'), 'module.exports = {};');
       writeFileSync(join(tmpDir, 'dist', 'src', 'server.js'), '// server.js');
+      writeFileSync(join(tmpDir, 'dist', 'src', 'server-entry.js'), '// entry');
       writeFileSync(join(tmpDir, '.env'), 'DATABASE_URL=test');
       writeFileSync(join(tmpDir, 'prisma.config.ts'), '');
 
@@ -608,6 +737,7 @@ describe('CLI', () => {
       mkdirSync(join(tmpDir, 'node_modules'), { recursive: true });
       writeFileSync(join(tmpDir, 'ecosystem.config.cjs'), '');
       writeFileSync(join(tmpDir, 'dist', 'src', 'server.js'), '');
+      writeFileSync(join(tmpDir, 'dist', 'src', 'server-entry.js'), '');
       writeFileSync(join(tmpDir, '.env'), '');
       writeFileSync(join(tmpDir, 'prisma.config.ts'), '');
 

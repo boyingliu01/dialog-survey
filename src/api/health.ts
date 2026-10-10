@@ -1,9 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import type { DatabaseHealthRepository } from '../repositories/database-health.repository.js';
 import { error, info } from '../utils/logger.js';
+import { getAppVersion } from '../utils/app-version.js';
+import { normalizeLlmBaseUrl } from '../integrations/llm/openai-compatible.js';
 
 interface HealthResponse {
   status: 'healthy' | 'degraded' | 'unhealthy';
+  version?: string;
   timestamp: string;
   checks: {
     db: { status: 'ok' | 'error'; latencyMs?: number; error?: string };
@@ -11,6 +14,8 @@ interface HealthResponse {
       status: 'ok' | 'error' | 'degraded';
       latencyMs?: number;
       error?: string;
+      endpoint?: string;
+      detail?: string;
     };
     dingtalk: { status: 'ok' | 'error' | 'degraded'; error?: string };
   };
@@ -22,6 +27,8 @@ async function checkLLM(): Promise<{
   status: 'ok' | 'error' | 'degraded';
   latencyMs?: number;
   error?: string;
+  endpoint?: string;
+  detail?: string;
 }> {
   if (llmCacheTime && Date.now() - llmCacheTime < 60000) {
     return { status: 'ok' };
@@ -33,14 +40,15 @@ async function checkLLM(): Promise<{
       return { status: 'degraded', error: 'API key not configured' };
     }
 
-    const baseUrl =
+    const rawBaseUrl =
       process.env['LLM_BASE_URL'] ||
       process.env['VOLCENGINE_BASE_URL'] ||
-      'https://ark.cn-beijing.volces.com/api/coding';
+      'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions';
+    const baseUrl = normalizeLlmBaseUrl(rawBaseUrl);
     const model = process.env['LLM_MODEL'] || process.env['VOLCENGINE_MODEL'];
 
     if (!model) {
-      return { status: 'degraded', error: 'LLM model not configured' };
+      return { status: 'degraded', error: 'LLM model not configured', endpoint: baseUrl };
     }
 
     const start = Date.now();
@@ -62,13 +70,32 @@ async function checkLLM(): Promise<{
 
     if (response.ok) {
       llmCacheTime = Date.now();
-      return { status: 'ok', latencyMs };
+      return { status: 'ok', latencyMs, endpoint: baseUrl };
     }
-    return {
+    // Surface the target URL and a short response-body snippet so operators can
+    // tell a misconfigured URL (e.g. a gateway base instead of the full
+    // endpoint) from an auth/quota failure at a glance (issue #189).
+    let detail: string | undefined;
+    try {
+      const snippet = await response.text();
+      if (snippet) detail = snippet.slice(0, 200);
+    } catch {
+      // ignore — detail is best-effort
+    }
+    const result: {
+      status: 'degraded';
+      latencyMs: number;
+      error: string;
+      endpoint: string;
+      detail?: string;
+    } = {
       status: 'degraded',
       latencyMs,
       error: `HTTP ${response.status}`,
+      endpoint: baseUrl,
     };
+    if (detail) result.detail = detail;
+    return result;
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : 'Unknown error';
     if (errMsg.includes('timeout') || errMsg.includes('abort')) {
@@ -134,6 +161,7 @@ export async function healthRoutes(
 
     const response: HealthResponse = {
       status,
+      version: getAppVersion(),
       timestamp: new Date().toISOString(),
       checks: {
         db: dbCheck,
