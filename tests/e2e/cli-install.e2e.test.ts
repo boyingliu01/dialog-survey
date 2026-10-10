@@ -108,6 +108,7 @@ describe('CLI (E2E)', () => {
       fs.writeFileSync(path.join(validDir, 'prisma.config.ts'), '');
       fs.mkdirSync(path.join(validDir, 'dist', 'src'), { recursive: true });
       fs.writeFileSync(path.join(validDir, 'dist', 'src', 'server.js'), '// server');
+      fs.writeFileSync(path.join(validDir, 'dist', 'src', 'server-entry.js'), '// entry');
       fs.mkdirSync(path.join(validDir, 'node_modules'), { recursive: true });
 
       const result = verifyInstallation(validDir);
