@@ -51,10 +51,10 @@ import { ExportService } from './services/export.service.js';
 import { InterviewPlanService } from './services/interview-plan.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
 import { TemplateDimensionService } from './services/template-dimension.service.js';
+import { getAppVersion } from './utils/app-version.js';
 import { error, info, warn } from './utils/logger.js';
 import { renderMarkdown } from './utils/markdown.js';
 import { resolveAssetRoots } from './utils/path-resolver.js';
-import { getAppVersion } from './utils/app-version.js';
 import { createVerifyApiKey, securityMiddleware } from './utils/security.js';
 
 const __filename = fileURLToPath(import.meta.url);

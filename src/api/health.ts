@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import type { DatabaseHealthRepository } from '../repositories/database-health.repository.js';
-import { error, info } from '../utils/logger.js';
-import { getAppVersion } from '../utils/app-version.js';
 import { normalizeLlmBaseUrl } from '../integrations/llm/openai-compatible.js';
+import type { DatabaseHealthRepository } from '../repositories/database-health.repository.js';
+import { getAppVersion } from '../utils/app-version.js';
+import { error, info } from '../utils/logger.js';
 
 interface HealthResponse {
   status: 'healthy' | 'degraded' | 'unhealthy';
