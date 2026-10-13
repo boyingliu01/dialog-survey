@@ -1,14 +1,16 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import bcrypt from 'bcryptjs';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   checkNodeVersion,
   checkPlatformDeps,
   checkPm2,
+  checkPm2DumpSecurity,
   checkPostgres,
   exec,
+  filesToCopy,
   generateConfigFromEnv,
   generateConfigFromFlags,
   generateEnvContent,
@@ -19,15 +21,19 @@ import {
   parseArgs,
   parseConfigFile,
   resolveAdminCredentials,
+  scrubbedProcessEnv,
   startViaNode,
   stopDirectService,
   validateConfig,
   verifyInstallation,
+  verifyPackageManifest,
   // @ts-expect-error - cli.mjs has no type declarations
 } from '../scripts/cli.mjs';
 
 // Keep every CLI test away from the real user home: the uninstall command
 // deletes ~/.dialog-survey, so homedir() must resolve to a throwaway directory.
+const repoRoot = resolve(import.meta.dirname, '..');
+
 vi.mock('node:os', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:os')>();
   const fs = await import('node:fs');
@@ -698,11 +704,14 @@ describe('CLI', () => {
     it('should return ok=true when all required files exist', () => {
       mkdirSync(join(tmpDir, 'dist', 'src'), { recursive: true });
       mkdirSync(join(tmpDir, 'node_modules'), { recursive: true });
+      mkdirSync(join(tmpDir, 'scripts'), { recursive: true });
       writeFileSync(join(tmpDir, 'ecosystem.config.cjs'), 'module.exports = {};');
       writeFileSync(join(tmpDir, 'dist', 'src', 'server.js'), '// server.js');
       writeFileSync(join(tmpDir, 'dist', 'src', 'server-entry.js'), '// entry');
       writeFileSync(join(tmpDir, '.env'), 'DATABASE_URL=test');
       writeFileSync(join(tmpDir, 'prisma.config.ts'), '');
+      writeFileSync(join(tmpDir, 'scripts', 'cli.mjs'), '// cli');
+      writeFileSync(join(tmpDir, 'VERSION'), '1.11.2');
 
       const result = verifyInstallation(tmpDir);
       expect(result.ok).toBe(true);
@@ -735,11 +744,14 @@ describe('CLI', () => {
     it('should return ok=true for a complete installation', () => {
       mkdirSync(join(tmpDir, 'dist', 'src'), { recursive: true });
       mkdirSync(join(tmpDir, 'node_modules'), { recursive: true });
+      mkdirSync(join(tmpDir, 'scripts'), { recursive: true });
       writeFileSync(join(tmpDir, 'ecosystem.config.cjs'), '');
       writeFileSync(join(tmpDir, 'dist', 'src', 'server.js'), '');
       writeFileSync(join(tmpDir, 'dist', 'src', 'server-entry.js'), '');
       writeFileSync(join(tmpDir, '.env'), '');
       writeFileSync(join(tmpDir, 'prisma.config.ts'), '');
+      writeFileSync(join(tmpDir, 'scripts', 'cli.mjs'), '');
+      writeFileSync(join(tmpDir, 'VERSION'), '');
 
       const result = verifyInstallation(tmpDir);
       expect(result.ok).toBe(true);
@@ -751,6 +763,227 @@ describe('CLI', () => {
       const result = verifyInstallation('/nonexistent/path');
       expect(result.ok).toBe(false);
       expect(result.missing.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('package copy manifest (#195)', () => {
+    it('should copy scripts/ (bin target) and VERSION into the install dir', () => {
+      // Regression: the install dir declared bin scripts/cli.mjs and shipped
+      // VERSION for getAppVersion(), but the copy清单 missed both — the
+      // printed `npx dialog-survey stop|status` hints failed with rc=127
+      // inside the install dir (issue #195).
+      expect(filesToCopy).toContain('scripts');
+      expect(filesToCopy).toContain('VERSION');
+      expect(filesToCopy).toContain('package.json');
+      expect(filesToCopy).toContain('dist');
+    });
+
+    it('should stay in sync with the files field of package.json', () => {
+      const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf-8')) as {
+        files: string[];
+      };
+      for (const required of ['dist/', 'scripts/', 'VERSION']) {
+        expect(pkg.files).toContain(required);
+      }
+      // Every positive entry in the copy list must be covered by the files
+      // field. package.json ships implicitly; package-lock.json is listed in
+      // `files` but stripped by npm from published tarballs (issue #188).
+      for (const entry of filesToCopy) {
+        if (entry === 'package.json' || entry === 'package-lock.json') continue;
+        const normalized = entry.endsWith('/') ? entry : `${entry}/`;
+        expect(
+          pkg.files.some((f) => f === entry || f === normalized),
+          `copy list entry "${entry}" is not covered by package.json files`
+        ).toBe(true);
+      }
+    });
+
+    describe('verifyPackageManifest', () => {
+      let tmpDir: string;
+
+      beforeEach(() => {
+        tmpDir = mkdtempSync(join(tmpdir(), 'ds-manifest-'));
+      });
+
+      afterEach(() => {
+        rmSync(tmpDir, { recursive: true, force: true });
+      });
+
+      function writeCompleteManifest(): void {
+        writeFileSync(
+          join(tmpDir, 'package.json'),
+          JSON.stringify({ name: 'dialog-survey', bin: { 'dialog-survey': 'scripts/cli.mjs' } })
+        );
+        mkdirSync(join(tmpDir, 'scripts'), { recursive: true });
+        writeFileSync(join(tmpDir, 'scripts', 'cli.mjs'), '// cli');
+        writeFileSync(join(tmpDir, 'VERSION'), '1.11.2');
+      }
+
+      it('should report no problems for a self-consistent install dir', () => {
+        writeCompleteManifest();
+        expect(verifyPackageManifest(tmpDir)).toEqual([]);
+      });
+
+      it('should flag a missing bin target', () => {
+        writeFileSync(
+          join(tmpDir, 'package.json'),
+          JSON.stringify({ name: 'dialog-survey', bin: { 'dialog-survey': 'scripts/cli.mjs' } })
+        );
+        writeFileSync(join(tmpDir, 'VERSION'), '1.11.2');
+
+        const problems = verifyPackageManifest(tmpDir);
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain('scripts/cli.mjs');
+      });
+
+      it('should flag a missing VERSION file', () => {
+        writeCompleteManifest();
+        rmSync(join(tmpDir, 'VERSION'));
+
+        const problems = verifyPackageManifest(tmpDir);
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain('VERSION');
+      });
+
+      it('should flag a string bin entry as well', () => {
+        writeFileSync(
+          join(tmpDir, 'package.json'),
+          JSON.stringify({ name: 'dialog-survey', bin: 'scripts/cli.mjs' })
+        );
+        writeFileSync(join(tmpDir, 'VERSION'), '1.11.2');
+
+        const problems = verifyPackageManifest(tmpDir);
+        expect(problems.some((p: string) => p.includes('scripts/cli.mjs'))).toBe(true);
+      });
+
+      it('should flag a missing package.json', () => {
+        const problems = verifyPackageManifest(tmpDir);
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain('package.json');
+      });
+    });
+  });
+
+  describe('scrubbedProcessEnv (#193)', () => {
+    it('should strip every secret-bearing key from the child env', () => {
+      const scrubbed = scrubbedProcessEnv({
+        PATH: '/usr/bin',
+        HOME: '/home/op',
+        PM2_HOME: '/home/op/.pm2',
+        NODE_ENV: 'production',
+        DIALOG_SURVEY_DATABASE_URL: 'postgresql://u:p@localhost/db',
+        DIALOG_SURVEY_ADMIN_PASSWORD: 'hunter2',
+        DATABASE_URL: 'postgresql://u:p@localhost/db',
+        LLM_API_KEY: 'sk-xxx',
+        LLM_BASE_URL: 'http://localhost:11434/v1',
+        LLM_MODEL: 'qwen2.5',
+        DINGTALK_CLIENT_ID: 'id',
+        DINGTALK_CLIENT_SECRET: 'secret',
+        DINGTALK_AGENT_ID: 'agent',
+        ENCRYPTION_KEY: 'enc',
+        SESSION_SECRET: 'sess',
+        SESSION_SALT: 'salt',
+        ADMIN_API_KEY: 'apikey',
+        ADMIN_PASSWORD: 'hunter2',
+        ADMIN_PASSWORD_HASH: '$2a$12$hash',
+      });
+
+      expect(scrubbed).toEqual({
+        PATH: '/usr/bin',
+        HOME: '/home/op',
+        PM2_HOME: '/home/op/.pm2',
+        NODE_ENV: 'production',
+      });
+    });
+
+    it('should keep unrelated variables (proxy, locale, …) intact', () => {
+      const scrubbed = scrubbedProcessEnv({ HTTPS_PROXY: 'http://proxy:8080', LANG: 'C.UTF-8' });
+      expect(scrubbed).toEqual({ HTTPS_PROXY: 'http://proxy:8080', LANG: 'C.UTF-8' });
+    });
+  });
+
+  // PM2 dump security is a POSIX concern: mode bits are meaningless on Windows
+  // and the PM2 path is not used there, so the block is skipped on win32.
+  // (it.skipIf rather than describe.skipIf — Biome's noDuplicateTestHooks does
+  // not recognize the describe.skipIf wrapper as a scope boundary.)
+  const itPosix = it.skipIf(isWindows());
+
+  describe('checkPm2DumpSecurity (#193)', () => {
+    let home: string;
+    let installDir: string;
+
+    beforeEach(() => {
+      home = mkdtempSync(join(tmpdir(), 'ds-pm2home-'));
+      installDir = mkdtempSync(join(tmpdir(), 'ds-pm2install-'));
+      mkdirSync(join(home, '.pm2'), { recursive: true });
+      writeFileSync(join(home, '.pm2', 'dump.pm2'), '[]');
+      chmodSync(join(home, '.pm2', 'dump.pm2'), 0o644);
+      writeFileSync(
+        join(installDir, '.env'),
+        [
+          'DATABASE_URL="postgresql://dialog_survey:s3cret-pw@localhost:5433/dialog_survey"',
+          'LLM_API_KEY=sk-super-secret-llm-key',
+          'ENCRYPTION_KEY=abcdef0123456789',
+          '',
+        ].join('\n')
+      );
+    });
+
+    afterEach(() => {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(installDir, { recursive: true, force: true });
+    });
+
+    itPosix('should report nothing when dump.pm2 is absent', () => {
+      rmSync(join(home, '.pm2', 'dump.pm2'));
+      expect(checkPm2DumpSecurity(installDir, home)).toEqual([]);
+    });
+
+    itPosix('should warn when dump.pm2 is world-readable', () => {
+      const warnings = checkPm2DumpSecurity(installDir, home);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('0644');
+      expect(warnings[0]).toContain('chmod 600');
+    });
+
+    itPosix('should report nothing when dump.pm2 is 0600 and holds no secrets', () => {
+      chmodSync(join(home, '.pm2', 'dump.pm2'), 0o600);
+      expect(checkPm2DumpSecurity(installDir, home)).toEqual([]);
+    });
+
+    itPosix('should warn when .env secret values leaked into dump.pm2', () => {
+      chmodSync(join(home, '.pm2', 'dump.pm2'), 0o600);
+      writeFileSync(
+        join(home, '.pm2', 'dump.pm2'),
+        JSON.stringify([
+          { name: 'dialog-survey', env: { DIALOG_SURVEY_ADMIN_PASSWORD: 'hunter2' } },
+        ])
+      );
+      writeFileSync(join(installDir, '.env'), 'ADMIN_PASSWORD_HASH=$2a$12$bcrypthashvalue123\n');
+
+      const warnings = checkPm2DumpSecurity(installDir, home);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('plaintext secret');
+      expect(warnings[0]).toContain('Rotate');
+    });
+
+    itPosix('should detect a leaked DATABASE_URL value inside dump.pm2', () => {
+      chmodSync(join(home, '.pm2', 'dump.pm2'), 0o600);
+      writeFileSync(
+        join(home, '.pm2', 'dump.pm2'),
+        'pm2 env snapshot: DIALOG_SURVEY_DATABASE_URL=postgresql://dialog_survey:s3cret-pw@localhost:5433/dialog_survey\n'
+      );
+
+      const warnings = checkPm2DumpSecurity(installDir, home);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('plaintext secret');
+    });
+
+    itPosix('should still check permissions when .env is absent', () => {
+      rmSync(join(installDir, '.env'));
+      const warnings = checkPm2DumpSecurity(installDir, home);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('0644');
     });
   });
 });
