@@ -231,14 +231,14 @@ curl -H "X-Admin-Key: <admin-api-key>" http://localhost:3001/admin
 **Linux / macOS** (PM2):
 ```bash
 npm run build
-pm2 start dist/src/server.js --name dialog-survey
+pm2 start dist/src/server-entry.js --name dialog-survey
 pm2 save && pm2 startup
 ```
 
 **Windows** (direct node):
 ```bash
 npm run build
-node dist/src/server.js
+node dist/src/server-entry.js
 ```
 
 **Docker**:
@@ -248,6 +248,15 @@ docker compose logs -f app
 ```
 
 Health check: `curl http://localhost:3001/health`
+
+> **Security note**: `pm2 save` persists the full process environment to
+> `~/.pm2/dump.pm2` (mode follows umask — usually 0644, world-readable). The
+> installer never passes secrets to the PM2 child process (issue #193), but if
+> you have ever run `pm2 save` from a shell that had secrets exported, tighten
+> the file now and rotate those secrets:
+> ```bash
+> chmod 700 ~/.pm2 && chmod 600 ~/.pm2/dump.pm2
+> ```
 
 ---
 

@@ -175,6 +175,14 @@ docker compose logs -f app
 
 健康检查：`curl http://localhost:3001/health`
 
+> **安全提示**: `pm2 save` 会把进程的完整环境变量持久化到 `~/.pm2/dump.pm2`
+> （权限跟随 umask，通常为 0644，全局可读）。安装器不会把密钥传进 PM2 子进程
+> （#193），但如果你曾在导出着密钥的 shell 里执行过 `pm2 save`，请立即收紧权限
+> 并轮换相关密钥：
+> ```bash
+> chmod 700 ~/.pm2 && chmod 600 ~/.pm2/dump.pm2
+> ```
+
 ---
 
 ### 开发命令
