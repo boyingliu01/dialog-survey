@@ -112,6 +112,16 @@ export function isSecretEnvKey(key) {
 /** .env KEY=VALUE line matcher derived from the same name list (dump scan). */
 const secretEnvLineRegex = new RegExp(`^(?:${SECRET_ENV_KEY_NAMES.join('|')})=(.+)$`, 'gm');
 
+/**
+ * Subset of SECRET_ENV_KEY_NAMES whose *names* are scanned in dump.pm2 —
+ * true secrets only: LLM_MODEL / LLM_BASE_URL / DINGTALK_AGENT_ID /
+ * ADMIN_USERNAME are not secret and would only add false-positive noise.
+ * @type {string[]}
+ */
+const SCAN_SECRET_NAMES = SECRET_ENV_KEY_NAMES.filter((name) =>
+  /PASSWORD|SECRET|TOKEN|CREDENTIAL|API_?KEY|DATABASE_URL|^ENCRYPTION_KEY$/.test(name)
+);
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -195,6 +205,12 @@ async function startViaServiceManager() {
     }
   } else {
     log('Starting service directly (PM2 is unstable on Windows, using direct node)...');
+    if (isDirectServiceRunning()) {
+      // Double-start guard: a second instance would die on the busy port and
+      // overwrite the pidfile with its own (dead) PID, corrupting stop/status.
+      log('  Direct process already running (pidfile) — keeping it. Run stop first for a restart.');
+      return;
+    }
     try {
       startViaNode(INSTALL_DIR);
       log('Direct process started ✓');
@@ -714,10 +730,10 @@ export function checkPm2DumpSecurity(installDir = INSTALL_DIR, home = homedir())
     .map((m) => m[1].trim().replace(/^["'](.*)["']$/, '$1'))
     .filter((v) => v.length >= MIN_SECRET_VALUE_LENGTH);
   const leakedValues = secretValues.filter((v) => dump.includes(v));
-  const leakedKeys = SECRET_ENV_KEY_NAMES.filter((k) => dump.includes(k));
+  const leakedKeys = SCAN_SECRET_NAMES.filter((k) => dump.includes(k));
   if (leakedValues.length > 0 || leakedKeys.length > 0) {
     warnings.push(
-      `~/.pm2/dump.pm2 contains ${leakedValues.length} plaintext secret value(s) and ${leakedKeys.length} secret key name(s) from the service environment. Restart with \`pm2 restart ${PM2_APP_NAME} --update-env\` (a plain restart keeps the stale env), re-run \`pm2 save\`, then rotate those secrets (issue #193).`
+      `~/.pm2/dump.pm2 contains ${leakedValues.length} plaintext secret value(s) and ${leakedKeys.length} secret key name(s) from the service environment. Restart with \`pm2 restart ${PM2_APP_NAME} --update-env\` from a shell WITHOUT the secrets exported, re-run \`pm2 save\`, then rotate those secrets (issue #193; a shared PM2 daemon dumps every app, so key names may also belong to other PM2 apps).`
     );
   }
 
@@ -808,6 +824,9 @@ export function startViaNode(cwd, env = scrubbedProcessEnv()) {
       cwd,
       env,
       detached: true,
+      // windowsHide: detached children get their own console window on Windows
+      // otherwise — a permanent black window popping up during install.
+      windowsHide: true,
       stdio: ['ignore', logFd, logFd],
     });
     child.unref();
@@ -1169,11 +1188,16 @@ export async function installCommand(flags) {
     }
     logError('Aborting before dependency installation — the published package may be corrupt.');
     if (!installDirExisted) {
-      // Fresh install: don't leave a half-populated directory behind.
-      await rm(INSTALL_DIR, { recursive: true, force: true });
-      log('  Fresh install directory cleaned up.');
+      // Fresh install: don't leave a half-populated directory behind — unless
+      // it already holds operator data (.env predating any package.json).
+      if (existsSync(join(INSTALL_DIR, '.env'))) {
+        log('  Fresh install directory kept — it contains a pre-existing .env; inspect manually.');
+      } else {
+        await rm(INSTALL_DIR, { recursive: true, force: true });
+        log('  Fresh install directory cleaned up.');
+      }
     } else {
-      log('  Existing installation left untouched — inspect the problems above.');
+      log('  Existing installation was partially updated — fix the package and re-run install.');
     }
     process.exitCode = 1;
     return;

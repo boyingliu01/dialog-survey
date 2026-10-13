@@ -142,6 +142,8 @@ elif command -v pm2 &>/dev/null && [ -f "ecosystem.config.cjs" ]; then
   # `pm2 save` (issue #193): drop secret-bearing exports first — the app
   # reads its secrets from .env via dotenv. --update-env refreshes the env
   # of an already-registered app instead of silently reusing stale values.
+  # NOTE: bash cannot import the JS source of truth — keep this list in sync
+  # with SECRET_ENV_KEY_NAMES in scripts/cli.mjs.
   unset DATABASE_URL LLM_API_KEY LLM_BASE_URL LLM_MODEL \
         DINGTALK_CLIENT_ID DINGTALK_CLIENT_SECRET DINGTALK_AGENT_ID \
         ENCRYPTION_KEY SESSION_SECRET SESSION_SALT ADMIN_API_KEY \

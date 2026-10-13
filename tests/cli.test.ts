@@ -1004,7 +1004,7 @@ describe('CLI', () => {
       const warnings = checkPm2DumpSecurity(installDir, home);
       expect(warnings).toHaveLength(1);
       expect(warnings[0]).toContain('plaintext secret');
-      expect(warnings[0]).toContain('Rotate');
+      expect(warnings[0]).toContain('rotate those secrets');
     });
 
     itPosix('should detect a leaked DATABASE_URL value inside dump.pm2', () => {
