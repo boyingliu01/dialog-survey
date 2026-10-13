@@ -55,4 +55,4 @@ EXPOSE 3001
 # Direct node invocation of the CLI entry: `npx` may try to FETCH prisma@latest
 # because the runner stage installs deps with --ignore-scripts and never links
 # the bin shim, which would silently upgrade the pinned 7.10.0.
-CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy && node dist/src/server.js"]
+CMD ["sh", "-c", "node node_modules/prisma/build/index.js migrate deploy && node dist/src/server-entry.js"]

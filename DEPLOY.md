@@ -351,7 +351,7 @@ pg_isready
 echo $NODE_ENV
 
 # Test manually
-npm run build && node dist/src/server.js
+npm run build && node dist/src/server-entry.js
 ```
 
 ### Port already in use

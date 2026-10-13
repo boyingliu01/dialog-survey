@@ -239,11 +239,11 @@ curl http://localhost:3001/health
 npm run build       # 编译到 dist/
 
 # 直接运行
-node dist\src\server.js
+node dist\src\server-entry.js
 
 # 或使用 PM2 管理（推荐）
 npm install -g pm2
-pm2 start dist/src/server.js --name dialog-survey
+pm2 start dist/src/server-entry.js --name dialog-survey
 pm2 save
 pm2 startup   # 设置 Windows 开机自启
 ```

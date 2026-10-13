@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+- fix(cli): Windows direct start no longer hangs the installer — `startViaNode` spawns a detached child (output → `logs/server.log`, PID → `logs/server.pid`) instead of a shell background job, which cmd.exe treats as a sequential separator (#195 review)
+- fix(cli): `pm2 start` now passes `--update-env` so an already-registered app refreshes its environment on upgrade; a plain restart silently keeps the stale (possibly secret-bearing) pre-#193 env
+- fix(cli): installer preserves an existing `~/.dialog-survey/.env` on upgrade — regenerating it re-randomized `ENCRYPTION_KEY`/`SESSION_SECRET`/`ADMIN_API_KEY` and destroyed stored encrypted data and live sessions (#195 review)
+- fix(cli): single source of truth for secret env keys (`isSecretEnvKey`): the child-env scrub and the dump.pm2 leak scan derive from one list, extended with operator credentials (`PGPASSWORD`, `AWS_SECRET_ACCESS_KEY`, `*_TOKEN`, …) and key-name detection in dump.pm2 (#193/#195 review)
+- fix(cli): `deploy.sh` boots `dist/src/server-entry.js` everywhere (bare `server.js` never self-starts under some runners, #187) and unsets secret exports before `pm2 start --update-env`; `log_warn` is no longer called before it is defined
+- fix(cli): direct-service stop/status now work on Windows via the pidfile (`taskkill`), instead of relying on POSIX-only `pkill`/`pgrep`
+
+### Changed
+
+- docs: both READMEs state precisely when the PM2 environment is refreshed (`--update-env`) and that a plain `pm2 restart` keeps the stale env (#193)
+- test: deployment-doc guard collects guarded files dynamically (top-level md, docs/, scripts/*.sh, compose/Dockerfile) instead of a hardcoded whitelist; PM2 dump checks honor `PM2_HOME`, accept 0400, strip single-quoted .env values
+
+### Upgrade notes
+
+- `verifyInstallation` (used by `start`/`status`) now also requires `scripts/cli.mjs` and `VERSION`. Installs made before the #195 packaging fix will report them missing — re-run `npx dialog-survey install` to repair; the existing `.env` is preserved and no secrets are re-randomized.
+
 ## [1.11.2](https://github.com/boyingliu01/dialog-survey/compare/v1.11.1...v1.11.2) (2026-10-10)
 
 ## [1.11.1](https://github.com/boyingliu01/dialog-survey/compare/v1.11.0...v1.11.1) (2026-10-10)

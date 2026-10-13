@@ -1,4 +1,4 @@
-import { dirname, normalize } from 'node:path';
+import { basename, dirname, normalize } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import cors from '@fastify/cors';
 import csrfProtection from '@fastify/csrf-protection';
@@ -51,10 +51,10 @@ import { ExportService } from './services/export.service.js';
 import { InterviewPlanService } from './services/interview-plan.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
 import { TemplateDimensionService } from './services/template-dimension.service.js';
+import { getAppVersion } from './utils/app-version.js';
 import { error, info, warn } from './utils/logger.js';
 import { renderMarkdown } from './utils/markdown.js';
 import { resolveAssetRoots } from './utils/path-resolver.js';
-import { getAppVersion } from './utils/app-version.js';
 import { createVerifyApiKey, securityMiddleware } from './utils/security.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -538,8 +538,28 @@ export async function startServer(): Promise<ReturnType<typeof Fastify>> {
   }
 }
 
+// Self-start guard (issues #187 / #194). startServer() runs when THIS module is
+// the process entry point:
+//   1. direct invocation (`node dist/src/server.js`, `tsx src/server.ts`) —
+//      argv[1] resolves to this file;
+//   2. PM2 fork mode with this file as the script — argv[1] is PM2's
+//      ProcessContainerFork.js, so the URL check alone never fires and the
+//      process would exit 0 without ever listening: the "online but dead" trap
+//      of #187. PM2 exposes the forked script as `pm_exec_path`; the supported
+//      entry dist/src/server-entry.js starts unconditionally and is excluded
+//      here, so the supported path never double-starts.
 const normalizedArg = normalize(process.argv[1]);
-if (import.meta.url === pathToFileURL(normalizedArg).href) {
+const pmScriptName = process.env['pm_exec_path'] ? basename(process.env['pm_exec_path']) : '';
+const isProcessEntryPoint =
+  import.meta.url === pathToFileURL(normalizedArg).href || pmScriptName === 'server.js';
+if (isProcessEntryPoint) {
+  if (pmScriptName === 'server.js') {
+    // The safety net fired — surface it so operators notice they are on the
+    // legacy entry instead of the supported server-entry.js (review finding).
+    warn(
+      'Booted via the legacy dist/src/server.js entry (PM2 fork safety net). Prefer dist/src/server-entry.js — see issues #186/#187/#194.'
+    );
+  }
   startServer().catch(() => {
     process.exitCode = 1;
   });
