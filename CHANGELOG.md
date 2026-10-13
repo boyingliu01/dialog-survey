@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [1.11.3](https://github.com/boyingliu01/dialog-survey/compare/v1.11.2...v1.11.3) (2026-10-13)
 
 ### Bug Fixes
 
