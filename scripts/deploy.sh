@@ -15,12 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 HEALTH_URL="http://localhost:${PORT:-3001}/health"
 
-# Detect platform
-IS_WINDOWS=false
-if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
-  IS_WINDOWS=true
-  log_warn "Windows detected - PM2 is unstable, using direct node mode"
-fi
+# Detect platform (after the logging helpers below are defined)
 HEALTH_RETRIES=10
 HEALTH_INTERVAL=3
 
@@ -33,6 +28,12 @@ NC='\033[0m'
 log_info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
 log_warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
+
+IS_WINDOWS=false
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" || "$OSTYPE" == "win32" ]]; then
+  IS_WINDOWS=true
+  log_warn "Windows detected - PM2 is unstable, using direct node mode"
+fi
 
 cd "$PROJECT_DIR"
 
@@ -130,18 +131,30 @@ log_info "Starting Interview Bot..."
 export NODE_ENV="$ENV"
 
 if [ "$IS_WINDOWS" = true ]; then
-  # Windows: direct node (PM2 is unstable)
+  # Windows: direct node (PM2 is unstable). server-entry.js boots
+  # unconditionally — the guarded legacy entry never self-starts under some
+  # runners (issue #187).
   mkdir -p logs
-  nohup node dist/src/server.js > logs/server.log 2>&1 &
+  nohup node dist/src/server-entry.js > logs/server.log 2>&1 &
   log_info "✓ Started directly (PID: $!, Windows mode)"
 elif command -v pm2 &>/dev/null && [ -f "ecosystem.config.cjs" ]; then
-  # Linux: PM2 mode
-  pm2 start ecosystem.config.cjs --env "$ENV"
+  # Linux: PM2 mode. PM2 persists the child env into ~/.pm2/dump.pm2 on
+  # `pm2 save` (issue #193): drop secret-bearing exports first — the app
+  # reads its secrets from .env via dotenv. --update-env refreshes the env
+  # of an already-registered app instead of silently reusing stale values.
+  # NOTE: bash cannot import the JS source of truth — keep this list in sync
+  # with SECRET_ENV_KEY_NAMES in scripts/cli.mjs.
+  unset DATABASE_URL LLM_API_KEY LLM_BASE_URL LLM_MODEL \
+        DINGTALK_CLIENT_ID DINGTALK_CLIENT_SECRET DINGTALK_AGENT_ID \
+        ENCRYPTION_KEY SESSION_SECRET SESSION_SALT ADMIN_API_KEY \
+        ADMIN_PASSWORD ADMIN_PASSWORD_HASH PGPASSWORD AWS_SECRET_ACCESS_KEY \
+        AWS_SESSION_TOKEN
+  pm2 start ecosystem.config.cjs --env "$ENV" --update-env
   log_info "✓ Started via PM2"
 else
   # Fallback: direct node mode
   mkdir -p logs
-  nohup node dist/src/server.js > logs/server.log 2>&1 &
+  nohup node dist/src/server-entry.js > logs/server.log 2>&1 &
   log_info "✓ Started directly (PID: $!)"
   log_warn "Consider installing PM2 for production process management:"
   log_warn "  npm install -g pm2 && pm2 start ecosystem.config.cjs"

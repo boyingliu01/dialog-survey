@@ -175,6 +175,16 @@ docker compose logs -f app
 
 健康检查：`curl http://localhost:3001/health`
 
+> **安全提示**: `pm2 save` 会把进程的完整环境变量持久化到 `~/.pm2/dump.pm2`
+> （权限跟随 umask，通常为 0644，全局可读）。安装器与 `npx dialog-survey start`
+> 会在每次启动时剥离密钥并用 `--update-env` 刷新 PM2 子进程环境（#193）——
+> 但裸的 `pm2 restart dialog-survey` **不会**刷新环境变量。如果你曾在导出着
+> 密钥的 shell 里执行过 `pm2 save`，请立即收紧权限、用
+> `pm2 restart dialog-survey --update-env` 重启，并轮换相关密钥：
+> ```bash
+> chmod 700 ~/.pm2 && chmod 600 ~/.pm2/dump.pm2
+> ```
+
 ---
 
 ### 开发命令

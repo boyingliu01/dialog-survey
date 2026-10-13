@@ -1,5 +1,5 @@
-import { error as logError } from './utils/logger.js';
 import { startServer } from './server.js';
+import { error as logError } from './utils/logger.js';
 
 /**
  * Canonical published entry point.
@@ -25,7 +25,7 @@ void startServer().catch((err: unknown) => {
   // exiting silently with code 0, which previously produced an undiagnosable
   // restart loop (issue #187).
   logError('Server failed to start', {
-    error: err instanceof Error ? (err.stack || err.message) : err,
+    error: err instanceof Error ? err.stack || err.message : err,
   });
   process.exitCode = 1;
 });

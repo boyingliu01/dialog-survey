@@ -110,12 +110,108 @@ describe('CLI (E2E)', () => {
       fs.writeFileSync(path.join(validDir, 'dist', 'src', 'server.js'), '// server');
       fs.writeFileSync(path.join(validDir, 'dist', 'src', 'server-entry.js'), '// entry');
       fs.mkdirSync(path.join(validDir, 'node_modules'), { recursive: true });
+      fs.mkdirSync(path.join(validDir, 'scripts'), { recursive: true });
+      fs.writeFileSync(path.join(validDir, 'scripts', 'cli.mjs'), '// cli');
+      fs.writeFileSync(path.join(validDir, 'VERSION'), '1.11.2');
 
       const result = verifyInstallation(validDir);
       expect(result.ok).toBe(true);
       expect(result.missing.length).toBe(0);
 
       fs.rmSync(validDir, { recursive: true, force: true });
+    });
+  });
+
+  describe('#195 — install directory self-consistency', () => {
+    /**
+     * Build a fixture that mirrors what the installer must leave behind:
+     * package.json (with bin), scripts/cli.mjs, VERSION and the runtime deps
+     * the CLI module itself imports (bcryptjs).
+     */
+    function buildFixture(name: string): string {
+      const dir = path.join(TEST_INSTALL_DIR, name);
+      fs.mkdirSync(path.join(dir, 'dist', 'src'), { recursive: true });
+      fs.mkdirSync(path.join(dir, 'scripts'), { recursive: true });
+      fs.mkdirSync(path.join(dir, 'node_modules'), { recursive: true });
+      fs.cpSync(
+        path.resolve(import.meta.dirname, '../../node_modules/bcryptjs'),
+        path.join(dir, 'node_modules', 'bcryptjs'),
+        { recursive: true }
+      );
+      fs.cpSync(CLI_PATH, path.join(dir, 'scripts', 'cli.mjs'));
+      fs.writeFileSync(
+        path.join(dir, 'package.json'),
+        JSON.stringify({
+          name: 'dialog-survey',
+          version: '1.11.2',
+          bin: { 'dialog-survey': 'scripts/cli.mjs' },
+        })
+      );
+      fs.writeFileSync(path.join(dir, 'VERSION'), '1.11.2');
+      fs.writeFileSync(path.join(dir, '.env'), 'DATABASE_URL=test\n');
+      fs.writeFileSync(path.join(dir, 'ecosystem.config.cjs'), 'module.exports = {}');
+      fs.writeFileSync(path.join(dir, 'prisma.config.ts'), '');
+      fs.writeFileSync(path.join(dir, 'dist', 'src', 'server.js'), '// server');
+      fs.writeFileSync(path.join(dir, 'dist', 'src', 'server-entry.js'), '// entry');
+      return dir;
+    }
+
+    it('should pass manifest + integrity checks for a complete install dir', async () => {
+      const dir = buildFixture('self-consistent');
+      const { verifyPackageManifest, verifyInstallation } = await import(CLI_PATH);
+
+      expect(verifyPackageManifest(dir)).toEqual([]);
+      expect(verifyInstallation(dir).ok).toBe(true);
+    });
+
+    it('should run lifecycle commands from inside the install dir', () => {
+      // The installer's closing hint must work in the directory it just
+      // printed. `npx dialog-survey …` cannot be asserted here: npm exec
+      // re-fetches the package from the registry instead of resolving the
+      // install dir's own bin, so the locally valid form is asserted instead.
+      const dir = buildFixture('lifecycle');
+
+      let stdout = '';
+      let stderr = '';
+      let exitCode = 0;
+      try {
+        stdout = execSync('node scripts/cli.mjs status', {
+          cwd: dir,
+          encoding: 'utf-8',
+          env: { ...process.env, PATH: process.env['PATH'] },
+          stdio: ['pipe', 'pipe', 'pipe'],
+          timeout: 25000,
+        });
+      } catch (e: unknown) {
+        const execError = e as { stdout?: Buffer; stderr?: Buffer; status?: number };
+        stdout = execError.stdout?.toString() ?? '';
+        stderr = execError.stderr?.toString() ?? '';
+        exitCode = execError.status ?? 1;
+      }
+
+      expect(exitCode, `status command failed: ${stdout}${stderr}`).toBe(0);
+      expect(stdout).toContain('dialog-survey status');
+      expect(stdout).toContain('Status:');
+    });
+
+    it('should flag an install dir whose VERSION was not copied', async () => {
+      const dir = buildFixture('missing-version');
+      fs.rmSync(path.join(dir, 'VERSION'));
+
+      const { verifyPackageManifest } = await import(CLI_PATH);
+      const problems = verifyPackageManifest(dir);
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toContain('VERSION');
+    });
+
+    it('should flag an install dir whose bin target was not copied', async () => {
+      const dir = buildFixture('missing-bin');
+      fs.rmSync(path.join(dir, 'scripts', 'cli.mjs'));
+
+      const { verifyPackageManifest } = await import(CLI_PATH);
+      const problems = verifyPackageManifest(dir);
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toContain('scripts/cli.mjs');
     });
   });
 
