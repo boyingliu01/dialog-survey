@@ -1,4 +1,4 @@
-import { dirname, normalize } from 'node:path';
+import { basename, dirname, normalize } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import cors from '@fastify/cors';
 import csrfProtection from '@fastify/csrf-protection';
@@ -538,8 +538,21 @@ export async function startServer(): Promise<ReturnType<typeof Fastify>> {
   }
 }
 
+// Self-start guard (issues #187 / #194). startServer() runs when THIS module is
+// the process entry point:
+//   1. direct invocation (`node dist/src/server.js`, `tsx src/server.ts`) —
+//      argv[1] resolves to this file;
+//   2. PM2 fork mode with this file as the script — argv[1] is PM2's
+//      ProcessContainerFork.js, so the URL check alone never fires and the
+//      process would exit 0 without ever listening: the "online but dead" trap
+//      of #187. PM2 exposes the forked script as `pm_exec_path`; the supported
+//      entry dist/src/server-entry.js starts unconditionally and is excluded
+//      here, so the supported path never double-starts.
 const normalizedArg = normalize(process.argv[1]);
-if (import.meta.url === pathToFileURL(normalizedArg).href) {
+const pmScriptName = process.env['pm_exec_path'] ? basename(process.env['pm_exec_path']) : '';
+const isProcessEntryPoint =
+  import.meta.url === pathToFileURL(normalizedArg).href || pmScriptName === 'server.js';
+if (isProcessEntryPoint) {
   startServer().catch(() => {
     process.exitCode = 1;
   });
