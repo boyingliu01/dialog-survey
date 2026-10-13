@@ -553,6 +553,13 @@ const pmScriptName = process.env['pm_exec_path'] ? basename(process.env['pm_exec
 const isProcessEntryPoint =
   import.meta.url === pathToFileURL(normalizedArg).href || pmScriptName === 'server.js';
 if (isProcessEntryPoint) {
+  if (pmScriptName === 'server.js') {
+    // The safety net fired — surface it so operators notice they are on the
+    // legacy entry instead of the supported server-entry.js (review finding).
+    warn(
+      'Booted via the legacy dist/src/server.js entry (PM2 fork safety net). Prefer dist/src/server-entry.js — see issues #186/#187/#194.'
+    );
+  }
   startServer().catch(() => {
     process.exitCode = 1;
   });

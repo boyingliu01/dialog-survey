@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const repoRoot = resolve(import.meta.dirname, '..');
@@ -8,22 +8,38 @@ function read(rel: string): string {
   return readFileSync(resolve(repoRoot, rel), 'utf-8');
 }
 
-// Docs that show how to boot the service in production. Every one of them must
-// point at the unconditional entry dist/src/server-entry.js: under PM2 fork
-// mode the argv-based self-start guard in dist/src/server.js never fires, so
-// starting it produces the "online but dead, empty error log" trap of #187 —
-// which the English README re-exposed until #194.
-const DEPLOYMENT_DOCS = [
-  'README.md',
-  'README.zh-CN.md',
-  'DEPLOY.md',
-  'docs/setup-guide.md',
-  'Dockerfile',
-];
+/**
+ * Files guarded against pointing at the bare dist/src/server.js entry.
+ * Collected dynamically instead of a hardcoded whitelist so new deployment
+ * docs are covered automatically (review finding on #194/#195): every
+ * top-level *.md, everything under docs/, every shell script under scripts/,
+ * plus the container files. Historical records are excluded (CHANGELOG.md,
+ * docs/sprints/ — they legitimately mention past mistakes), as is
+ * scripts/cli.mjs, which legitimately checks for dist/src/server.js
+ * *existence* in verifyInstallation (a file check, not an entry-point
+ * instruction).
+ */
+function collectGuardedFiles(): string[] {
+  const files = new Set<string>(['README.md', 'README.zh-CN.md', 'DEPLOY.md', 'Dockerfile']);
+  for (const compose of ['docker-compose.yml', 'docker-compose.yaml']) {
+    if (existsSync(resolve(repoRoot, compose))) files.add(compose);
+  }
+  for (const name of readdirSync(repoRoot)) {
+    if (name.endsWith('.md') && name !== 'CHANGELOG.md') files.add(name);
+  }
+  for (const entry of readdirSync(resolve(repoRoot, 'docs'), { recursive: true })) {
+    const rel = String(entry).replaceAll('\\', '/');
+    if (rel.endsWith('.md') && !rel.startsWith('sprints/')) files.add(join('docs', rel));
+  }
+  for (const name of readdirSync(resolve(repoRoot, 'scripts'))) {
+    if (name.endsWith('.sh')) files.add(join('scripts', name));
+  }
+  return [...files];
+}
 
 describe('deployment docs entry points (#194)', () => {
   it('should never tell pm2 to start dist/src/server.js', () => {
-    for (const doc of DEPLOYMENT_DOCS) {
+    for (const doc of collectGuardedFiles()) {
       expect(
         read(doc).includes('pm2 start dist/src/server.js'),
         `${doc} still runs \`pm2 start dist/src/server.js\` — under fork mode the self-start guard never fires and the process exits 0 without listening (issue #187)`
@@ -32,7 +48,7 @@ describe('deployment docs entry points (#194)', () => {
   });
 
   it('should not reference the bare dist/src/server.js path in any deployment doc', () => {
-    for (const doc of DEPLOYMENT_DOCS) {
+    for (const doc of collectGuardedFiles()) {
       expect(
         read(doc).includes('dist/src/server.js'),
         `${doc} still references dist/src/server.js — use the unconditional entry dist/src/server-entry.js`
@@ -67,11 +83,27 @@ describe('deployment docs entry points (#194)', () => {
     expect(server).toMatch(/pmScriptName === 'server\.js'/);
   });
 
+  it('should keep the Windows backslash-safe argv normalization in server.ts', () => {
+    // normalize() converts win32 backslash argv[1] (e.g. dist\src\server.js)
+    // before pathToFileURL, so `node dist\src\server.js` on Windows still
+    // matches import.meta.url. Dropping normalize() is the regression.
+    const server = read('src/server.ts');
+    expect(server).toMatch(/const normalizedArg = normalize\(process\.argv\[1\]\)/);
+    expect(server).toMatch(/pathToFileURL\(normalizedArg\)/);
+  });
+
   it('should document the pm2 save secret-persistence caveat in both READMEs (#193)', () => {
     for (const doc of ['README.md', 'README.zh-CN.md']) {
       const content = read(doc);
       expect(content).toContain('dump.pm2');
       expect(content).toContain('chmod 700 ~/.pm2 && chmod 600 ~/.pm2/dump.pm2');
     }
+  });
+
+  it('should not overstate the #193 protection — plain pm2 restart keeps a stale env', () => {
+    // The PM2 env is only refreshed by --update-env; claiming the installer
+    // "never passes secrets" hid the upgrade-path leak (review finding).
+    expect(read('README.md')).toContain('--update-env');
+    expect(read('README.zh-CN.md')).toContain('--update-env');
   });
 });

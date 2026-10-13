@@ -1,4 +1,12 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import bcrypt from 'bcryptjs';
@@ -15,6 +23,7 @@ import {
   generateConfigFromFlags,
   generateEnvContent,
   isDirectServiceRunning,
+  isSecretEnvKey,
   isWindows,
   main,
   mergeConfig,
@@ -27,6 +36,7 @@ import {
   validateConfig,
   verifyInstallation,
   verifyPackageManifest,
+  writeEnvFile,
   // @ts-expect-error - cli.mjs has no type declarations
 } from '../scripts/cli.mjs';
 
@@ -864,6 +874,32 @@ describe('CLI', () => {
     });
   });
 
+  describe('isSecretEnvKey (#193 single source of truth)', () => {
+    it('should flag app-prefixed and well-known secret keys', () => {
+      expect(isSecretEnvKey('DIALOG_SURVEY_DATABASE_URL')).toBe(true);
+      expect(isSecretEnvKey('DATABASE_URL')).toBe(true);
+      expect(isSecretEnvKey('ADMIN_PASSWORD_HASH')).toBe(true);
+      expect(isSecretEnvKey('SESSION_SECRET')).toBe(true);
+      expect(isSecretEnvKey('DINGTALK_CLIENT_SECRET')).toBe(true);
+    });
+
+    it('should flag operator credentials without an app prefix (heuristic)', () => {
+      expect(isSecretEnvKey('PGPASSWORD')).toBe(true);
+      expect(isSecretEnvKey('AWS_SECRET_ACCESS_KEY')).toBe(true);
+      expect(isSecretEnvKey('GITHUB_TOKEN')).toBe(true);
+      expect(isSecretEnvKey('MYSQL_ROOT_PASSWORD')).toBe(true);
+    });
+
+    it('should not flag ordinary operational variables', () => {
+      expect(isSecretEnvKey('PATH')).toBe(false);
+      expect(isSecretEnvKey('PM2_HOME')).toBe(false);
+      expect(isSecretEnvKey('HTTPS_PROXY')).toBe(false);
+      expect(isSecretEnvKey('NODE_ENV')).toBe(false);
+      expect(isSecretEnvKey('')).toBe(false);
+      expect(isSecretEnvKey(undefined)).toBe(false);
+    });
+  });
+
   describe('scrubbedProcessEnv (#193)', () => {
     it('should strip every secret-bearing key from the child env', () => {
       const scrubbed = scrubbedProcessEnv({
@@ -886,6 +922,10 @@ describe('CLI', () => {
         ADMIN_API_KEY: 'apikey',
         ADMIN_PASSWORD: 'hunter2',
         ADMIN_PASSWORD_HASH: '$2a$12$hash',
+        // operator credentials without an app prefix (review finding)
+        PGPASSWORD: 'pg-pass-1234',
+        AWS_SECRET_ACCESS_KEY: 'aws-secret-1234',
+        GITHUB_TOKEN: 'gh-token-1234',
       });
 
       expect(scrubbed).toEqual({
@@ -984,6 +1024,85 @@ describe('CLI', () => {
       const warnings = checkPm2DumpSecurity(installDir, home);
       expect(warnings).toHaveLength(1);
       expect(warnings[0]).toContain('0644');
+    });
+
+    itPosix('should not warn when dump.pm2 is stricter than 0600 (e.g. 0400)', () => {
+      chmodSync(join(home, '.pm2', 'dump.pm2'), 0o400);
+      expect(checkPm2DumpSecurity(installDir, home)).toEqual([]);
+    });
+
+    itPosix('should strip single-quoted values when matching .env secrets', () => {
+      chmodSync(join(home, '.pm2', 'dump.pm2'), 0o600);
+      writeFileSync(join(installDir, '.env'), "LLM_API_KEY='sk-single-quoted-secret'\n");
+      // The dump holds the bare value only (no key name) so this isolates the
+      // quote-stripping path of the value check.
+      writeFileSync(join(home, '.pm2', 'dump.pm2'), 'snapshot: sk-single-quoted-secret');
+      const warnings = checkPm2DumpSecurity(installDir, home);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('plaintext secret');
+    });
+
+    itPosix('should warn when the dump only mentions secret key names', () => {
+      // A stale pre-#193 dump may hold a rotated value but the key name alone
+      // proves the operator's shell env reached the PM2 child.
+      chmodSync(join(home, '.pm2', 'dump.pm2'), 0o600);
+      writeFileSync(
+        join(home, '.pm2', 'dump.pm2'),
+        JSON.stringify([{ name: 'dialog-survey', env: { DIALOG_SURVEY_ADMIN_PASSWORD: 'x' } }])
+      );
+      const warnings = checkPm2DumpSecurity(installDir, home);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('--update-env');
+    });
+
+    itPosix('should honor PM2_HOME when it is set', () => {
+      const pm2Home = mkdtempSync(join(tmpdir(), 'ds-pm2home-override-'));
+      writeFileSync(join(pm2Home, 'dump.pm2'), '[]');
+      chmodSync(join(pm2Home, 'dump.pm2'), 0o600);
+      vi.stubEnv('PM2_HOME', pm2Home);
+      try {
+        // The default home's dump is 0644 and must be ignored while PM2_HOME
+        // points elsewhere; the clean PM2_HOME dump reports nothing.
+        expect(checkPm2DumpSecurity(installDir, home)).toEqual([]);
+      } finally {
+        vi.unstubAllEnvs();
+        rmSync(pm2Home, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('writeEnvFile (#195 review: preserve .env on upgrade)', () => {
+    it('should create a fresh .env with owner-only permissions', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'ds-env-fresh-'));
+      try {
+        const result = await writeEnvFile(dir, { DATABASE_URL: 'postgresql://u:p@h/db' });
+        expect(result.preserved).toBe(false);
+        const content = readFileSync(join(dir, '.env'), 'utf-8');
+        expect(content).toContain('DATABASE_URL="postgresql://u:p@h/db"');
+        expect(content).toContain('ENCRYPTION_KEY=');
+        if (!isWindows()) {
+          expect(statSync(join(dir, '.env')).mode & 0o777).toBe(0o600);
+        }
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('should keep an existing .env untouched on upgrade', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'ds-env-upgrade-'));
+      try {
+        writeFileSync(
+          join(dir, '.env'),
+          'ENCRYPTION_KEY=keepme0123456789\nDATABASE_URL="postgresql://old/db"\n'
+        );
+        const result = await writeEnvFile(dir, { DATABASE_URL: 'postgresql://new/db' });
+        expect(result.preserved).toBe(true);
+        const content = readFileSync(join(dir, '.env'), 'utf-8');
+        expect(content).toContain('keepme0123456789');
+        expect(content).not.toContain('postgresql://new/db');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 });

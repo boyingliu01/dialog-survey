@@ -251,9 +251,12 @@ Health check: `curl http://localhost:3001/health`
 
 > **Security note**: `pm2 save` persists the full process environment to
 > `~/.pm2/dump.pm2` (mode follows umask — usually 0644, world-readable). The
-> installer never passes secrets to the PM2 child process (issue #193), but if
-> you have ever run `pm2 save` from a shell that had secrets exported, tighten
-> the file now and rotate those secrets:
+> installer and `npx dialog-survey start` scrub secrets from the PM2 child
+> environment and refresh it with `--update-env` on every start (issue #193) —
+> but a plain `pm2 restart dialog-survey` does **not** refresh the environment.
+> If you have ever run `pm2 save` from a shell that had secrets exported,
+> tighten the file now, restart with `pm2 restart dialog-survey --update-env`,
+> and rotate those secrets:
 > ```bash
 > chmod 700 ~/.pm2 && chmod 600 ~/.pm2/dump.pm2
 > ```

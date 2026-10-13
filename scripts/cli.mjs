@@ -8,9 +8,19 @@
  * for admin password hashing.
  */
 
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import crypto from 'node:crypto';
-import { chmodSync, existsSync, readFileSync, statSync } from 'node:fs';
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import net from 'node:net';
@@ -52,15 +62,55 @@ export const filesToCopy = [
 ];
 
 /**
- * Environment keys the service manager child process must never inherit.
- * PM2 snapshots the full child environment into ~/.pm2/dump.pm2 on `pm2 save`
- * (mode follows umask — usually 0644, world-readable), so secrets the operator
- * exported for a non-interactive install would be persisted to disk in
- * plaintext (issue #193). The app reads everything it needs from the 0600
- * .env file via dotenv, so the child needs none of these.
+ * Single source of truth for secret-bearing environment keys (issue #193).
+ * Everything else is derived from this list so the two consumers can never
+ * drift apart again (review finding on #195):
+ *   - `isSecretEnvKey()` → the scrub filter for the service-manager child env
+ *   - `secretEnvLineRegex` → the .env line scan behind checkPm2DumpSecurity
  */
-const SECRET_ENV_KEY =
-  /^(DIALOG_SURVEY_|DATABASE_URL$|LLM_API_KEY$|LLM_BASE_URL$|LLM_MODEL$|DINGTALK_|ENCRYPTION_KEY$|SESSION_SECRET$|SESSION_SALT$|ADMIN_API_KEY$|ADMIN_PASSWORD)/;
+const SECRET_ENV_KEY_NAMES = [
+  'DATABASE_URL',
+  'LLM_API_KEY',
+  'LLM_BASE_URL',
+  'LLM_MODEL',
+  'DINGTALK_CLIENT_ID',
+  'DINGTALK_CLIENT_SECRET',
+  'DINGTALK_AGENT_ID',
+  'ENCRYPTION_KEY',
+  'SESSION_SECRET',
+  'SESSION_SALT',
+  'ADMIN_API_KEY',
+  'ADMIN_USERNAME',
+  'ADMIN_PASSWORD',
+  'ADMIN_PASSWORD_HASH',
+];
+
+/**
+ * Operator exports that carry no app prefix but are secrets all the same —
+ * scrubbed defensively even though the app itself never reads them
+ * (PGPASSWORD, AWS_SECRET_ACCESS_KEY, GITHUB_TOKEN, …).
+ */
+const SECRET_ENV_KEY_HEURISTIC =
+  /(PASSWORD|PASSWD|SECRET|TOKEN|CREDENTIAL|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY)/i;
+
+/**
+ * True when an environment variable name must never reach a service-manager
+ * child process (issue #193). DIALOG_SURVEY_*-prefixed keys are always
+ * secret-bearing, well-known app keys are matched exactly, and anything whose
+ * name looks like a credential is scrubbed as well.
+ *
+ * @param {string | undefined} key
+ * @returns {boolean}
+ */
+export function isSecretEnvKey(key) {
+  if (!key) return false;
+  if (key.startsWith('DIALOG_SURVEY_')) return true;
+  if (SECRET_ENV_KEY_NAMES.includes(key)) return true;
+  return SECRET_ENV_KEY_HEURISTIC.test(key);
+}
+
+/** .env KEY=VALUE line matcher derived from the same name list (dump scan). */
+const secretEnvLineRegex = new RegExp(`^(?:${SECRET_ENV_KEY_NAMES.join('|')})=(.+)$`, 'gm');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -89,9 +139,7 @@ export function exec(cmd, options = {}) {
  * @returns {Record<string, string>}
  */
 export function scrubbedProcessEnv(base = process.env) {
-  return Object.fromEntries(
-    Object.entries(base).filter(([key]) => key !== undefined && !SECRET_ENV_KEY.test(key))
-  );
+  return Object.fromEntries(Object.entries(base).filter(([key]) => !isSecretEnvKey(key)));
 }
 
 /**
@@ -131,7 +179,11 @@ async function startViaServiceManager() {
       // started process into ~/.pm2/dump.pm2 on `pm2 save` (0644 by default),
       // which would leak keys the operator exported for the install
       // (issue #193). The app reads its secrets from the 0600 .env file.
-      exec(`pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production`, {
+      // --update-env matters on upgrades: when the app is already registered,
+      // `pm2 start` is a restart that silently keeps the OLD environment
+      // unless --update-env is given — stale secrets from a pre-#193 install
+      // would survive every re-install otherwise (review finding on #195).
+      exec(`pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production --update-env`, {
         cwd: INSTALL_DIR,
         env: scrubbedProcessEnv(),
       });
@@ -608,16 +660,18 @@ export function verifyPackageManifest(installDir) {
 
 // ─── PM2 dump security (issue #193) ───────────────────────────────────────────
 
-// KEY=VALUE lines in .env whose values must never appear in dump.pm2.
-const secretEnvLineRegex =
-  /^(DATABASE_URL|LLM_API_KEY|DINGTALK_CLIENT_SECRET|ENCRYPTION_KEY|SESSION_SECRET|SESSION_SALT|ADMIN_API_KEY|ADMIN_PASSWORD_HASH)=(.+)$/gm;
+/** Values shorter than this are treated as non-secrets for the dump scan. */
+const MIN_SECRET_VALUE_LENGTH = 8;
 
 /**
- * Inspect ~/.pm2/dump.pm2 — the file `pm2 save` writes — for two leak signals:
- *   1. permissions wider than 0600 (umask 022 leaves it 0644, world-readable);
+ * Inspect ~/.pm2/dump.pm2 (or $PM2_HOME/dump.pm2) — the file `pm2 save` writes
+ * — for leak signals:
+ *   1. permissions wider than owner-only (umask 022 leaves it 0644);
  *   2. plaintext values from the install dir's .env (secrets that reached the
  *      PM2 child env before issue #193 was fixed, e.g. from an older install
- *      or a manual `pm2 start` with exported secrets).
+ *      or a manual `pm2 start` with exported secrets);
+ *   3. known secret key *names* in the dump — even when the stored value
+ *      differs, their presence proves the operator's shell env reached PM2.
  * Returns human-readable warnings (empty array = nothing to report).
  *
  * @param {string} [installDir=INSTALL_DIR]
@@ -629,7 +683,8 @@ export function checkPm2DumpSecurity(installDir = INSTALL_DIR, home = homedir())
   // Mode bits are meaningless on Windows and the PM2 path is not used there.
   if (isWindows()) return warnings;
 
-  const dumpPath = join(home, '.pm2', 'dump.pm2');
+  const pm2Home = process.env['PM2_HOME'] || join(home, '.pm2');
+  const dumpPath = join(pm2Home, 'dump.pm2');
   if (!existsSync(dumpPath)) return warnings;
 
   let mode = 0;
@@ -638,9 +693,10 @@ export function checkPm2DumpSecurity(installDir = INSTALL_DIR, home = homedir())
   } catch {
     return warnings;
   }
-  if (mode !== 0o600) {
+  // 0400 and 0600 are both fine — only group/other bits are a problem.
+  if ((mode & 0o077) !== 0) {
     warnings.push(
-      `~/.pm2/dump.pm2 has mode 0${mode.toString(8)} (world-readable). PM2 persists the process environment there on \`pm2 save\` — tighten it with: chmod 700 ~/.pm2 && chmod 600 ~/.pm2/dump.pm2`
+      `~/.pm2/dump.pm2 has mode 0${mode.toString(8)} (group/other-readable). PM2 persists the process environment there on \`pm2 save\` — tighten it with: chmod 700 ~/.pm2 && chmod 600 ~/.pm2/dump.pm2`
     );
   }
 
@@ -655,12 +711,13 @@ export function checkPm2DumpSecurity(installDir = INSTALL_DIR, home = homedir())
   }
 
   const secretValues = [...readFileSync(envPath, 'utf-8').matchAll(secretEnvLineRegex)]
-    .map((m) => m[2].trim().replace(/^"(.*)"$/, '$1'))
-    .filter((v) => v.length >= 8);
-  const leaked = secretValues.filter((v) => dump.includes(v));
-  if (leaked.length > 0) {
+    .map((m) => m[1].trim().replace(/^["'](.*)["']$/, '$1'))
+    .filter((v) => v.length >= MIN_SECRET_VALUE_LENGTH);
+  const leakedValues = secretValues.filter((v) => dump.includes(v));
+  const leakedKeys = SECRET_ENV_KEY_NAMES.filter((k) => dump.includes(k));
+  if (leakedValues.length > 0 || leakedKeys.length > 0) {
     warnings.push(
-      `~/.pm2/dump.pm2 contains ${leaked.length} plaintext secret value(s) from ${envPath}. Rotate those secrets, then re-run \`pm2 save\` after restarting the service (the installer no longer passes secrets to the PM2 child process — issue #193).`
+      `~/.pm2/dump.pm2 contains ${leakedValues.length} plaintext secret value(s) and ${leakedKeys.length} secret key name(s) from the service environment. Restart with \`pm2 restart ${PM2_APP_NAME} --update-env\` (a plain restart keeps the stale env), re-run \`pm2 save\`, then rotate those secrets (issue #193).`
     );
   }
 
@@ -728,22 +785,62 @@ export function checkPlatformDeps() {
 }
 
 /**
- * Start service directly via node (no PM2, used on Windows).
+ * Start service directly via node (no PM2 — used on Windows and as fallback).
+ * Spawns a detached child that survives this CLI process on every platform:
+ * a shell background job (`node … &`) cannot be used here because on Windows
+ * cmd.exe `&` is a *sequential* separator, so execSync would block until the
+ * server exits and the installer would hang (review finding on #195). Output
+ * is appended to logs/server.log, and the PID is recorded in logs/server.pid
+ * so stopDirectService() / isDirectServiceRunning() work without POSIX pgrep.
+ *
  * @param {string} cwd
  * @param {Record<string, string>} [env=scrubbedProcessEnv()] child environment —
  *   secrets are stripped so they cannot leak via process listings (issue #193)
+ * @returns {number} the spawned server PID
  */
 export function startViaNode(cwd, env = scrubbedProcessEnv()) {
-  exec('node dist/src/server-entry.js &', { cwd, env });
+  const logDir = join(cwd, 'logs');
+  mkdirSync(logDir, { recursive: true });
+  const logFd = openSync(join(logDir, 'server.log'), 'a');
+  let pid;
+  try {
+    const child = spawn(process.execPath, ['dist/src/server-entry.js'], {
+      cwd,
+      env,
+      detached: true,
+      stdio: ['ignore', logFd, logFd],
+    });
+    child.unref();
+    pid = child.pid;
+  } finally {
+    closeSync(logFd);
+  }
+  writeFileSync(join(logDir, 'server.pid'), `${pid}\n`);
+  return pid;
 }
 
 /**
- * Stop service started directly (no PM2).
+ * Read the PID recorded by startViaNode (null when absent/corrupt).
+ * @param {string} [cwd=INSTALL_DIR]
+ * @returns {number | null}
+ */
+function readServerPid(cwd = INSTALL_DIR) {
+  try {
+    const pid = Number.parseInt(readFileSync(join(cwd, 'logs', 'server.pid'), 'utf-8').trim(), 10);
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True when the process is alive (signal 0 probes existence on every platform).
+ * @param {number} pid
  * @returns {boolean}
  */
-export function stopDirectService() {
+function isPidAlive(pid) {
   try {
-    exec('pkill -f "node dist/src/server"');
+    process.kill(pid, 0);
     return true;
   } catch {
     return false;
@@ -751,10 +848,46 @@ export function stopDirectService() {
 }
 
 /**
- * Check if a direct node service is running.
+ * Stop service started directly (no PM2). Prefers the pidfile written by
+ * startViaNode (works on Windows too); falls back to pkill on POSIX for
+ * processes started before the pidfile existed.
+ * @returns {boolean}
+ */
+export function stopDirectService() {
+  const pid = readServerPid();
+  try {
+    if (pid !== null && isPidAlive(pid)) {
+      if (isWindows()) {
+        exec(`taskkill /PID ${pid} /T /F`);
+      } else {
+        process.kill(pid, 'SIGTERM');
+      }
+    } else if (!isWindows()) {
+      exec('pkill -f "node dist/src/server"');
+    }
+    return true;
+  } catch {
+    return false;
+  } finally {
+    if (pid !== null) {
+      try {
+        rmSync(join(INSTALL_DIR, 'logs', 'server.pid'), { force: true });
+      } catch {
+        // best effort — a stale pidfile is harmless
+      }
+    }
+  }
+}
+
+/**
+ * Check if a direct node service is running. Prefers the pidfile; falls back
+ * to pgrep on POSIX (no portable equivalent on Windows without a pidfile).
  * @returns {boolean}
  */
 export function isDirectServiceRunning() {
+  const pid = readServerPid();
+  if (pid !== null) return isPidAlive(pid);
+  if (isWindows()) return false;
   try {
     const result = exec('pgrep -f "node dist/src/server"');
     return result.length > 0;
@@ -861,6 +994,29 @@ export function generateEnvContent(config) {
 }
 
 // ─── Commands ────────────────────────────────────────────────────────────────
+
+/**
+ * Write the install dir's .env from config. When a .env already exists (an
+ * in-place upgrade), it is kept untouched: regenerating would re-randomize
+ * ENCRYPTION_KEY / SESSION_SECRET / ADMIN_API_KEY and destroy every stored
+ * encryption payload and live session (review finding on #195). New flag
+ * values are intentionally NOT merged into an existing file.
+ *
+ * @param {string} installDir
+ * @param {Record<string, string>} config
+ * @returns {Promise<{ preserved: boolean, path: string }>}
+ */
+export async function writeEnvFile(installDir, config) {
+  const envPath = join(installDir, '.env');
+  if (existsSync(envPath)) {
+    return { preserved: true, path: envPath };
+  }
+  // The .env holds DB credentials, LLM keys, DingTalk secret and session
+  // secrets — write it readable only by the owner (issue #190).
+  await writeFile(envPath, generateEnvContent(config), { encoding: 'utf-8', mode: 0o600 });
+  chmodSync(envPath, 0o600);
+  return { preserved: false, path: envPath };
+}
 
 /**
  * Install command — interactive or non-interactive installation.
@@ -981,6 +1137,9 @@ export async function installCommand(flags) {
   // Step 4: Create install directory
   log('\nSetting up installation directory...');
   const sourceDir = join(__dirname, '..');
+  // An existing package.json marks a pre-existing installation (upgrade);
+  // a truly fresh install dir may be removed again when a later gate fails.
+  const installDirExisted = existsSync(join(INSTALL_DIR, 'package.json'));
   await mkdir(INSTALL_DIR, { recursive: true });
   log(`  Created ${INSTALL_DIR}`);
 
@@ -1009,19 +1168,28 @@ export async function installCommand(flags) {
       logError(`Installed package is inconsistent: ${problem}`);
     }
     logError('Aborting before dependency installation — the published package may be corrupt.');
+    if (!installDirExisted) {
+      // Fresh install: don't leave a half-populated directory behind.
+      await rm(INSTALL_DIR, { recursive: true, force: true });
+      log('  Fresh install directory cleaned up.');
+    } else {
+      log('  Existing installation left untouched — inspect the problems above.');
+    }
     process.exitCode = 1;
     return;
   }
   log('  Install manifest verified ✓ (bin target + VERSION present)');
 
-  // Step 6: Generate .env
+  // Step 6: Generate .env (kept as-is on upgrades — see writeEnvFile)
   log('Generating .env file...');
-  const envContent = generateEnvContent(config);
-  // The .env holds DB credentials, LLM keys, DingTalk secret and session
-  // secrets — write it readable only by the owner (issue #190).
-  await writeFile(join(INSTALL_DIR, '.env'), envContent, { encoding: 'utf-8', mode: 0o600 });
-  chmodSync(join(INSTALL_DIR, '.env'), 0o600);
-  log(`  Created ${INSTALL_DIR}/.env (mode 0600)`);
+  const envResult = await writeEnvFile(INSTALL_DIR, config);
+  if (envResult.preserved) {
+    log(`  Existing ${envResult.path} kept — ENCRYPTION_KEY / SESSION_SECRET /`);
+    log('  ADMIN_API_KEY and all configuration values are preserved on upgrade.');
+    log('  Edit the file directly to change configuration values.');
+  } else {
+    log(`  Created ${envResult.path} (mode 0600)`);
+  }
 
   // Step 7: npm install
   // npm strips package-lock.json from published tarballs even when it is listed
@@ -1123,7 +1291,7 @@ export async function installCommand(flags) {
     if (platformCheck.serviceManager === 'pm2') {
       log(`   Logs:        pm2 logs ${PM2_APP_NAME}`);
       log(`   Stop:        pm2 stop ${PM2_APP_NAME}`);
-      log('   Status:      pm2 status');
+      log(`   Status:      pm2 status ${PM2_APP_NAME}`);
     } else {
       log('   Stop:        node scripts/cli.mjs stop');
       log('   Status:      node scripts/cli.mjs status');
@@ -1217,7 +1385,17 @@ export async function startCommand() {
   const verification = verifyInstallation(INSTALL_DIR);
   if (!verification.ok) {
     logError(`Installation is incomplete. Missing: ${verification.missing.join(', ')}`);
-    logError("Run 'npx dialog-survey install' to repair the installation.");
+    if (
+      verification.missing.includes('scripts/cli.mjs') ||
+      verification.missing.includes('VERSION')
+    ) {
+      // Installations made before the #195 packaging fix lack these two files.
+      logError(
+        '  This install predates the #195 packaging fix. Re-run `npx dialog-survey install` to repair — the existing .env is preserved.'
+      );
+    } else {
+      logError("Run 'npx dialog-survey install' to repair the installation.");
+    }
     process.exitCode = 1;
     return;
   }
@@ -1278,6 +1456,11 @@ export async function statusCommand() {
         log('  PM2 process: not found');
         log('  Status: stopped\n');
         log("  Run 'npx dialog-survey start' to start the service.");
+        // dump.pm2 persists on disk even while the app is stopped, so the
+        // security check still matters here (issue #193).
+        for (const warning of checkPm2DumpSecurity()) {
+          log(`  ⚠ ${warning}`);
+        }
         return;
       }
 
