@@ -89,9 +89,18 @@ describe('scripts/release-bootstrap.sh (AC-11)', () => {
 
   afterEach(() => {
     for (const dir of created.splice(0)) {
-      rmSync(dir, { recursive: true, force: true });
+      // Windows may briefly hold handles on a repo that just ran git; retry
+      // rather than letting cleanup flake the suite.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          rmSync(dir, { recursive: true, force: true });
+          break;
+        } catch {
+          if (attempt === 2) break;
+        }
+      }
     }
-  });
+  }, 120_000);
 
   /**
    * @test REQ-153-6
@@ -230,4 +239,7 @@ describe('scripts/release-bootstrap.sh (AC-11)', () => {
       expect(result.status).not.toBe(0);
     });
   });
-});
+}, 300_000);
+// Windows + three AV layers scan every spawned git process; these cases
+// routinely run 11-18s each, and the whole suite spins up multiple throwaway
+// repos per case. Give it a generous budget.

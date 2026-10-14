@@ -532,4 +532,7 @@ describe('opt-in local commit-msg hook installer', () => {
       expect(runInstaller(dir, ['--reset-unset']).status).toBe(0);
     });
   });
-});
+}, 300_000);
+// Windows + three AV layers scan every spawned git/bash/node process; some
+// cases (two real commits through the commitlint hook) land at 30-33s, right
+// at the 30s global default. Give the suite a generous budget.
