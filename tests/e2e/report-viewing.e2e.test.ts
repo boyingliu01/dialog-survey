@@ -246,7 +246,10 @@ describe('Report Viewing (Playwright E2E)', () => {
   });
 
   describe('Report export', () => {
-    it('should handle PDF export request', async () => {
+    // PDF export drives a real chromium render on a cold start; on Windows with
+    // multiple AV layers the first call can exceed the 30s file default, so give
+    // this case a longer budget (the route is cheap, the renderer is not).
+    it('should handle PDF export request', { timeout: 120_000 }, async () => {
       const interviewId = cleanupIds.interviews[0];
       await loginAdmin(page, baseUrl);
 

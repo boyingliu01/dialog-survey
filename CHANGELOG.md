@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- test: raise vitest timeouts (300s top-level describe) and harden afterAll/afterEach cleanup with 3x retry for the heavy shell-spawning suites (`release-script-behaviour`, `release-bootstrap`, `optin-hooks`) and the Playwright PDF-export e2e case (120s). On Windows machines whose antivirus scans every spawned process, node cold-start is ~1.26s and a bare `git status` 2-3.6s (20-40x slower than normal), so these suites' cases land at 12-64s — right at the 30s vitest default — and failed randomly only in full parallel runs. No behaviour change; fixes test flakiness on slow/AV-heavy hosts.
+
 ## [1.11.3](https://github.com/boyingliu01/dialog-survey/compare/v1.11.2...v1.11.3) (2026-10-13)
 
 ### Bug Fixes

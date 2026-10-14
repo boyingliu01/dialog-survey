@@ -64,9 +64,18 @@ const created: string[] = [];
 
 afterAll(() => {
   for (const dir of created.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
+    // Windows may briefly hold handles on a repository that just ran git/bash;
+    // retry a few times rather than letting cleanup flake the whole suite.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+        break;
+      } catch {
+        if (attempt === 2) break; // last chance: leave it for the OS temp cleaner
+      }
+    }
   }
-});
+}, 120_000);
 
 interface Fixture {
   dir: string;
@@ -155,139 +164,148 @@ function runVerify(fixture: Fixture): { status: number; output: string } {
   return { status: result.status ?? -1, output: `${result.stdout}${result.stderr}` };
 }
 
-describe.skipIf(!capable)('release.sh behaviour (REQ-153-4 / AC-153-4-01)', () => {
-  /**
-   * @test REQ-153-4
-   * @intent refuses to release from a tree whose VERSION and package.json
-   *   disagree, rather than publishing a mislabelled release
-   * @covers AC-153-4-02
-   */
-  it('refuses to start when VERSION and package.json disagree', () => {
-    const fixture = makeFixture({ version: '1.10.0' });
-    // Make package.json disagree with VERSION.
-    writeFileSync(
-      join(fixture.dir, 'package.json'),
-      `${JSON.stringify({ name: 'fixture', version: '9.9.9', private: true }, null, 2)}\n`
-    );
+describe.skipIf(!capable)(
+  'release.sh behaviour (REQ-153-4 / AC-153-4-01)',
+  () => {
+    /**
+     * @test REQ-153-4
+     * @intent refuses to release from a tree whose VERSION and package.json
+     *   disagree, rather than publishing a mislabelled release
+     * @covers AC-153-4-02
+     */
+    it('refuses to start when VERSION and package.json disagree', () => {
+      const fixture = makeFixture({ version: '1.10.0' });
+      // Make package.json disagree with VERSION.
+      writeFileSync(
+        join(fixture.dir, 'package.json'),
+        `${JSON.stringify({ name: 'fixture', version: '9.9.9', private: true }, null, 2)}\n`
+      );
 
-    const { status, output } = fixture.run();
+      const { status, output } = fixture.run();
 
-    expect(status).not.toBe(0);
-    expect(output).toMatch(/VERSION \(1\.10\.0\) != package\.json \(9\.9\.9\)/);
-    expect(output).toMatch(/refusing to release from an inconsistent tree/);
-  });
-
-  /**
-   * @test REQ-153-4
-   * @intent reports a missing VERSION with an actionable message instead of
-   *   failing with an unexplained status
-   * @covers AC-153-4-02
-   */
-  it('reports a missing VERSION file actionably', () => {
-    const fixture = makeFixture();
-    rmSync(join(fixture.dir, 'VERSION'));
-
-    const { status, output } = fixture.run();
-
-    expect(status).not.toBe(0);
-    expect(output).toMatch(/no VERSION file/);
-  });
-
-  /**
-   * @test REQ-153-4
-   * @intent refuses to release without a GitHub token when github.release is
-   *   enabled, because release-it would otherwise skip the Release and still exit 0
-   * @covers AC-153-4-02
-   */
-  it('refuses to execute without a token unless the override is set', () => {
-    const fixture = makeFixture();
-
-    // Override the fixture's default override, so the guard is actually exercised.
-    const result = spawnSync(bashCommand, [releaseSh, '--execute'], {
-      cwd: fixture.dir,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 180_000,
-      env: { ...process.env, GITHUB_TOKEN: '', RELEASE_ALLOW_NO_GITHUB_TOKEN: '' },
-    });
-    const output = `${result.stdout}${result.stderr}`;
-
-    expect(result.status).not.toBe(0);
-    expect(output).toMatch(/GITHUB_TOKEN is not set/);
-    expect(output).toMatch(/RELEASE_ALLOW_NO_GITHUB_TOKEN=1/);
-    // The guard must stop the run BEFORE release-it is invoked.
-    expect(output).not.toMatch(/Done \(in /);
-  });
-
-  /**
-   * @test REQ-153-4
-   * @intent reports a missing AGENTS.md version header instead of dying silently,
-   *   which is the failure the `|| true` on the header grep exists to prevent
-   * @covers AC-153-4-01
-   *
-   * This case is the regression guard for a real defect. Without `|| true`, the
-   * header grep's no-match status (1) propagates through the pipeline and aborts
-   * the shell under `set -euo pipefail`, so the branch that reports the missing
-   * header is UNREACHABLE and the script exits with no explanation. That runs after
-   * the commit and tag exist, so the rollback guidance is skipped on exactly the
-   * path it was written for. Source assertions could not detect this; only running
-   * the script can.
-   */
-  it('reports a missing AGENTS.md version header rather than dying silently', () => {
-    const fixture = makeFixture({ agentsHeader: null });
-
-    // Drive the post-check through the script's own RELEASE_VERIFY_ONLY entry point,
-    // which EXECUTES the exact run_post_release_check function rather than a re-typed
-    // copy of its expression. The HEAD-unchanged check also fires (no release ran),
-    // but the header-missing message is the one this case guards.
-    const { status, output } = runVerify(fixture);
-
-    expect(status).not.toBe(0);
-    expect(output).toMatch(/AGENTS\.md carries no \(vX\.Y\.Z\) header version/);
-  });
-
-  /**
-   * @test REQ-153-4
-   * @intent still detects a PRESENT header, so the guard above cannot pass by
-   *   always reporting the header missing
-   * @covers AC-153-4-01
-   */
-  it('still finds a present AGENTS.md version header', () => {
-    const fixture = makeFixture({ version: '1.10.0', agentsHeader: '1.10.0' });
-
-    const { status, output } = runVerify(fixture);
-
-    // A present header matching VERSION must NOT be reported as missing. The
-    // post-check still fails on HEAD-unchanged (no release happened), but the
-    // header-missing message must be absent.
-    expect(status).not.toBe(0);
-    expect(output).not.toMatch(/AGENTS\.md carries no \(vX\.Y\.Z\) header version/);
-  });
-
-  /**
-   * @test REQ-153-4
-   * @intent leaves the repository's core.hooksPath untouched after running, since
-   *   the suppression is process-scoped
-   * @covers AC-153-4-02
-   */
-  it('leaves core.hooksPath untouched after running', () => {
-    const fixture = makeFixture();
-    // Give the local scope an explicit value, so a destructive override would show.
-    execFileSync('git', ['config', '--local', 'core.hooksPath', '/nonexistent/hooks'], {
-      cwd: fixture.dir,
+      expect(status).not.toBe(0);
+      expect(output).toMatch(/VERSION \(1\.10\.0\) != package\.json \(9\.9\.9\)/);
+      expect(output).toMatch(/refusing to release from an inconsistent tree/);
     });
 
-    const readHooksPath = (): string =>
-      `${execFileSync('git', ['config', '--local', '--get', 'core.hooksPath'], {
+    /**
+     * @test REQ-153-4
+     * @intent reports a missing VERSION with an actionable message instead of
+     *   failing with an unexplained status
+     * @covers AC-153-4-02
+     */
+    it('reports a missing VERSION file actionably', () => {
+      const fixture = makeFixture();
+      rmSync(join(fixture.dir, 'VERSION'));
+
+      const { status, output } = fixture.run();
+
+      expect(status).not.toBe(0);
+      expect(output).toMatch(/no VERSION file/);
+    });
+
+    /**
+     * @test REQ-153-4
+     * @intent refuses to release without a GitHub token when github.release is
+     *   enabled, because release-it would otherwise skip the Release and still exit 0
+     * @covers AC-153-4-02
+     */
+    it('refuses to execute without a token unless the override is set', () => {
+      const fixture = makeFixture();
+
+      // Override the fixture's default override, so the guard is actually exercised.
+      const result = spawnSync(bashCommand, [releaseSh, '--execute'], {
         cwd: fixture.dir,
         encoding: 'utf8',
-      })}`.trim();
+        stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 180_000,
+        env: { ...process.env, GITHUB_TOKEN: '', RELEASE_ALLOW_NO_GITHUB_TOKEN: '' },
+      });
+      const output = `${result.stdout}${result.stderr}`;
 
-    const before = readHooksPath();
-    fixture.run();
-    const after = readHooksPath();
+      expect(result.status).not.toBe(0);
+      expect(output).toMatch(/GITHUB_TOKEN is not set/);
+      expect(output).toMatch(/RELEASE_ALLOW_NO_GITHUB_TOKEN=1/);
+      // The guard must stop the run BEFORE release-it is invoked.
+      expect(output).not.toMatch(/Done \(in /);
+    });
 
-    expect(after).toBe(before);
-    expect(after).toBe('/nonexistent/hooks');
-  });
-});
+    /**
+     * @test REQ-153-4
+     * @intent reports a missing AGENTS.md version header instead of dying silently,
+     *   which is the failure the `|| true` on the header grep exists to prevent
+     * @covers AC-153-4-01
+     *
+     * This case is the regression guard for a real defect. Without `|| true`, the
+     * header grep's no-match status (1) propagates through the pipeline and aborts
+     * the shell under `set -euo pipefail`, so the branch that reports the missing
+     * header is UNREACHABLE and the script exits with no explanation. That runs after
+     * the commit and tag exist, so the rollback guidance is skipped on exactly the
+     * path it was written for. Source assertions could not detect this; only running
+     * the script can.
+     */
+    it('reports a missing AGENTS.md version header rather than dying silently', () => {
+      const fixture = makeFixture({ agentsHeader: null });
+
+      // Drive the post-check through the script's own RELEASE_VERIFY_ONLY entry point,
+      // which EXECUTES the exact run_post_release_check function rather than a re-typed
+      // copy of its expression. The HEAD-unchanged check also fires (no release ran),
+      // but the header-missing message is the one this case guards.
+      const { status, output } = runVerify(fixture);
+
+      expect(status).not.toBe(0);
+      expect(output).toMatch(/AGENTS\.md carries no \(vX\.Y\.Z\) header version/);
+    });
+
+    /**
+     * @test REQ-153-4
+     * @intent still detects a PRESENT header, so the guard above cannot pass by
+     *   always reporting the header missing
+     * @covers AC-153-4-01
+     */
+    it('still finds a present AGENTS.md version header', () => {
+      const fixture = makeFixture({ version: '1.10.0', agentsHeader: '1.10.0' });
+
+      const { status, output } = runVerify(fixture);
+
+      // A present header matching VERSION must NOT be reported as missing. The
+      // post-check still fails on HEAD-unchanged (no release happened), but the
+      // header-missing message must be absent.
+      expect(status).not.toBe(0);
+      expect(output).not.toMatch(/AGENTS\.md carries no \(vX\.Y\.Z\) header version/);
+    });
+
+    /**
+     * @test REQ-153-4
+     * @intent leaves the repository's core.hooksPath untouched after running, since
+     *   the suppression is process-scoped
+     * @covers AC-153-4-02
+     */
+    it('leaves core.hooksPath untouched after running', () => {
+      const fixture = makeFixture();
+      // Give the local scope an explicit value, so a destructive override would show.
+      execFileSync('git', ['config', '--local', 'core.hooksPath', '/nonexistent/hooks'], {
+        cwd: fixture.dir,
+      });
+
+      const readHooksPath = (): string =>
+        `${execFileSync('git', ['config', '--local', '--get', 'core.hooksPath'], {
+          cwd: fixture.dir,
+          encoding: 'utf8',
+        })}`.trim();
+
+      const before = readHooksPath();
+      fixture.run();
+      const after = readHooksPath();
+
+      expect(after).toBe(before);
+      expect(after).toBe('/nonexistent/hooks');
+    });
+  },
+  // Windows + three AV layers scan every spawned git/bash process, so these
+  // release.sh runs routinely land at 12-64s per case — well past the 30s global
+  // default. The whole suite exercises a real release.sh against throwaway repos,
+  // so give it a generous budget and let cleanup retry (avoids flaky afterAll
+  // timeouts when Windows briefly holds handles on just-run .git dirs).
+  300_000
+);
