@@ -19,6 +19,7 @@ cd "$ROOT"
 if [ "${1:-}" = "--list-targets" ]; then
   for target in \
     package.json \
+    package-lock.json \
     src/npm-package/package.json \
     plugins/claude-code/.claude-plugin/plugin.json \
     plugins/opencode/package.json \
@@ -69,11 +70,16 @@ update_package_target() {
     const [, target, version] = process.argv;
     const json = JSON.parse(fs.readFileSync(target, "utf8"));
     json.version = version;
+    // package-lock.json mirrors the version in packages[""]; update both. Mirrors
+    // updatePackageTarget() in the .cjs.
+    if (target === "package-lock.json" && json.packages && json.packages[""]) {
+      json.packages[""].version = version;
+    }
     fs.writeFileSync(target, `${JSON.stringify(json, null, 2)}\n`);
   ' "$pkg" "$NEW_VERSION"
 }
 
-for pkg in package.json src/npm-package/package.json \
+for pkg in package.json package-lock.json src/npm-package/package.json \
            plugins/claude-code/.claude-plugin/plugin.json \
            plugins/opencode/package.json \
            src/npm-package/plugins/claude-code/.claude-plugin/plugin.json \

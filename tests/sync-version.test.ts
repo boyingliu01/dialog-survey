@@ -21,6 +21,7 @@ const bashCommand = resolveBashCommand();
 interface Fixture {
   dir: string;
   writePackageJson(relativePath: string, version: string): void;
+  writeLockFile(version: string): void;
   writeAgentsHeader(version: string): void;
 }
 
@@ -40,6 +41,16 @@ function makeFixture(): Fixture {
           2
         )}\n`
       );
+    },
+    writeLockFile(version: string): void {
+      const lock = {
+        name: 'fixture',
+        version,
+        lockfileVersion: 3,
+        requires: true,
+        packages: { '': { name: 'fixture', version } },
+      };
+      writeFileSync(join(dir, 'package-lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
     },
     writeAgentsHeader(version: string): void {
       writeFileSync(
@@ -106,6 +117,20 @@ describe('sync-version.sh', () => {
     expect(readPackageVersion(fixture.dir, 'src/npm-package/package.json')).toBe('2.3.4');
   });
 
+  it('syncs package-lock.json root and packages[""] versions (drift regression)', () => {
+    fixture.writePackageJson('package.json', '1.0.0');
+    fixture.writeLockFile('1.0.0');
+
+    runSyncVersion(fixture.dir);
+
+    const lock = JSON.parse(readFileSync(join(fixture.dir, 'package-lock.json'), 'utf8')) as {
+      version: string;
+      packages: { '': { version: string } };
+    };
+    expect(lock.version).toBe('2.3.4');
+    expect(lock.packages[''].version).toBe('2.3.4');
+  });
+
   it('refreshes the version token in the AGENTS.md header only', () => {
     fixture.writePackageJson('package.json', '1.0.0');
     fixture.writeAgentsHeader('1.8.0');
@@ -128,6 +153,7 @@ describe('sync-version.sh', () => {
 
   it('lists its fan-out targets for the pre-commit hook without touching anything', () => {
     fixture.writePackageJson('package.json', '1.0.0');
+    fixture.writeLockFile('1.0.0');
     fixture.writeAgentsHeader('1.8.0');
     const versionBefore = readFileSync(join(fixture.dir, 'VERSION'), 'utf8');
 
@@ -139,6 +165,7 @@ describe('sync-version.sh', () => {
 
     const targets = output.trim().split('\n');
     expect(targets).toContain('package.json');
+    expect(targets).toContain('package-lock.json');
     expect(targets).toContain('AGENTS.md');
     expect(readPackageVersion(fixture.dir)).toBe('1.0.0');
     expect(readFileSync(join(fixture.dir, 'VERSION'), 'utf8')).toBe(versionBefore);

@@ -2,8 +2,15 @@
 
 ## Unreleased
 
+## [1.11.4](https://github.com/boyingliu01/dialog-survey/compare/v1.11.3...v1.11.4) (2026-10-15)
+
+### Bug Fixes
+
+- fix(release): the version fan-out (`scripts/sync-version.cjs` / `.sh`) never listed `package-lock.json`, so `release-it`'s `after:bump` hook updated `VERSION`/`package.json`/`AGENTS.md` while the lock's self-referencing version silently drifted (found at 1.11.2 vs 1.11.3). Both lock version fields (root and the `packages` self-reference) are now synced, and the PR `version-consistency` job asserts the lock agrees with `package.json` so the drift is blocked at the merge boundary rather than discovered at release time.
+
 ### Changed
 
+- build: `npm run build` now compiles through a dedicated `tsconfig.build.json` covering `src/**` only. `tsconfig.json` still includes `tests/**` so `tsc --noEmit` keeps type-checking the suite, but the emitted `dist/` no longer contains `dist/tests`. The published tarball drops from 965 to 372 files (‑61%); the runtime entry remains `dist/src/server-entry.js`, so the installer, PM2 config, `npm start` and the Dockerfile are unaffected. (An `.npmignore` exclusion does not work here: a directory listed in the `files` allowlist overrides `.npmignore` for its contents.)
 - test: raise vitest timeouts (300s top-level describe) and harden afterAll/afterEach cleanup with 3x retry for the heavy shell-spawning suites (`release-script-behaviour`, `release-bootstrap`, `optin-hooks`) and the Playwright PDF-export e2e case (120s). On Windows machines whose antivirus scans every spawned process, node cold-start is ~1.26s and a bare `git status` 2-3.6s (20-40x slower than normal), so these suites' cases land at 12-64s — right at the 30s vitest default — and failed randomly only in full parallel runs. No behaviour change; fixes test flakiness on slow/AV-heavy hosts.
 
 ## [1.11.3](https://github.com/boyingliu01/dialog-survey/compare/v1.11.2...v1.11.3) (2026-10-13)

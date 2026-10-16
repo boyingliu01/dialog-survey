@@ -36,6 +36,9 @@ const path = require('node:path');
  */
 const PACKAGE_TARGETS = [
   'package.json',
+  // package-lock.json carries the package version twice (root + packages[""]) and
+  // was historically left stale by the fan-out — see updatePackageTarget() below.
+  'package-lock.json',
   'src/npm-package/package.json',
   'plugins/claude-code/.claude-plugin/plugin.json',
   'plugins/opencode/package.json',
@@ -114,6 +117,12 @@ function updatePackageTarget(target, version) {
   const contents = fs.readFileSync(full, 'utf8');
   const json = JSON.parse(contents);
   json.version = version;
+  // package-lock.json mirrors the version in the self-referencing packages[""] entry
+  // (npm reads that one for the root project); update both so the lock never drifts
+  // from package.json again. Mirrors update_package_target() in the .sh.
+  if (target === 'package-lock.json' && json.packages?.['']) {
+    json.packages[''].version = version;
+  }
   const updated = `${JSON.stringify(json, null, 2)}\n`;
   // Idempotence: a same-value rewrite must not touch mtime or bytes.
   if (updated !== contents) {
