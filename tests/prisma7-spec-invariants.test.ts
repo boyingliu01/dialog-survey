@@ -312,7 +312,12 @@ describe('release chain carries prisma config (AC-005)', () => {
 
   it('builds to dist and carries the runtime tree the container needs', () => {
     const pkg = JSON.parse(read('package.json')) as { scripts?: Record<string, string> };
-    expect(pkg.scripts?.['build']).toBe('tsc');
+    // The build must run tsc against the build-only config (src/** only) so the
+    // image — and the npm tarball — never carry compiled tests. Asserting the
+    // compiler + config rather than a bare "tsc" keeps the intent stable if the
+    // config file is renamed, while still failing if the build stops emitting dist/.
+    expect(pkg.scripts?.['build']).toMatch(/^tsc\b/);
+    expect(pkg.scripts?.['build']).toContain('tsconfig.build.json');
     const docker = read('Dockerfile');
     expect(docker).toMatch(/COPY --from=builder \/app\/dist \.\/dist/);
     expect(docker).toMatch(/COPY --from=builder \/app\/prisma\.config\.ts/);

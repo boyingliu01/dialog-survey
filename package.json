@@ -1,6 +1,6 @@
 {
   "name": "dialog-survey",
-  "version": "1.11.3",
+  "version": "1.11.4",
   "type": "module",
   "description": "AI-powered survey dialog bot that conducts async multi-turn conversations via DingTalk",
   "repository": {
@@ -27,7 +27,7 @@
   },
   "scripts": {
     "dev": "tsx --env-file=.env --watch src/server.ts",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "prisma:generate": "prisma generate",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
