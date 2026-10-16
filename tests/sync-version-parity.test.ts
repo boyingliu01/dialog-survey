@@ -68,6 +68,7 @@ function runCjs(dir: string, args: string[] = []): string {
 interface Fixture {
   dir: string;
   writePackageJson(relativePath: string, version: string): void;
+  writeLockFile(version: string): void;
   writeAgentsHeader(version: string): void;
 }
 
@@ -87,6 +88,18 @@ function makeFixture(version = '2.3.4'): Fixture {
           2
         )}\n`
       );
+    },
+    writeLockFile(version: string): void {
+      // package-lock.json carries the version twice: the root field and the
+      // self-referencing entry under packages[""]. Both must be rewritten.
+      const lock = {
+        name: 'fixture',
+        version,
+        lockfileVersion: 3,
+        requires: true,
+        packages: { '': { name: 'fixture', version } },
+      };
+      writeFileSync(join(dir, 'package-lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
     },
     writeAgentsHeader(version: string): void {
       writeFileSync(
@@ -140,8 +153,8 @@ describe('sync-version .sh/.cjs parity', () => {
       .split('\n')
       .filter((line) => line !== '');
 
-    // The live repository ships exactly these two of the canonical fan-out targets.
-    expect(liveTargets).toEqual(['package.json', 'AGENTS.md']);
+    // The live repository ships exactly these three of the canonical fan-out targets.
+    expect(liveTargets).toEqual(['package.json', 'package-lock.json', 'AGENTS.md']);
     for (const target of liveTargets) {
       expect(existsSync(join(repoRoot, target))).toBe(true);
     }
@@ -211,6 +224,39 @@ describe('sync-version .sh/.cjs parity', () => {
     f.writeAgentsHeader('1.8.0');
 
     expect(runCjs(f.dir, ['--list-targets'])).toBe(runSh(f.dir, ['--list-targets']));
+  });
+
+  /**
+   * @test REQ-153-5
+   * @intent aC-13: both implementations rewrite BOTH version fields of package-lock.json
+   *         (root + packages[""]) and stay byte-identical to each other. Regression for the
+   *         documented package-lock.json version drift (AGENTS.md/handover §4.3).
+   */
+  it('AC-13: both implementations sync package-lock.json root and packages[""] versions', () => {
+    const configure = (f: Fixture): void => {
+      f.writePackageJson('package.json', '1.0.0');
+      f.writeLockFile('1.0.0');
+      f.writeAgentsHeader('1.8.0');
+    };
+
+    const shFixture = fixture();
+    const cjsFixture = fixture();
+    configure(shFixture);
+    configure(cjsFixture);
+
+    runSh(shFixture.dir);
+    runCjs(cjsFixture.dir);
+
+    expect(snapshotTree(cjsFixture.dir)).toEqual(snapshotTree(shFixture.dir));
+
+    for (const dir of [shFixture.dir, cjsFixture.dir]) {
+      const lock = JSON.parse(readFileSync(join(dir, 'package-lock.json'), 'utf8')) as {
+        version: string;
+        packages: { '': { version: string } };
+      };
+      expect(lock.version).toBe('2.3.4');
+      expect(lock.packages[''].version).toBe('2.3.4');
+    }
   });
 
   /**

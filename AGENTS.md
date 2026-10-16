@@ -1,6 +1,6 @@
 # AGENTS.md — Dialog Survey Project Knowledge Base
 
-> Updated: 2026-10-03 (v1.11.3). Sprint #153 (Conventional Commits + auto CHANGELOG + release automation). 58 source TS files, 125 test files. Tests need no PostgreSQL (PGlite).
+> Updated: 2026-10-15 (v1.11.4). Sprint #153 (Conventional Commits + auto CHANGELOG + release automation). 82 source TS files (src/), 139 test files. Tests need no PostgreSQL (PGlite).
 
 ## Overview
 
@@ -18,7 +18,7 @@ AI-powered survey dialog bot — async multi-turn conversations via DingTalk wit
 | Nunjucks views | `src/views/` | Admin UI via HTMX fragments + Alpine.js |
 | Utilities | `src/utils/` | Logger, security, retry, markdown, PII |
 | Prisma client | `src/generated/prisma` (generated, gitignored) | Facade `src/utils/prisma-client.ts` + factory `src/utils/prisma-factory.ts`; run `npx prisma generate` after checkout |
-| Tests | `tests/` | 125 files, flat structure, Vitest 4.x; needs no PostgreSQL |
+| Tests | `tests/` | 139 files, flat structure, Vitest 4.x; needs no PostgreSQL |
 
 ## Code Map (Top-Level Symbols)
 
@@ -68,7 +68,7 @@ AI-powered survey dialog bot — async multi-turn conversations via DingTalk wit
 ```bash
 npx prisma generate   # generate src/generated/prisma (run after checkout; CI runs it in each consuming job)
 npm run dev           # tsx --watch, port 3001
-npm run build         # tsc → dist/
+npm run build         # tsc -p tsconfig.build.json → dist/ (src only; tsconfig.json still type-checks tests)
 npm run test          # vitest (watch); CI uses npx vitest run
 npm run test:coverage # coverage (80/80/70/80 threshold)
 npm run test:mutation # full Stryker mutation run (slow, local)
