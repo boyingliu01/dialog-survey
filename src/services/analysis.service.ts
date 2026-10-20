@@ -2,10 +2,12 @@ import { error, info } from '../utils/logger.js';
 import { anonymizePII } from '../utils/pii-anonymizer.js';
 import type { BatchAnalysisReport } from '../utils/prisma-client.js';
 import type { PrismaClient } from '../utils/prisma-client.js';
+import { buildQuestionMap as buildQuestionMapShared } from '../utils/template-content.js';
 import { recordAnalysisFailure } from './dead-letter.service.js';
 import {
   type Report,
   type ReportWithDimensions,
+  createEmptyDimensionReport,
   generateReport,
   generateReportWithDimensions,
 } from './report.service.js';
@@ -72,16 +74,7 @@ export class AnalysisService {
 
     const metrics = this.calculateMetrics(interview.responses);
 
-    let dimResult: ReportWithDimensions = {
-      interviewId,
-      content: '',
-      keyFindings: [],
-      sentiment: '',
-      recommendations: [],
-      generatedAt: new Date(),
-      dimensionTags: [],
-      emergentTags: [],
-    };
+    let dimResult: ReportWithDimensions = createEmptyDimensionReport(interviewId);
 
     try {
       const template = await this._prisma.template.findUnique({
@@ -235,18 +228,7 @@ export class AnalysisService {
   }
 
   private buildQuestionMap(contentJson: string | null | undefined): Record<string, string> {
-    if (!contentJson) return {};
-    try {
-      const parsed = JSON.parse(contentJson) as { questions?: string[] };
-      const questions = parsed.questions || [];
-      const map: Record<string, string> = {};
-      for (let i = 0; i < questions.length; i++) {
-        map[`q${i}`] = questions[i];
-      }
-      return map;
-    } catch {
-      return {};
-    }
+    return buildQuestionMapShared(contentJson);
   }
 
   async compareClusters(clusterIds: string[]): Promise<ClusterAnalysis[]> {

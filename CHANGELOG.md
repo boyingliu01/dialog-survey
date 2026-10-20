@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## [1.11.5](https://github.com/boyingliu01/dialog-survey/compare/v1.11.4...v1.11.5) (2026-10-20)
+
+### Changed
+
+- build(quality): Gate 3 (complexity) was silently inert. `xp-gate` routes `lizard`'s CSV through `scripts/ccn-report.cjs` once `.ccn-baseline.json` exists, but neither file was in the repo, so the gate fell back to a flat threshold applied to *changed files only* — reporting `complexityWarnings:0` while grading nothing. Add both halves of that contract: `scripts/ccn-report.cjs` (brace-balanced CCN that corrects lizard's TypeScript span inflation, `--csv-verified`, `--write-baseline`) and `.ccn-baseline.json` (218 production functions) so existing complexity is protected by a ratchet rather than a frozen flat failure. `npm run complexity` reports, `npm run duplicates` runs jscpd at its intended 1% ceiling.
+- refactor: duplication 1.38% → 0.38% via three helpers that were copied verbatim between layers — `summarizeStatusGroups` (4 copies), `buildQuestionMap` (3 copies), and a shared export select/findLatestReport for the PDF and Excel paths. Net −62% duplicated lines with no behaviour change.
+- refactor: lower the hottest functions (brace-verified CCN): `OpenAICompatibleLLM.chat` 23 → 6 (posting separated from response mapping), the `plans.ts` CSV import handler 22 → 8 (row classification and upload validation lifted out of the route), `generateSmartResponse` 16 → 11 (two near-identical post-processing blocks collapsed into `resultFromParsed`). Smaller cleanups share `assertVersionMatches`, `finishWithReply`, a table-driven `isAdministrativePlanMutation`, and depth-based resolution in `app-version`.
+- refactor: **no production function now exceeds CCN 8** (the highest is 8; 30 exceed 5). `routeAction` 9 → 6 via action sets and an extracted `enforceFollowupLimit`; `generateSmartResponse` 11 → 6 by extracting the prompt-variable and conversation-history builders plus `renderCustomPrompt`; the `interview-plan-members` inline phone callback 9 → 6 via `inviteesOf`/`findByPhone` (which also removes three copies of the same `Array.isArray` coercion); `interviewPlanRoutes` 15 → 4 by registering the pause/resume/cancel lifecycle endpoints through one `registerLifecyclePost`.
+- fix(ccn-report): two measurement defects made the complexity report overstate a function's cost. `findBodyBrace` stopped at the first `{` after `function`, which is inside a `Promise<{ rows: CsvRow[] }>` return annotation — the real body then started mid-annotation and was never masked, so nested named helpers (`verifyRow`, `readImportRows`, `rejectUnimportablePlan`) had their branches charged to their enclosing function. Separately, stripping comments collapsed newlines and shifted every reported line number upward (a function on line 91 was reported on line 73); `stripNoise` now returns an offset table and locations resolve through it.
+
+### Bug Fixes
+
+- fix(core): `interviewingNode` advances `currentQuestion` by one when a NEXT on the final question completes the interview. Preserving this while factoring the two completion paths apart into a single `completeAt(nextIndex)` is exactly what `tests/core-nodes-branches.test.ts` caught during the refactor.
+
+- build: `biome.json` now ignores `.sprint-archives/` and `.workbuddy/` (both gitignored). They accounted for 37 of the 39 errors a repo-wide `biome check .` reported, masking the one real import-order violation in `tests/openai-compatible.test.ts`.
+- test: `smart-response.test.ts` asserted the follow-up cap by grepping the implementation source for a string, so it survived any refactor. It now tests the behaviour (a FOLLOWUP at the cap degrades to NEXT and carries the forced transition text).
+
 ## [1.11.4](https://github.com/boyingliu01/dialog-survey/compare/v1.11.3...v1.11.4) (2026-10-15)
 
 ### Bug Fixes

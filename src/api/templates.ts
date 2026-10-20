@@ -55,30 +55,12 @@ export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRou
       ...(input.description != null ? { description: input.description } : {}),
       content: input.content as Record<string, unknown>,
     });
-    return {
-      id: template.id,
-      name: template.name,
-      description: template.description,
-      content: JSON.parse(template.content),
-      version: template.version,
-      status: template.status,
-      createdAt: template.createdAt,
-      updatedAt: template.updatedAt,
-    };
+    return formatTemplateResponse(template);
   });
 
   fastify.get('/api/templates', async (_request, _reply) => {
     const templates = await templateRepo.findAll();
-    return templates.map((t) => ({
-      id: t.id,
-      name: t.name,
-      description: t.description,
-      content: JSON.parse(t.content),
-      version: t.version,
-      status: t.status,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-    }));
+    return templates.map((t) => formatTemplateResponse(t));
   });
 
   fastify.get('/api/templates/:id', async (request, reply) => {
@@ -214,15 +196,11 @@ export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRou
 
   fastify.get('/api/templates/export', async (_request, _reply) => {
     const templates = await templateRepo.findAll();
-    return templates.map((t) => ({
-      name: t.name,
-      description: t.description,
-      content: JSON.parse(t.content),
-      version: t.version,
-      status: t.status,
-      createdAt: t.createdAt,
-      updatedAt: t.updatedAt,
-    }));
+    return templates.map((t) => {
+      // Export omits the surrogate id so exports stay portable across databases.
+      const { id: _id, ...rest } = formatTemplateResponse(t);
+      return rest;
+    });
   });
 
   fastify.get('/api/templates/export/:id', async (request, reply) => {

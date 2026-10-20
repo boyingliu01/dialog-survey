@@ -23,43 +23,86 @@ interface HealthResponse {
 
 let llmCacheTime: number | null = null;
 
-async function checkLLM(): Promise<{
-  status: 'ok' | 'error' | 'degraded';
-  latencyMs?: number;
-  error?: string;
-  endpoint?: string;
-  detail?: string;
-}> {
+type LlmCheckResult = HealthResponse['checks']['llm'];
+
+const DEFAULT_LLM_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions';
+
+interface LlmConfig {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}
+
+/** Read LLM settings from the environment, or explain why they are unusable. */
+function resolveLlmConfig(): LlmConfig | LlmCheckResult {
+  const apiKey = process.env['LLM_API_KEY'] || process.env['VOLCENGINE_API_KEY'];
+  if (!apiKey) {
+    return { status: 'degraded', error: 'API key not configured' };
+  }
+
+  const rawBaseUrl =
+    process.env['LLM_BASE_URL'] || process.env['VOLCENGINE_BASE_URL'] || DEFAULT_LLM_ENDPOINT;
+  const baseUrl = normalizeLlmBaseUrl(rawBaseUrl);
+  const model = process.env['LLM_MODEL'] || process.env['VOLCENGINE_MODEL'];
+  if (!model) {
+    return { status: 'degraded', error: 'LLM model not configured', endpoint: baseUrl };
+  }
+
+  return { apiKey, baseUrl, model };
+}
+
+function isLlmConfig(value: LlmConfig | LlmCheckResult): value is LlmConfig {
+  return 'apiKey' in value;
+}
+
+/**
+ * Turn a non-2xx response into a degraded result, appending a short body snippet
+ * so operators can tell a misconfigured URL from an auth/quota failure (issue
+ * #189).
+ */
+async function degradeFromResponse(
+  response: Response,
+  latencyMs: number,
+  baseUrl: string
+): Promise<LlmCheckResult> {
+  let detail: string | undefined;
+  try {
+    const snippet = await response.text();
+    if (snippet) detail = snippet.slice(0, 200);
+  } catch {
+    // ignore — detail is best-effort
+  }
+
+  const result: LlmCheckResult = {
+    status: 'degraded',
+    latencyMs,
+    error: `HTTP ${response.status}`,
+    endpoint: baseUrl,
+  };
+  if (detail) result.detail = detail;
+  return result;
+}
+
+async function checkLLM(): Promise<LlmCheckResult> {
   if (llmCacheTime && Date.now() - llmCacheTime < 60000) {
     return { status: 'ok' };
   }
 
+  const config = resolveLlmConfig();
+  if (!isLlmConfig(config)) {
+    return config;
+  }
+
   try {
-    const apiKey = process.env['LLM_API_KEY'] || process.env['VOLCENGINE_API_KEY'];
-    if (!apiKey) {
-      return { status: 'degraded', error: 'API key not configured' };
-    }
-
-    const rawBaseUrl =
-      process.env['LLM_BASE_URL'] ||
-      process.env['VOLCENGINE_BASE_URL'] ||
-      'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions';
-    const baseUrl = normalizeLlmBaseUrl(rawBaseUrl);
-    const model = process.env['LLM_MODEL'] || process.env['VOLCENGINE_MODEL'];
-
-    if (!model) {
-      return { status: 'degraded', error: 'LLM model not configured', endpoint: baseUrl };
-    }
-
     const start = Date.now();
-    const response = await fetch(baseUrl, {
+    const response = await fetch(config.baseUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${config.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model,
+        model: config.model,
         messages: [{ role: 'user', content: 'health check' }],
         max_tokens: 10,
       }),
@@ -70,32 +113,9 @@ async function checkLLM(): Promise<{
 
     if (response.ok) {
       llmCacheTime = Date.now();
-      return { status: 'ok', latencyMs, endpoint: baseUrl };
+      return { status: 'ok', latencyMs, endpoint: config.baseUrl };
     }
-    // Surface the target URL and a short response-body snippet so operators can
-    // tell a misconfigured URL (e.g. a gateway base instead of the full
-    // endpoint) from an auth/quota failure at a glance (issue #189).
-    let detail: string | undefined;
-    try {
-      const snippet = await response.text();
-      if (snippet) detail = snippet.slice(0, 200);
-    } catch {
-      // ignore — detail is best-effort
-    }
-    const result: {
-      status: 'degraded';
-      latencyMs: number;
-      error: string;
-      endpoint: string;
-      detail?: string;
-    } = {
-      status: 'degraded',
-      latencyMs,
-      error: `HTTP ${response.status}`,
-      endpoint: baseUrl,
-    };
-    if (detail) result.detail = detail;
-    return result;
+    return degradeFromResponse(response, latencyMs, config.baseUrl);
   } catch (e) {
     const errMsg = e instanceof Error ? e.message : 'Unknown error';
     if (errMsg.includes('timeout') || errMsg.includes('abort')) {

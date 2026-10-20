@@ -97,6 +97,118 @@ export function parseLLMResponse(rawContent: string): StructuredResponse | null 
   }
 }
 
+/** The neutral "move on" result used whenever the LLM answer is unusable. */
+function nextResult(response: string): SmartResponseResult {
+  return {
+    response,
+    action: 'NEXT',
+    shouldProceedToNext: true,
+    shouldEndInterview: false,
+  };
+}
+
+/**
+ * Convert a parsed LLM answer into a result, honouring the follow-up cap: a
+ * FOLLOWUP past `maxFollowups` degrades to NEXT and is replaced by the forced
+ * transition text.
+ */
+export function resultFromParsed(
+  parsed: StructuredResponse,
+  followupCount: number,
+  maxFollowups: number,
+  nextQuestion: string | undefined
+): SmartResponseResult {
+  const capped = parsed.action === 'FOLLOWUP' && followupCount >= maxFollowups;
+  const response = capped ? buildForcedNextTransition(nextQuestion) : parsed.response;
+  const action = capped ? 'NEXT' : parsed.action;
+  return {
+    response,
+    action,
+    shouldProceedToNext: action === 'NEXT',
+    shouldEndInterview: action === 'END',
+  };
+}
+
+/** Template variables shared by the custom and default prompt paths. */
+interface PromptVars {
+  conversationHistory: string;
+  currentQuestion: string;
+  questionProgress: string;
+  followupCount: string;
+  maxFollowups: string;
+  userAnswer: string;
+  userName: string;
+  lastQuestionFlag: string;
+  nextQuestionFlag: string;
+}
+
+/** Last 6 turns rendered for the prompt, oldest first. */
+function renderHistory(state: InterviewState): string {
+  return state.messages
+    .slice(-6)
+    .map((m) => `${m.role === 'user' ? '用户' : '主持人'}: ${m.content}`)
+    .join('\n');
+}
+
+function lastQuestionFlag(isLastQuestion: boolean | undefined): string {
+  if (!isLastQuestion) return '';
+  return '\n【注意】：这是最后一个问题。请回顾用户的分享，写一段温暖的告别语，总结他提到的核心观点和感受。不要提出新的问题。\n';
+}
+
+function nextQuestionFlag(
+  isLastQuestion: boolean | undefined,
+  nextQuestion: string | undefined
+): string {
+  if (isLastQuestion || !nextQuestion) return '';
+  return `\n【下一问题】：${nextQuestion}\n（如果你决定NEXT，你的回复中必须直接说出下一问题的具体内容，不能说"我们继续下一题"这种空话）\n`;
+}
+
+function buildPromptVars(
+  state: InterviewState,
+  userAnswer: string,
+  currentQuestion: string,
+  nextQuestion: string | undefined,
+  isLastQuestion: boolean | undefined,
+  totalQuestions: number | undefined
+): PromptVars {
+  const progress = totalQuestions ? `${state.currentQuestion + 1}/${totalQuestions}` : '?';
+  return {
+    conversationHistory: renderHistory(state),
+    currentQuestion,
+    questionProgress: `第 ${progress} 个问题`,
+    followupCount: String(state.followupCount),
+    maxFollowups: String(state.maxFollowups),
+    userAnswer,
+    userName: state.userName || '受访者',
+    lastQuestionFlag: lastQuestionFlag(isLastQuestion),
+    nextQuestionFlag: nextQuestionFlag(isLastQuestion, nextQuestion),
+  };
+}
+
+/** Escape `{{ }}` so user text cannot inject template placeholders. */
+function escapePlaceholders(s: string): string {
+  return s.replace(/\{\{/g, '\\{\\{').replace(/\}\}/g, '\\}\\}');
+}
+
+function renderCustomPrompt(template: string, vars: PromptVars): string {
+  const replacements: Record<string, string> = {
+    conversationHistory: escapePlaceholders(vars.conversationHistory),
+    currentQuestion: escapePlaceholders(vars.currentQuestion),
+    followupCount: vars.followupCount,
+    maxFollowups: vars.maxFollowups,
+    userAnswer: escapePlaceholders(vars.userAnswer),
+    userName: escapePlaceholders(vars.userName),
+    questionProgress: vars.questionProgress,
+    lastQuestionFlag: vars.lastQuestionFlag,
+    nextQuestionFlag: vars.nextQuestionFlag,
+  };
+  let prompt = template;
+  for (const [key, value] of Object.entries(replacements)) {
+    prompt = prompt.replaceAll(`{{${key}}}`, value);
+  }
+  return prompt;
+}
+
 export async function generateSmartResponse(
   state: InterviewState,
   userAnswer: string,
@@ -107,38 +219,17 @@ export async function generateSmartResponse(
   totalQuestions?: number
 ): Promise<SmartResponseResult> {
   const llm = OpenAICompatibleLLM.fromEnv();
-
-  const conversationHistory = state.messages
-    .slice(-6)
-    .map((m) => `${m.role === 'user' ? '用户' : '主持人'}: ${m.content}`)
-    .join('\n');
-
-  const userName = state.userName || '受访者';
-  const questionProgress = totalQuestions
-    ? `第 ${state.currentQuestion + 1}/${totalQuestions} 个问题`
-    : '第 ? 个问题';
-  const lastQuestionFlag = isLastQuestion
-    ? '\n【注意】：这是最后一个问题。请回顾用户的分享，写一段温暖的告别语，总结他提到的核心观点和感受。不要提出新的问题。\n'
-    : '';
-
-  const nextQuestionFlag =
-    !isLastQuestion && nextQuestion
-      ? `\n【下一问题】：${nextQuestion}\n（如果你决定NEXT，你的回复中必须直接说出下一问题的具体内容，不能说"我们继续下一题"这种空话）\n`
-      : '';
+  const vars = buildPromptVars(
+    state,
+    userAnswer,
+    currentQuestion,
+    nextQuestion,
+    isLastQuestion,
+    totalQuestions
+  );
 
   if (customPrompt) {
-    const escaped = (s: string) => s.replace(/\{\{/g, '\\{\\{').replace(/\}\}/g, '\\}\\}');
-    const prompt = customPrompt
-      .replace(/\{\{conversationHistory\}\}/g, escaped(conversationHistory))
-      .replace(/\{\{currentQuestion\}\}/g, escaped(currentQuestion))
-      .replace(/\{\{followupCount\}\}/g, String(state.followupCount))
-      .replace(/\{\{maxFollowups\}\}/g, String(state.maxFollowups))
-      .replace(/\{\{userAnswer\}\}/g, escaped(userAnswer))
-      .replace(/\{\{userName\}\}/g, escaped(userName))
-      .replace(/\{\{questionProgress\}\}/g, questionProgress)
-      .replace(/\{\{lastQuestionFlag\}\}/g, lastQuestionFlag)
-      .replace(/\{\{nextQuestionFlag\}\}/g, nextQuestionFlag);
-
+    const prompt = renderCustomPrompt(customPrompt, vars);
     try {
       const response = await withRetry(() =>
         llm.chat({ messages: [{ role: 'user', content: prompt }] })
@@ -146,46 +237,17 @@ export async function generateSmartResponse(
       const parsed = parseLLMResponse(response.content);
       if (!parsed) {
         warn('Failed to parse custom prompt result as JSON, using raw text');
-        return {
-          response: response.content,
-          action: 'NEXT',
-          shouldProceedToNext: true,
-          shouldEndInterview: false,
-        };
+        return nextResult(response.content);
       }
-      if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups) {
-        parsed.action = 'NEXT';
-        parsed.response = buildForcedNextTransition(nextQuestion);
-      }
-      return {
-        response: parsed.response,
-        action: parsed.action,
-        shouldProceedToNext: parsed.action === 'NEXT',
-        shouldEndInterview: parsed.action === 'END',
-      };
+      return resultFromParsed(parsed, state.followupCount, state.maxFollowups, nextQuestion);
     } catch {
       warn('Custom prompt LLM call failed');
-      return {
-        response: FALLBACK_RESPONSE,
-        action: 'NEXT',
-        shouldProceedToNext: true,
-        shouldEndInterview: false,
-      };
+      return nextResult(FALLBACK_RESPONSE);
     }
   }
 
   // Default system prompt
-  const prompt = promptService.render('generateSmartResponse', {
-    conversationHistory,
-    currentQuestion,
-    questionProgress,
-    followupCount: String(state.followupCount),
-    maxFollowups: String(state.maxFollowups),
-    userAnswer,
-    userName,
-    lastQuestionFlag,
-    nextQuestionFlag,
-  });
+  const prompt = promptService.render('generateSmartResponse', { ...vars });
 
   try {
     const response = await withRetry(() =>
@@ -194,36 +256,15 @@ export async function generateSmartResponse(
     const parsed = parseLLMResponse(response.content);
     if (!parsed) {
       info('Failed to parse LLM response, using fallback');
-      return {
-        response: FALLBACK_RESPONSE,
-        action: 'NEXT',
-        shouldProceedToNext: true,
-        shouldEndInterview: false,
-      };
+      return nextResult(FALLBACK_RESPONSE);
     }
     if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups) {
       info('Followup limit exceeded, forcing NEXT');
-      return {
-        response: buildForcedNextTransition(nextQuestion),
-        action: 'NEXT',
-        shouldProceedToNext: true,
-        shouldEndInterview: false,
-      };
     }
-    return {
-      response: parsed.response,
-      action: parsed.action,
-      shouldProceedToNext: parsed.action === 'NEXT',
-      shouldEndInterview: parsed.action === 'END',
-    };
+    return resultFromParsed(parsed, state.followupCount, state.maxFollowups, nextQuestion);
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';
     info('Smart response generation failed', { error: errMsg });
-    return {
-      response: FALLBACK_RESPONSE,
-      action: 'NEXT',
-      shouldProceedToNext: true,
-      shouldEndInterview: false,
-    };
+    return nextResult(FALLBACK_RESPONSE);
   }
 }

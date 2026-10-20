@@ -317,11 +317,7 @@ export class StreamMessageService {
       return { success: false, error: errorMsg };
     }
 
-    if (parsed.sessionWebhook) {
-      await this.sendReply(parsed.sessionWebhook, graphResult.response);
-    }
-
-    return { success: true, response: graphResult.response };
+    return this.finishWithReply(parsed.sessionWebhook, graphResult.response);
   }
 
   private async processStreamMessageWithState(
@@ -360,11 +356,22 @@ export class StreamMessageService {
       return { success: false, error: errorMsg };
     }
 
-    if (parsed.sessionWebhook) {
-      await this.sendReply(parsed.sessionWebhook, graphResult.response);
-    }
+    return this.finishWithReply(parsed.sessionWebhook, graphResult.response);
+  }
 
-    return { success: true, response: graphResult.response };
+  /**
+   * Deliver the graph's reply (when the message carried a session webhook) and
+   * report success. Shared by the first attempt and the version-conflict retry
+   * path so both return the same shape.
+   */
+  private async finishWithReply(
+    sessionWebhook: string | undefined,
+    response: string
+  ): Promise<{ success: boolean; response?: string; error?: string }> {
+    if (sessionWebhook) {
+      await this.sendReply(sessionWebhook, response);
+    }
+    return { success: true, response };
   }
 
   private checkTimeoutNudge(
