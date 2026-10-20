@@ -78,6 +78,8 @@ npm run lint          # biome lint src/
 npm run type-check    # tsc --noEmit
 npm run check         # biome check (lint + imports)
 npm run check:fix     # biome check + auto-fix
+npm run duplicates    # jscpd duplication check on src (threshold 1%, tools/jscpd.conf.json)
+npm run complexity    # per-function CCN > 10 report (advisory; the ratchet lives in .ccn-baseline.json)
 ```
 
 ## Notes
