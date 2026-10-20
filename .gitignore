@@ -77,10 +77,14 @@ htmlcov/
 # MyPy
 .mypy_cache/
 
-# Reports (generated)
-reports/*.md
-reports/*.xlsx
+# Reports (generated at runtime by ExportService / mutation runs)
+# Ignore the whole directory and whitelist only what is genuinely source:
+# the CJK font is a runtime asset read by export.service.ts, .gitkeep keeps
+# the dir in the tree. Listing per-extension rules here is what previously let
+# mutation.html, PDFs and workbooks slip into git.
+reports/*
 !reports/.gitkeep
+!reports/NotoSansCJKsc-Regular.otf
 
 # Local database
 interview_bot.db

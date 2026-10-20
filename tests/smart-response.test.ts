@@ -2,6 +2,22 @@ import { describe, expect, it, vi } from 'vitest';
 import type { InterviewState } from '../src/core/types/index.js';
 import { promptService } from '../src/services/prompt.service.js';
 
+// Stubbed at module scope on purpose. `generateSmartResponse` calls
+// OpenAICompatibleLLM.fromEnv(), which throws when no API key is configured, so
+// a live call is impossible here; the contract under test is the result shape.
+// Placing this inside `it()` produced the same effect but with a deprecation
+// warning, because Vitest hoists it to module scope regardless.
+vi.mock('../src/integrations/llm/openai-compatible.js', () => ({
+  OpenAICompatibleLLM: {
+    fromEnv: () => ({
+      chat: vi.fn().mockResolvedValue({
+        content: '{"thinking":"用户认真回答","strategy":1,"action":"NEXT","response":"感谢分享！"}',
+      }),
+    }),
+  },
+  DEFAULT_MODEL: 'deepseek-v3.2',
+}));
+
 describe('Smart Response System', () => {
   describe('parseLLMResponse', () => {
     /**
@@ -167,6 +183,12 @@ describe('Smart Response System', () => {
     /**
      * @test REQ-005-5-02
      * @intent 验证generateSmartResponse返回正确的结构，确保智能响应系统输出包含所有必需字段
+     *
+     * The contract asserted here is the shape of the result, not the LLM's
+     * answer. `fromEnv()` throws without credentials, so the client is stubbed
+     * at module scope (inside `it()` a `vi.mock` is still hoisted, which made
+     * it rewrite the LLM for every other test in this file — Vitest has
+     * deprecated that placement).
      */
     it('should return SmartResponseResult with correct structure', async () => {
       const module = await import('../src/services/followup.service.js');
@@ -188,18 +210,6 @@ describe('Smart Response System', () => {
         pendingMessages: [],
         pendingResponses: [],
       };
-
-      vi.mock('../src/integrations/llm/openai-compatible.js', () => ({
-        OpenAICompatibleLLM: {
-          fromEnv: () => ({
-            chat: vi.fn().mockResolvedValue({
-              content:
-                '{"thinking":"用户认真回答","strategy":1,"action":"NEXT","response":"感谢分享！"}',
-            }),
-          }),
-        },
-        DEFAULT_MODEL: 'deepseek-v3.2',
-      }));
 
       const result = await module.generateSmartResponse(
         mockState as unknown as InterviewState,

@@ -1,6 +1,6 @@
 # AGENTS.md — Dialog Survey Project Knowledge Base
 
-> Updated: 2026-10-15 (v1.11.6). Sprint #153 (Conventional Commits + auto CHANGELOG + release automation). 82 source TS files (src/), 139 test files. Tests need no PostgreSQL (PGlite).
+> Updated: 2026-10-20 (v1.11.7). Sprint #153 (Conventional Commits + auto CHANGELOG + release automation). 66 source TS files (src/, excluding generated), 142 test files. Tests need no PostgreSQL (PGlite).
 
 ## Overview
 
@@ -12,13 +12,13 @@ AI-powered survey dialog bot — async multi-turn conversations via DingTalk wit
 |------|----------|-------|
 | API routes | `src/api/` | Fastify route handlers, no controllers |
 | State machine | `src/core/` | Custom imperative graph (NOT LangGraph SDK) |
-| Business logic | `src/services/` | 18 services, orchestration + analytics + export |
+| Business logic | `src/services/` | 16 services, orchestration + analytics + export |
 | Data access | `src/repositories/` | Prisma ORM, optimistic locking in state repo |
 | DingTalk + LLM | `src/integrations/` | DingTalk REST/Stream, OpenAI-compatible LLM |
 | Nunjucks views | `src/views/` | Admin UI via HTMX fragments + Alpine.js |
 | Utilities | `src/utils/` | Logger, security, retry, markdown, PII |
 | Prisma client | `src/generated/prisma` (generated, gitignored) | Facade `src/utils/prisma-client.ts` + factory `src/utils/prisma-factory.ts`; run `npx prisma generate` after checkout |
-| Tests | `tests/` | 139 files, flat structure, Vitest 4.x; needs no PostgreSQL |
+| Tests | `tests/` | 142 files, flat structure, Vitest 4.x; needs no PostgreSQL |
 
 ## Code Map (Top-Level Symbols)
 

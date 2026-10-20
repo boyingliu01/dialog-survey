@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as XLSX from 'xlsx';
-import { ExportService } from '../src/services/export.service.js';
+import { ExportService, resetCjkFontWarningForTests } from '../src/services/export.service.js';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 vi.mock('../src/utils/logger.js', () => ({
@@ -85,6 +85,59 @@ describe('ExportService', () => {
       const pdfBytes = readFileSync(pdfPath);
       expect(pdfBytes.length).toBeGreaterThan(100);
       expect(pdfBytes.toString().startsWith('%PDF')).toBe(true);
+    });
+
+    /**
+     * A missing CJK font used to degrade silently, which is how Docker images
+     * shipped rendering Chinese as boxes. The warning is the only signal an
+     * operator gets, so assert it fires and names the file.
+     */
+    it('warns when the CJK font is absent from the reports dir', async () => {
+      const { warn } = await import('../src/utils/logger.js');
+      resetCjkFontWarningForTests();
+      mockPrisma.interview.findUnique.mockResolvedValue({
+        id: 'iv-1',
+        userId: 'user-001',
+        status: 'COMPLETED',
+        templateId: 'tpl-1',
+        planId: 'plan-1',
+        messages: [],
+        responses: [],
+      });
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({ inviteeData: [] });
+      mockPrisma.analysisReport.findFirst.mockResolvedValue(null);
+
+      await service.exportInterviewToPdf('iv-1');
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('CJK font missing'),
+        expect.objectContaining({ fontPath: join(tmpDir, 'NotoSansCJKsc-Regular.otf') })
+      );
+    });
+
+    it('warns about the missing font only once per process', async () => {
+      const { warn } = await import('../src/utils/logger.js');
+      resetCjkFontWarningForTests();
+      mockPrisma.interview.findUnique.mockResolvedValue({
+        id: 'iv-1',
+        userId: 'user-001',
+        status: 'COMPLETED',
+        templateId: 'tpl-1',
+        planId: 'plan-1',
+        messages: [],
+        responses: [],
+      });
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({ inviteeData: [] });
+      mockPrisma.analysisReport.findFirst.mockResolvedValue(null);
+      vi.mocked(warn).mockClear();
+
+      await service.exportInterviewToPdf('iv-1');
+      await service.exportInterviewToPdf('iv-1');
+
+      const fontWarnings = vi
+        .mocked(warn)
+        .mock.calls.filter(([msg]) => String(msg).includes('CJK font missing'));
+      expect(fontWarnings).toHaveLength(1);
     });
 
     it('should throw when interview not found', async () => {

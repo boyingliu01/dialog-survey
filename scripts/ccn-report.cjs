@@ -394,6 +394,13 @@ function matchFunctionStart(clean, i, end) {
   if (!/[A-Za-z_$]/.test(clean[i]) || /[\w$]/.test(before)) return null;
   let j = i;
   while (j < end && /[\w$]/.test(clean[j])) j++;
+  // Control-flow keywords also match `name(...) {`, so without this guard
+  // `for (const x of xs) { ... }` and `catch (e) { ... }` were mistaken for
+  // nested functions and their bodies blanked before counting — every `if`,
+  // `&&` and nested `catch` inside a loop silently vanished from the CCN.
+  // (Regression found by the loop-nested probes; the gate under-reported.)
+  const keyword = clean.slice(i, j);
+  if (RESERVED_WORDS.has(keyword)) return null;
   while (clean[j] === ' ' || clean[j] === '\n') j++;
   if (clean[j] !== '(') return null;
   const closeParen = matchParen(clean, j);

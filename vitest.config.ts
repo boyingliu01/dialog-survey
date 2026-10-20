@@ -12,7 +12,11 @@ export default defineConfig({
     globalSetup: ['tests/global-setup.ts'],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html'],
+      // `json-summary` is not cosmetic: xp-gate's Gate 5 reads
+      // coverage/coverage-summary.json to get the numbers. Without it the gate
+      // reports "DEGRADED (coverage: N/A%)" and its thresholds are never
+      // actually enforced locally. Do not drop it.
+      reporter: ['text', 'json', 'json-summary', 'html'],
       // Issue #150: these thresholds are what makes the CI "Coverage Check
       // (80/80/70/80)" job blocking. They were silently dropped twice — once in
       // a rebase-conflict resolution (PR #161) and never restored in the #149

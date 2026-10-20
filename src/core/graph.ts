@@ -11,8 +11,25 @@ export interface GraphResult {
   nextState: InterviewState;
 }
 
+/** States in which user input is processed. Anything else is a no-op turn. */
+const PROCESSABLE_STATUSES = new Set(['ACTIVE', 'WAITING', 'PROCESSING']);
+
 function mergeState(state: InterviewState, update: Partial<InterviewState>): InterviewState {
   return { ...state, ...update };
+}
+
+/** Kick off report generation without blocking the reply. */
+function scheduleAnalysis(interviewId: string | undefined, prisma?: PrismaClient): void {
+  if (!interviewId) return;
+  setImmediate(() => {
+    const analysisService = new AnalysisService(prisma || getDb());
+    analysisService.analyzeInterview(interviewId).catch((e) => {
+      error('Async analysis failed', {
+        interviewId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    });
+  });
 }
 
 export async function runInterviewGraph(
@@ -30,11 +47,7 @@ export async function runInterviewGraph(
   }
 
   // Guard: skip non-active states
-  if (
-    initialState.status !== 'ACTIVE' &&
-    initialState.status !== 'WAITING' &&
-    initialState.status !== 'PROCESSING'
-  ) {
+  if (!PROCESSABLE_STATUSES.has(initialState.status)) {
     return {
       response: DEFAULT_CLOSING_MESSAGE,
       nextState: initialState,
@@ -42,45 +55,32 @@ export async function runInterviewGraph(
   }
 
   // Phase 2: Process user input
-  if (input.content?.trim()) {
-    const result = await interviewingNode(initialState, {
-      content: input.content,
-      ...(prisma != null ? { prisma } : {}),
-    });
-
-    const nextState = mergeState(initialState, result);
-
-    info('[DIAG] interviewingNode result', {
-      status: nextState.status,
-      shouldContinue: result.shouldContinue,
-      currentQ: nextState.currentQuestion,
-      responsePreview: (result.response || '').substring(0, 50),
-    });
-
-    // If interview completed, trigger async analysis (fire-and-forget)
-    if (result.shouldContinue === false && initialState.interviewId) {
-      setImmediate(() => {
-        const interviewId = initialState.interviewId;
-        if (!interviewId) return;
-        const analysisService = new AnalysisService(prisma || getDb());
-        analysisService.analyzeInterview(interviewId).catch((e) => {
-          error('Async analysis failed', {
-            interviewId: initialState.interviewId,
-            error: e instanceof Error ? e.message : String(e),
-          });
-        });
-      });
-    }
-
-    return {
-      response: result.response || DEFAULT_CLOSING_MESSAGE,
-      nextState,
-    };
+  if (!input.content?.trim()) {
+    // Empty message guard
+    return { response: '请发送消息开始访谈。', nextState: initialState };
   }
 
-  // Empty message guard
+  const result = await interviewingNode(initialState, {
+    content: input.content,
+    ...(prisma != null ? { prisma } : {}),
+  });
+
+  const nextState = mergeState(initialState, result);
+
+  info('[DIAG] interviewingNode result', {
+    status: nextState.status,
+    shouldContinue: result.shouldContinue,
+    currentQ: nextState.currentQuestion,
+    responsePreview: (result.response || '').substring(0, 50),
+  });
+
+  // If interview completed, trigger async analysis (fire-and-forget)
+  if (result.shouldContinue === false) {
+    scheduleAnalysis(initialState.interviewId, prisma);
+  }
+
   return {
-    response: '请发送消息开始访谈。',
-    nextState: initialState,
+    response: result.response || DEFAULT_CLOSING_MESSAGE,
+    nextState,
   };
 }

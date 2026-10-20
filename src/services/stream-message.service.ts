@@ -6,6 +6,7 @@ import { TemplateRepository } from '../repositories/template.repository.js';
 import { error, info } from '../utils/logger.js';
 import type { PrismaClient } from '../utils/prisma-client.js';
 import {
+  type StreamMessage,
   isAllowedWebhookUrl,
   parseStreamMessage,
   sendReply as sendReplyUnsafe,
@@ -431,7 +432,7 @@ export class StreamMessageService {
 export { parseStreamMessage, sendReply, isAllowedWebhookUrl } from './stream-message-utils.js';
 
 export async function processStreamMessage(
-  message: import('./stream-message-utils.js').StreamMessage,
+  message: StreamMessage,
   prisma: PrismaClient
 ): Promise<{ success: boolean; response?: string; error?: string }> {
   const repo = new InterviewStateRepository(prisma);

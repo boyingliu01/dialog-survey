@@ -6,6 +6,24 @@ import { info, warn } from '../utils/logger.js';
 import type { PrismaClient } from '../utils/prisma-client.js';
 import { buildQuestionMap as buildQuestionMapShared } from '../utils/template-content.js';
 
+/**
+ * Report a missing CJK font once per process. PDF export degrades to a font
+ * name the runtime may not have, and doing so on every export would either
+ * flood the logs or (as before) stay invisible. One line is enough to tell an
+ * operator the image is missing reports/NotoSansCJKsc-Regular.otf.
+ */
+let cjkFontWarned = false;
+function warnMissingCjkFont(fontPath: string): void {
+  if (cjkFontWarned) return;
+  cjkFontWarned = true;
+  warn('CJK font missing — exported PDFs will not render Chinese correctly', { fontPath });
+}
+
+/** Test seam: allow a suite to observe the one-shot warning more than once. */
+export function resetCjkFontWarningForTests(): void {
+  cjkFontWarned = false;
+}
+
 function loadInviteeInfo(inviteeData: unknown, userId: string): { name?: string; phone?: string } {
   if (!Array.isArray(inviteeData)) return {};
   for (const entry of inviteeData) {
@@ -186,10 +204,14 @@ export class ExportService {
         const fontBase64 = readFileSync(fontPath).toString('base64');
         fontFaceCss = `@font-face{font-family:'NotoSansCJK';src:url(data:font/opentype;base64,${fontBase64})}body{font-family:'NotoSansCJK',sans-serif}`;
       } catch {
-        warn('Failed to load CJK font for PDF', { fontPath });
+        warn('Failed to read CJK font for PDF', { fontPath });
       }
     }
     if (!fontFaceCss) {
+      // The fallback below names fonts a minimal image (e.g. node:alpine) does
+      // not ship, so Chinese renders as boxes. This used to degrade silently;
+      // warn once per process so a broken image surfaces in the logs.
+      warnMissingCjkFont(fontPath);
       fontFaceCss = 'body{font-family:"Noto Sans CJK SC","Noto Sans SC","Noto Sans",sans-serif}';
     }
 
