@@ -2,6 +2,26 @@ import crypto from 'node:crypto';
 
 const API_BASE = 'https://oapi.dingtalk.com';
 
+/**
+ * Resolve the DingTalk app credentials from the environment.
+ *
+ * The installer writes `DINGTALK_CLIENT_ID` / `DINGTALK_CLIENT_SECRET`, while
+ * older deployments and the docs use `DINGTALK_APP_KEY` / `DINGTALK_APP_SECRET`.
+ * Both spellings must work wherever credentials are read: when only one of the
+ * two call sites knew about the alias, `DingTalkClient` signed every request
+ * with an empty key and `gettoken` failed with errcode 40035 while
+ * `DingTalkTokenManager` — which did fall back — succeeded in the same process.
+ */
+export function dingTalkCredentialsFromEnv(env: NodeJS.ProcessEnv = process.env): {
+  appKey: string;
+  appSecret: string;
+} {
+  return {
+    appKey: env['DINGTALK_APP_KEY'] || env['DINGTALK_CLIENT_ID'] || '',
+    appSecret: env['DINGTALK_APP_SECRET'] || env['DINGTALK_CLIENT_SECRET'] || '',
+  };
+}
+
 interface DingTalkClientOptions {
   appKey: string;
   appSecret: string;
@@ -154,10 +174,16 @@ export class DingTalkClient {
       return { found: false };
     }
 
+    // `/topapi/v2/user/getbymobile` returns only the userid. The name is needed
+    // by the phone+name verification this lookup exists to serve, so resolve it
+    // with a second call rather than returning an empty name that makes every
+    // caller's comparison silently pass (issue #199).
+    const userId = response.result.userid;
+    const userInfo = await this.getUserByUserId(userId);
     return {
       found: true,
-      userId: response.result.userid,
-      name: '',
+      userId,
+      name: userInfo.name ?? '',
     };
   }
 
@@ -197,8 +223,7 @@ export class DingTalkClient {
   static fromEnv() {
     const agentId: string | undefined = process.env['DINGTALK_AGENT_ID'];
     return new DingTalkClient({
-      appKey: process.env['DINGTALK_APP_KEY'] || '',
-      appSecret: process.env['DINGTALK_APP_SECRET'] || '',
+      ...dingTalkCredentialsFromEnv(),
       ...(agentId != null ? { agentId } : {}),
     });
   }

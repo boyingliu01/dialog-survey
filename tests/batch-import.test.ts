@@ -14,9 +14,13 @@ const MockDingTalkClient = class {
   static fromEnv() {
     return new MockDingTalkClient();
   }
+  // Mirrors the real client since issue #199: getUserIdByMobile resolves the
+  // name itself (via user/get) instead of returning ''. A mock that returns ''
+  // here no longer describes the client the import path actually talks to.
   async getUserIdByMobile(phone: string) {
-    if (phone === '13800138000') return { found: true, userId: 'batch-user-zhangsan', name: '' };
-    if (phone === '13900139000') return { found: true, userId: 'batch-user-lisi', name: '' };
+    if (phone === '13800138000')
+      return { found: true, userId: 'batch-user-zhangsan', name: '张三' };
+    if (phone === '13900139000') return { found: true, userId: 'batch-user-lisi', name: '李四' };
     return { found: false };
   }
   async getUserByUserId(userId: string) {

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## [1.11.6](https://github.com/boyingliu01/dialog-survey/compare/v1.11.5...v1.11.6) (2026-10-20)
+
+### Bug Fixes
+
+- fix(dingtalk): `DingTalkClient.fromEnv()` read only `DINGTALK_APP_KEY`/`DINGTALK_APP_SECRET`, while the installer writes `DINGTALK_CLIENT_ID`/`DINGTALK_CLIENT_SECRET` (#197). On a default install every client request was signed with an empty appkey and `gettoken` failed with errcode 40035 — while `DingTalkTokenManager`, which did fall back, succeeded in the same process, so the two call sites silently disagreed about which env names exist. Both now resolve credentials through one `dingTalkCredentialsFromEnv()`, and adding a phone member works on the installer's env without aliasing the variables by hand.
+- fix(members): phone+name verification never actually compared names (#199). `/topapi/v2/user/getbymobile` returns only a userid, so `getUserIdByMobile()` hard-coded `name: ''`, and `verifyPhoneToName()` treated an empty DingTalk name as "cannot verify → allow". Any name passed as long as the phone resolved. The lookup now resolves the real name via `user/get`, and an empty name is a refusal (`name_unverifiable`) rather than a silent pass. The CSV import path, which already called `user/get` itself, drops that now-redundant round-trip.
+- fix(members): every DingTalk-side failure surfaced as the same "服务暂时不可用" with nothing in the logs (#198). Missing credentials (errcode 40035), insufficient contact scope (60011) and transport errors are now logged with the phone masked and returned with a `failure` class, so an operator can tell a configuration problem from an outage. `InvalidMemberInputError` carries that class through to the API response.
+
+### Changed
+
+- test: the two suites that guarded the bugs above asserted the buggy behaviour — `dingtalk-client-get-by-mobile` expected `name: ''` and `member-verification` expected an empty DingTalk name to pass. Both mocked a response shape the real client never produced, which is why they stayed green while the feature was broken in production. They now assert the real v2 response shape and a refusal.
+
 ## [1.11.5](https://github.com/boyingliu01/dialog-survey/compare/v1.11.4...v1.11.5) (2026-10-20)
 
 ### Changed
