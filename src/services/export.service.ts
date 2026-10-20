@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 import * as XLSX from 'xlsx';
 import { info, warn } from '../utils/logger.js';
 import type { PrismaClient } from '../utils/prisma-client.js';
+import { buildQuestionMap as buildQuestionMapShared } from '../utils/template-content.js';
 
 function loadInviteeInfo(inviteeData: unknown, userId: string): { name?: string; phone?: string } {
   if (!Array.isArray(inviteeData)) return {};
@@ -21,6 +22,22 @@ function loadInviteeInfo(inviteeData: unknown, userId: string): { name?: string;
   return {};
 }
 
+/**
+ * Columns both exporters need. Each exporter then adds only the relation it
+ * actually renders (messages for PDF, template content for Excel) — the shared
+ * column list lives here so the two stay in sync.
+ */
+const EXPORT_INTERVIEW_SELECT = {
+  id: true,
+  userId: true,
+  status: true,
+  templateId: true,
+  responses: {
+    select: { questionId: true, content: true, isFollowup: true, followupDepth: true },
+    orderBy: { createdAt: 'asc' as const },
+  },
+};
+
 export class ExportService {
   private readonly reportsDir: string;
 
@@ -32,21 +49,22 @@ export class ExportService {
     mkdirSync(this.reportsDir, { recursive: true });
   }
 
+  private findLatestReport(interviewId: string) {
+    return this.prisma.analysisReport.findFirst({
+      where: { interviewId },
+      orderBy: { createdAt: 'desc' },
+      select: { content: true, keyFindings: true, sentiment: true, recommendations: true },
+    });
+  }
+
   async exportInterviewToPdf(interviewId: string): Promise<string> {
     const interview = await this.prisma.interview.findUnique({
       where: { id: interviewId },
       select: {
-        id: true,
-        userId: true,
-        status: true,
-        templateId: true,
+        ...EXPORT_INTERVIEW_SELECT,
         planId: true,
         messages: {
           select: { role: true, content: true },
-          orderBy: { createdAt: 'asc' },
-        },
-        responses: {
-          select: { questionId: true, content: true, isFollowup: true, followupDepth: true },
           orderBy: { createdAt: 'asc' },
         },
       },
@@ -56,11 +74,7 @@ export class ExportService {
       throw new Error('Interview not found');
     }
 
-    const report = await this.prisma.analysisReport.findFirst({
-      where: { interviewId },
-      orderBy: { createdAt: 'desc' },
-      select: { content: true, keyFindings: true, sentiment: true, recommendations: true },
-    });
+    const report = await this.findLatestReport(interviewId);
 
     let inviteeInfo: { name?: string; phone?: string } = {};
     if (interview.planId) {
@@ -98,15 +112,8 @@ export class ExportService {
     const interview = await this.prisma.interview.findUnique({
       where: { id: interviewId },
       select: {
-        id: true,
-        userId: true,
-        status: true,
-        templateId: true,
+        ...EXPORT_INTERVIEW_SELECT,
         template: { select: { content: true } },
-        responses: {
-          select: { questionId: true, content: true, isFollowup: true, followupDepth: true },
-          orderBy: { createdAt: 'asc' },
-        },
       },
     });
 
@@ -114,11 +121,7 @@ export class ExportService {
       throw new Error('Interview not found');
     }
 
-    const report = await this.prisma.analysisReport.findFirst({
-      where: { interviewId },
-      orderBy: { createdAt: 'desc' },
-      select: { content: true, keyFindings: true, sentiment: true, recommendations: true },
-    });
+    const report = await this.findLatestReport(interviewId);
 
     const wb = XLSX.utils.book_new();
 
@@ -260,18 +263,7 @@ export class ExportService {
   }
 
   private buildQuestionMap(contentJson: string | null | undefined): Record<string, string> {
-    if (!contentJson) return {};
-    try {
-      const parsed = JSON.parse(contentJson) as { questions?: string[] };
-      const questions = parsed.questions || [];
-      const map: Record<string, string> = {};
-      for (let i = 0; i < questions.length; i++) {
-        map[`q${i}`] = questions[i];
-      }
-      return map;
-    } catch {
-      return {};
-    }
+    return buildQuestionMapShared(contentJson);
   }
 
   private escapeHtml(text: string): string {

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   DEFAULT_MODEL,
-  normalizeLlmBaseUrl,
   OpenAICompatibleLLM,
+  normalizeLlmBaseUrl,
 } from '../src/integrations/llm/openai-compatible.js';
 
 describe('normalizeLlmBaseUrl (#189)', () => {

@@ -20,6 +20,22 @@ interface ActionResult {
   response: string;
 }
 
+/** Actions that re-ask the current question and burn one follow-up slot. */
+const REASK_ACTIONS = new Set(['FOLLOWUP', 'STAY']);
+
+/** Actions that end the interview regardless of position. */
+const TERMINAL_ACTIONS = new Set(['END', 'shouldEndInterview']);
+
+/**
+ * Rule 1: enforce the follow-up cap. A FOLLOWUP past the limit degrades to
+ * NEXT; STAY is left alone because it always re-asks by design.
+ */
+function enforceFollowupLimit(action: string, followupCount: number, maxFollowups: number): string {
+  const overLimit = followupCount >= maxFollowups;
+  if (action === 'FOLLOWUP' && overLimit) return 'NEXT';
+  return action;
+}
+
 function routeAction(
   initialAction: string,
   followupCount: number,
@@ -32,33 +48,33 @@ function routeAction(
   const isLastQuestion = currentQ >= totalQuestions - 1;
   const closing = closingMessage || DEFAULT_CLOSING_MESSAGE;
 
-  let action = initialAction;
+  // Two ways to finish: an explicit END keeps the pointer where it was, while a
+  // NEXT that runs off the end advances past the final question.
+  const completeAt = (nextQuestionIndex: number): ActionResult => ({
+    followupCount: 0,
+    currentQuestion: nextQuestionIndex,
+    shouldContinue: false,
+    status: 'COMPLETED',
+    response: `${smartResponse}\n\n${closing}`,
+  });
 
-  // Rule 1: Enforce followup limit - force NEXT if exceeded
-  if (action === 'FOLLOWUP' && followupCount >= maxFollowups) {
-    action = 'NEXT';
-  }
+  const action = enforceFollowupLimit(initialAction, followupCount, maxFollowups);
 
   // Rule 2: END / shouldEndInterview — always complete the interview
-  if (action === 'END' || action === 'shouldEndInterview') {
-    if (currentQ < totalQuestions - 1) {
+  if (TERMINAL_ACTIONS.has(action)) {
+    if (!isLastQuestion) {
       warn('User requested to end interview early (current question not last)', {
         currentQ,
         totalQuestions,
         remainingQuestions: totalQuestions - currentQ - 1,
       });
     }
-    return {
-      followupCount: 0,
-      currentQuestion: currentQ,
-      shouldContinue: false,
-      status: 'COMPLETED',
-      response: `${smartResponse}\n\n${closing}`,
-    };
+    return completeAt(currentQ);
   }
 
-  // Rule 3: FOLLOWUP (not exceeded limit)
-  if (action === 'FOLLOWUP') {
+  // Rules 3-4: FOLLOWUP and STAY both re-ask, incrementing the followup counter
+  // so an uncooperative model cannot loop forever on the same question.
+  if (REASK_ACTIONS.has(action)) {
     return {
       followupCount: followupCount + 1,
       currentQuestion: currentQ,
@@ -67,26 +83,8 @@ function routeAction(
     };
   }
 
-  // Rule 4: STAY (re-ask same question) — also increments followup to prevent infinite loops
-  if (action === 'STAY') {
-    return {
-      followupCount: followupCount + 1,
-      currentQuestion: currentQ,
-      shouldContinue: true,
-      response: smartResponse,
-    };
-  }
-
-  // Rule 5: NEXT — advance to next question or complete
-  if (isLastQuestion) {
-    return {
-      followupCount: 0,
-      currentQuestion: currentQ + 1,
-      shouldContinue: false,
-      status: 'COMPLETED',
-      response: `${smartResponse}\n\n${closing}`,
-    };
-  }
+  // Rule 5: NEXT — advance, or complete when this was the last question.
+  if (isLastQuestion) return completeAt(currentQ + 1);
 
   return {
     followupCount: 0,
