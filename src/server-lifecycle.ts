@@ -43,42 +43,44 @@ export function createApplicationCleanup(resources: ApplicationResources): () =>
   };
 }
 
+/** Collect rejections from a settled batch into the shared error list. */
+function collectRejections(results: PromiseSettledResult<unknown>[], sink: unknown[]): void {
+  for (const result of results) {
+    if (result.status === 'rejected') sink.push(result.reason);
+  }
+}
+
+/**
+ * Run one cleanup step, recording (not throwing) its failure so the remaining
+ * steps still run. Every resource tears down the same way, which is why this is
+ * one helper rather than a repeated try/catch per resource.
+ */
+async function step(sink: unknown[], action: () => unknown): Promise<void> {
+  try {
+    await action();
+  } catch (error) {
+    sink.push(error);
+  }
+}
+
 async function cleanupApplicationResources(resources: ApplicationResources): Promise<void> {
   const cleanupErrors: unknown[] = [];
   const stream = resources.getStream?.();
   const scheduledTask = resources.getScheduledTask();
 
   if (stream) {
-    try {
-      await stream.disconnect();
-    } catch (error) {
-      cleanupErrors.push(error);
-    }
+    await step(cleanupErrors, () => stream.disconnect());
   }
 
-  const messageResults = await Promise.allSettled([...(resources.messageTasks ?? [])]);
-  for (const result of messageResults) {
-    if (result.status === 'rejected') cleanupErrors.push(result.reason);
-  }
+  collectRejections(await Promise.allSettled([...(resources.messageTasks ?? [])]), cleanupErrors);
 
   if (scheduledTask) {
-    try {
-      await scheduledTask.destroy();
-    } catch (error) {
-      cleanupErrors.push(error);
-    }
+    await step(cleanupErrors, () => scheduledTask.destroy());
   }
 
-  const activeTaskResults = await Promise.allSettled([...resources.activeTasks]);
-  for (const result of activeTaskResults) {
-    if (result.status === 'rejected') cleanupErrors.push(result.reason);
-  }
+  collectRejections(await Promise.allSettled([...resources.activeTasks]), cleanupErrors);
 
-  try {
-    await resources.disconnect();
-  } catch (error) {
-    cleanupErrors.push(error);
-  }
+  await step(cleanupErrors, () => resources.disconnect());
 
   if (cleanupErrors.length > 0) {
     throw new AggregateError(cleanupErrors, 'Application resource cleanup failed');

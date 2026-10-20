@@ -57,7 +57,11 @@ docker-compose.yml
 logs/
 
 # Reports (generated at runtime)
-reports/
+# Keep the CJK font: export.service.ts reads it from REPORTS_DIR to render
+# Chinese text in PDFs. Excluding the whole directory shipped images whose
+# PDFs silently fell back to a system font that Alpine does not have.
+reports/*
+!reports/NotoSansCJKsc-Regular.otf
 
 # OS
 .DS_Store

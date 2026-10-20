@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## [1.11.7](https://github.com/boyingliu01/dialog-survey/compare/v1.11.6...v1.11.7) (2026-10-20)
+
+### Bug Fixes
+
+- fix(gate): the CCN report (`scripts/ccn-report.cjs`) under-counted complexity, so `npm run complexity` and the xp-gate Gate 3 ratchet could pass while real complexity went unmeasured. The method-shorthand branch matched `for (...) {` and `catch (e) {` as if they were nested function bodies and blanked them before counting, so every `if`, `&&` and nested `catch` inside a loop disappeared. Re-measuring after the fix surfaced two functions above CCN 10 that had been invisible: `runInterviewGraph` (12) and `cleanupApplicationResources` (12), both now refactored under the threshold. `.ccn-baseline.json` was regenerated from 227 entries (max 8) to 234 (max 10) — the previous baseline was recorded from the broken measurement.
+- fix(export): Docker images shipped without the CJK font, so every exported PDF rendered Chinese as blank boxes. `.dockerignore` excluded the whole `reports/` directory, `Dockerfile` never copied the font, and `export.service` degraded silently to a font name that `node:alpine` does not have. The font is now whitelisted and copied, and a missing font logs a one-shot warning naming the expected path.
+- fix(gate): xp-gate's Gate 5 reported `DEGRADED (coverage: N/A%)` because it reads `coverage/coverage-summary.json` (istanbul format) and the Vitest config only emitted `json`/`html`. Added the `json-summary` reporter so the 80/80/70/80 thresholds are actually enforced locally instead of being reported as unavailable.
+
+### Changed
+
+- chore: untracked build artifacts that had been committed under `reports/` (two exported workbooks, a PDF and `mutation/mutation.html`). `.gitignore` now ignores `reports/*` and whitelists only the runtime CJK font and `.gitkeep`, instead of listing per-extension rules — which is how those files slipped in.
+- chore: removed `scripts/fix-max-followups.ts` and `MAX_FOLLOWUPS_FIX.md`, a one-off v1.8.0 data migration whose target migration directory no longer exists. Leaving a runnable script that rewrites production `maxFollowups` values was a latent hazard.
+- test: added `tests/ccn-gate.test.ts` (8 cases) covering the complexity gate itself, including the two loop-nesting regressions above; both cases fail against the old implementation. `securityMiddleware` and `logSecurityEvent` gained coverage (11 cases), retiring two standing TODO comments that claimed they needed a full application to test.
+- docs: corrected stale counts and anti-patterns in the knowledge bases — `AGENTS.md` claimed 82 source files / 139 tests / 18 services (actual 66 / 142 / 16), and `src/services/AGENTS.md` listed four anti-patterns that had already been fixed.
+
 ## [1.11.6](https://github.com/boyingliu01/dialog-survey/compare/v1.11.5...v1.11.6) (2026-10-20)
 
 ### Bug Fixes
