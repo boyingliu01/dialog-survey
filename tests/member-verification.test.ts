@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DingTalkClient } from '../src/integrations/dingtalk/client.js';
 import { verifyPhoneToName } from '../src/services/member-verification.service.js';
+import * as logger from '../src/utils/logger.js';
 
 /**
  * @test REQ-TBD-01
@@ -161,12 +162,115 @@ describe('verifyPhoneToName', () => {
     });
   });
 
+  describe('failure classification and logging (issue #198)', () => {
+    /**
+     * @test REQ-TBD-05
+     * @intent 凭据缺失（errcode 40035）必须与网络故障区分开，且原始错误落入日志
+     */
+    it('classifies a missing-credential error as credential_missing and logs the cause', async () => {
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+      mockClient.getUserIdByMobile.mockRejectedValue(
+        new Error('DingTalk gettoken failed: 缺少参数 corpid or appkey (errcode: 40035)')
+      );
+
+      const result = await verifyPhoneToName(
+        mockClient as unknown as DingTalkClient,
+        '13800138000',
+        '张三'
+      );
+
+      expect(result.verified).toBe(false);
+      expect(result.failure).toBe('credential_missing');
+      expect(result.reason).toContain('凭据');
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const [message, detail] = warnSpy.mock.calls[0] as [string, Record<string, unknown>];
+      expect(message).toContain('DingTalk phone lookup failed');
+      expect(String(detail['error'])).toContain('40035');
+      warnSpy.mockRestore();
+    });
+
+    /**
+     * @test REQ-TBD-05
+     * @intent 通讯录权限不足（60011 / errcode 88）单独归类为 permission_denied
+     */
+    it('classifies an insufficient-scope error as permission_denied', async () => {
+      vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+      mockClient.getUserIdByMobile.mockRejectedValue(
+        new Error(
+          'ding talk error[subcode=60011] requiredScopes=[qyapi_get_member_by_mobile] (errcode: 88)'
+        )
+      );
+
+      const result = await verifyPhoneToName(
+        mockClient as unknown as DingTalkClient,
+        '13800138000',
+        '张三'
+      );
+
+      expect(result.failure).toBe('permission_denied');
+      expect(result.reason).toContain('权限');
+      vi.restoreAllMocks();
+    });
+
+    it('classifies a transport failure as network_error', async () => {
+      vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+      mockClient.getUserIdByMobile.mockRejectedValue(new Error('fetch failed'));
+
+      const result = await verifyPhoneToName(
+        mockClient as unknown as DingTalkClient,
+        '13800138000',
+        '张三'
+      );
+
+      expect(result.failure).toBe('network_error');
+      vi.restoreAllMocks();
+    });
+
+    /**
+     * @test REQ-TBD-05
+     * @intent 日志中的手机号必须脱敏，且不得出现原始号码
+     */
+    it('never logs the raw phone number', async () => {
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+      mockClient.getUserIdByMobile.mockRejectedValue(new Error('boom'));
+
+      await verifyPhoneToName(mockClient as unknown as DingTalkClient, '13812345678', '张三');
+
+      const logged = JSON.stringify(warnSpy.mock.calls);
+      expect(logged).not.toContain('13812345678');
+      expect(logged).toContain('138****5678');
+      warnSpy.mockRestore();
+    });
+
+    it('tags the not-found and mismatch cases with a failure class too', async () => {
+      mockClient.getUserIdByMobile.mockResolvedValue({ found: false });
+      const notFound = await verifyPhoneToName(
+        mockClient as unknown as DingTalkClient,
+        '13800000000',
+        '张三'
+      );
+      expect(notFound.failure).toBe('phone_not_found');
+
+      mockClient.getUserIdByMobile.mockResolvedValue({
+        found: true,
+        userId: 'u1',
+        name: '张三',
+      });
+      const mismatch = await verifyPhoneToName(
+        mockClient as unknown as DingTalkClient,
+        '13800000000',
+        '李四'
+      );
+      expect(mismatch.failure).toBe('name_mismatch');
+    });
+  });
+
   describe('name comparison handling', () => {
     /**
      * @test REQ-TBD-04
-     * @intent 钉钉返回的姓名为空字符串 — 视为无法验证，显示警告但通过
+     * @intent 钉钉返回姓名为空 — 无法校验时必须拒绝，不得静默放行（issue #199）
      */
-    it('should return verified=true when DingTalk returns empty name (cannot verify)', async () => {
+    it('should return verified=false when DingTalk returns no name', async () => {
       mockClient.getUserIdByMobile.mockResolvedValue({
         found: true,
         userId: 'user_no_name',
@@ -179,11 +283,32 @@ describe('verifyPhoneToName', () => {
         '张三'
       );
 
-      // When DingTalk returns empty name, we can't verify but still resolve userId,
-      // and we keep the provided name since DingTalk has no name to compare against
-      expect(result.verified).toBe(true);
+      // A missing name used to fall through to verified:true, which made the
+      // whole phone+name check a no-op for any input. It must refuse instead:
+      // we cannot confirm the person, so we cannot admit them.
+      expect(result.verified).toBe(false);
+      expect(result.failure).toBe('name_unverifiable');
       expect(result.userId).toBe('user_no_name');
-      expect(result.name).toBe('张三');
+      expect(result.reason).toContain('无法校验');
+    });
+
+    it('rejects any name when DingTalk returns no name, not just mismatches', async () => {
+      mockClient.getUserIdByMobile.mockResolvedValue({
+        found: true,
+        userId: 'user_no_name',
+        name: '',
+      });
+
+      // Both a wrong name and the "right-looking" one must be refused, since
+      // there is nothing to compare against.
+      for (const name of ['完全不匹配的姓名', '张三']) {
+        const result = await verifyPhoneToName(
+          mockClient as unknown as DingTalkClient,
+          '13800138003',
+          name
+        );
+        expect(result.verified).toBe(false);
+      }
     });
   });
 });
