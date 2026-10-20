@@ -72,17 +72,26 @@ describe('DingTalkClient.getUserIdByMobile', () => {
   });
 
   describe('getUserIdByMobile', () => {
-    it('should return user info when mobile found', async () => {
+    it('resolves the real name from user/get, since getbymobile returns only userid', async () => {
       const mockFetch = vi.spyOn(global, 'fetch');
-      // First call: get token
+      // 1: get token
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ errcode: 0, errmsg: 'ok', access_token: 'token', expires_in: 7200 }),
       } as Response);
-      // Second call: get user by mobile (v2 API: nested result.userid, no name field)
+      // 2: getbymobile — v2 returns only the userid (issue #199)
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ errcode: 0, errmsg: 'ok', result: { userid: 'user123' } }),
+      } as Response);
+      // 3: user/get — the separate call that yields the name
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          errcode: 0,
+          errmsg: 'ok',
+          result: { userid: 'user123', name: '张三', mobile: '13800138000' },
+        }),
       } as Response);
 
       const result = await client.getUserIdByMobile('13800138000');
@@ -90,9 +99,59 @@ describe('DingTalkClient.getUserIdByMobile', () => {
       expect(result.found).toBe(true);
       if (result.found) {
         expect(result.userId).toBe('user123');
-        expect(result.name).toBe('');
+        // An empty name here silently defeats phone+name verification downstream.
+        expect(result.name).toBe('张三');
       }
-      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        expect.stringContaining('/topapi/v2/user/get'),
+        expect.anything()
+      );
+    });
+
+    it('requests user/get with the userid returned by getbymobile', async () => {
+      const mockFetch = vi.spyOn(global, 'fetch');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ errcode: 0, errmsg: 'ok', access_token: 'token', expires_in: 7200 }),
+      } as Response);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ errcode: 0, errmsg: 'ok', result: { userid: 'resolved-id' } }),
+      } as Response);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          errcode: 0,
+          errmsg: 'ok',
+          result: { userid: 'resolved-id', name: '李四' },
+        }),
+      } as Response);
+
+      await client.getUserIdByMobile('13800138000');
+
+      const lastCall = mockFetch.mock.calls[mockFetch.mock.calls.length - 1];
+      const body = JSON.parse(String((lastCall?.[1] as RequestInit | undefined)?.body));
+      expect(body.userid).toBe('resolved-id');
+    });
+
+    it('propagates a user/get failure instead of reporting an empty name', async () => {
+      const mockFetch = vi.spyOn(global, 'fetch');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ errcode: 0, errmsg: 'ok', access_token: 'token', expires_in: 7200 }),
+      } as Response);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ errcode: 0, errmsg: 'ok', result: { userid: 'user123' } }),
+      } as Response);
+      // Missing contact permission: must surface, not degrade to name: ''.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ errcode: 60011, errmsg: 'no permission to access contact' }),
+      } as Response);
+
+      await expect(client.getUserIdByMobile('13800138000')).rejects.toThrow('no permission');
     });
 
     it('should return found: false when errcode is 60121 (user not found)', async () => {

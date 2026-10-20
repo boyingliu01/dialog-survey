@@ -4,6 +4,7 @@ import { messageSender } from '../integrations/dingtalk/message-sender.js';
 import type { DingTalkStreamClient } from '../integrations/dingtalk/stream-client.js';
 import type { TokenManager } from '../integrations/dingtalk/token-manager.js';
 import { error, info } from '../utils/logger.js';
+import { maskPhone } from '../utils/pii-anonymizer.js';
 import { SendStatus } from '../utils/prisma-client.js';
 import type { Prisma, PrismaClient } from '../utils/prisma-client.js';
 import type { InviteeData } from './interview-plan-base.service.js';
@@ -62,9 +63,12 @@ export class MemberNotFoundError extends Error {
 
 export class InvalidMemberInputError extends Error {
   readonly code = 'INVALID_MEMBER_INPUT' as const;
-  constructor(message: string) {
+  /** Machine-readable cause, when the caller can supply one (see issue #198). */
+  readonly failure?: string;
+  constructor(message: string, failure?: string) {
     super(message);
     this.name = 'InvalidMemberInputError';
+    if (failure !== undefined) this.failure = failure;
   }
 }
 
@@ -74,11 +78,6 @@ export class InvalidStateError extends Error {
     super(message);
     this.name = 'InvalidStateError';
   }
-}
-
-function maskPhone(phone: string): string {
-  if (phone.length < 7) return '****';
-  return `${phone.slice(0, 3)}****${phone.slice(-4)}`;
 }
 
 function normalizePhone(phone: string): string {
@@ -129,7 +128,8 @@ export class InterviewPlanService extends InterviewPlanSendService {
 
       if (!result.verified) {
         throw new InvalidMemberInputError(
-          result.reason || `Failed to verify phone ${maskPhone(phone)}`
+          result.reason || `Failed to verify phone ${maskPhone(phone)}`,
+          result.failure
         );
       }
 

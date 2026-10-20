@@ -1,4 +1,5 @@
 import { error, info, warn } from '../../utils/logger.js';
+import { dingTalkCredentialsFromEnv } from './client.js';
 
 interface TokenResponse {
   errcode: number;
@@ -32,8 +33,7 @@ export class DingTalkTokenManager implements TokenManager {
   }
 
   private validateCredentials(): void {
-    const appKey = process.env['DINGTALK_APP_KEY'] || process.env['DINGTALK_CLIENT_ID'];
-    const appSecret = process.env['DINGTALK_APP_SECRET'] || process.env['DINGTALK_CLIENT_SECRET'];
+    const { appKey, appSecret } = dingTalkCredentialsFromEnv();
     if (!appKey || !appSecret) {
       throw new Error(
         'DINGTALK_APP_KEY/DINGTALK_APP_SECRET or DINGTALK_CLIENT_ID/DINGTALK_CLIENT_SECRET must be set in environment variables'
@@ -106,10 +106,7 @@ export class DingTalkTokenManager implements TokenManager {
   }
 
   private async doFetch(): Promise<TokenResponse> {
-    const appKey: string =
-      process.env['DINGTALK_APP_KEY'] || process.env['DINGTALK_CLIENT_ID'] || '';
-    const appSecret: string =
-      process.env['DINGTALK_APP_SECRET'] || process.env['DINGTALK_CLIENT_SECRET'] || '';
+    const { appKey, appSecret } = dingTalkCredentialsFromEnv();
     const url = `https://oapi.dingtalk.com/gettoken?appkey=${encodeURIComponent(appKey)}&appsecret=${encodeURIComponent(appSecret)}`;
     const response = await fetch(url);
     if (!response.ok) {

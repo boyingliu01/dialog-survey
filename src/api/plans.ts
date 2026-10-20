@@ -342,8 +342,9 @@ export async function interviewPlanRoutes(
     if (!lookup.found) {
       throw new Error('phone_not_found');
     }
-    const userInfo = await client.getUserByUserId(lookup.userId);
-    return { userId: userInfo.userid, dingtalkName: userInfo.name || '' };
+    // getUserIdByMobile already resolves the name (issue #199), so the extra
+    // user/get round-trip this used to make is no longer needed.
+    return { userId: lookup.userId, dingtalkName: lookup.name.trim() };
   }
 
   /**

@@ -10,3 +10,14 @@ export function anonymizePII(text: string): string {
   result = result.replace(CHINESE_NAME_RE, '[匿名用户]');
   return result;
 }
+
+/**
+ * Mask a phone number for logs and user-facing messages: keep the first three
+ * and last four digits. Anything shorter than 7 characters is fully masked,
+ * since `slice` would otherwise reveal most of it.
+ */
+export function maskPhone(phone: string): string {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  if (digits.length < 7) return '****';
+  return `${digits.slice(0, 3)}****${digits.slice(-4)}`;
+}
