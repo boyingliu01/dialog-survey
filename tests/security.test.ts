@@ -1,7 +1,13 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
-import { anonymizeData, generateApiKey, timingSafeEqualStrings } from '../src/utils/security.js';
+import {
+  anonymizeData,
+  generateApiKey,
+  logSecurityEvent,
+  securityMiddleware,
+  timingSafeEqualStrings,
+} from '../src/utils/security.js';
 
 vi.mock('../src/utils/prisma-client.js', async (importOriginal) => {
   const mockFindFirst = vi.fn();
@@ -106,8 +112,137 @@ describe('timingSafeEqualStrings', () => {
 
 // These tests only validate the pure functions that do not require database connections
 
-// TODO: Skip testing securityMiddleware function due to requiring full Fastify app setup which is too complex for unit tests
-// TODO: Consider integration tests for logSecurityEvent that use real database with cleanup
+/**
+ * `securityMiddleware` only registers an onRequest hook — it needs a Fastify
+ * instance to hang the hook on, not a booted application. A stub that captures
+ * the hook is enough to assert the logging policy, which is the whole behaviour:
+ * audit writes are the expensive part, so the filter is what matters.
+ */
+describe('securityMiddleware', () => {
+  type HookHandler = (request: unknown, reply: unknown) => Promise<void>;
+
+  function mount(): { handler: HookHandler; create: ReturnType<typeof vi.fn> } {
+    let handler: HookHandler | undefined;
+    const create = vi.fn().mockResolvedValue({});
+    const stubFastify = {
+      addHook: (name: string, fn: HookHandler) => {
+        expect(name).toBe('onRequest');
+        handler = fn;
+      },
+    };
+    const prisma = { auditLog: { create } } as unknown as PrismaClient;
+    // eslint-disable-next-line no-void
+    void securityMiddleware(stubFastify as unknown as FastifyInstance, prisma);
+    if (!handler) throw new Error('securityMiddleware did not register an onRequest hook');
+    return { handler, create };
+  }
+
+  function req(method: string, url: string): unknown {
+    return { method, url, ip: '10.1.2.3' };
+  }
+
+  it('registers an onRequest hook', () => {
+    expect(() => mount()).not.toThrow();
+  });
+
+  it('does not audit health checks', async () => {
+    const { handler, create } = mount();
+    await handler(req('GET', '/health'), {});
+    await handler(req('POST', '/health/ready'), {});
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('does not audit static assets', async () => {
+    const { handler, create } = mount();
+    await handler(req('POST', '/public/css/admin.css'), {});
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('does not audit plain GET requests to non-admin paths', async () => {
+    const { handler, create } = mount();
+    await handler(req('GET', '/api/plans'), {});
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('audits mutations', async () => {
+    const { handler, create } = mount();
+    await handler(req('POST', '/api/plans'), {});
+    expect(create).toHaveBeenCalledTimes(1);
+    const arg = create.mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(arg.data['action']).toBe('REQUEST');
+    expect(arg.data['ipAddress']).toBe('10.1.2.3');
+    expect(arg.data['details']).toBe(JSON.stringify({ method: 'POST', path: '/api/plans' }));
+  });
+
+  it('audits GET requests to admin paths', async () => {
+    const { handler, create } = mount();
+    await handler(req('GET', '/admin/plans'), {});
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['PUT', 'DELETE'])('audits %s mutations', async (method) => {
+    const { handler, create } = mount();
+    await handler(req(method, '/api/plans/1'), {});
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not audit HEAD or OPTIONS', async () => {
+    const { handler, create } = mount();
+    await handler(req('HEAD', '/api/plans'), {});
+    await handler(req('OPTIONS', '/api/plans'), {});
+    expect(create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * `logSecurityEvent` writes one audit row. Its only logic is dropping
+ * undefined fields, so a stub prisma (no database) covers it fully.
+ */
+describe('logSecurityEvent', () => {
+  function stubPrisma(): { create: ReturnType<typeof vi.fn>; client: PrismaClient } {
+    const create = vi.fn().mockResolvedValue({});
+    return { create, client: { auditLog: { create } } as unknown as PrismaClient };
+  }
+
+  it('writes every supplied field', async () => {
+    const { create, client } = stubPrisma();
+    await logSecurityEvent(client, {
+      action: 'LOGIN_FAILED',
+      entityType: 'user',
+      entityId: 'u-1',
+      userId: 'u-1',
+      details: { reason: 'bad password' },
+      ipAddress: '10.0.0.1',
+    });
+
+    expect(create).toHaveBeenCalledWith({
+      data: {
+        action: 'LOGIN_FAILED',
+        entityType: 'user',
+        entityId: 'u-1',
+        userId: 'u-1',
+        details: JSON.stringify({ reason: 'bad password' }),
+        ipAddress: '10.0.0.1',
+      },
+    });
+  });
+
+  it('omits optional fields when absent rather than writing undefined', async () => {
+    const { create, client } = stubPrisma();
+    await logSecurityEvent(client, { action: 'REQUEST', entityType: 'api' });
+
+    const arg = create.mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(Object.keys(arg.data).sort()).toStrictEqual(['action', 'entityType']);
+  });
+
+  it('serializes details even when empty', async () => {
+    const { create, client } = stubPrisma();
+    await logSecurityEvent(client, { action: 'X', entityType: 'y', details: {} });
+
+    const arg = create.mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(arg.data['details']).toBe('{}');
+  });
+});
 
 /**
  * @test Tests for verifyApiKey middleware

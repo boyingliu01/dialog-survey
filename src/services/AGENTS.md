@@ -1,6 +1,6 @@
 # SERVICES KNOWLEDGE BASE
 
-> Updated: 2026-07-08. 19 service files (ASR removed).
+> Updated: 2026-10-20. 16 service files (ASR removed).
 
 ## OVERVIEW
 Application services layer: business logic orchestration for interview flow, report generation, DingTalk messaging, batch processing, and LLM integration.
@@ -35,10 +35,16 @@ Application services layer: business logic orchestration for interview flow, rep
 - **Interview Plan**: Split into 3 sub-services (base/members/send) + 1 composite router
 
 ## ANTI-PATTERNS (THIS MODULE)
-- `dead-letter.service.ts` creates its own PrismaClient (should inject)
-- `batch-aggregation.service.ts` has biome disable for `noExplicitAny`
-- `stream-message.service.ts` mixes standalone functions + class (deduplicate)
-- `export.service.ts` also creates its own PrismaClient (should inject)
+None outstanding as of 2026-10-20. The four previously listed here were paid
+down: `dead-letter.service` and `export.service` now take `PrismaClient` by
+injection instead of constructing one; the `noExplicitAny` suppression in
+`batch-aggregation.service` is gone; and `stream-message.service` keeps only one
+intentional standalone export (`processStreamMessage`, a thin repo+service
+wrapper) plus a re-export barrel of `stream-message-utils`.
+
+Known trade-off to keep an eye on: `export.service` reads the CJK font from
+`REPORTS_DIR` at export time and warns once if absent — the Docker image must
+ship `reports/NotoSansCJKsc-Regular.otf` (see Dockerfile / .dockerignore).
 
 ## SERVICE DEPENDENCIES
 ```
