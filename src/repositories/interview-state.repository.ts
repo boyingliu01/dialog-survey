@@ -27,6 +27,29 @@ export interface LoadStateOptions {
 
 const MAX_RETRIES = 3;
 
+/**
+ * Optimistic-locking precondition shared by `saveState` and `saveFullState`:
+ * inside the transaction, the interview must exist and still sit at the version
+ * the caller loaded. Throwing `StatePersistenceError` here keeps both write paths
+ * reporting identical NOT_FOUND / VERSION_CONFLICT semantics.
+ */
+function assertVersionMatches(
+  interviewId: string,
+  interview: { version: number } | null,
+  expectedVersion: number
+): void {
+  if (!interview) {
+    throw new StatePersistenceError(`Interview not found: ${interviewId}`, 'NOT_FOUND', false);
+  }
+  if (interview.version !== expectedVersion) {
+    throw new StatePersistenceError(
+      `Version conflict: expected ${expectedVersion}, got ${interview.version}`,
+      'VERSION_CONFLICT',
+      true
+    );
+  }
+}
+
 export class InterviewStateRepository {
   private prisma: PrismaClient;
 
@@ -46,22 +69,7 @@ export class InterviewStateRepository {
           where: { id: interviewId },
         });
 
-        if (!interview) {
-          throw new StatePersistenceError(
-            `Interview not found: ${interviewId}`,
-            'NOT_FOUND',
-            false
-          );
-        }
-
-        if (interview.version !== version) {
-          throw new StatePersistenceError(
-            `Version conflict: expected ${version}, got ${interview.version}`,
-            'VERSION_CONFLICT',
-            true
-          );
-        }
-
+        assertVersionMatches(interviewId, interview, version);
         await tx.interview.update({
           where: { id: interviewId, version },
           data: {
@@ -161,21 +169,7 @@ export class InterviewStateRepository {
           where: { id: interviewId },
         });
 
-        if (!interview) {
-          throw new StatePersistenceError(
-            `Interview not found: ${interviewId}`,
-            'NOT_FOUND',
-            false
-          );
-        }
-
-        if (interview.version !== state.originalVersion) {
-          throw new StatePersistenceError(
-            `Version conflict: expected ${state.originalVersion}, got ${interview.version}`,
-            'VERSION_CONFLICT',
-            true
-          );
-        }
+        assertVersionMatches(interviewId, interview, state.originalVersion);
 
         if (state.pendingMessages.length > 0) {
           await tx.message.createMany({

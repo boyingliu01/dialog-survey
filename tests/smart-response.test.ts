@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import type { InterviewState } from '../src/core/types/index.js';
 import { promptService } from '../src/services/prompt.service.js';
@@ -225,10 +224,42 @@ describe('Smart Response System', () => {
     });
 
     it('should force NEXT when followup limit exceeded', async () => {
-      const followupService = readFileSync('src/services/followup.service.ts', 'utf-8');
+      const module = await import('../src/services/followup.service.js');
 
-      expect(followupService).toContain('followupCount >= state.maxFollowups');
-      expect(followupService).toContain('forcing NEXT');
+      // The cap is enforced by generateSmartResponse's pure post-processing, so
+      // assert it directly: an LLM FOLLOWUP at the limit must come back as NEXT
+      // carrying the forced transition text, never the follow-up phrasing.
+      const parsed = {
+        thinking: '',
+        strategy: 1,
+        action: 'FOLLOWUP' as const,
+        response: '再问一句？',
+      };
+
+      const capped = module.resultFromParsed(parsed, 3, 3, '问二');
+
+      expect(capped.action).toBe('NEXT');
+      expect(capped.shouldProceedToNext).toBe(true);
+      expect(capped.shouldEndInterview).toBe(false);
+      expect(capped.response).not.toBe('再问一句？');
+      expect(capped.response).toContain('问二');
+    });
+
+    it('should keep FOLLOWUP below the limit', async () => {
+      const module = await import('../src/services/followup.service.js');
+
+      const parsed = {
+        thinking: '',
+        strategy: 1,
+        action: 'FOLLOWUP' as const,
+        response: '能再多说一点吗？',
+      };
+
+      const result = module.resultFromParsed(parsed, 1, 3, '问二');
+
+      expect(result.action).toBe('FOLLOWUP');
+      expect(result.response).toBe('能再多说一点吗？');
+      expect(result.shouldProceedToNext).toBe(false);
     });
   });
 });

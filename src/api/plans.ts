@@ -1,5 +1,5 @@
 import { parse } from 'csv-parse/sync';
-import type { FastifyInstance, preHandlerAsyncHookHandler } from 'fastify';
+import type { FastifyInstance, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
 import { z } from 'zod';
 import { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { createAdminMutationGuard } from '../middleware/admin-csrf.js';
@@ -46,13 +46,23 @@ const administrativePlanPostPattern =
   /^\/api\/plans\/[^/?]+\/(?:send|pause|resume|cancel|remind|members|import-(?:preview|commit)|interviews\/[^/?]+\/send)(?:\?.*)?$/;
 const administrativePlanDeletePattern = /^\/api\/plans\/[^/?]+\/members\/[^/?]+(?:\?.*)?$/;
 
+/**
+ * Routes that mutate a plan administratively. Each entry pairs an HTTP method
+ * with the URL pattern that, for that method only, designates a mutation.
+ */
+const ADMINISTRATIVE_PLAN_MUTATIONS: ReadonlyArray<{
+  method: string;
+  pattern: RegExp;
+}> = [
+  { method: 'POST', pattern: /^\/api\/plans(?:\?.*)?$/ },
+  { method: 'PUT', pattern: /^\/api\/plans\/[^/?]+(?:\?.*)?$/ },
+  { method: 'POST', pattern: administrativePlanPostPattern },
+  { method: 'DELETE', pattern: administrativePlanDeletePattern },
+];
+
 export function isAdministrativePlanMutation(method: string, url: string): boolean {
-  return (
-    (method === 'POST' && /^\/api\/plans(?:\?.*)?$/.test(url)) ||
-    (method === 'PUT' && /^\/api\/plans\/[^/?]+(?:\?.*)?$/.test(url)) ||
-    (method === 'POST' && administrativePlanPostPattern.test(url)) ||
-    (method === 'DELETE' && administrativePlanDeletePattern.test(url))
-  );
+  const matches = ADMINISTRATIVE_PLAN_MUTATIONS.filter((rule) => rule.method === method);
+  return matches.some((rule) => rule.pattern.test(url));
 }
 
 function mapServiceErrorToStatus(err: unknown): { status: number; message: string } {
@@ -162,13 +172,41 @@ export async function interviewPlanRoutes(
     }
   );
 
+  /**
+   * Register a `POST /api/plans/:id/<action>` endpoint that simply delegates to
+   * one plan-service lifecycle call. These five endpoints differ only in the
+   * method and the body they answer with, so collapsing them keeps the route
+   * table readable and stops each new lifecycle verb from adding a branch to
+   * `interviewPlanRoutes`.
+   */
+  function registerLifecyclePost(
+    path: string,
+    run: (id: string) => Promise<unknown>,
+    body: Record<string, unknown>
+  ): void {
+    fastify.post(path, { preHandler: browserPlanMutationGuard }, async (request, _reply) => {
+      const { id } = request.params as { id: string };
+      await run(id);
+      return body;
+    });
+  }
+
+  registerLifecyclePost('/api/plans/:id/pause', (id) => planService.pausePlan(id), {
+    status: 'paused',
+  });
+  registerLifecyclePost('/api/plans/:id/resume', (id) => planService.resumePlan(id), {
+    status: 'running',
+  });
+  registerLifecyclePost('/api/plans/:id/cancel', (id) => planService.cancelPlan(id), {
+    status: 'cancelled',
+  });
+
   fastify.post(
     '/api/plans/:id/send',
     { preHandler: browserPlanMutationGuard },
     async (request, _reply) => {
       const { id } = request.params as { id: string };
-      const result = await planService.sendInvitations(id);
-      return result;
+      return planService.sendInvitations(id);
     }
   );
 
@@ -177,38 +215,7 @@ export async function interviewPlanRoutes(
     { preHandler: browserPlanMutationGuard },
     async (request, _reply) => {
       const { id, interviewId } = request.params as { id: string; interviewId: string };
-      const result = await planService.resendToInterview(id, interviewId);
-      return result;
-    }
-  );
-
-  fastify.post(
-    '/api/plans/:id/pause',
-    { preHandler: browserPlanMutationGuard },
-    async (request, _reply) => {
-      const { id } = request.params as { id: string };
-      await planService.pausePlan(id);
-      return { status: 'paused' };
-    }
-  );
-
-  fastify.post(
-    '/api/plans/:id/resume',
-    { preHandler: browserPlanMutationGuard },
-    async (request, _reply) => {
-      const { id } = request.params as { id: string };
-      await planService.resumePlan(id);
-      return { status: 'running' };
-    }
-  );
-
-  fastify.post(
-    '/api/plans/:id/cancel',
-    { preHandler: browserPlanMutationGuard },
-    async (request, _reply) => {
-      const { id } = request.params as { id: string };
-      await planService.cancelPlan(id);
-      return { status: 'cancelled' };
+      return planService.resendToInterview(id, interviewId);
     }
   );
 
@@ -339,38 +346,126 @@ export async function interviewPlanRoutes(
     return { userId: userInfo.userid, dingtalkName: userInfo.name || '' };
   }
 
+  /**
+   * Classify one CSV row into an import result. Extracted from the route handler
+   * so the duplicate / found / mismatch / error precedence is readable in one
+   * place instead of nested inside the request loop.
+   */
+  async function classifyImportRow(
+    client: DingTalkClient,
+    row: CsvRow,
+    base: Omit<ImportRowResult, 'status' | 'userId' | 'dingtalkName' | 'message'>,
+    cache: Map<string, { userId: string; dingtalkName: string }>,
+    rowNumber: number
+  ): Promise<ImportRowResult> {
+    if (row.isDuplicate) {
+      const cached = cache.get(row.phone);
+      if (!cached) {
+        return {
+          ...base,
+          status: 'phone_not_found',
+          userId: undefined,
+          dingtalkName: undefined,
+          message: '该手机号未在钉钉通讯录中注册',
+        };
+      }
+      return {
+        ...base,
+        status: 'duplicate_phone',
+        userId: cached.userId,
+        dingtalkName: cached.dingtalkName,
+        message: `手机号重复，与第 ${rowNumber} 行合并为同一人`,
+      };
+    }
+
+    try {
+      const { userId, dingtalkName } = await verifyRow(client, row);
+      cache.set(row.phone, { userId, dingtalkName });
+      if (row.name && dingtalkName && row.name !== dingtalkName) {
+        return {
+          ...base,
+          status: 'name_mismatch',
+          userId,
+          dingtalkName,
+          message: `姓名不匹配：输入 "${row.name}"，钉钉返回 "${dingtalkName}"`,
+        };
+      }
+      return { ...base, status: 'ok', userId, dingtalkName, message: '验证通过' };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'unknown';
+      return {
+        ...base,
+        status: msg === 'phone_not_found' ? 'phone_not_found' : 'dingtalk_error',
+        userId: undefined,
+        dingtalkName: undefined,
+        message:
+          msg === 'phone_not_found' ? '该手机号未在钉钉通讯录中注册' : `钉钉 API 错误：${msg}`,
+      };
+    }
+  }
+
+  const MAX_IMPORT_ROWS = 2000;
+
+  /**
+   * Read and validate the uploaded CSV, returning either the rows or the HTTP
+   * error to send. Kept out of the handler so the route reads as
+   * "validate input → classify rows → summarize".
+   */
+  async function readImportRows(
+    request: FastifyRequest
+  ): Promise<{ rows: CsvRow[] } | { errorCode: number; error: string }> {
+    const data = await request.file();
+    if (!data) return { errorCode: 400, error: '请上传 CSV 文件' };
+
+    const buffer = await data.toBuffer();
+    if (buffer.length === 0) return { errorCode: 400, error: 'CSV 文件为空' };
+
+    let rows: CsvRow[];
+    try {
+      rows = parseCsv(buffer).rows;
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : '未知错误';
+      return { errorCode: 400, error: `CSV 解析失败：${message}` };
+    }
+
+    if (rows.length === 0) return { errorCode: 400, error: 'CSV 中没有有效数据行' };
+    if (rows.length > MAX_IMPORT_ROWS) {
+      return { errorCode: 400, error: `单次最多导入 ${MAX_IMPORT_ROWS} 行` };
+    }
+    return { rows };
+  }
+
+  /**
+   * Reject the import when the plan is missing or in a status that forbids
+   * member edits. Returns an HTTP error descriptor, or null when it may proceed.
+   */
+  async function rejectUnimportablePlan(
+    planId: string
+  ): Promise<{ errorCode: number; error: string } | null> {
+    try {
+      const plan = await opts.interviewPlanRepo.findById(planId);
+      if (!plan) return { errorCode: 404, error: 'Plan not found' };
+      if (plan.status !== 'PENDING' && plan.status !== 'READY') {
+        return { errorCode: 400, error: '计划当前状态不允许导入成员' };
+      }
+      return null;
+    } catch {
+      return { errorCode: 404, error: 'Plan not found' };
+    }
+  }
+
   fastify.post(
     '/api/plans/:id/import-preview',
     { preHandler: browserPlanMutationGuard },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      try {
-        const plan = await opts.interviewPlanRepo.findById(id);
-        if (!plan) return reply.code(404).send({ error: 'Plan not found' });
-        if (plan.status !== 'PENDING' && plan.status !== 'READY') {
-          return reply.code(400).send({ error: '计划当前状态不允许导入成员' });
-        }
-      } catch {
-        return reply.code(404).send({ error: 'Plan not found' });
-      }
 
-      const data = await request.file();
-      if (!data) return reply.code(400).send({ error: '请上传 CSV 文件' });
+      const planError = await rejectUnimportablePlan(id);
+      if (planError) return reply.code(planError.errorCode).send({ error: planError.error });
 
-      const buffer = await data.toBuffer();
-      if (buffer.length === 0) return reply.code(400).send({ error: 'CSV 文件为空' });
-
-      let rows: CsvRow[];
-      try {
-        const parsed = parseCsv(buffer);
-        rows = parsed.rows;
-      } catch (e: unknown) {
-        const message = e instanceof Error ? e.message : '未知错误';
-        return reply.code(400).send({ error: `CSV 解析失败：${message}` });
-      }
-
-      if (rows.length === 0) return reply.code(400).send({ error: 'CSV 中没有有效数据行' });
-      if (rows.length > 2000) return reply.code(400).send({ error: '单次最多导入 2000 行' });
+      const parsed = await readImportRows(request);
+      if ('errorCode' in parsed) return reply.code(parsed.errorCode).send({ error: parsed.error });
+      const rows = parsed.rows;
 
       const client = DingTalkClient.fromEnv();
       const results: ImportRowResult[] = [];
@@ -379,60 +474,7 @@ export async function interviewPlanRoutes(
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         const base = { rowIndex: i + 2, phone: row.phone, inputName: row.name };
-
-        if (row.isDuplicate) {
-          const cached = phoneResultCache.get(row.phone);
-          if (cached) {
-            results.push({
-              ...base,
-              status: 'duplicate_phone',
-              userId: cached.userId,
-              dingtalkName: cached.dingtalkName,
-              message: `手机号重复，与第 ${i + 1} 行合并为同一人`,
-            });
-          } else {
-            results.push({
-              ...base,
-              status: 'phone_not_found',
-              userId: undefined,
-              dingtalkName: undefined,
-              message: '该手机号未在钉钉通讯录中注册',
-            });
-          }
-          continue;
-        }
-
-        try {
-          const { userId, dingtalkName } = await verifyRow(client, row);
-          phoneResultCache.set(row.phone, { userId, dingtalkName });
-          if (row.name && dingtalkName && row.name !== dingtalkName) {
-            results.push({
-              ...base,
-              status: 'name_mismatch',
-              userId,
-              dingtalkName,
-              message: `姓名不匹配：输入 "${row.name}"，钉钉返回 "${dingtalkName}"`,
-            });
-          } else {
-            results.push({
-              ...base,
-              status: 'ok',
-              userId,
-              dingtalkName,
-              message: '验证通过',
-            });
-          }
-        } catch (e: unknown) {
-          const msg = e instanceof Error ? e.message : 'unknown';
-          results.push({
-            ...base,
-            status: msg === 'phone_not_found' ? 'phone_not_found' : 'dingtalk_error',
-            userId: undefined,
-            dingtalkName: undefined,
-            message:
-              msg === 'phone_not_found' ? '该手机号未在钉钉通讯录中注册' : `钉钉 API 错误：${msg}`,
-          });
-        }
+        results.push(await classifyImportRow(client, row, base, phoneResultCache, i + 1));
       }
 
       const passed = results.filter((r) => r.status === 'ok').length;

@@ -10,6 +10,24 @@ import type { InviteeData } from './interview-plan-base.service.js';
 import { InterviewPlanSendService } from './interview-plan-send.service.js';
 import { verifyPhoneToName } from './member-verification.service.js';
 
+/**
+ * Read `plan.inviteeData` as an invitee list. The column is untyped JSON, so a
+ * legacy or hand-edited plan can hold anything; treat a non-array as empty
+ * rather than letting `[].find` throw on the caller's happy path.
+ */
+function inviteesOf(plan: { inviteeData: unknown }): InviteeData[] {
+  const raw = plan.inviteeData;
+  if (!Array.isArray(raw)) return [];
+  return raw as InviteeData[];
+}
+
+/** Find an existing invitee whose phone normalizes to the same value. */
+function findByPhone(invitees: InviteeData[], normalizedPhone: string): InviteeData | undefined {
+  return invitees.find(
+    (inv) => inv.phone !== undefined && normalizePhone(inv.phone) === normalizedPhone
+  );
+}
+
 export class PlanNotFoundError extends Error {
   readonly code = 'PLAN_NOT_FOUND' as const;
   constructor(planId: string) {
@@ -152,14 +170,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
       // Phone mode: check phone conflict in inviteeData JSON
       if (phone) {
         const normalizedPhone = normalizePhone(phone);
-        const existingInvitees = Array.isArray(plan.inviteeData)
-          ? (plan.inviteeData as unknown as InviteeData[])
-          : [];
-
-        const existingByPhone = existingInvitees.find(
-          (inv) => inv.phone && normalizePhone(inv.phone) === normalizedPhone
-        );
-        if (existingByPhone) {
+        if (findByPhone(inviteesOf(plan), normalizedPhone)) {
           throw new MemberConflictError(
             `Member with phone ${maskPhone(phone)} already exists in plan`
           );
@@ -176,9 +187,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
         },
       });
 
-      const existingInvitees = Array.isArray(plan.inviteeData)
-        ? (plan.inviteeData as unknown as InviteeData[])
-        : [];
+      const existingInvitees = inviteesOf(plan);
 
       // Only save phone to inviteeData if we're in phone mode (not userId-only mode)
       const updatedInvitees = phone
@@ -224,9 +233,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
 
       await tx.interview.delete({ where: { id: interviewId } });
 
-      const existingInvitees = Array.isArray(plan.inviteeData)
-        ? (plan.inviteeData as unknown as InviteeData[])
-        : [];
+      const existingInvitees = inviteesOf(plan);
       const updatedInvitees = existingInvitees.filter((inv) => inv.userId !== interview.userId);
 
       const planUpdate: Prisma.InterviewPlanUpdateInput = {

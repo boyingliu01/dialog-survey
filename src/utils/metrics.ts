@@ -36,6 +36,24 @@ function formatLabels(labels: MetricLabels | undefined): string {
   return `{${rendered.join(',')}}`;
 }
 
+/**
+ * Render a `# HELP` / `# TYPE` header followed by one `name{labels} value`
+ * sample line per series. Shared by Counter and Gauge, whose exposition format
+ * differs only in the declared type.
+ */
+function renderSingleValueSeries(
+  name: string,
+  help: string,
+  type: string,
+  series: Iterable<{ labels: MetricLabels; value: number }>
+): string {
+  const lines = [`# HELP ${name} ${help}`, `# TYPE ${name} ${type}`];
+  for (const s of series) {
+    lines.push(`${name}${formatLabels(s.labels)} ${s.value}`);
+  }
+  return lines.join('\n');
+}
+
 interface CounterSeries {
   labels: MetricLabels;
   value: number;
@@ -61,11 +79,7 @@ export class Counter {
   }
 
   render(): string {
-    const lines = [`# HELP ${this.name} ${this.help}`, `# TYPE ${this.name} counter`];
-    for (const s of this.series.values()) {
-      lines.push(`${this.name}${formatLabels(s.labels)} ${s.value}`);
-    }
-    return lines.join('\n');
+    return renderSingleValueSeries(this.name, this.help, 'counter', this.series.values());
   }
 }
 
@@ -139,11 +153,7 @@ export class Gauge {
   }
 
   render(): string {
-    const lines = [`# HELP ${this.name} ${this.help}`, `# TYPE ${this.name} gauge`];
-    for (const s of this.series.values()) {
-      lines.push(`${this.name}${formatLabels(s.labels)} ${s.value}`);
-    }
-    return lines.join('\n');
+    return renderSingleValueSeries(this.name, this.help, 'gauge', this.series.values());
   }
 }
 

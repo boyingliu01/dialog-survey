@@ -1,3 +1,4 @@
+import { summarizeStatusGroups } from '../repositories/status-counts.js';
 import { info } from '../utils/logger.js';
 import { PlanStatus, type PrismaClient } from '../utils/prisma-client.js';
 
@@ -210,8 +211,6 @@ export class InterviewPlanServiceBase {
       where: { templateId },
       _count: true,
     });
-    const counts = Object.fromEntries(groups.map((g) => [g.status, g._count as number]));
-    const total = groups.reduce((sum, g) => sum + (g._count as number), 0);
-    return { counts, total };
+    return summarizeStatusGroups(groups);
   }
 }

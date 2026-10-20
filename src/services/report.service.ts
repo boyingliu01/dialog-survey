@@ -26,6 +26,24 @@ export interface ReportWithDimensions extends Report {
   interviewerRating?: number;
 }
 
+/**
+ * Empty dimension report for an interview — the placeholder used before the LLM
+ * runs and the value returned when dimension analysis fails, so a caller always
+ * gets a renderable shape instead of an undefined result.
+ */
+export function createEmptyDimensionReport(interviewId: string): ReportWithDimensions {
+  return {
+    interviewId,
+    content: '',
+    keyFindings: [],
+    sentiment: '',
+    recommendations: [],
+    generatedAt: new Date(),
+    dimensionTags: [],
+    emergentTags: [],
+  };
+}
+
 export async function generateReport(
   interviewId: string,
   topic: string,
@@ -239,16 +257,7 @@ export async function generateReportWithDimensions(
       interviewId,
       error: (e as Error).message,
     });
-    return {
-      interviewId,
-      content: '',
-      keyFindings: [],
-      sentiment: '',
-      recommendations: [],
-      generatedAt: new Date(),
-      dimensionTags: [],
-      emergentTags: [],
-    };
+    return createEmptyDimensionReport(interviewId);
   }
 }
 

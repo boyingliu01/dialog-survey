@@ -5,15 +5,46 @@ import { fileURLToPath } from 'node:url';
 let cachedVersion: string | undefined;
 
 /**
+ * Candidate paths from the calling module up to the package root. Sources run
+ * from `src/...` in dev/test and the compiled output lives under `dist/src/...`
+ * in the published package, so the relative depth to the package root differs.
+ */
+const ROOT_DEPTHS = ['', '../', '../../', '../../../'] as const;
+
+/**
+ * Resolve the first readable candidate file and map it to a version string.
+ * Unreadable or unparsable candidates are skipped rather than fatal, so a
+ * partially populated package still reports something useful.
+ */
+function firstVersionFrom(
+  startDir: string,
+  fileName: string,
+  parse: (contents: string) => string | undefined
+): string | undefined {
+  for (const depth of ROOT_DEPTHS) {
+    const candidate = join(startDir, depth, fileName);
+    if (!existsSync(candidate)) continue;
+    try {
+      const version = parse(readFileSync(candidate, 'utf-8'));
+      if (version) return version;
+    } catch {
+      // unreadable — keep looking
+    }
+  }
+  return undefined;
+}
+
+function versionFromPackageJson(contents: string): string | undefined {
+  const pkg = JSON.parse(contents) as { version?: unknown };
+  return typeof pkg.version === 'string' ? pkg.version : undefined;
+}
+
+/**
  * Resolve the application version from the published VERSION file (when present
  * in the package) or, as a fallback, from package.json. Both ship with the npm
  * package, so a deployed instance can always report which release it is running
  * — addressing issue #191, where the published tarball carried no version
  * information and the tag had drifted off the master line.
- *
- * The candidate paths cover both layouts: sources run from `src/...` in dev/test
- * and the compiled output lives under `dist/src/...` in the published package,
- * so the relative depth to the package root differs.
  */
 export function getAppVersion(): string {
   if (cachedVersion !== undefined) {
@@ -21,40 +52,10 @@ export function getAppVersion(): string {
   }
 
   const startDir = dirname(fileURLToPath(import.meta.url));
-  let version = 'unknown';
+  const fromVersionFile = firstVersionFrom(startDir, 'VERSION', (contents) => contents.trim());
+  const resolved =
+    fromVersionFile || firstVersionFrom(startDir, 'package.json', versionFromPackageJson);
 
-  for (const rel of ['VERSION', '../../VERSION', '../../../VERSION', '../../../../VERSION']) {
-    const candidate = join(startDir, rel);
-    if (!existsSync(candidate)) continue;
-    try {
-      version = readFileSync(candidate, 'utf-8').trim();
-      break;
-    } catch {
-      // unreadable — keep looking
-    }
-  }
-
-  if (version === 'unknown') {
-    for (const rel of [
-      'package.json',
-      '../../package.json',
-      '../../../package.json',
-      '../../../../package.json',
-    ]) {
-      const candidate = join(startDir, rel);
-      if (!existsSync(candidate)) continue;
-      try {
-        const pkg = JSON.parse(readFileSync(candidate, 'utf-8')) as { version?: unknown };
-        if (typeof pkg.version === 'string') {
-          version = pkg.version;
-          break;
-        }
-      } catch {
-        // unreadable — keep looking
-      }
-    }
-  }
-
-  cachedVersion = version;
-  return version;
+  cachedVersion = resolved || 'unknown';
+  return cachedVersion;
 }

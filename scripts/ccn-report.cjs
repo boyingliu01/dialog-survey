@@ -59,25 +59,49 @@ function collectFiles(root, acc = []) {
   return acc;
 }
 
-/** Strip comments and string/template contents so keywords there do not count. */
+/**
+ * Strip comments and string/template contents so keywords there do not count.
+ *
+ * Returns the cleaned text plus a `origIndex` table mapping each cleaned
+ * offset back to its offset in `source`. Callers turn a match position into a
+ * 1-based line number, so the mapping has to survive every rewrite: collapsing
+ * a comment shifts every later position, and reported locations would drift.
+ */
 function stripNoise(source) {
   let out = '';
+  const origIndex = [];
   let i = 0;
   const n = source.length;
+
+  /** Append `text` for a range of source that produced no output of its own. */
+  const emitVerbatimRange = (from, to) => {
+    for (let k = from; k < to && k < n; k++) {
+      if (source[k] === '\n') {
+        out += '\n';
+        origIndex.push(k);
+      }
+    }
+  };
+
   while (i < n) {
     const two = source.slice(i, i + 2);
     if (two === '//') {
+      const start = i;
       while (i < n && source[i] !== '\n') i++;
+      emitVerbatimRange(start, i);
       continue;
     }
     if (two === '/*') {
+      const start = i;
       i += 2;
       while (i < n && !(source[i] === '*' && source[i + 1] === '/')) i++;
       i += 2;
+      emitVerbatimRange(start, Math.min(i, n));
       continue;
     }
     const ch = source[i];
     if (ch === "'" || ch === '"' || ch === '`') {
+      const start = i;
       const quote = ch;
       i++;
       while (i < n) {
@@ -92,12 +116,26 @@ function stripNoise(source) {
         i++;
       }
       out += '""';
+      origIndex.push(start, start + 1);
+      emitVerbatimRange(start, Math.min(i, n));
       continue;
     }
     out += ch;
+    origIndex.push(i);
     i++;
   }
-  return out;
+  return { clean: out, origIndex };
+}
+
+/** 1-based line number in the ORIGINAL source for a cleaned-text offset. */
+function originalLineOf(source, origIndex, cleanOffset) {
+  const mapped = origIndex[Math.min(cleanOffset, origIndex.length - 1)];
+  if (mapped === undefined) return 1;
+  let line = 1;
+  for (let k = 0; k < mapped; k++) {
+    if (source[k] === '\n') line++;
+  }
+  return line;
 }
 
 /** Find index of the brace that closes the one at `open`. */
@@ -369,20 +407,51 @@ function matchFunctionStart(clean, i, end) {
   return clean[k] === '{' && k < end ? k : null;
 }
 
-/** From just after `function`, find the opening brace of its body. */
+/**
+ * From just after `function`, find the opening brace of its body.
+ *
+ * The return-type annotation can itself contain braces — `Promise<{ rows: CsvRow[] }>`
+ * and `{ a: string } | null` are common — so a bare "first `{`" search starts the
+ * body inside the annotation and the real body then never gets masked. Skip the
+ * parameter list first, then walk the annotation, treating a `{…}` as part of it
+ * whenever the closing brace is followed by more type syntax.
+ */
 function findBodyBrace(clean, from, end) {
   let i = from;
-  while (i < end && clean[i] !== '{') {
-    if (clean[i] === ';') return -1;
-    i++;
+  // Skip whitespace, then the optional name of a named declaration.
+  while (i < end && (clean[i] === ' ' || clean[i] === '\n')) i++;
+  while (i < end && /[\w$]/.test(clean[i])) i++;
+  while (i < end && (clean[i] === ' ' || clean[i] === '\n')) i++;
+  if (clean[i] !== '(') return -1;
+  const paramsClose = matchParen(clean, i);
+  if (paramsClose === -1 || paramsClose >= end) return -1;
+  i = paramsClose + 1;
+
+  // Return type annotation, ending at the body brace or a statement terminator.
+  while (i < end) {
+    const ch = clean[i];
+    if (ch === ';') return -1;
+    if (ch !== '{') {
+      i++;
+      continue;
+    }
+    const close = matchBrace(clean, i);
+    if (close === -1 || close >= end) return -1;
+    let after = close + 1;
+    while (after < end && (clean[after] === ' ' || clean[after] === '\n')) after++;
+    const next = clean[after] || '';
+    // `>` / `|` / `&` / `[` / `,` / `)` / `.` / `?` continue the annotation;
+    // anything else (or nothing) means this brace opens the body.
+    if (!['>', '|', '&', '[', ',', ')', '.', '?'].includes(next)) return i;
+    i = close + 1;
   }
-  return i < end ? i : -1;
+  return -1;
 }
 
 /** Measure every function in a file (no threshold filter), for CSV re-writing. */
 function measureAll(absPath, relPath) {
   const source = fs.readFileSync(absPath, 'utf8');
-  const clean = stripNoise(source);
+  const { clean, origIndex } = stripNoise(source);
   const seen = new Set();
   const rows = [];
   for (const fn of findFunctions(clean)) {
@@ -391,7 +460,7 @@ function measureAll(absPath, relPath) {
     const body = clean.slice(fn.bodyStart, fn.bodyEnd + 1);
     rows.push({
       name: fn.name,
-      line: source.slice(0, fn.start).split('\n').length,
+      line: originalLineOf(source, origIndex, fn.start),
       ccn: countCcn(body, clean, fn.bodyStart),
       bucket: bucketFor(relPath),
     });
@@ -460,7 +529,7 @@ function baselineKey(relPath, name, line, duplicateNames) {
 /** Measure every function in one file, returning above-threshold rows. */
 function measureFile(file, rootDir, threshold) {
   const source = fs.readFileSync(file, 'utf8');
-  const clean = stripNoise(source);
+  const { clean, origIndex } = stripNoise(source);
   const relPath = path.relative(rootDir, file).replace(/\\/g, '/');
   const seen = new Set();
   const rows = [];
@@ -473,7 +542,7 @@ function measureFile(file, rootDir, threshold) {
     rows.push({
       file: relPath,
       name: fn.name,
-      line: source.slice(0, fn.start).split('\n').length,
+      line: originalLineOf(source, origIndex, fn.start),
       ccn,
       bucket: bucketFor(relPath),
     });

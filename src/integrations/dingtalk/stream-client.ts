@@ -1,4 +1,5 @@
 import { WebSocket } from 'ws';
+import type { StreamMessage } from '../../services/stream-message-utils.js';
 import { debug, error, info } from '../../utils/logger.js';
 
 export interface DingTalkStreamConfig {
@@ -13,16 +14,12 @@ export interface ConnectionToken {
   ticket: string;
 }
 
-export interface DingTalkMessage {
-  specVersion: string;
-  type: string;
-  headers: {
-    topic: string;
-    messageId: string;
-    time: string;
-  };
-  data: string;
-}
+/**
+ * Wire envelope for a DingTalk Stream frame. Structurally identical to the
+ * service-layer `StreamMessage`; aliased rather than redeclared so the two
+ * layers cannot drift apart.
+ */
+export type DingTalkMessage = StreamMessage;
 
 export interface AckResponse {
   code: number;

@@ -12,6 +12,7 @@ import type { ExportService } from '../services/export.service.js';
 import type { InterviewPlanService } from '../services/interview-plan.service.js';
 import type { TemplateDimensionService } from '../services/template-dimension.service.js';
 import { error, info } from '../utils/logger.js';
+import { buildQuestionMap } from '../utils/template-content.js';
 
 export interface AdminTemplatesRoutesOptions {
   templateRepo: TemplateRepository;
@@ -152,18 +153,7 @@ function findInviteeInfo(inviteeData: unknown, userId: string): { name?: string;
 function buildQuestionMapFromTemplate(
   contentJson: string | null | undefined
 ): Record<string, string> {
-  if (!contentJson) return {};
-  try {
-    const parsed = JSON.parse(contentJson) as { questions?: string[] };
-    const questions = parsed.questions || [];
-    const map: Record<string, string> = {};
-    for (let i = 0; i < questions.length; i++) {
-      map[`q${i}`] = questions[i];
-    }
-    return map;
-  } catch {
-    return {};
-  }
+  return buildQuestionMap(contentJson);
 }
 
 export async function adminTemplatesRoutes(
