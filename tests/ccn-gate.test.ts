@@ -298,6 +298,39 @@ describe('ccn-report gate measurement', () => {
     });
   });
 
+  describe('concise arrow bodies', () => {
+    it('measures an expression-bodied arrow instead of skipping it', () => {
+      // `.filter((r) => a && b ? c : d)` is a real function with real branches.
+      // Requiring a block body excluded every one of them from the gate.
+      const out = measure(
+        [
+          'export const pick = (a: number, b: number): number =>',
+          '  a && b ? (a || b ? 1 : 2) : 3;',
+        ].join('\n')
+      );
+      // `&&` + `||` + two ternaries = 4 decisions, CCN 5
+      expect(ccnOf(out, 'pick')).toBe(5);
+    });
+
+    it('counts a `??` in a concise body', () => {
+      const out = measure('export const or = (a?: string, b?: string): string => a ?? b ?? "";');
+      // two `??` = 2 decisions, CCN 3
+      expect(ccnOf(out, 'or')).toBe(3);
+    });
+
+    it('does not charge a concise nested arrow to its parent', () => {
+      const out = measure(
+        [
+          'export function outer(xs: number[]): number[] {',
+          '  return xs.filter((x) => x > 1 && x < 9);',
+          '}',
+        ].join('\n')
+      );
+      // The callback owns its `&&`; outer stays at CCN 1 and is not reported.
+      expect(ccnOf(out, 'outer')).toBeNull();
+    });
+  });
+
   describe('fail-closed behaviour', () => {
     it('exits non-zero when a file cannot be parsed', () => {
       // Silently skipping an unparsable file is how a module can stay unmeasured
@@ -305,6 +338,96 @@ describe('ccn-report gate measurement', () => {
       writeFileSync(join(fixture, 'src', 'probe.ts'), 'export function x( {\n', 'utf8');
       const result = run(['--threshold', '10', '--report-only'], fixture);
       expect(result.code).toBe(1);
+    });
+  });
+
+  describe('--csv-verified (what xp-gate Gate 3 pipes through)', () => {
+    /** Feed a lizard-style CSV row through --csv-verified; return stdout+code. */
+    function verify(csv: string): { stdout: string; code: number } {
+      try {
+        const stdout = execFileSync(
+          process.execPath,
+          [SCRIPT, '--csv-verified', 'batch', '--root', fixture],
+          { cwd: fixture, encoding: 'utf8', input: csv, stdio: ['pipe', 'pipe', 'pipe'] }
+        );
+        return { stdout, code: 0 };
+      } catch (err) {
+        const e = err as { stdout?: string; status?: number };
+        return { stdout: e.stdout ?? '', code: e.status ?? 1 };
+      }
+    }
+
+    /** Columns 1..11 of lizard's CSV, with a deliberately wrong CCN at index 1. */
+    function lizardRow(name: string, startLine: number, ccn: number): string {
+      const path = join(fixture, 'src', 'probe.ts');
+      return [
+        '10', // NLOC
+        String(ccn),
+        '40', // token_len
+        '2', // param_count
+        '20',
+        `${name}@${startLine}-${startLine + 5}@${path}`,
+        path,
+        name,
+        `function ${name}()`,
+        String(startLine),
+        String(startLine + 5),
+      ].join(',');
+    }
+
+    it("replaces lizard's CCN with the AST's", () => {
+      // lizard says 2; the body has two `if`s plus `&&`, so the answer is CCN 4.
+      writeFileSync(
+        join(fixture, 'src', 'probe.ts'),
+        [
+          'export function real(a: number, b: number): number {',
+          '  if (a && b) { return 1; }',
+          '  if (a) { return 2; }',
+          '  return 0;',
+          '}',
+        ].join('\n'),
+        'utf8'
+      );
+      const { stdout, code } = verify(lizardRow('real', 1, 2));
+      expect(code).toBe(0);
+      expect(stdout.split(',')[1]).toBe('4');
+    });
+
+    it('drops a row for a simulated interface member rather than grading it', () => {
+      // lizard reports `readonly disconnect: () => Promise<void>;` as a function.
+      // It is a type, so the row must be discarded while the batch still passes.
+      writeFileSync(
+        join(fixture, 'src', 'probe.ts'),
+        ['export interface C {', '  readonly disconnect: () => Promise<void>;', '}'].join('\n'),
+        'utf8'
+      );
+      const { stdout, code } = verify(lizardRow('disconnect', 2, 3));
+      expect(code).toBe(0);
+      expect(stdout.trim()).toBe('');
+    });
+
+    it('drops a row naming a non-function on a line that holds no implementation', () => {
+      writeFileSync(
+        join(fixture, 'src', 'probe.ts'),
+        ['export const value = 1;', 'export function present(): void {}'].join('\n'),
+        'utf8'
+      );
+      // Line 1 is a variable, not a function implementation, so there is nothing
+      // to grade: the row is discarded and the batch still passes.
+      const { stdout, code } = verify(lizardRow('value', 1, 2));
+      expect(code).toBe(0);
+      expect(stdout.trim()).toBe('');
+    });
+
+    it('keeps a row whose function the AST can measure', () => {
+      writeFileSync(
+        join(fixture, 'src', 'probe.ts'),
+        ['export function plain(): void {}'].join('\n'),
+        'utf8'
+      );
+      const { stdout, code } = verify(lizardRow('plain', 1, 9));
+      expect(code).toBe(0);
+      expect(stdout.split(',')[1]).toBe('1');
     });
   });
 });
