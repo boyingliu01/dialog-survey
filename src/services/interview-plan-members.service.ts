@@ -271,18 +271,36 @@ export class InterviewPlanService extends InterviewPlanSendService {
       throw new PlanNotFoundError(planId);
     }
 
-    let targets: Array<{ id: string; userId: string }>;
-    if (interviewId) {
-      const interview = await this.prisma.interview.findUnique({ where: { id: interviewId } });
-      if (!interview || interview.planId !== planId) {
-        throw new InterviewNotFoundError(interviewId);
-      }
-      if (interview.status === 'COMPLETED' || interview.status === 'CANCELLED') {
-        return { reminded: 0, failed: 0 };
-      }
-      targets = [{ id: interview.id, userId: interview.userId }];
-    } else {
-      targets = await this.prisma.interview.findMany({
+    const targets = await this.resolveReminderTargets(planId, interviewId);
+    if (targets.length === 0) {
+      return { reminded: 0, failed: 0 };
+    }
+
+    const useSingleChat = !!(this.streamClient && this.tokenManager);
+    const tally = useSingleChat
+      ? await this.remindViaSingleChat(targets, plan.name, planId)
+      : await this.remindViaWorkNotification(targets, plan.name, planId);
+
+    info('Reminders sent', {
+      planId,
+      ...tally,
+      channel: useSingleChat ? 'single-chat' : 'work-notification',
+    });
+    return tally;
+  }
+
+  /**
+   * Which interviews a reminder run should notify.
+   *
+   * With an id, only that interview — rejecting one that belongs to another plan
+   * or has already finished. Without one, every unfinished interview in the plan.
+   */
+  private async resolveReminderTargets(
+    planId: string,
+    interviewId?: string
+  ): Promise<Array<{ id: string; userId: string }>> {
+    if (!interviewId) {
+      return this.prisma.interview.findMany({
         where: {
           planId,
           status: { notIn: ['COMPLETED', 'CANCELLED'] },
@@ -291,67 +309,86 @@ export class InterviewPlanService extends InterviewPlanSendService {
       });
     }
 
-    if (targets.length === 0) {
-      return { reminded: 0, failed: 0 };
+    const interview = await this.prisma.interview.findUnique({ where: { id: interviewId } });
+    if (!interview || interview.planId !== planId) {
+      throw new InterviewNotFoundError(interviewId);
     }
+    if (interview.status === 'COMPLETED' || interview.status === 'CANCELLED') return [];
+    return [{ id: interview.id, userId: interview.userId }];
+  }
 
-    const useSingleChat = !!(this.streamClient && this.tokenManager);
+  /**
+   * Remind each target in its own 1:1 chat with the bot.
+   *
+   * Preferred channel when the Stream client and token manager are wired: the
+   * reminder lands in the same conversation the interview happens in.
+   */
+  private async remindViaSingleChat(
+    targets: Array<{ id: string; userId: string }>,
+    planName: string,
+    planId: string
+  ): Promise<{ reminded: number; failed: number }> {
+    const client = this.streamClient as DingTalkStreamClient;
+    const tokenMgr = this.tokenManager as TokenManager;
+    const accessToken = await tokenMgr.getAccessToken();
     let reminded = 0;
     let failed = 0;
-
-    if (useSingleChat) {
-      const client = this.streamClient as DingTalkStreamClient;
-      const tokenMgr = this.tokenManager as TokenManager;
-      const accessToken = await tokenMgr.getAccessToken();
-      for (const target of targets) {
-        const result = await client.sendSingleChatMarkdown(
-          target.userId,
-          '访谈提醒',
-          `**访谈提醒**\n\n您参与的访谈 **"${plan.name}"** 尚未完成，请在本聊天中回复任意消息继续完成访谈。`,
-          accessToken
-        );
-        if (result.success) {
-          reminded++;
-        } else {
-          failed++;
-          error('Reminder send failed (single chat)', {
-            planId,
-            userId: target.userId,
-            error: result.error,
-          });
-        }
-      }
-    } else {
-      const message = `【访谈提醒】您参与的访谈 "${plan.name}" 尚未完成，请抽空回复访谈邀约消息继续完成。`;
-      const concurrency = 10;
-      for (let i = 0; i < targets.length; i += concurrency) {
-        const batch = targets.slice(i, i + concurrency);
-        const results = await Promise.allSettled(
-          batch.map((target) => messageSender.sendTextMessage([target.userId], message))
-        );
-        for (let j = 0; j < results.length; j++) {
-          const result = results[j];
-          if (result.status === 'fulfilled') {
-            reminded++;
-          } else {
-            failed++;
-            const errMsg = result.reason instanceof Error ? result.reason.message : 'send failed';
-            error('Reminder send failed', {
-              planId,
-              userId: batch[j].userId,
-              error: errMsg,
-            });
-          }
-        }
+    for (const target of targets) {
+      const result = await client.sendSingleChatMarkdown(
+        target.userId,
+        '访谈提醒',
+        `**访谈提醒**\n\n您参与的访谈 **"${planName}"** 尚未完成，请在本聊天中回复任意消息继续完成访谈。`,
+        accessToken
+      );
+      if (result.success) {
+        reminded++;
+      } else {
+        failed++;
+        error('Reminder send failed (single chat)', {
+          planId,
+          userId: target.userId,
+          error: result.error,
+        });
       }
     }
+    return { reminded, failed };
+  }
 
-    info('Reminders sent', {
-      planId,
-      reminded,
-      failed,
-      channel: useSingleChat ? 'single-chat' : 'work-notification',
-    });
+  /**
+   * Remind every target through the work-notification API, in batches.
+   *
+   * Each batch is settled independently so one failed send neither aborts the
+   * batch nor is silently counted as delivered.
+   */
+  private async remindViaWorkNotification(
+    targets: Array<{ id: string; userId: string }>,
+    planName: string,
+    planId: string
+  ): Promise<{ reminded: number; failed: number }> {
+    const message = `【访谈提醒】您参与的访谈 "${planName}" 尚未完成，请抽空回复访谈邀约消息继续完成。`;
+    const concurrency = 10;
+    let reminded = 0;
+    let failed = 0;
+    for (let i = 0; i < targets.length; i += concurrency) {
+      const batch = targets.slice(i, i + concurrency);
+      const results = await Promise.allSettled(
+        batch.map((target) => messageSender.sendTextMessage([target.userId], message))
+      );
+      for (let j = 0; j < results.length; j++) {
+        const result = results[j];
+        if (result.status === 'fulfilled') {
+          reminded++;
+          continue;
+        }
+        failed++;
+        const errMsg = result.reason instanceof Error ? result.reason.message : 'send failed';
+        error('Reminder send failed', {
+          planId,
+          userId: batch[j].userId,
+          error: errMsg,
+        });
+      }
+    }
     return { reminded, failed };
   }
 

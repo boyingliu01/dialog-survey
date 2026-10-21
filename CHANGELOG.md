@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## [1.11.8](https://github.com/boyingliu01/dialog-survey/compare/v1.11.7...v1.11.8) (2026-10-20)
+
+### Bug Fixes
+
+- fix(gate): the complexity measurement engine is now the TypeScript compiler AST. The previous brace-matching implementation was structurally unable to measure TypeScript correctly, and its failures were not theoretical:
+  - `function f(): { a: string } { … }` had its return-type literal taken for the body, so the real body was never counted. `mapServiceErrorToStatus` (8 decision points) and `parseCsv` (7) both measured 1.
+  - Class methods (`async getAccessToken(): Promise<string> {`) matched neither recognised declaration form. **170 methods were never measured at all** — 99 at CCN >= 2 and 14 above the threshold — and so could never appear in the baseline the ratchet compares against.
+  - Line numbers pointed at the blank line above each function, sending anyone reading a violation to the wrong place.
+  Adopting the AST surfaced 14 functions above CCN 10 that the gate had been reporting as clean; all are now refactored under the threshold, including `processMessageInternal` (27 -> 9), `getUsageStats` (20 -> 4), `sendInvitations` (18 -> 5) and `sendReminder` (17 -> 4). `.ccn-baseline.json` grew from 234 to 527 entries, max CCN 10: the old file was recorded from an engine that could not see class methods.
+- fix(gate): `--csv-verified` no longer passes an unmeasured row through at lizard's number. lizard is a regex/line parser whose span tracking was wrong on 28% of this tree (it merged `scheduleAnalysis` into `mergeState` and dropped it entirely), and the old verifier silently fell back to lizard's CCN exactly when it disagreed — so the "verification" step was inert precisely when it mattered. The AST now decides every row, lizard's number is kept only as a cross-check, and a row that cannot be attributed to an AST function fails the gate closed.
+- fix(repo): `getUsageStats().safeToDelete` counted completed and cancelled interviews as blockers while refactoring. Caught by the existing suite; the active-only distinction is now an explicitly named helper (`totalActiveInterviewUsage`).
+
+### Chores
+
+- test(gate): `tests/ccn-gate.test.ts` grew from 8 to 16 cases covering the AST migration: object and union return-type annotations, class methods, private methods, constructors, arrow fields, nested-callback attribution, and fail-closed behaviour on a file that cannot be parsed.
+- docs: `scripts/ccn-report.cjs` lost 84 lines of dead regex parser (`matchParen`, `signatureStart`, `extractBody`) left behind by the migration.
+
 ## [1.11.7](https://github.com/boyingliu01/dialog-survey/compare/v1.11.6...v1.11.7) (2026-10-20)
 
 ### Bug Fixes

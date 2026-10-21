@@ -98,27 +98,45 @@ export function createLoginRateLimiter(options: LoginRateLimiterOptions = {}): L
 
 export const loginRateLimiter: LoginRateLimiter = createLoginRateLimiter();
 
+/**
+ * True for the public health endpoint, the only route exempt from API-key auth.
+ *
+ * Matched on an exact path or a query string, so a path merely *containing*
+ * `/api/health` (e.g. `/api/health-admin`) still requires a key.
+ */
+function isPublicHealthRequest(request: FastifyRequest): boolean {
+  if (request.method !== 'GET') return false;
+  return request.url === '/api/health' || request.url.startsWith('/api/health?');
+}
+
+/**
+ * Constant-time comparison of the request's X-Admin-Key against the configured
+ * one, returning true when the request should be treated as the admin user.
+ *
+ * Both sides must be present: an unset `ADMIN_API_KEY` never authenticates.
+ */
+function matchesAdminKey(request: FastifyRequest): boolean {
+  const rawAdminKey = request.headers['x-admin-key'];
+  const adminKey = Array.isArray(rawAdminKey) ? rawAdminKey.join(',') : rawAdminKey;
+  const expectedAdminKey = process.env['ADMIN_API_KEY'];
+  if (!adminKey || !expectedAdminKey) return false;
+  return timingSafeEqualStrings(adminKey, expectedAdminKey);
+}
+
 export function createVerifyApiKey(prisma: PrismaClient) {
   return async function verifyApiKey(request: FastifyRequest, reply: FastifyReply) {
     // Only exempt public health endpoint from API key auth
-    if (
-      request.method === 'GET' &&
-      (request.url === '/api/health' || request.url.startsWith('/api/health?'))
-    ) {
+    if (isPublicHealthRequest(request)) {
       return;
     }
 
-    const apiKey = request.headers['x-api-key'] as string | undefined;
-    const rawAdminKey = request.headers['x-admin-key'];
-    const adminKey = Array.isArray(rawAdminKey) ? rawAdminKey.join(',') : rawAdminKey;
-
     // Allow admin UI requests authenticated via X-Admin-Key header
-    const expectedAdminKey = process.env['ADMIN_API_KEY'];
-    if (adminKey && expectedAdminKey && timingSafeEqualStrings(adminKey, expectedAdminKey)) {
+    if (matchesAdminKey(request)) {
       request.user = { userId: 'admin', role: 'admin' };
       return;
     }
 
+    const apiKey = request.headers['x-api-key'] as string | undefined;
     if (!apiKey) {
       return reply.status(401).send({ error: 'API key required' });
     }

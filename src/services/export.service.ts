@@ -176,6 +176,57 @@ export class ExportService {
     return xlsxPath;
   }
 
+  /**
+   * Build the `@font-face` CSS for the bundled CJK font.
+   *
+   * The font is embedded as base64 so the PDF renderer needs no system fonts.
+   * When it is missing or unreadable, fall back to font names and warn once per
+   * process: the fallback names are absent from minimal images (e.g.
+   * node:alpine), so Chinese would render as boxes — a failure that used to be
+   * completely silent.
+   */
+  private loadCjkFontCss(): string {
+    const fontPath = join(this.reportsDir, 'NotoSansCJKsc-Regular.otf');
+    if (existsSync(fontPath)) {
+      try {
+        const fontBase64 = readFileSync(fontPath).toString('base64');
+        return `@font-face{font-family:'NotoSansCJK';src:url(data:font/opentype;base64,${fontBase64})}body{font-family:'NotoSansCJK',sans-serif}`;
+      } catch {
+        warn('Failed to read CJK font for PDF', { fontPath });
+      }
+    }
+    warnMissingCjkFont(fontPath);
+    return 'body{font-family:"Noto Sans CJK SC","Noto Sans SC","Noto Sans",sans-serif}';
+  }
+
+  /** The optional analysis section of the PDF, or an empty string when absent. */
+  private renderReportSection(
+    report: {
+      content: string;
+      keyFindings: string[];
+      sentiment: string | null;
+      recommendations: string[];
+    } | null
+  ): string {
+    if (!report) return '';
+    const findings = report.keyFindings?.length
+      ? `<h4 style="margin-top:12px;color:#555">关键发现</h4><ul>${report.keyFindings.map((f) => `<li>${this.escapeHtml(f)}</li>`).join('')}</ul>`
+      : '';
+    const sentiment = report.sentiment
+      ? `<p style="margin-top:8px;color:#555">情感分析: <strong>${this.escapeHtml(this.translateSentiment(report.sentiment))}</strong></p>`
+      : '';
+    const recommendations = report.recommendations?.length
+      ? `<h4 style="margin-top:12px;color:#555">建议</h4><ul>${report.recommendations.map((r) => `<li>${this.escapeHtml(r)}</li>`).join('')}</ul>`
+      : '';
+    return `<h2 style="margin-top:24px;color:#333">访谈分析总结</h2>
+         <div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:4px;padding:12px;margin-top:8px">
+           <p style="color:#555;line-height:1.6">${this.escapeHtml(report.content).replace(/\n/g, '<br>')}</p>
+           ${findings}
+           ${sentiment}
+           ${recommendations}
+         </div>`;
+  }
+
   private renderPdfHtml(
     interview: {
       userId: string;
@@ -196,24 +247,7 @@ export class ExportService {
     } | null,
     inviteeInfo: { name?: string; phone?: string }
   ): string {
-    // Load CJK font for Chinese text rendering in PDF
-    let fontFaceCss = '';
-    const fontPath = join(this.reportsDir, 'NotoSansCJKsc-Regular.otf');
-    if (existsSync(fontPath)) {
-      try {
-        const fontBase64 = readFileSync(fontPath).toString('base64');
-        fontFaceCss = `@font-face{font-family:'NotoSansCJK';src:url(data:font/opentype;base64,${fontBase64})}body{font-family:'NotoSansCJK',sans-serif}`;
-      } catch {
-        warn('Failed to read CJK font for PDF', { fontPath });
-      }
-    }
-    if (!fontFaceCss) {
-      // The fallback below names fonts a minimal image (e.g. node:alpine) does
-      // not ship, so Chinese renders as boxes. This used to degrade silently;
-      // warn once per process so a broken image surfaces in the logs.
-      warnMissingCjkFont(fontPath);
-      fontFaceCss = 'body{font-family:"Noto Sans CJK SC","Noto Sans SC","Noto Sans",sans-serif}';
-    }
+    const fontFaceCss = this.loadCjkFontCss();
 
     const displayName = inviteeInfo.name || interview.userId;
     const headerParts = [`用户: ${this.escapeHtml(interview.userId)}`];
@@ -237,15 +271,7 @@ export class ExportService {
       })
       .join('\n');
 
-    const reportHtml = report
-      ? `<h2 style="margin-top:24px;color:#333">访谈分析总结</h2>
-         <div style="background:#fafafa;border:1px solid #e0e0e0;border-radius:4px;padding:12px;margin-top:8px">
-           <p style="color:#555;line-height:1.6">${this.escapeHtml(report.content).replace(/\n/g, '<br>')}</p>
-           ${report.keyFindings?.length ? `<h4 style="margin-top:12px;color:#555">关键发现</h4><ul>${report.keyFindings.map((f) => `<li>${this.escapeHtml(f)}</li>`).join('')}</ul>` : ''}
-           ${report.sentiment ? `<p style="margin-top:8px;color:#555">情感分析: <strong>${this.escapeHtml(this.translateSentiment(report.sentiment))}</strong></p>` : ''}
-           ${report.recommendations?.length ? `<h4 style="margin-top:12px;color:#555">建议</h4><ul>${report.recommendations.map((r) => `<li>${this.escapeHtml(r)}</li>`).join('')}</ul>` : ''}
-         </div>`
-      : '';
+    const reportHtml = this.renderReportSection(report);
 
     return `<!DOCTYPE html>
 <html lang="zh-CN">

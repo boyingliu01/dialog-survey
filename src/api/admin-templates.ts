@@ -37,6 +37,179 @@ const updateTemplateSchema = z.object({
 });
 const versionSchema = z.object({ version: z.coerce.number().int().positive() });
 
+const SENTIMENT_LABELS: Record<string, string> = {
+  positive: '积极',
+  negative: '消极',
+  neutral: '中性',
+};
+
+/** Sum the interview usage counts a template-deletion check cares about. */
+function totalInterviewUsage(interviews: {
+  active: number;
+  pending: number;
+  waiting: number;
+  completed: number;
+  cancelled: number;
+}): number {
+  return (
+    interviews.active +
+    interviews.pending +
+    interviews.waiting +
+    interviews.completed +
+    interviews.cancelled
+  );
+}
+
+/** Sum the plan usage counts a template-deletion check cares about. */
+function totalPlanUsage(plans: Record<string, number | undefined> | undefined): number {
+  if (!plans) return 0;
+  let total = 0;
+  for (const key of ['running', 'pending', 'ready', 'paused', 'completed']) {
+    total += plans[key] ?? 0;
+  }
+  return total;
+}
+
+/**
+ * Map a template-update failure to the HTTP status and HTML fragment to return.
+ *
+ * The ordering matters: a ZodError is a 422, a Prisma "record not found"/P2025 is
+ * a 409 (someone else changed the row), a missing lookup is a 404, and anything
+ * else is a 500 with the original message surfaced for debugging.
+ */
+function mapUpdateError(e: unknown): { status: number; body: string } {
+  if (e instanceof z.ZodError) {
+    return { status: 422, body: htmlError(e.issues[0]?.message ?? 'Validation failed') };
+  }
+  if (isStaleRecordError(e)) {
+    return { status: 409, body: '<div class="text-red-600">模板已被他人修改，请刷新后重试</div>' };
+  }
+  if (e instanceof Error && e.message.includes('find')) {
+    return { status: 404, body: htmlError('Template not found') };
+  }
+  const errMsg = e instanceof Error ? e.message : 'Failed to update template';
+  return { status: 500, body: htmlError(errMsg) };
+}
+
+/** True when Prisma reports the row vanished or was concurrently modified. */
+function isStaleRecordError(e: unknown): boolean {
+  if (!(e instanceof Error)) return false;
+  if ((e as unknown as { code?: string }).code === 'P2025') return true;
+  return e.message.toLowerCase().includes('record');
+}
+
+/** Result of validating a pasted template JSON document. */
+type TemplateImportResult =
+  | { error: string }
+  | {
+      input: { name: string; description?: string; content: Record<string, unknown> };
+      dimensions?: Array<{ id: string; label: string; keywords?: string[] }>;
+    };
+
+/**
+ * Read an optional string field, trimmed, or undefined when absent/blank.
+ *
+ * Avoids the `x != null ? x.trim() : undefined` ternary that pushed the import
+ * validator over the complexity threshold.
+ */
+function optionalTrimmed(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+}
+
+/**
+ * Validate the JSON a user pasted into the template-import form.
+ *
+ * Returns `{ error }` with the message to show, or the normalised input ready
+ * for `templateRepo.create`. Kept free of Fastify types so the rules can be
+ * unit-tested without an HTTP round trip.
+ */
+function prepareTemplateImport(raw: string | undefined): TemplateImportResult {
+  if (!raw || !raw.trim()) return { error: '请粘贴模板 JSON 内容' };
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    return { error: 'JSON 格式错误，请检查后重试' };
+  }
+
+  return validateImportedTemplate(parsed);
+}
+
+/** Validate an already-parsed import document. */
+function validateImportedTemplate(parsed: Record<string, unknown>): TemplateImportResult {
+  const name = optionalTrimmed(parsed['name']);
+  if (!name) return { error: 'JSON 缺少 name 字段' };
+
+  const content = parsed['content'] as Record<string, unknown> | undefined;
+  if (!content || typeof content !== 'object') return { error: 'JSON 缺少 content 字段' };
+
+  const validationError = validateTemplateContent(content);
+  if (validationError) return { error: validationError };
+
+  const description = optionalTrimmed(parsed['description']);
+  const input: { name: string; description?: string; content: Record<string, unknown> } = {
+    name,
+    content,
+  };
+  if (description) input.description = description;
+
+  const dimensions = parsed['dimensions'] as
+    | Array<{ id: string; label: string; keywords?: string[] }>
+    | undefined;
+  if (!Array.isArray(dimensions) || dimensions.length === 0) return { input };
+
+  return { input, dimensions };
+}
+
+/** Header block of the Markdown report: who was interviewed, and the status. */
+function reportHeaderLines(
+  interview: { userId: string; status: string },
+  inviteeInfo: { name?: string; phone?: string }
+): string[] {
+  const lines = [`- **用户**: ${interview.userId}`];
+  if (inviteeInfo.name) lines.push(`- **姓名**: ${inviteeInfo.name}`);
+  if (inviteeInfo.phone) lines.push(`- **电话**: ${inviteeInfo.phone}`);
+  lines.push(`- **状态**: ${interview.status}`, '', '---', '', '## 访谈对话记录', '');
+  return lines;
+}
+
+/** The transcript, one labelled block per message. */
+function transcriptLines(messages: Array<{ role: string; content: string }>): string[] {
+  const lines: string[] = [];
+  for (const m of messages) {
+    const roleLabel = m.role === 'assistant' ? '🤖 机器人' : '👤 受访者';
+    lines.push(`**${roleLabel}**：`, '', m.content, '');
+  }
+  return lines;
+}
+
+/** The analysis section, omitted entirely when no report exists yet. */
+function analysisSectionLines(report: {
+  content?: string | null;
+  sentiment?: string | null;
+  keyFindings?: string[] | null;
+  recommendations?: string[] | null;
+}): string[] {
+  const lines = ['---', '', '## 访谈分析总结', '', report.content ?? '', ''];
+  if (report.sentiment) {
+    lines.push(`**情感分析**: ${SENTIMENT_LABELS[report.sentiment] ?? report.sentiment}`, '');
+  }
+  if (report.keyFindings?.length) {
+    lines.push('**关键发现**：', '');
+    for (const f of report.keyFindings) lines.push(`- ${f}`);
+    lines.push('');
+  }
+  if (report.recommendations?.length) {
+    lines.push('**建议**：', '');
+    for (const r of report.recommendations) lines.push(`- ${r}`);
+    lines.push('');
+  }
+  return lines;
+}
+
 function extractStructuredQuestions(questionsObj: Record<string, { text: string }>): string[] {
   const questions: string[] = [];
   for (const key of Object.keys(questionsObj).sort()) {
@@ -174,6 +347,28 @@ export async function adminTemplatesRoutes(
   const API_PATH = '/admin/api';
   const adminMutationGuard = createAdminMutationGuard(fastify.csrfProtection);
 
+  /**
+   * Explain why a template cannot be deleted, or null when it can.
+   *
+   * A template still referenced by interviews or plans would hit the FK
+   * constraint, so the check runs first and reports the count to the operator.
+   */
+  const findDeletionBlocker = async (id: string): Promise<string | null> => {
+    const usageStats = await templateRepo.getUsageStats(id);
+
+    const totalInterviews = totalInterviewUsage(usageStats.interviews);
+    if (totalInterviews > 0) {
+      return `<div class="text-red-600">不能删除：该模板关联了 ${totalInterviews} 个访谈记录</div>`;
+    }
+
+    const totalPlans = totalPlanUsage(usageStats.plans);
+    if (totalPlans > 0) {
+      return `<div class="text-red-600">不能删除：该模板关联了 ${totalPlans} 个访谈计划</div>`;
+    }
+
+    return null;
+  };
+
   // GET /admin — Tree view main entry (new hierarchical UI)
   fastify.get(
     '/admin',
@@ -248,45 +443,18 @@ export async function adminTemplatesRoutes(
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         const body = request.body as Record<string, unknown>;
-        const jsonStr = body['json'] as string | undefined;
-        if (!jsonStr || !jsonStr.trim()) {
-          return reply.status(422).send(htmlError('请粘贴模板 JSON 内容'));
-        }
+        const prepared = prepareTemplateImport(body['json'] as string | undefined);
+        if ('error' in prepared) return reply.status(422).send(htmlError(prepared.error));
 
-        let parsed: Record<string, unknown>;
-        try {
-          parsed = JSON.parse(jsonStr) as Record<string, unknown>;
-        } catch {
-          return reply.status(422).send(htmlError('JSON 格式错误，请检查后重试'));
-        }
-
-        const name = parsed['name'] as string | undefined;
-        const description = parsed['description'] as string | undefined;
-        const content = parsed['content'] as Record<string, unknown> | undefined;
-        const dimensions = parsed['dimensions'] as
-          | Array<{ id: string; label: string; keywords?: string[] }>
-          | undefined;
-
-        if (!name || !name.trim()) {
-          return reply.status(422).send(htmlError('JSON 缺少 name 字段'));
-        }
-        if (!content || typeof content !== 'object') {
-          return reply.status(422).send(htmlError('JSON 缺少 content 字段'));
-        }
-
-        const validationError = validateTemplateContent(content);
-        if (validationError) return reply.status(422).send(htmlError(validationError));
-
-        const created = await templateRepo.create({
-          name: name.trim(),
-          ...(description != null ? { description: description.trim() } : {}),
-          content,
-        });
+        const created = await templateRepo.create(prepared.input);
 
         // Save dimensions to the DB-level column if provided
-        if (dimensions && Array.isArray(dimensions) && dimensions.length > 0) {
+        if (prepared.dimensions && prepared.dimensions.length > 0) {
           try {
-            await templateDimensionService.updateTemplateDimensions(created.id, dimensions);
+            await templateDimensionService.updateTemplateDimensions(
+              created.id,
+              prepared.dimensions
+            );
           } catch (e) {
             const dimErr = e instanceof Error ? e.message : 'Invalid dimensions';
             error('Template created but dimensions import failed', {
@@ -297,7 +465,7 @@ export async function adminTemplatesRoutes(
           }
         }
 
-        info('Admin template imported', { name: name.trim() });
+        info('Admin template imported', { name: prepared.input.name });
         return reply.status(201).header('HX-Redirect', '/admin').send('');
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : 'Failed to import template';
@@ -465,60 +633,10 @@ export async function adminTemplatesRoutes(
         inviteeInfo = findInviteeInfo(plan?.inviteeData, interview.userId);
       }
 
-      const lines: string[] = [];
-      lines.push('# 访谈报告');
-      lines.push('');
-      lines.push(`- **用户**: ${interview.userId}`);
-      if (inviteeInfo.name) lines.push(`- **姓名**: ${inviteeInfo.name}`);
-      if (inviteeInfo.phone) lines.push(`- **电话**: ${inviteeInfo.phone}`);
-      lines.push(`- **状态**: ${interview.status}`);
-      lines.push('');
-      lines.push('---');
-      lines.push('');
-      lines.push('## 访谈对话记录');
-      lines.push('');
-
-      for (const m of interview.messages) {
-        const roleLabel = m.role === 'assistant' ? '🤖 机器人' : '👤 受访者';
-        lines.push(`**${roleLabel}**：`);
-        lines.push('');
-        lines.push(m.content);
-        lines.push('');
-      }
-
-      if (report) {
-        lines.push('---');
-        lines.push('');
-        lines.push('## 访谈分析总结');
-        lines.push('');
-        lines.push(report.content ?? '');
-        lines.push('');
-        if (report.sentiment) {
-          const sentimentMap: Record<string, string> = {
-            positive: '积极',
-            negative: '消极',
-            neutral: '中性',
-          };
-          lines.push(`**情感分析**: ${sentimentMap[report.sentiment] ?? report.sentiment}`);
-          lines.push('');
-        }
-        if (report.keyFindings?.length) {
-          lines.push('**关键发现**：');
-          lines.push('');
-          for (const f of report.keyFindings) {
-            lines.push(`- ${f}`);
-          }
-          lines.push('');
-        }
-        if (report.recommendations?.length) {
-          lines.push('**建议**：');
-          lines.push('');
-          for (const r of report.recommendations) {
-            lines.push(`- ${r}`);
-          }
-          lines.push('');
-        }
-      }
+      const lines: string[] = ['# 访谈报告', ''];
+      lines.push(...reportHeaderLines(interview, inviteeInfo));
+      lines.push(...transcriptLines(interview.messages));
+      if (report) lines.push(...analysisSectionLines(report));
 
       const markdown = lines.join('\n');
       const filename = `interview-report-${interviewId}.md`;
@@ -722,22 +840,11 @@ export async function adminTemplatesRoutes(
           .status(200)
           .send('<div class="text-green-600 font-medium">✓ 保存成功，正在返回...</div>');
       } catch (e) {
-        if (e instanceof z.ZodError)
-          return reply.status(422).send(htmlError(e.issues[0]?.message ?? 'Validation failed'));
-        if (
-          e instanceof Error &&
-          (e.message.toLowerCase().includes('record') ||
-            (e as unknown as { code?: string }).code === 'P2025')
-        ) {
-          return reply
-            .status(409)
-            .send('<div class="text-red-600">模板已被他人修改，请刷新后重试</div>');
+        const failure = mapUpdateError(e);
+        if (failure.status === 500) {
+          error('Failed to update admin template', { error: failure.body, templateId: id });
         }
-        if (e instanceof Error && e.message.includes('find'))
-          return reply.status(404).send(htmlError('Template not found'));
-        const errMsg = e instanceof Error ? e.message : 'Failed to update template';
-        error('Failed to update admin template', { error: errMsg, templateId: id });
-        return reply.status(500).send(htmlError(errMsg));
+        return reply.status(failure.status).send(failure.body);
       }
     }
   );
@@ -750,39 +857,9 @@ export async function adminTemplatesRoutes(
       try {
         const existing = await templateRepo.findById(id);
         if (!existing) return reply.status(404).send(htmlError('Template not found'));
-        const usageStats = await templateRepo.getUsageStats(id);
 
-        // Check Interview FK constraint
-        const totalInterviews =
-          usageStats.interviews.active +
-          usageStats.interviews.pending +
-          usageStats.interviews.waiting +
-          usageStats.interviews.completed +
-          usageStats.interviews.cancelled;
-
-        if (totalInterviews > 0) {
-          return reply
-            .status(409)
-            .send(
-              `<div class="text-red-600">不能删除：该模板关联了 ${totalInterviews} 个访谈记录</div>`
-            );
-        }
-
-        // Check InterviewPlan FK constraint
-        const totalPlans =
-          (usageStats.plans?.running ?? 0) +
-          (usageStats.plans?.pending ?? 0) +
-          (usageStats.plans?.ready ?? 0) +
-          (usageStats.plans?.paused ?? 0) +
-          (usageStats.plans?.completed ?? 0);
-
-        if (totalPlans > 0) {
-          return reply
-            .status(409)
-            .send(
-              `<div class="text-red-600">不能删除：该模板关联了 ${totalPlans} 个访谈计划</div>`
-            );
-        }
+        const blocking = await findDeletionBlocker(id);
+        if (blocking) return reply.status(409).send(blocking);
 
         const verified = await templateRepo.deleteAndVerify(id);
 
