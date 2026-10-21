@@ -226,7 +226,7 @@ export class StreamMessageService {
         newVersion: nextState.version,
       });
     } catch (err) {
-      return this.recoverFromPersistFailure(err, state, parsed, message, prisma, retryCount);
+      return this.recoverFromPersistFailure(err, { state, parsed, message }, prisma, retryCount);
     }
 
     return this.finishWithReply(parsed.sessionWebhook, graphResult.response);
@@ -324,12 +324,15 @@ export class StreamMessageService {
    */
   private async recoverFromPersistFailure(
     err: unknown,
-    state: InterviewState,
-    parsed: { userId: string; content: string; sessionWebhook?: string },
-    message: { data: string; headers: { messageId: string } },
+    request: {
+      state: InterviewState;
+      parsed: { userId: string; content: string; sessionWebhook?: string };
+      message: { data: string; headers: { messageId: string } };
+    },
     prisma: PrismaClient | undefined,
     retryCount: number
   ): Promise<{ success: boolean; response?: string; error?: string }> {
+    const { state, parsed, message } = request;
     const errorMsg = err instanceof Error ? err.message : 'Unknown error';
     if (errorMsg.includes('Version conflict') && retryCount < MAX_RETRIES) {
       info('Retrying due to version conflict', {
