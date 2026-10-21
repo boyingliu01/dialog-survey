@@ -307,18 +307,22 @@ function buildInviteeNameMap(inviteeData: unknown): Record<string, string> {
   return map;
 }
 
+/** Pull name/phone out of one invitee entry, if it is shaped like an object. */
+function pickInviteeFields(entry: unknown): { name?: string; phone?: string } | null {
+  if (!entry || typeof entry !== 'object') return null;
+  const obj = entry as Record<string, unknown>;
+  const result: { name?: string; phone?: string } = {};
+  if (typeof obj['name'] === 'string') result.name = obj['name'];
+  if (typeof obj['phone'] === 'string') result.phone = obj['phone'];
+  return result;
+}
+
 function findInviteeInfo(inviteeData: unknown, userId: string): { name?: string; phone?: string } {
   if (!Array.isArray(inviteeData)) return {};
   for (const entry of inviteeData) {
-    if (entry && typeof entry === 'object') {
-      const obj = entry as Record<string, unknown>;
-      if (obj['userId'] === userId) {
-        const result: { name?: string; phone?: string } = {};
-        if (typeof obj['name'] === 'string') result.name = obj['name'];
-        if (typeof obj['phone'] === 'string') result.phone = obj['phone'];
-        return result;
-      }
-    }
+    const fields = pickInviteeFields(entry);
+    if (!fields) continue;
+    if ((entry as Record<string, unknown>)['userId'] === userId) return fields;
   }
   return {};
 }

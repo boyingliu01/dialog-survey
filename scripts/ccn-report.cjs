@@ -280,32 +280,40 @@ function bucketFor(relPath) {
   return 'production';
 }
 
-/** Split one CSV line, honouring the double-quote escaping lizard emits. */
+/**
+ * Split one CSV line, honouring the double-quote escaping lizard emits.
+ *
+ * Written as a small state machine: a `""` inside a quoted field is one literal
+ * quote (and consumes both characters), a bare `"` toggles quoting, and a comma
+ * outside quotes ends the field. Tracking the consumed length keeps the nested
+ * quote handling out of the loop body.
+ */
 function parseCsvLine(line) {
   const out = [];
   let cur = '';
   let quoted = false;
-  for (let i = 0; i < line.length; i++) {
+  let i = 0;
+  while (i < line.length) {
     const ch = line[i];
-    if (quoted) {
-      if (ch === '"') {
-        if (line[i + 1] === '"') {
-          cur += '"';
-          i++;
-        } else {
-          quoted = false;
-        }
-      } else {
-        cur += ch;
-      }
-    } else if (ch === '"') {
-      quoted = true;
-    } else if (ch === ',') {
+    const next = line[i + 1];
+    if (quoted && ch === '"' && next === '"') {
+      cur += '"';
+      i += 2;
+      continue;
+    }
+    if (ch === '"') {
+      quoted = !quoted;
+      i += 1;
+      continue;
+    }
+    if (!quoted && ch === ',') {
       out.push(cur);
       cur = '';
-    } else {
-      cur += ch;
+      i += 1;
+      continue;
     }
+    cur += ch;
+    i += 1;
   }
   out.push(cur);
   return out;
@@ -378,25 +386,250 @@ function lizardRowIsRealFunction(ts, absPath, startLine, name) {
   return found;
 }
 
-function main() {
-  const args = process.argv.slice(2);
-  let threshold = 10;
-  let asJson = false;
-  let writeBaseline = false;
-  let csvVerified = false;
-  let reportOnly = false;
-  let rootDir = process.cwd();
-  const paths = [];
-  for (let i = 0; i < args.length; i++) {
-    const a = args[i];
-    if (a === '--threshold') threshold = Number(args[++i]);
-    else if (a === '--json') asJson = true;
-    else if (a === '--write-baseline') writeBaseline = true;
-    else if (a === '--csv-verified') csvVerified = true;
-    else if (a === '--root') rootDir = args[++i];
-    else if (a === '--report-only') reportOnly = true;
-    else paths.push(a);
+/**
+ * Parse one lizard CSV row into the coordinates we need to find its function.
+ *
+ * lizard's `fn@start-end@path` field packs three facts into one string, and the
+ * middle one is a RANGE, so the start line is its head rather than the field
+ * itself. Older lizard versions omit it and put the line in a later column.
+ */
+function parseLizardRow(cols, rootDir) {
+  const parts = (cols[5] ?? '').split('@');
+  const name = parts[0] ?? '';
+  const rawPath = parts.length >= 3 ? parts.slice(2).join('@') : (cols[6] ?? '');
+  const lineField = parts.length >= 3 ? parts[1] : (cols[9] ?? '0');
+  const startLine = String(Number.parseInt(lineField.split('-')[0], 10));
+  const absPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(rootDir, rawPath);
+  const relPath = path.relative(rootDir, absPath).replace(/\\/g, '/');
+  return { name, absPath, relPath, startLine };
+}
+
+/**
+ * Find the AST function a lizard row refers to.
+ *
+ * Rows are matched by name; the line breaks ties between same-named functions.
+ * Every anonymous arrow is called `(anonymous)`, so those are matched by line
+ * alone.
+ */
+function findMeasuredFunction(measured, name, startLine) {
+  const sameName = measured.filter((m) => m.name === name);
+  const onLine = (m) => String(m.line) === startLine;
+  if (name === '(anonymous)') return sameName.find(onLine);
+  return sameName.length === 1 ? sameName[0] : sameName.find(onLine);
+}
+
+/**
+ * Decide what to do with a row the AST could not resolve.
+ *
+ * Two very different situations live here, and conflating them was the original
+ * bug:
+ *
+ *   - lizard invented the row. Its parser reports type-level signatures it
+ *     believes are functions (`readonly disconnect: () => Promise<void>;`, a
+ *     stray `...` in a type literal). There is no function to measure, so the row
+ *     is DROPPED: keeping it at lizard's CCN is what let a wrong number through,
+ *     and failing on it would block every commit for a non-function.
+ *   - lizard names a real function we cannot see. That is a hole in our own
+ *     measurement, and the gate must not grade around it — fail closed.
+ *
+ * A row is also excused when the AST already measured something starting on that
+ * exact line: lizard splits one construct into several rows (`fastify.post(path,
+ * {...}, async (req) => {` is one function, but it reports the comma too), and
+ * the measured function is what the ratchet grades.
+ *
+ * Returns 'dropped' or 'unresolved'.
+ */
+function classifyUnresolvedRow(ts, measured, row) {
+  const alreadyMeasured = measured.some((m) => String(m.line) === row.startLine);
+  if (alreadyMeasured) return 'dropped';
+  if (!lizardRowIsRealFunction(ts, row.absPath, row.startLine, row.name)) return 'dropped';
+  return 'unresolved';
+}
+
+/**
+ * Rewrite one lizard CSV line so its CCN column carries the AST measurement.
+ *
+ * Returns the rewritten line, or null when the row contributes nothing (it was
+ * dropped). `unresolved` and `disagreements` are collected for the caller to
+ * report.
+ */
+function verifyCsvRow(ts, cols, rootDir, cache, acc) {
+  const row = parseLizardRow(cols, rootDir);
+  // Generated code is never graded, so it is never resolved either.
+  if (bucketFor(row.relPath) === 'generated') {
+    acc.dropped.push(`${row.relPath}::${row.name}@${row.startLine}`);
+    return null;
   }
+  if (!cache.has(row.absPath)) {
+    try {
+      cache.set(row.absPath, measureFileAst(ts, row.absPath, rootDir).rows);
+    } catch {
+      // Unreadable file: the gate must not proceed on an unmeasured number.
+      cache.set(row.absPath, null);
+    }
+  }
+  const measured = cache.get(row.absPath);
+  if (!measured) {
+    acc.unresolved.push(`${row.relPath}:${row.name}@${row.startLine}`);
+    return null;
+  }
+  const hit = findMeasuredFunction(measured, row.name, row.startLine);
+  if (!hit) {
+    const verdict = classifyUnresolvedRow(ts, measured, row);
+    const label = `${row.relPath}::${row.name}@${row.startLine}`;
+    acc[verdict].push(label);
+    return null;
+  }
+  // Report only when both engines claim a measurement; a type-level row lizard
+  // invents has no AST counterpart and was rejected above.
+  const lizardCcn = Number(cols[1]);
+  if (Number.isFinite(lizardCcn) && lizardCcn !== hit.ccn) {
+    acc.disagreements.push(
+      `${row.relPath}::${row.name}@${row.startLine} lizard=${lizardCcn} ast=${hit.ccn}`
+    );
+  }
+  cols[1] = String(hit.ccn);
+  return cols.map(csvEscape).join(',');
+}
+
+/** Write one explanatory line, showing the first few items of a long list. */
+function reportBatch(label, items) {
+  if (items.length === 0) return;
+  const shown = items.slice(0, 5).join(', ');
+  const more = items.length > 5 ? ', …' : '';
+  process.stderr.write(`ccn-report: ${items.length} ${label}: ${shown}${more}\n`);
+}
+
+/**
+ * Handle `--csv-verified batch`: read lizard's CSV, replace every CCN with the
+ * AST's, and report disagreements and unmeasurable rows.
+ */
+function runCsvVerified(ts, input, rootDir) {
+  const cache = new Map();
+  const acc = { unresolved: [], dropped: [], disagreements: [] };
+  const out = [];
+  for (const line of input.split('\n')) {
+    if (!line.trim()) continue;
+    const rewritten = verifyCsvRow(ts, parseCsvLine(line), rootDir, cache, acc);
+    if (rewritten !== null) out.push(rewritten);
+  }
+
+  write(out.join('\n'));
+  // Informational: the AST value already replaced lizard's, so the gate grades
+  // the correct number either way.
+  reportBatch('row(s) where lizard disagreed (AST used)', acc.disagreements);
+  // Informational: these rows describe no function, so nothing was measured.
+  reportBatch('lizard row(s) that describe no function', acc.dropped);
+  if (acc.unresolved.length > 0) {
+    reportBatch('row(s) could not be measured by the AST', acc.unresolved);
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * Parse the command line into a plain options object.
+ *
+ * Positional arguments are treated as roots to measure, so `ccn-report.cjs src
+ * scripts` works without a flag.
+ */
+function parseArgs(argv) {
+  const options = {
+    threshold: 10,
+    asJson: false,
+    writeBaseline: false,
+    csvVerified: false,
+    reportOnly: false,
+    rootDir: process.cwd(),
+    paths: [],
+  };
+  const flags = {
+    '--threshold': (v) => {
+      options.threshold = Number(v);
+    },
+    '--json': () => {
+      options.asJson = true;
+    },
+    '--write-baseline': () => {
+      options.writeBaseline = true;
+    },
+    '--csv-verified': () => {
+      options.csvVerified = true;
+    },
+    '--root': (v) => {
+      options.rootDir = v;
+    },
+    '--report-only': () => {
+      options.reportOnly = true;
+    },
+  };
+  for (let i = 0; i < argv.length; i++) {
+    const flag = flags[argv[i]];
+    if (!flag) {
+      options.paths.push(argv[i]);
+      continue;
+    }
+    // Value-taking flags consume the next argument; boolean flags ignore it.
+    const takesValue = argv[i] === '--threshold' || argv[i] === '--root';
+    flag(takesValue ? argv[++i] : undefined);
+  }
+  return options;
+}
+
+/** Write `.ccn-baseline.json` from the measured rows. */
+function writeBaselineFile(allRows, dups, rootDir) {
+  const baseline = {};
+  const kept = allRows
+    .filter((r) => r.bucket === 'production')
+    .sort((a, b) => (a.file + a.name).localeCompare(b.file + b.name));
+  for (const r of kept) {
+    baseline[baselineKey(r.file, r.name, r.line, dups)] = r.ccn;
+  }
+  fs.writeFileSync(
+    path.join(rootDir, '.ccn-baseline.json'),
+    `${JSON.stringify(baseline, null, 2)}\n`
+  );
+  write(`Wrote ${kept.length} function(s) to .ccn-baseline.json`);
+}
+
+/** Print the threshold report and return the exit code it implies. */
+function reportThreshold(allRows, threshold, options) {
+  const results = allRows.filter((r) => r.ccn > threshold).sort((a, b) => b.ccn - a.ccn);
+  if (options.asJson) {
+    write(JSON.stringify({ threshold, count: results.length, results }, null, 2));
+  } else {
+    write(`CCN threshold: ${threshold} (TypeScript AST measurement)`);
+    write('');
+    if (results.length === 0) {
+      write('No functions exceed the threshold.');
+    } else {
+      for (const r of results) {
+        write(`  CCN ${String(r.ccn).padStart(3)}  ${r.name.padEnd(32)} ${r.file}:${r.line}`);
+      }
+      write('');
+      write(`${results.length} function(s) exceed CCN ${threshold}.`);
+    }
+  }
+  // --report-only prints the table without failing. `npm run complexity` uses
+  // it for visibility; the gate itself converges via .ccn-baseline.json.
+  return options.reportOnly || results.length === 0 ? 0 : 1;
+}
+
+/** Buffer stdin to a string and hand it to `onDone`. */
+function readStdin(onDone) {
+  let input = '';
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (chunk) => {
+    input += chunk;
+  });
+  process.stdin.on('end', () => onDone(input));
+}
+
+/**
+ * Entry point: parse arguments, then dispatch to the baseline writer, the
+ * threshold report, or the `--csv-verified` batch.
+ */
+function main() {
+  const options = parseArgs(process.argv.slice(2));
 
   // The AST is the only measurement engine. Without it there is no honest
   // number to report, so fail loudly instead of degrading to a regex guess.
@@ -422,134 +655,15 @@ function main() {
   // A row we cannot attribute to an AST function fails the batch on purpose.
   // The previous version passed it through at lizard's number, which is exactly
   // how `mergeState` kept a wrong CCN through every gate run.
-  if (csvVerified) {
-    let input = '';
-    process.stdin.setEncoding('utf8');
-    process.stdin.on('data', (chunk) => {
-      input += chunk;
-    });
-    process.stdin.on('end', () => {
-      const out = [];
-      const unresolved = [];
-      const dropped = [];
-      const disagreements = [];
-      const cache = new Map();
-      for (const line of input.split('\n')) {
-        if (!line.trim()) continue;
-        const cols = parseCsvLine(line);
-        // Columns: 1 NLOC, 2 CCN, 3 token_len, 4 param_count, 5 location size,
-        //          6 fn@start-end@path, 7 path, 8 name, 9 signature, 10 start, 11 end
-        const identity = cols[5] ?? '';
-        const parts = identity.split('@');
-        const name = parts[0] ?? '';
-        // `fn@start-end@path`: the middle field is a RANGE ("86-119"), so the
-        // start line is its head — not the field itself.
-        const rawPath = parts.length >= 3 ? parts.slice(2).join('@') : (cols[6] ?? '');
-        const startLine = String(
-          Number.parseInt((parts.length >= 3 ? parts[1] : (cols[9] ?? '0')).split('-')[0], 10)
-        );
-        const absPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(rootDir, rawPath);
-        const relPath = path.relative(rootDir, absPath).replace(/\\/g, '/');
-        // Generated code is never graded, so it is never resolved either.
-        if (bucketFor(relPath) === 'generated') {
-          dropped.push(`${relPath}::${name}@${startLine}`);
-          continue;
-        }
-        if (!cache.has(absPath)) {
-          try {
-            cache.set(absPath, measureFileAst(ts, absPath, rootDir).rows);
-          } catch {
-            cache.set(absPath, null);
-          }
-        }
-        const measured = cache.get(absPath);
-        if (!measured) {
-          // Unreadable file: the gate must not proceed on an unmeasured number.
-          unresolved.push(`${relPath}:${name}@${startLine}`);
-          continue;
-        }
-        // Match by name, using line only to break ties between same-named
-        // functions. Anonymous arrow rows are matched by line because every one
-        // of them is called "(anonymous)".
-        const sameName = measured.filter((m) => m.name === name);
-        const hit =
-          name === '(anonymous)'
-            ? sameName.find((m) => String(m.line) === startLine)
-            : sameName.length === 1
-              ? sameName[0]
-              : sameName.find((m) => String(m.line) === startLine);
-        if (!hit) {
-          // Two very different situations, and conflating them was the old bug.
-          //
-          // (a) lizard invented the row. Its TS parser reports type-level
-          //     signatures it believes are functions — `readonly disconnect:
-          //     () => Promise<void>;`, a stray `...` or `,` in a type literal.
-          //     There is no function to measure, so the row is DROPPED. Keeping
-          //     it (at lizard's CCN) is what let a wrong number through; failing
-          //     the gate on it would block every commit for a non-function.
-          //
-          // (b) lizard claims a real function we cannot see. That means our
-          //     measurement is incomplete, and the gate must not grade around a
-          //     hole — fail closed.
-          //
-          // A row is also excused when the AST already has a function starting
-          // on that exact line: lizard splits one construct into several rows
-          // (`fastify.post(path, {...}, async (req) => {` is a single measured
-          // function, but it reports the comma too). The measured function is
-          // what the ratchet grades; the extra row adds nothing.
-          const alreadyMeasured = measured.some((m) => String(m.line) === startLine);
-          if (alreadyMeasured || !lizardRowIsRealFunction(ts, absPath, startLine, name)) {
-            dropped.push(`${relPath}::${name}@${startLine}`);
-            continue;
-          }
-          unresolved.push(`${relPath}::${name}@${startLine}`);
-          continue;
-        }
-        // Report only when both engines claim a measurement; a type-level row
-        // lizard invents has no AST counterpart and was already rejected above.
-        const lizardCcn = Number(cols[1]);
-        if (Number.isFinite(lizardCcn) && lizardCcn !== hit.ccn) {
-          disagreements.push(`${relPath}::${name}@${startLine} lizard=${lizardCcn} ast=${hit.ccn}`);
-        }
-        cols[1] = String(hit.ccn);
-        out.push(cols.map(csvEscape).join(','));
-      }
-      write(out.join('\n'));
-      if (disagreements.length > 0) {
-        // Informational: the AST value already replaced lizard's, so the gate
-        // grades the correct number either way.
-        process.stderr.write(
-          `ccn-report: ${disagreements.length} row(s) where lizard disagreed (AST used): ${disagreements
-            .slice(0, 5)
-            .join(', ')}${disagreements.length > 5 ? ', …' : ''}\n`
-        );
-      }
-      if (dropped.length > 0) {
-        // Informational: lizard invented rows for type-level constructs. They
-        // are not functions, so there is nothing to measure and nothing to fail.
-        process.stderr.write(
-          `ccn-report: ignored ${dropped.length} lizard row(s) that describe no function: ${dropped
-            .slice(0, 5)
-            .join(', ')}${dropped.length > 5 ? ', …' : ''}\n`
-        );
-      }
-      if (unresolved.length > 0) {
-        process.stderr.write(
-          `ccn-report: ${unresolved.length} row(s) could not be measured by the AST: ${unresolved
-            .slice(0, 5)
-            .join(', ')}${unresolved.length > 5 ? ', …' : ''}\n`
-        );
-        process.exitCode = 1;
-      }
-    });
+  if (options.csvVerified) {
+    readStdin((input) => runCsvVerified(ts, input, options.rootDir));
     return;
   }
 
-  const roots = paths.length > 0 ? paths : ['src'];
+  const roots = options.paths.length > 0 ? options.paths : ['src'];
   // Collect every function; `--write-baseline` and the threshold filter both
   // apply afterwards. Passing a huge threshold here would keep nothing.
-  const files = resolveFiles(roots);
-  const { rows: allRows, failures } = measureFilesAst(ts, files, rootDir);
+  const { rows: allRows, failures } = measureFilesAst(ts, resolveFiles(roots), options.rootDir);
   // A file we could not parse is not a clean file. Silently skipping it is how a
   // whole module can stay unmeasured while the gate reports success.
   if (failures.length > 0) {
@@ -559,43 +673,13 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  const dups = duplicateNames(allRows);
 
-  if (writeBaseline) {
-    const baseline = {};
-    const kept = allRows
-      .filter((r) => r.bucket === 'production')
-      .sort((a, b) => (a.file + a.name).localeCompare(b.file + b.name));
-    for (const r of kept) {
-      baseline[baselineKey(r.file, r.name, r.line, dups)] = r.ccn;
-    }
-    const target = path.join(rootDir, '.ccn-baseline.json');
-    fs.writeFileSync(target, `${JSON.stringify(baseline, null, 2)}\n`);
-    write(`Wrote ${kept.length} function(s) to .ccn-baseline.json`);
+  const dups = duplicateNames(allRows);
+  if (options.writeBaseline) {
+    writeBaselineFile(allRows, dups, options.rootDir);
     return;
   }
-
-  const results = allRows.filter((r) => r.ccn > threshold).sort((a, b) => b.ccn - a.ccn);
-
-  if (asJson) {
-    write(JSON.stringify({ threshold, count: results.length, results }, null, 2));
-  } else {
-    write(`CCN threshold: ${threshold} (TypeScript AST measurement)`);
-    write('');
-    if (results.length === 0) {
-      write('No functions exceed the threshold.');
-    } else {
-      for (const r of results) {
-        write(`  CCN ${String(r.ccn).padStart(3)}  ${r.name.padEnd(32)} ${r.file}:${r.line}`);
-      }
-      write('');
-      write(`${results.length} function(s) exceed CCN ${threshold}.`);
-    }
-  }
-
-  // --report-only prints the table without failing. `npm run complexity` uses
-  // it for visibility; the gate itself converges via .ccn-baseline.json.
-  process.exitCode = reportOnly || results.length === 0 ? 0 : 1;
+  process.exitCode = reportThreshold(allRows, options.threshold, options);
 }
 
 main();
