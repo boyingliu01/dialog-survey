@@ -93,7 +93,7 @@ function countOwnedCcn(ts, kinds, body) {
     // Stop at a nested function: its decisions belong to the child. The body of
     // the function being measured is reached through its children, so comparing
     // against `body` keeps that function's own decisions.
-    if (ts.isFunctionLike(node) && node.body && node.body !== body) return;
+    if (ts.isFunctionLike(node) && node.body && node.body !== body && node !== body) return;
     if (kinds.has(node.kind)) ccn++;
     if (ts.isBinaryExpression(node)) {
       const op = node.operatorToken.kind;
@@ -107,6 +107,13 @@ function countOwnedCcn(ts, kinds, body) {
     }
     ts.forEachChild(node, visit);
   };
+  // A concise arrow body (`x => a && b ? c : d`) is an expression, not a block.
+  // Its tests are real decisions, so it is measured rather than skipped — these
+  // callbacks are everywhere in this codebase and were previously invisible.
+  if (!ts.isBlock(body)) {
+    visit(body);
+    return ccn;
+  }
   for (const child of body.statements) visit(child);
   return ccn;
 }
@@ -179,7 +186,10 @@ function measureFileAst(ts, file, rootDir) {
       ts.isArrowFunction(node) ||
       ts.isFunctionExpression(node);
 
-    if (isFunction && node.body && ts.isBlock(node.body)) {
+    // Every function with a body is measured, whether the body is a block or a
+    // concise expression. Skipping expression-bodied arrows left real callbacks
+    // (`.filter((r) => a && b)`) entirely outside the gate.
+    if (isFunction && node.body) {
       const { line, character } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
       rows.push({
         file: relPath,
@@ -262,6 +272,11 @@ function bucketFor(relPath) {
   const p = relPath.replace(/\\/g, '/');
   if (/(^|\/)__tests__?\//.test(p) || /\.test\.[cm]?[jt]sx?$/.test(p)) return 'test';
   if (p.startsWith('src/npm-package/') || /^plugins\/[^/]+\/src\//.test(p)) return 'mirror';
+  // Machine-generated code (Prisma client, and anything else emitted into
+  // src/generated) is not hand-written and is gitignored: grading it would hold
+  // us to a formatter's output, and its dense type-level helpers are exactly what
+  // lizard reports phantom functions for.
+  if (p.startsWith('src/generated/')) return 'generated';
   return 'production';
 }
 
@@ -305,6 +320,62 @@ function csvEscape(field) {
 /** Write a line to stdout without `console` (biome noConsole). */
 function write(line) {
   process.stdout.write(`${line}\n`);
+}
+
+/**
+ * Decide whether lizard's row at `startLine` claims something we should resolve.
+ *
+ * lizard attributes CCN to constructs it mistakes for functions: interface
+ * members typed `readonly disconnect: () => Promise<void>;`, a property annotated
+ * `let release: (() => void) | undefined;`, a stray `...` or `,` in a type literal,
+ * or a row named after the `if` it was scanning. Those rows describe no function,
+ * so dropping them is correct. A brace-based parser cannot tell a function *type*
+ * from a function *implementation* — the AST can, which is why the decision is
+ * asked of the AST rather than of the text.
+ *
+ * When the line really does implement a function we failed to measure, that is a
+ * hole in our own coverage and the gate must fail rather than grade around it.
+ * Returning true means "insist on resolving this row".
+ */
+function lizardRowIsRealFunction(ts, absPath, startLine, name) {
+  // lizard names rows after the statement being scanned, an interface member, or
+  // a punctuation fragment. No function is called any of those.
+  if (!name || /^(if|else|for|while|do|switch|catch|try|return|case)$/.test(name)) return false;
+  if (!/^[\w$.#[\]()]+$/.test(name)) return false;
+
+  let source;
+  try {
+    source = fs.readFileSync(absPath, 'utf8');
+  } catch {
+    return true; // cannot inspect the file, so do not excuse the row
+  }
+  const sf = ts.createSourceFile(absPath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const want = Number.parseInt(startLine, 10);
+  let found = false;
+  const visit = (node) => {
+    if (found) return;
+    // Only nodes that carry an implementation count; a FunctionTypeNode or a
+    // CallSignatureDeclaration is a type, and has no body.
+    const implementsBody =
+      (ts.isFunctionDeclaration(node) ||
+        ts.isMethodDeclaration(node) ||
+        ts.isConstructorDeclaration(node) ||
+        ts.isGetAccessorDeclaration(node) ||
+        ts.isSetAccessorDeclaration(node) ||
+        ts.isArrowFunction(node) ||
+        ts.isFunctionExpression(node)) &&
+      node.body !== undefined;
+    if (implementsBody) {
+      const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+      if (line === want) {
+        found = true;
+        return;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return found;
 }
 
 function main() {
@@ -360,6 +431,7 @@ function main() {
     process.stdin.on('end', () => {
       const out = [];
       const unresolved = [];
+      const dropped = [];
       const disagreements = [];
       const cache = new Map();
       for (const line of input.split('\n')) {
@@ -378,6 +450,11 @@ function main() {
         );
         const absPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(rootDir, rawPath);
         const relPath = path.relative(rootDir, absPath).replace(/\\/g, '/');
+        // Generated code is never graded, so it is never resolved either.
+        if (bucketFor(relPath) === 'generated') {
+          dropped.push(`${relPath}::${name}@${startLine}`);
+          continue;
+        }
         if (!cache.has(absPath)) {
           try {
             cache.set(absPath, measureFileAst(ts, absPath, rootDir).rows);
@@ -388,7 +465,7 @@ function main() {
         const measured = cache.get(absPath);
         if (!measured) {
           // Unreadable file: the gate must not proceed on an unmeasured number.
-          unresolved.push(`${relPath}:${name}`);
+          unresolved.push(`${relPath}:${name}@${startLine}`);
           continue;
         }
         // Match by name, using line only to break ties between same-named
@@ -402,6 +479,29 @@ function main() {
               ? sameName[0]
               : sameName.find((m) => String(m.line) === startLine);
         if (!hit) {
+          // Two very different situations, and conflating them was the old bug.
+          //
+          // (a) lizard invented the row. Its TS parser reports type-level
+          //     signatures it believes are functions — `readonly disconnect:
+          //     () => Promise<void>;`, a stray `...` or `,` in a type literal.
+          //     There is no function to measure, so the row is DROPPED. Keeping
+          //     it (at lizard's CCN) is what let a wrong number through; failing
+          //     the gate on it would block every commit for a non-function.
+          //
+          // (b) lizard claims a real function we cannot see. That means our
+          //     measurement is incomplete, and the gate must not grade around a
+          //     hole — fail closed.
+          //
+          // A row is also excused when the AST already has a function starting
+          // on that exact line: lizard splits one construct into several rows
+          // (`fastify.post(path, {...}, async (req) => {` is a single measured
+          // function, but it reports the comma too). The measured function is
+          // what the ratchet grades; the extra row adds nothing.
+          const alreadyMeasured = measured.some((m) => String(m.line) === startLine);
+          if (alreadyMeasured || !lizardRowIsRealFunction(ts, absPath, startLine, name)) {
+            dropped.push(`${relPath}::${name}@${startLine}`);
+            continue;
+          }
           unresolved.push(`${relPath}::${name}@${startLine}`);
           continue;
         }
@@ -422,6 +522,15 @@ function main() {
           `ccn-report: ${disagreements.length} row(s) where lizard disagreed (AST used): ${disagreements
             .slice(0, 5)
             .join(', ')}${disagreements.length > 5 ? ', …' : ''}\n`
+        );
+      }
+      if (dropped.length > 0) {
+        // Informational: lizard invented rows for type-level constructs. They
+        // are not functions, so there is nothing to measure and nothing to fail.
+        process.stderr.write(
+          `ccn-report: ignored ${dropped.length} lizard row(s) that describe no function: ${dropped
+            .slice(0, 5)
+            .join(', ')}${dropped.length > 5 ? ', …' : ''}\n`
         );
       }
       if (unresolved.length > 0) {
