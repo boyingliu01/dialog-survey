@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## [1.11.9](https://github.com/boyingliu01/dialog-survey/compare/v1.11.8...v1.11.9) (2026-10-21)
+
+### Bug Fixes
+
+- fix(gate): `ccn-report.cjs` carried two of the very smells it exists to detect. The `--csv-verified` stdin handler was a 27-decision, cognitive-45 arrow nested inside `main()`, holding row parsing, AST matching, drop/fail triage and report formatting at once; it is now split into `parseLizardRow`, `findMeasuredFunction`, `classifyUnresolvedRow`, `verifyCsvRow`, `reportBatch` and `runCsvVerified`, so each decision is testable on its own and the reporting thresholds are stated in one place. `parseCsvLine` was three levels of nested `if` for quote handling and is now a flat state machine that tracks the consumed length instead of mutating the loop counter mid-body.
+- fix(api): `findInviteeInfo` nested four conditions to read two optional string fields. Field extraction now lives in `pickInviteeFields`, which returns null for a non-object entry, so the search reads as "first entry whose userId matches".
+- fix(services): `recoverFromPersistFailure` took six positional parameters, three of which (`state`, `parsed`, `message`) were always passed together and describe one request. They are now a single `request` object, dropping the signature to four.
+
+### Chores
+
+- Verified against xp-gate 0.30.5 (was 0.29.0). Its Gate 6 `archlint` reported 10 new MEDIUM findings; eight were actionable and are fixed above, the other five were `DeadSymbol` false positives on `InterviewPlanSendService.{sendInvitations,resendToInterview,pausePlan,resumePlan,cancelPlan}` — all five are called from `src/api/plans.ts` through `registerLifecyclePost` and `route(...)` callbacks, which archlint cannot follow through a function reference.
+
 ## [1.11.8](https://github.com/boyingliu01/dialog-survey/compare/v1.11.7...v1.11.8) (2026-10-20)
 
 ### Bug Fixes
