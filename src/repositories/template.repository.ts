@@ -1,5 +1,107 @@
 import { type PrismaClient, type Template, TemplateStatus } from '../utils/prisma-client.js';
 
+/** Interview counts per template usage report. */
+export interface InterviewUsage {
+  active: number;
+  pending: number;
+  waiting: number;
+  completed: number;
+  cancelled: number;
+  total: number;
+}
+
+/** Plan counts per template usage report. */
+export interface PlanUsage {
+  running: number;
+  pending: number;
+  ready: number;
+  paused: number;
+  completed: number;
+  total: number;
+}
+
+/**
+ * Map each Prisma status onto the bucket it tallies into.
+ *
+ * A lookup table replaces the two `switch` blocks this method used to carry: the
+ * statuses are data, and stating them declaratively keeps an unknown status from
+ * silently widening a branch that returns nothing.
+ */
+const INTERVIEW_STATUS_BUCKET: Record<string, keyof Omit<InterviewUsage, 'total'>> = {
+  ACTIVE: 'active',
+  PENDING: 'pending',
+  WAITING: 'waiting',
+  COMPLETED: 'completed',
+  CANCELLED: 'cancelled',
+};
+
+const PLAN_STATUS_BUCKET: Record<string, keyof Omit<PlanUsage, 'total'>> = {
+  RUNNING: 'running',
+  PENDING: 'pending',
+  READY: 'ready',
+  PAUSED: 'paused',
+  COMPLETED: 'completed',
+};
+
+/** Count interview statuses into the usage report shape. */
+export function tallyInterviewStatuses(
+  groups: Array<{ status: string; _count: number }>
+): InterviewUsage {
+  const usage: InterviewUsage = {
+    active: 0,
+    pending: 0,
+    waiting: 0,
+    completed: 0,
+    cancelled: 0,
+    total: 0,
+  };
+  for (const group of groups) {
+    const bucket = INTERVIEW_STATUS_BUCKET[group.status];
+    if (bucket) usage[bucket] = group._count;
+  }
+  usage.total = totalInterviewUsage(usage);
+  return usage;
+}
+
+/** Count plan statuses into the usage report shape. */
+export function tallyPlanStatuses(groups: Array<{ status: string; _count: number }>): PlanUsage {
+  const usage: PlanUsage = {
+    running: 0,
+    pending: 0,
+    ready: 0,
+    paused: 0,
+    completed: 0,
+    total: 0,
+  };
+  for (const group of groups) {
+    const bucket = PLAN_STATUS_BUCKET[group.status];
+    if (bucket) usage[bucket] = group._count;
+  }
+  usage.total = usage.running + usage.pending + usage.ready + usage.paused + usage.completed;
+  return usage;
+}
+
+/** Total interviews of every status. */
+export function totalInterviewUsage(usage: InterviewUsage): number {
+  return usage.active + usage.pending + usage.waiting + usage.completed + usage.cancelled;
+}
+
+/**
+ * Interviews that are still in flight.
+ *
+ * Finished and cancelled interviews do not block deleting their template, which
+ * is why this is distinct from `totalInterviewUsage`: deletion is about live
+ * conversations, not historical records.
+ */
+export function totalActiveInterviewUsage(usage: InterviewUsage): number {
+  return usage.active + usage.pending + usage.waiting;
+}
+
+/** Plans that would block deleting a template (completed ones do not). */
+export function totalActivePlanUsage(usage: PlanUsage): number {
+  return usage.running + usage.pending + usage.ready + usage.paused;
+}
+
 export class TemplateRepository {
   private readonly prisma: PrismaClient;
 
@@ -275,81 +377,8 @@ export class TemplateRepository {
       throw new Error('Template not found');
     }
 
-    const interviews = {
-      active: 0,
-      pending: 0,
-      waiting: 0,
-      completed: 0,
-      cancelled: 0,
-      total: 0,
-    };
-
-    for (const group of interviewGroups) {
-      const count = group._count;
-      switch (group.status) {
-        case 'ACTIVE':
-          interviews.active = count;
-          break;
-        case 'PENDING':
-          interviews.pending = count;
-          break;
-        case 'WAITING':
-          interviews.waiting = count;
-          break;
-        case 'COMPLETED':
-          interviews.completed = count;
-          break;
-        case 'CANCELLED':
-          interviews.cancelled = count;
-          break;
-      }
-    }
-    interviews.total =
-      interviews.active +
-      interviews.pending +
-      interviews.waiting +
-      interviews.completed +
-      interviews.cancelled;
-
-    const plans = {
-      running: 0,
-      pending: 0,
-      ready: 0,
-      paused: 0,
-      completed: 0,
-      total: 0,
-    };
-
-    for (const group of planGroups) {
-      const count = group._count;
-      switch (group.status) {
-        case 'RUNNING':
-          plans.running = count;
-          break;
-        case 'PENDING':
-          plans.pending = count;
-          break;
-        case 'READY':
-          plans.ready = count;
-          break;
-        case 'PAUSED':
-          plans.paused = count;
-          break;
-        case 'COMPLETED':
-          plans.completed = count;
-          break;
-      }
-    }
-    plans.total = plans.running + plans.pending + plans.ready + plans.paused + plans.completed;
-
-    const safeToDelete =
-      interviews.active === 0 &&
-      interviews.pending === 0 &&
-      interviews.waiting === 0 &&
-      plans.running === 0 &&
-      plans.pending === 0 &&
-      plans.ready === 0 &&
-      plans.paused === 0;
+    const interviews = tallyInterviewStatuses(interviewGroups);
+    const plans = tallyPlanStatuses(planGroups);
 
     return {
       templateId,
@@ -357,7 +386,8 @@ export class TemplateRepository {
       interviews,
       plans,
       reportCount,
-      safeToDelete,
+      safeToDelete:
+        totalActiveInterviewUsage(interviews) === 0 && totalActivePlanUsage(plans) === 0,
     };
   }
 }
