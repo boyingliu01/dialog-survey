@@ -3,6 +3,41 @@ import { error, info, warn } from '../utils/logger.js';
 import { PlanStatus, SendStatus } from '../utils/prisma-client.js';
 import { InterviewPlanServiceBase } from './interview-plan-base.service.js';
 
+/**
+ * Extract the invitation prompt from a template's stored JSON content.
+ *
+ * A malformed template must not abort the whole send run, so a parse failure is
+ * logged and the prompt falls back to empty.
+ */
+function parseInvitationPrompt(
+  content: string | null | undefined,
+  templateId: string | null | undefined
+): string {
+  if (!content) return '';
+  try {
+    const parsed = JSON.parse(content) as { invitationPrompt?: string };
+    return parsed.invitationPrompt || '';
+  } catch (err) {
+    warn('Failed to parse template content', {
+      templateId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return '';
+  }
+}
+
+/**
+ * Overall send status for a plan, from its per-invitation tallies.
+ *
+ * Undefined means "do not change it": nothing was attempted, so the previous
+ * status still describes the plan.
+ */
+function resolvePlanSendStatus(sent: number, failed: number): SendStatus | undefined {
+  if (sent > 0) return SendStatus.SENT;
+  if (failed > 0) return SendStatus.FAILED;
+  return undefined;
+}
+
 export class InterviewPlanSendService extends InterviewPlanServiceBase {
   async sendInvitations(planId: string): Promise<{ sent: number; failed: number }> {
     const plan = await this.prisma.interviewPlan.findUnique({
@@ -19,70 +54,20 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
       throw new Error(`Plan not found: ${planId}`);
     }
 
-    let invitationPrompt = '';
-    if (plan.template?.content) {
-      try {
-        const content = JSON.parse(plan.template.content) as { invitationPrompt?: string };
-        invitationPrompt = content.invitationPrompt || '';
-      } catch (err) {
-        warn('Failed to parse template content', {
-          templateId: plan.templateId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
+    const invitationPrompt = parseInvitationPrompt(plan.template?.content, plan.templateId);
 
     let sent = 0;
     let failed = 0;
 
     for (const interview of plan.interviews) {
       // Skip if user already has an active interview in another plan
-      const activeInOtherPlan = await this.prisma.interview.findFirst({
-        where: {
-          userId: interview.userId,
-          planId: { not: planId },
-          status: { notIn: ['COMPLETED', 'CANCELLED'] },
-        },
-        select: { id: true },
-      });
-      if (activeInOtherPlan) {
-        warn('Skipping invitation - user has active interview in another plan', {
-          planId,
-          userId: interview.userId,
-          otherInterviewId: activeInOtherPlan.id,
-        });
-        continue;
-      }
+      if (await this.hasActiveInterviewElsewhere(interview.userId, planId)) continue;
 
-      try {
-        await this.sendInvitation(interview.userId, plan.name, invitationPrompt);
+      if (await this.deliverInvitation(interview, plan.name, invitationPrompt, planId)) {
         sent++;
-        await this.prisma.interview.update({
-          where: { id: interview.id },
-          data: { sendStatus: SendStatus.SENT, sentAt: new Date() },
-        });
-      } catch (err) {
+      } else {
         failed++;
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        error('Failed to send invitation', {
-          planId,
-          userId: interview.userId,
-          error: errorMsg,
-        });
-        await this.prisma.interview.update({
-          where: { id: interview.id },
-          data: { sendStatus: SendStatus.FAILED, sendError: errorMsg },
-        });
       }
-    }
-
-    let planSendStatus: SendStatus | undefined;
-    if (failed > 0 && sent > 0) {
-      planSendStatus = SendStatus.SENT;
-    } else if (failed > 0 && sent === 0) {
-      planSendStatus = SendStatus.FAILED;
-    } else if (failed === 0 && sent > 0) {
-      planSendStatus = SendStatus.SENT;
     }
 
     const planUpdateData: Record<string, unknown> = {
@@ -92,6 +77,7 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
       startedAt: plan.startedAt || new Date(),
       updatedBy: 'admin',
     };
+    const planSendStatus = resolvePlanSendStatus(sent, failed);
     if (planSendStatus !== undefined) {
       planUpdateData['sendStatus'] = planSendStatus;
     }
@@ -103,6 +89,65 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
 
     info('Invitations sent', { planId, sent, failed });
     return { sent, failed };
+  }
+
+  /**
+   * True when the user is already mid-interview in a different plan, in which
+   * case inviting them again would fork one person across two conversations.
+   */
+  private async hasActiveInterviewElsewhere(userId: string, planId: string): Promise<boolean> {
+    const activeInOtherPlan = await this.prisma.interview.findFirst({
+      where: {
+        userId,
+        planId: { not: planId },
+        status: { notIn: ['COMPLETED', 'CANCELLED'] },
+      },
+      select: { id: true },
+    });
+    if (!activeInOtherPlan) return false;
+
+    warn('Skipping invitation - user has active interview in another plan', {
+      planId,
+      userId,
+      otherInterviewId: activeInOtherPlan.id,
+    });
+    return true;
+  }
+
+  /**
+   * Send one invitation and record the outcome on the interview row.
+   *
+   * Returns whether the send succeeded. The send-status write is part of the
+   * contract: a successful send that cannot be recorded would be retried on the
+   * next run, so a failure to persist the success is reported as a failure.
+   */
+  private async deliverInvitation(
+    interview: { id: string; userId: string },
+    planName: string,
+    invitationPrompt: string,
+    planId: string
+  ): Promise<boolean> {
+    try {
+      await this.sendInvitation(interview.userId, planName, invitationPrompt);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      error('Failed to send invitation', {
+        planId,
+        userId: interview.userId,
+        error: errorMsg,
+      });
+      await this.prisma.interview.update({
+        where: { id: interview.id },
+        data: { sendStatus: SendStatus.FAILED, sendError: errorMsg },
+      });
+      return false;
+    }
+
+    await this.prisma.interview.update({
+      where: { id: interview.id },
+      data: { sendStatus: SendStatus.SENT, sentAt: new Date() },
+    });
+    return true;
   }
 
   async resendToInterview(
@@ -135,18 +180,7 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
       select: { content: true },
     });
 
-    let invitationPrompt = '';
-    if (template?.content) {
-      try {
-        const content = JSON.parse(template.content) as { invitationPrompt?: string };
-        invitationPrompt = content.invitationPrompt || '';
-      } catch (err) {
-        warn('Failed to parse template content', {
-          templateId: interview.plan.templateId,
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    }
+    const invitationPrompt = parseInvitationPrompt(template?.content, interview.plan.templateId);
 
     const wasAlreadyCounted =
       interview.sendStatus === SendStatus.SENT || interview.sendStatus === SendStatus.FAILED;

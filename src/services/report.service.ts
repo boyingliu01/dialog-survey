@@ -109,49 +109,10 @@ function parseReportContent(content: string): {
   sentiment: string;
   recommendations: string[];
 } {
-  const keyFindings: string[] = [];
-  let sentiment = 'neutral';
-  const recommendations: string[] = [];
-
-  const cleanText = (text: string): string => {
-    return text
-      .replace(/^#+\s*/, '')
-      .replace(/\*\*(.+?)\*\*/g, '$1')
-      .replace(/\*(.+?)\*/g, '$1')
-      .replace(/`(.+?)`/g, '$1')
-      .replace(/<br\s*\/?>/gi, ' ')
-      .replace(/<[^>]+>/g, '')
-      .replace(/\|/g, ' ')
-      .replace(/^[-=]{3,}$/, '')
-      .replace(/^\s*[-*+]\s*$/, '')
-      .trim();
-  };
-
-  const isTableOrFormatting = (line: string): boolean => {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) return true;
-    if (/^[-=|:\s]+$/.test(trimmed)) return true;
-    if (/^\|?[\s-|:]+\|?$/.test(trimmed)) return true;
-    return false;
-  };
-
   // Support both "### 1. 关键发现" (Markdown header) and "关键发现:" formats
   const findingMatch =
     content.match(/[##\s]*关键发现[:：]?\s*\n?([\s\S]*?)(?=情感分析|行动建议|### .*建议|$)/i) ||
     content.match(/关键发现[\s:：]*([\s\S]*?)(?=情感分析|行动建议|$)/i);
-  if (findingMatch) {
-    const findings = findingMatch[1]
-      .split(/[\n]+/)
-      .map((f) =>
-        f
-          .replace(/^[-*•]\s*/, '')
-          .replace(/^\d+\.\s*/, '')
-          .trim()
-      )
-      .map(cleanText)
-      .filter((f) => f.length > 0 && !isTableOrFormatting(f));
-    keyFindings.push(...findings.slice(0, 5));
-  }
 
   // Support both "### 2. 情感分析" and "情感分析:" formats
   const sentimentMatch =
@@ -159,36 +120,74 @@ function parseReportContent(content: string): {
     content.match(
       /情感分析[\s\S]*?(积极|正面|negative|positive|消极|负面|negative|neutral|中立|neutral)/i
     );
-  if (sentimentMatch) {
-    const raw = sentimentMatch[1].trim().toLowerCase();
-    if (raw.includes('积极') || raw.includes('正面') || raw === 'positive') {
-      sentiment = 'positive';
-    } else if (raw.includes('消极') || raw.includes('负面') || raw === 'negative') {
-      sentiment = 'negative';
-    } else {
-      sentiment = 'neutral';
-    }
-  }
 
   // Support both "### 3. 行动建议" and "行动建议:" formats
   const recMatch =
     content.match(/行动建议[:：]?\s*\n?([\s\S]*?)(?=总结|$)/i) ||
     content.match(/行动建议[\s\S]*?([\s\S]*)/i);
-  if (recMatch) {
-    const recs = recMatch[1]
-      .split(/[\n]+/)
-      .map((r) =>
-        r
-          .replace(/^[-*•]\s*/, '')
-          .replace(/^\d+\.\s*/, '')
-          .trim()
-      )
-      .map(cleanText)
-      .filter((r) => r.length > 0 && !isTableOrFormatting(r));
-    recommendations.push(...recs.slice(0, 5));
-  }
 
-  return { keyFindings, sentiment, recommendations };
+  return {
+    keyFindings: findingMatch ? extractBulletLines(findingMatch[1]) : [],
+    sentiment: sentimentMatch ? normaliseSentiment(sentimentMatch[1]) : 'neutral',
+    recommendations: recMatch ? extractBulletLines(recMatch[1]) : [],
+  };
+}
+
+/** Strip Markdown emphasis, code spans, HTML tags and table pipes from a line. */
+function cleanText(text: string): string {
+  return text
+    .replace(/^#+\s*/, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\|/g, ' ')
+    .replace(/^[-=]{3,}$/, '')
+    .replace(/^\s*[-*+]\s*$/, '')
+    .trim();
+}
+
+/** True for lines that carry no content: blank, table rules, separators. */
+function isTableOrFormatting(line: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return true;
+  if (/^[-=|:\s]+$/.test(trimmed)) return true;
+  if (/^\|?[\s-|:]+\|?$/.test(trimmed)) return true;
+  return false;
+}
+
+/**
+ * Turn a captured Markdown block into clean bullet items, capped at five.
+ *
+ * Shared by the key-findings and recommendations sections, whose parsing rules
+ * were duplicated verbatim.
+ */
+function extractBulletLines(block: string): string[] {
+  return block
+    .split(/[\n]+/)
+    .map((line) =>
+      line
+        .replace(/^[-*•]\s*/, '')
+        .replace(/^\d+\.\s*/, '')
+        .trim()
+    )
+    .map(cleanText)
+    .filter((line) => line.length > 0 && !isTableOrFormatting(line))
+    .slice(0, 5);
+}
+
+/**
+ * Map the wording an LLM used for sentiment onto the three stored values.
+ *
+ * Anything unrecognised is neutral rather than a guess, so a novel phrasing does
+ * not silently become a positive review.
+ */
+function normaliseSentiment(raw: string): string {
+  const value = raw.trim().toLowerCase();
+  if (value.includes('积极') || value.includes('正面') || value === 'positive') return 'positive';
+  if (value.includes('消极') || value.includes('负面') || value === 'negative') return 'negative';
+  return 'neutral';
 }
 
 function createFallbackReport(

@@ -1,42 +1,24 @@
 #!/usr/bin/env node
 /**
- * Measure cyclomatic complexity per function from brace-balanced source.
+ * Measure cyclomatic complexity per function using the TypeScript compiler AST.
  *
- * lizard's TypeScript parser loses track of braces on generic arrow fields and
- * charges neighbouring code to the enclosing function, so its span and CCN for
- * `src/**` are inflated (see xp-gate gate-3.sh note on #544). This script locates
- * each function body by matching braces, then counts decision points inside
- * exactly that span.
+ * Measurement engine: TypeScript's own parser (already a direct dependency).
+ * Earlier releases re-implemented TS parsing with regular expressions and brace
+ * balancing; that approach silently mis-measured large parts of this tree, and
+ * the specific failures are documented above the measurement core below.
  *
- * Usage: node scripts/ccn-report.cjs [--threshold N] [--json] [paths...]
+ * lizard is NOT used as the source of truth. The gate still runs it as a
+ * cross-check via --csv-verified, where the AST numbers overwrite lizard's
+ * before the ratchet grades them.
+ *
+ * Usage: node scripts/ccn-report.cjs [--threshold N] [--json] [--report-only]
+ *                                 [--write-baseline] [--csv-verified] [--root DIR]
+ *                                 [paths...]
  */
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
-
-/** Keywords that must never be mistaken for a function name. */
-const RESERVED_WORDS = new Set([
-  'if',
-  'for',
-  'while',
-  'switch',
-  'catch',
-  'function',
-  'return',
-  'typeof',
-  'await',
-  'async',
-  'new',
-  'delete',
-  'void',
-  'in',
-  'of',
-  'do',
-  'else',
-  'try',
-  'finally',
-]);
 
 /** Recursively collect .ts files, skipping build output and generated code. */
 function collectFiles(root, acc = []) {
@@ -58,421 +40,229 @@ function collectFiles(root, acc = []) {
   }
   return acc;
 }
+// ---------------------------------------------------------------------------
+// Measurement core — TypeScript compiler AST.
+//
+// Earlier versions re-implemented TS parsing with regular expressions and brace
+// matching. That approach is structurally unable to get this right, and its
+// failures were not theoretical:
+//
+//   * `for (...) {` and `catch (e) {` matched the method-shorthand branch, so
+//     their bodies were blanked before counting — every `if`, `&&` and nested
+//     `catch` inside a loop vanished from the CCN.
+//   * `function f(): { a: string } { … }` had its return-type literal taken for
+//     the body, so a CCN-8 function measured 1 and its real body was never
+//     inspected.
+//   * Class methods (`async getAccessToken(): Promise<string> {`) matched
+//     neither recognised form. 170 methods — 99 of them at CCN >= 2 and 8 above
+//     the threshold — were simply never measured, and could never appear in the
+//     baseline the ratchet compares against.
+//
+// The TypeScript compiler is already a direct dependency and knows the real
+// syntax tree, so it decides every boundary here. lizard still runs in the gate
+// as a cross-check, but its numbers never win a disagreement.
+// ---------------------------------------------------------------------------
+
+/** Kinds that add a decision point, matching the classic McCabe total. */
+function decisionKinds(ts) {
+  return new Set([
+    ts.SyntaxKind.IfStatement,
+    ts.SyntaxKind.ForStatement,
+    ts.SyntaxKind.ForInStatement,
+    ts.SyntaxKind.ForOfStatement,
+    ts.SyntaxKind.WhileStatement,
+    ts.SyntaxKind.DoStatement,
+    ts.SyntaxKind.CaseClause,
+    ts.SyntaxKind.CatchClause,
+    ts.SyntaxKind.ConditionalExpression,
+  ]);
+}
 
 /**
- * Strip comments and string/template contents so keywords there do not count.
+ * CCN of a function body, counting only decisions the function itself owns.
  *
- * Returns the cleaned text plus a `origIndex` table mapping each cleaned
- * offset back to its offset in `source`. Callers turn a match position into a
- * 1-based line number, so the mapping has to survive every rewrite: collapsing
- * a comment shifts every later position, and reported locations would drift.
+ * A registration function like `interviewPlanRoutes(app)` declares every
+ * handler inline; charging their branches to it would report a number no one can
+ * act on, so nested function bodies are skipped. Short-circuit and nullish
+ * operators count, because they are real branch points.
  */
-function stripNoise(source) {
-  let out = '';
-  const origIndex = [];
-  let i = 0;
-  const n = source.length;
-
-  /** Append `text` for a range of source that produced no output of its own. */
-  const emitVerbatimRange = (from, to) => {
-    for (let k = from; k < to && k < n; k++) {
-      if (source[k] === '\n') {
-        out += '\n';
-        origIndex.push(k);
-      }
-    }
-  };
-
-  while (i < n) {
-    const two = source.slice(i, i + 2);
-    if (two === '//') {
-      const start = i;
-      while (i < n && source[i] !== '\n') i++;
-      emitVerbatimRange(start, i);
-      continue;
-    }
-    if (two === '/*') {
-      const start = i;
-      i += 2;
-      while (i < n && !(source[i] === '*' && source[i + 1] === '/')) i++;
-      i += 2;
-      emitVerbatimRange(start, Math.min(i, n));
-      continue;
-    }
-    const ch = source[i];
-    if (ch === "'" || ch === '"' || ch === '`') {
-      const start = i;
-      const quote = ch;
-      i++;
-      while (i < n) {
-        if (source[i] === '\\') {
-          i += 2;
-          continue;
-        }
-        if (source[i] === quote) {
-          i++;
-          break;
-        }
-        i++;
-      }
-      out += '""';
-      origIndex.push(start, start + 1);
-      emitVerbatimRange(start, Math.min(i, n));
-      continue;
-    }
-    out += ch;
-    origIndex.push(i);
-    i++;
-  }
-  return { clean: out, origIndex };
-}
-
-/** 1-based line number in the ORIGINAL source for a cleaned-text offset. */
-function originalLineOf(source, origIndex, cleanOffset) {
-  const mapped = origIndex[Math.min(cleanOffset, origIndex.length - 1)];
-  if (mapped === undefined) return 1;
-  let line = 1;
-  for (let k = 0; k < mapped; k++) {
-    if (source[k] === '\n') line++;
-  }
-  return line;
-}
-
-/** Find index of the brace that closes the one at `open`. */
-function matchBrace(clean, open) {
-  let depth = 0;
-  for (let i = open; i < clean.length; i++) {
-    if (clean[i] === '{') depth++;
-    else if (clean[i] === '}') {
-      depth--;
-      if (depth === 0) return i;
-    }
-  }
-  return -1;
-}
-
-/** Locate function definitions, including anonymous arrow callbacks. */
-function findFunctions(clean) {
-  const fns = [];
-
-  // 1. `[export] [async] function NAME(` — explicit declarations.
-  const declRe = /(?:^|\n)\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g;
-  let m = declRe.exec(clean);
-  while (m !== null) {
-    // `m[0]` ends with the name plus `(`; find the real paren because `\s*`
-    // may have consumed space before it.
-    const parenOpen = m.index + m[0].lastIndexOf('(');
-    const fn = extractBody(clean, parenOpen, m[1], m.index);
-    if (fn) {
-      fns.push(fn);
-      // Resume after the signature, not after the body: sibling declarations
-      // inside the same enclosing scope must still be discovered.
-      const afterParen = matchParen(clean, parenOpen);
-      declRe.lastIndex = afterParen === -1 ? m.index + m[0].length : afterParen + 1;
-    }
-    m = declRe.exec(clean);
-  }
-
-  // 2. `const NAME = (…) => {`, `NAME = async (...) => {`.
-  const assignRe =
-    /(?:^|\n)\s*(?:export\s+)?(?:const|let|var)?\s*([A-Za-z_$][\w$]*)\s*(?::[^=;\n]*)?=\s*(?:async\s+)?\(/g;
-  m = assignRe.exec(clean);
-  while (m !== null) {
-    if (!RESERVED_WORDS.has(m[1])) {
-      const parenOpen = m.index + m[0].lastIndexOf('(');
-      const fn = extractBody(clean, parenOpen, m[1], m.index);
-      if (fn) {
-        fns.push(fn);
-        const afterParen = matchParen(clean, parenOpen);
-        assignRe.lastIndex = afterParen === -1 ? m.index + m[0].length : afterParen + 1;
-      }
-    }
-    m = assignRe.exec(clean);
-  }
-
-  // 3. Anonymous arrow callbacks: `async (a, b) => {` or `(a, b): T => {`.
-  const anonRe = /\(/g;
-  m = anonRe.exec(clean);
-  while (m !== null) {
-    const closeParen = matchParen(clean, m.index);
-    if (closeParen === -1) {
-      m = anonRe.exec(clean);
-      continue;
-    }
-    const tail = clean.slice(closeParen + 1, closeParen + 120);
-    const arrow = tail.match(/^\s*(?::[^{=;]*)?=>\s*\{/);
-    if (!arrow) {
-      m = anonRe.exec(clean);
-      continue;
-    }
-    const braceOpen = closeParen + 1 + arrow[0].length - 1;
-    const bodyEnd = matchBrace(clean, braceOpen);
-    if (bodyEnd === -1) {
-      m = anonRe.exec(clean);
-      continue;
-    }
-    fns.push({ name: '(anonymous)', start: m.index, bodyStart: braceOpen, bodyEnd });
-    anonRe.lastIndex = bodyEnd + 1;
-    m = anonRe.exec(clean);
-  }
-
-  return fns;
-}
-
-/** Write a line to stdout without `console` (biome noConsole). */
-function write(line) {
-  process.stdout.write(`${line}\n`);
-}
-
-/** Find the paren closing the one at `open`. */
-function matchParen(clean, open) {
-  let depth = 0;
-  for (let i = open; i < clean.length; i++) {
-    if (clean[i] === '(') depth++;
-    else if (clean[i] === ')') {
-      depth--;
-      if (depth === 0) return i;
-    }
-  }
-  return -1;
-}
-
-/**
- * Resolve a candidate function's body braces starting at an opening paren.
- * Returns null when that paren does not open a function signature — e.g. the
- * parens of `fastify.post(` or `if (`, which would otherwise merge neighbouring
- * code into one bogus "function".
- */
-/**
- * Resolve a candidate function's body braces starting at an opening paren.
- * Returns null when that paren does not open a function signature — e.g. the
- * parens of `fastify.post(` or `if (`, which would otherwise merge neighbouring
- * code into one bogus "function".
- *
- * Return-type annotations may themselves contain braces (`): Promise<{ a: 1 }>`).
- * Those are told apart from the body by what follows: a type literal's `{` is
- * balanced within the annotation, so we skip to its matching `}` and keep
- * scanning; the actual body `{` is the one reached last.
- */
-function extractBody(clean, parenOpen, name, start) {
-  const parenClose = matchParen(clean, parenOpen);
-  if (parenClose === -1) return null;
-
-  // Walk to the last top-level `{` before any `;` — for a signature there is
-  // exactly one such brace: the body. Any type-literal braces are matched and
-  // skipped. For a call (`fastify.post(`) a `,` or `)` intervenes first, which
-  // rejects the candidate.
-  let sawArrow = false;
-  let inAnnotation = false;
-  for (let j = parenClose + 1; j < clean.length; j++) {
-    const c = clean[j];
-    if (c === ' ' || c === '\n') continue;
-    if (c === '=' && clean[j + 1] === '>') {
-      sawArrow = true;
-      inAnnotation = false;
-      continue;
-    }
-    if (c === ':' && !inAnnotation) {
-      inAnnotation = true;
-      continue;
-    }
-    if (c === ';') return null;
-    if (c === '{') {
-      const typeEnd = matchBrace(clean, j);
-      if (typeEnd === -1) return null;
-      const after = clean.slice(typeEnd + 1, typeEnd + 200);
-      // If the annotation continues past this brace (`>`, `|`, `&`, `[`, `,`),
-      // it was a type literal: skip it and keep looking for the body.
-      if (inAnnotation && /^\s*[>|&[,)]/.test(after)) {
-        j = typeEnd;
-        continue;
-      }
-      return { name, start, bodyStart: j, bodyEnd: typeEnd };
-    }
-    if (!sawArrow && !inAnnotation) return null;
-    if (!/[<>\w$.[\]|?&,]/.test(c)) return null;
-  }
-  return null;
-}
-
-/**
- * Count decision points in a function body, excluding spans that belong to
- * nested functions. A registration function like `registerRoutes(app)` contains
- * every handler inline; charging their branches to it would report a number no
- * one can act on, so nested bodies are masked out first.
- */
-function countCcn(body, clean, bodyAbsStart) {
-  // Mark characters that belong to nested function bodies, then blank them.
-  // A boolean mask avoids index drift from repeated slice/replace passes over
-  // overlapping spans (which silently un-masked earlier helpers).
-  const keep = new Array(body.length).fill(true);
-  const nested = findNestedBodies(clean, bodyAbsStart, bodyAbsStart + body.length);
-  for (const span of nested) {
-    const from = span.bodyStart - bodyAbsStart;
-    const to = span.bodyEnd - bodyAbsStart + 1;
-    if (from < 0 || to > keep.length) continue;
-    for (let k = from; k < to; k++) keep[k] = false;
-  }
-  let masked = '';
-  for (let k = 0; k < body.length; k++) {
-    masked += keep[k] ? body[k] : ' ';
-  }
-
+function countOwnedCcn(ts, kinds, body) {
   let ccn = 1;
-  const patterns = [
-    /\bif\b/g,
-    /\bfor\b/g,
-    /\bwhile\b/g,
-    /\bcase\b/g,
-    /\bcatch\b/g,
-    /&&/g,
-    /\|\|/g,
-    /\?\?/g,
-  ];
-  for (const re of patterns) {
-    const matches = masked.match(re);
-    if (matches) ccn += matches.length;
-  }
-  // A ternary `?` that is not `??` or `?.`
-  const ternaries = masked.match(/(?<![?])\?(?![\?.])/g);
-  if (ternaries) ccn += ternaries.length;
+  const visit = (node) => {
+    if (!node) return;
+    // Stop at a nested function: its decisions belong to the child. The body of
+    // the function being measured is reached through its children, so comparing
+    // against `body` keeps that function's own decisions.
+    if (ts.isFunctionLike(node) && node.body && node.body !== body) return;
+    if (kinds.has(node.kind)) ccn++;
+    if (ts.isBinaryExpression(node)) {
+      const op = node.operatorToken.kind;
+      if (
+        op === ts.SyntaxKind.AmpersandAmpersandToken ||
+        op === ts.SyntaxKind.BarBarToken ||
+        op === ts.SyntaxKind.QuestionQuestionToken
+      ) {
+        ccn++;
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  for (const child of body.statements) visit(child);
   return ccn;
 }
 
-/** Nested arrow/function bodies strictly inside [start, end). */
-function findNestedBodies(clean, start, end) {
-  const spans = [];
-  const seen = new Set();
-  const add = (bodyStart) => {
-    const close = matchBrace(clean, bodyStart);
-    if (close === -1 || close >= end) return;
-    if (seen.has(bodyStart)) return;
-    seen.add(bodyStart);
-    spans.push({ bodyStart, bodyEnd: close });
-  };
-
-  for (let i = start; i < end; i++) {
-    // Arrow body: `=> {` after optional whitespace.
-    if (clean[i] === '=' && clean[i + 1] === '>') {
-      let j = i + 2;
-      while (j < end && (clean[j] === ' ' || clean[j] === '\n')) j++;
-      if (clean[j] === '{') add(j);
-    }
-
-    // Function declaration/expression: `function name(...) {`,
-    // `async function (…) {`, and `name(...) {` method shorthand.
-    const braceOpen = matchFunctionStart(clean, i, end);
-    if (braceOpen !== null) add(braceOpen);
+/** The name a function is known by: declaration, variable, or property key. */
+function nameOfFunction(ts, node) {
+  if (node.name && ts.isIdentifier(node.name)) return node.name.text;
+  const parent = node.parent;
+  if (parent && ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
+    return parent.name.text;
   }
+  if (parent && ts.isPropertyAssignment(parent)) {
+    const n = parent.name;
+    if (ts.isIdentifier(n)) return n.text;
+    if (ts.isStringLiteral(n)) return n.text;
+  }
+  if (parent && ts.isPropertyDeclaration(parent) && ts.isIdentifier(parent.name)) {
+    return parent.name.text;
+  }
+  return '(anonymous)';
+}
 
-  // Nested spans are masked by union; overlapping/contained spans are harmless
-  // because masking is a boolean OR, so no pruning is needed here.
-  return spans;
+/** Load the TypeScript compiler, or null when it is not installed. */
+function loadTypeScript() {
+  try {
+    return require('typescript');
+  } catch {
+    return null;
+  }
 }
 
 /**
- * If a function declaration starts at `i`, return the index of its body brace.
- * Covers `function f(`, `async function (`, and identifier-led signatures so
- * that nested named functions are masked like anonymous arrows are.
- */
-function matchFunctionStart(clean, i, end) {
-  // `function` keyword, optionally preceded by `async`.
-  const before = clean[i - 1] || '';
-  if (/[\w$]/.test(before)) return null;
-
-  let cursor = i;
-  if (clean.startsWith('async', cursor) && !/[\w$]/.test(clean[cursor + 5] || '')) {
-    cursor += 5;
-    while (clean[cursor] === ' ' || clean[cursor] === '\n') cursor++;
-  }
-  if (clean.startsWith('function', cursor) && !/[\w$]/.test(clean[cursor + 8] || '')) {
-    const brace = findBodyBrace(clean, cursor + 8, end);
-    return brace !== -1 && brace < end ? brace : null;
-  }
-
-  // Method/function shorthand: `name(...) {` at an identifier boundary.
-  if (!/[A-Za-z_$]/.test(clean[i]) || /[\w$]/.test(before)) return null;
-  let j = i;
-  while (j < end && /[\w$]/.test(clean[j])) j++;
-  // Control-flow keywords also match `name(...) {`, so without this guard
-  // `for (const x of xs) { ... }` and `catch (e) { ... }` were mistaken for
-  // nested functions and their bodies blanked before counting — every `if`,
-  // `&&` and nested `catch` inside a loop silently vanished from the CCN.
-  // (Regression found by the loop-nested probes; the gate under-reported.)
-  const keyword = clean.slice(i, j);
-  if (RESERVED_WORDS.has(keyword)) return null;
-  while (clean[j] === ' ' || clean[j] === '\n') j++;
-  if (clean[j] !== '(') return null;
-  const closeParen = matchParen(clean, j);
-  if (closeParen === -1 || closeParen >= end) return null;
-  let k = closeParen + 1;
-  while (clean[k] === ' ' || clean[k] === '\n') k++;
-  if (clean[k] === ':') {
-    // Return type annotation — skip to the brace, bailing on a statement end.
-    while (k < end && clean[k] !== '{' && clean[k] !== ';') k++;
-  }
-  return clean[k] === '{' && k < end ? k : null;
-}
-
-/**
- * From just after `function`, find the opening brace of its body.
+ * Measure every function in one file.
  *
- * The return-type annotation can itself contain braces — `Promise<{ rows: CsvRow[] }>`
- * and `{ a: string } | null` are common — so a bare "first `{`" search starts the
- * body inside the annotation and the real body then never gets masked. Skip the
- * parameter list first, then walk the annotation, treating a `{…}` as part of it
- * whenever the closing brace is followed by more type syntax.
+ * Returns `{ rows }` on success and throws when the file has syntax errors — a
+ * caller that cannot measure a file must say so rather than report it clean.
+ *
+ * `createSourceFile` does not throw on bad syntax; it returns a tree containing
+ * error nodes. Grading that tree would silently under-measure the file, so
+ * `parseDiagnostics` is checked explicitly.
  */
-function findBodyBrace(clean, from, end) {
-  let i = from;
-  // Skip whitespace, then the optional name of a named declaration.
-  while (i < end && (clean[i] === ' ' || clean[i] === '\n')) i++;
-  while (i < end && /[\w$]/.test(clean[i])) i++;
-  while (i < end && (clean[i] === ' ' || clean[i] === '\n')) i++;
-  if (clean[i] !== '(') return -1;
-  const paramsClose = matchParen(clean, i);
-  if (paramsClose === -1 || paramsClose >= end) return -1;
-  i = paramsClose + 1;
+function measureFileAst(ts, file, rootDir) {
+  const source = fs.readFileSync(file, 'utf8');
+  const kinds = decisionKinds(ts);
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const relPath = path.relative(rootDir, file).replace(/\\/g, '/');
 
-  // Return type annotation, ending at the body brace or a statement terminator.
-  while (i < end) {
-    const ch = clean[i];
-    if (ch === ';') return -1;
-    if (ch !== '{') {
-      i++;
+  const diagnostics = sf.parseDiagnostics ?? [];
+  if (diagnostics.length > 0) {
+    const first = diagnostics[0];
+    const at =
+      typeof first.start === 'number'
+        ? `:${sf.getLineAndCharacterOfPosition(first.start).line + 1}`
+        : '';
+    throw new Error(
+      `${relPath}${at}: ${ts.flattenDiagnosticMessageText(first.messageText, ' ')} ` +
+        `(${diagnostics.length} syntax error(s))`
+    );
+  }
+
+  const rows = [];
+
+  const walk = (node) => {
+    const isFunction =
+      ts.isFunctionDeclaration(node) ||
+      ts.isMethodDeclaration(node) ||
+      ts.isConstructorDeclaration(node) ||
+      ts.isGetAccessorDeclaration(node) ||
+      ts.isSetAccessorDeclaration(node) ||
+      ts.isArrowFunction(node) ||
+      ts.isFunctionExpression(node);
+
+    if (isFunction && node.body && ts.isBlock(node.body)) {
+      const { line, character } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
+      rows.push({
+        file: relPath,
+        name: ts.isConstructorDeclaration(node) ? 'constructor' : nameOfFunction(ts, node),
+        line: line + 1,
+        column: character + 1,
+        ccn: countOwnedCcn(ts, kinds, node.body),
+        bucket: bucketFor(relPath),
+      });
+      // Keep walking: methods and callbacks nested inside this function are
+      // measured in their own right.
+    }
+    ts.forEachChild(node, walk);
+  };
+  walk(sf);
+  return { rows };
+}
+
+/** Measure every function in every given file, tolerating unparsable files. */
+function measureFilesAst(ts, files, rootDir) {
+  const rows = [];
+  const failures = [];
+  for (const f of files) {
+    try {
+      const res = measureFileAst(ts, f, rootDir);
+      for (const row of res.rows) rows.push(row);
+    } catch (e) {
+      failures.push({ file: path.relative(rootDir, f).replace(/\\/g, '/'), error: e.message });
+    }
+  }
+  return { rows, failures };
+}
+
+/** Resolve the roots argument list to a flat file list. */
+function resolveFiles(roots) {
+  const files = [];
+  for (const r of roots) {
+    let stat;
+    try {
+      stat = fs.statSync(r);
+    } catch {
       continue;
     }
-    const close = matchBrace(clean, i);
-    if (close === -1 || close >= end) return -1;
-    let after = close + 1;
-    while (after < end && (clean[after] === ' ' || clean[after] === '\n')) after++;
-    const next = clean[after] || '';
-    // `>` / `|` / `&` / `[` / `,` / `)` / `.` / `?` continue the annotation;
-    // anything else (or nothing) means this brace opens the body.
-    if (!['>', '|', '&', '[', ',', ')', '.', '?'].includes(next)) return i;
-    i = close + 1;
+    if (stat.isDirectory()) {
+      for (const f of collectFiles(r)) files.push(f);
+    } else {
+      files.push(r);
+    }
   }
-  return -1;
+  return files;
 }
 
-/** Measure every function in a file (no threshold filter), for CSV re-writing. */
-function measureAll(absPath, relPath) {
-  const source = fs.readFileSync(absPath, 'utf8');
-  const { clean, origIndex } = stripNoise(source);
-  const seen = new Set();
-  const rows = [];
-  for (const fn of findFunctions(clean)) {
-    if (seen.has(fn.bodyStart)) continue;
-    seen.add(fn.bodyStart);
-    const body = clean.slice(fn.bodyStart, fn.bodyEnd + 1);
-    rows.push({
-      name: fn.name,
-      line: originalLineOf(source, origIndex, fn.start),
-      ccn: countCcn(body, clean, fn.bodyStart),
-      bucket: bucketFor(relPath),
-    });
+/**
+ * Names that occur more than once within the same file, so the baseline can key
+ * them by line instead of colliding on one entry.
+ */
+function duplicateNames(rows) {
+  const tally = new Map();
+  for (const r of rows) {
+    const k = `${r.file}::${r.name}`;
+    tally.set(k, (tally.get(k) ?? 0) + 1);
   }
-  return rows;
+  return new Set([...tally].filter(([, n]) => n > 1).map(([k]) => k));
+}
+
+/**
+ * Stable baseline key. Anonymous functions and repeated names are line-keyed;
+ * everything else is keyed by name so unrelated edits above a function do not
+ * invalidate its record.
+ */
+function baselineKey(relPath, name, line, duplicateNamesSet) {
+  const p = relPath.replace(/\\/g, '/');
+  if (name === '(anonymous)' || name === 'constructor') return `${p}::${name}@${line}`;
+  if (duplicateNamesSet.has(`${p}::${name}`)) return `${p}::${name}@${line}`;
+  return `${p}::${name}`;
+}
+
+/** Which population a file belongs to; only `production` enters the baseline. */
+function bucketFor(relPath) {
+  const p = relPath.replace(/\\/g, '/');
+  if (/(^|\/)__tests__?\//.test(p) || /\.test\.[cm]?[jt]sx?$/.test(p)) return 'test';
+  if (p.startsWith('src/npm-package/') || /^plugins\/[^/]+\/src\//.test(p)) return 'mirror';
+  return 'production';
 }
 
 /** Split one CSV line, honouring the double-quote escaping lizard emits. */
@@ -506,74 +296,15 @@ function parseCsvLine(line) {
   return out;
 }
 
-/** Quote a CSV field when it contains a comma, quote, or newline. */
+/** Quote a CSV field when it contains a delimiter, quote, or newline. */
 function csvEscape(field) {
   const s = String(field ?? '');
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-/**
- * Classify a path into the buckets the xp-gate ratchet distinguishes.
- * Only `production` rows are recorded in .ccn-baseline.json: `mirror` paths are
- * regenerated by prepack from a canonical source that IS graded, and `test`
- * paths are never part of the complexity budget.
- */
-function bucketFor(relPath) {
-  const p = relPath.replace(/\\/g, '/');
-  if (/(^|\/)__tests__?\//.test(p) || /\.test\.[cm]?[jt]sx?$/.test(p)) return 'test';
-  if (p.startsWith('src/npm-package/') || /^plugins\/[^/]+\/src\//.test(p)) return 'mirror';
-  return 'production';
-}
-
-/** Baseline key for a measured function, matching githooks/lib/ccn-ratchet.sh. */
-function baselineKey(relPath, name, line, duplicateNames) {
-  const p = relPath.replace(/\\/g, '/');
-  if (name === '(anonymous)') return `${p}::(anonymous)@${line}`;
-  if (duplicateNames.has(`${p}::${name}`)) return `${p}::${name}@${line}`;
-  return `${p}::${name}`;
-}
-
-/** Measure every function in one file, returning above-threshold rows. */
-function measureFile(file, rootDir, threshold) {
-  const source = fs.readFileSync(file, 'utf8');
-  const { clean, origIndex } = stripNoise(source);
-  const relPath = path.relative(rootDir, file).replace(/\\/g, '/');
-  const seen = new Set();
-  const rows = [];
-  for (const fn of findFunctions(clean)) {
-    if (seen.has(fn.bodyStart)) continue;
-    seen.add(fn.bodyStart);
-    const body = clean.slice(fn.bodyStart, fn.bodyEnd + 1);
-    const ccn = countCcn(body, clean, fn.bodyStart);
-    if (ccn <= threshold) continue;
-    rows.push({
-      file: relPath,
-      name: fn.name,
-      line: originalLineOf(source, origIndex, fn.start),
-      ccn,
-      bucket: bucketFor(relPath),
-    });
-  }
-  return rows;
-}
-
-/** Names that occur more than once within the same file (need line-keying). */
-function duplicateNames(rows) {
-  const tally = new Map();
-  for (const r of rows) {
-    const k = `${r.file}::${r.name}`;
-    tally.set(k, (tally.get(k) ?? 0) + 1);
-  }
-  return new Set([...tally].filter(([, n]) => n > 1).map(([k]) => k));
-}
-
-function collectAll(roots, rootDir, threshold) {
-  const files = roots.flatMap((r) => (fs.statSync(r).isDirectory() ? collectFiles(r) : [r]));
-  const rows = [];
-  for (const f of files) {
-    for (const row of measureFile(f, rootDir, threshold)) rows.push(row);
-  }
-  return rows;
+/** Write a line to stdout without `console` (biome noConsole). */
+function write(line) {
+  process.stdout.write(`${line}\n`);
 }
 
 function main() {
@@ -596,9 +327,30 @@ function main() {
     else paths.push(a);
   }
 
+  // The AST is the only measurement engine. Without it there is no honest
+  // number to report, so fail loudly instead of degrading to a regex guess.
+  const ts = loadTypeScript();
+  if (!ts) {
+    process.stderr.write(
+      'ccn-report: the typescript package is required to measure complexity (npm install).\n'
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   // --csv-verified batch: xp-gate pipes `lizard --csv` in on stdin and expects a
-  // CSV back whose CCN column carries OUR brace-balanced measurement. Gate 3
-  // fails closed when this exits non-zero, so any unverifiable row must fail.
+  // CSV back whose CCN column carries OUR measurement. Gate 3 fails closed when
+  // this exits non-zero.
+  //
+  // The AST decides. lizard is a regex/line parser whose TS spans were measured
+  // wrong on this tree 28% of the time (it merged `scheduleAnalysis` into
+  // `mergeState` and dropped it entirely), so its row is used only as the
+  // carrier: the CCN column is overwritten from the AST measurement, and a
+  // disagreement is reported so the two engines can be compared over time.
+  //
+  // A row we cannot attribute to an AST function fails the batch on purpose.
+  // The previous version passed it through at lizard's number, which is exactly
+  // how `mergeState` kept a wrong CCN through every gate run.
   if (csvVerified) {
     let input = '';
     process.stdin.setEncoding('utf8');
@@ -608,6 +360,7 @@ function main() {
     process.stdin.on('end', () => {
       const out = [];
       const unresolved = [];
+      const disagreements = [];
       const cache = new Map();
       for (const line of input.split('\n')) {
         if (!line.trim()) continue;
@@ -627,49 +380,57 @@ function main() {
         const relPath = path.relative(rootDir, absPath).replace(/\\/g, '/');
         if (!cache.has(absPath)) {
           try {
-            cache.set(absPath, measureAll(absPath, relPath));
+            cache.set(absPath, measureFileAst(ts, absPath, rootDir).rows);
           } catch {
             cache.set(absPath, null);
           }
         }
         const measured = cache.get(absPath);
         if (!measured) {
+          // Unreadable file: the gate must not proceed on an unmeasured number.
           unresolved.push(`${relPath}:${name}`);
-          out.push(cols.map(csvEscape).join(','));
           continue;
         }
-        // Match on name first: lizard's line numbers come from its own parser
-        // and drift from the source (it skips comments), so line equality is
-        // not a reliable join key. Fall back to the reported line only to break
-        // ties between same-named functions in one file.
-        const candidates = measured.filter((m) => m.name === name);
+        // Match by name, using line only to break ties between same-named
+        // functions. Anonymous arrow rows are matched by line because every one
+        // of them is called "(anonymous)".
+        const sameName = measured.filter((m) => m.name === name);
         const hit =
-          candidates.length === 1
-            ? candidates[0]
-            : candidates.find((m) => String(m.line) === startLine);
+          name === '(anonymous)'
+            ? sameName.find((m) => String(m.line) === startLine)
+            : sameName.length === 1
+              ? sameName[0]
+              : sameName.find((m) => String(m.line) === startLine);
         if (!hit) {
-          // lizard also reports TypeScript type-level signatures
-          // (`readonly disconnect: () => Promise<void>;`) as functions. Those
-          // rows carry CCN 1, which is accurate, so pass them through instead of
-          // failing the gate — they cannot inflate anything.
           unresolved.push(`${relPath}::${name}@${startLine}`);
-          out.push(cols.map(csvEscape).join(','));
           continue;
+        }
+        // Report only when both engines claim a measurement; a type-level row
+        // lizard invents has no AST counterpart and was already rejected above.
+        const lizardCcn = Number(cols[1]);
+        if (Number.isFinite(lizardCcn) && lizardCcn !== hit.ccn) {
+          disagreements.push(`${relPath}::${name}@${startLine} lizard=${lizardCcn} ast=${hit.ccn}`);
         }
         cols[1] = String(hit.ccn);
         out.push(cols.map(csvEscape).join(','));
       }
       write(out.join('\n'));
-      if (unresolved.length > 0) {
-        // Not fatal: unmatched rows are kept at lizard's own CCN. That number is
-        // only trustworthy for type-level signatures (always CCN 1); a genuine
-        // function we failed to parse would stay inflated, so surface the count
-        // for a human instead of hiding it.
+      if (disagreements.length > 0) {
+        // Informational: the AST value already replaced lizard's, so the gate
+        // grades the correct number either way.
         process.stderr.write(
-          `ccn-report: ${unresolved.length} row(s) kept at lizard's CCN (not span-verified): ${unresolved
+          `ccn-report: ${disagreements.length} row(s) where lizard disagreed (AST used): ${disagreements
+            .slice(0, 5)
+            .join(', ')}${disagreements.length > 5 ? ', …' : ''}\n`
+        );
+      }
+      if (unresolved.length > 0) {
+        process.stderr.write(
+          `ccn-report: ${unresolved.length} row(s) could not be measured by the AST: ${unresolved
             .slice(0, 5)
             .join(', ')}${unresolved.length > 5 ? ', …' : ''}\n`
         );
+        process.exitCode = 1;
       }
     });
     return;
@@ -678,7 +439,17 @@ function main() {
   const roots = paths.length > 0 ? paths : ['src'];
   // Collect every function; `--write-baseline` and the threshold filter both
   // apply afterwards. Passing a huge threshold here would keep nothing.
-  const allRows = collectAll(roots, rootDir, 0);
+  const files = resolveFiles(roots);
+  const { rows: allRows, failures } = measureFilesAst(ts, files, rootDir);
+  // A file we could not parse is not a clean file. Silently skipping it is how a
+  // whole module can stay unmeasured while the gate reports success.
+  if (failures.length > 0) {
+    for (const f of failures) {
+      process.stderr.write(`ccn-report: failed to parse ${f.file}: ${f.error}\n`);
+    }
+    process.exitCode = 1;
+    return;
+  }
   const dups = duplicateNames(allRows);
 
   if (writeBaseline) {
@@ -700,7 +471,7 @@ function main() {
   if (asJson) {
     write(JSON.stringify({ threshold, count: results.length, results }, null, 2));
   } else {
-    write(`CCN threshold: ${threshold} (brace-balanced measurement)`);
+    write(`CCN threshold: ${threshold} (TypeScript AST measurement)`);
     write('');
     if (results.length === 0) {
       write('No functions exceed the threshold.');

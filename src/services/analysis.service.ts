@@ -74,37 +74,12 @@ export class AnalysisService {
 
     const metrics = this.calculateMetrics(interview.responses);
 
-    let dimResult: ReportWithDimensions = createEmptyDimensionReport(interviewId);
-
-    try {
-      const template = await this._prisma.template.findUnique({
-        where: { id: interview.templateId },
-      });
-      const dimsJson = template?.dimensions ? JSON.stringify(template.dimensions) : null;
-
-      if (dimsJson) {
-        const { OpenAICompatibleLLM } = await import('../integrations/llm/openai-compatible.js');
-        const llm = OpenAICompatibleLLM.fromEnv();
-        dimResult = await generateReportWithDimensions(interviewId, topic, qaPairs, dimsJson, llm);
-        if (dimResult.dimensionTags) {
-          dimResult.dimensionTags = dimResult.dimensionTags.map((tag) => ({
-            ...tag,
-            quotes: tag.quotes.map((q: string) => anonymizePII(q)),
-          }));
-        }
-      }
-    } catch (e) {
-      error('Dimension analysis failed', {
-        interviewId,
-        error: e instanceof Error ? e.message : String(e),
-      });
-      await recordAnalysisFailure(
-        this._prisma,
-        interviewId,
-        'DIMENSION_ANALYSIS_FAILED',
-        e instanceof Error ? e.message : String(e)
-      );
-    }
+    const dimResult = await this.runDimensionAnalysis(
+      interviewId,
+      topic,
+      qaPairs,
+      interview.templateId
+    );
 
     // Delete old reports for this interview to ensure only one report exists
     const deleted = await this._prisma.analysisReport.deleteMany({
@@ -135,6 +110,59 @@ export class AnalysisService {
     });
 
     return { interviewId, report, metrics };
+  }
+
+  /**
+   * Run the dimension-tagging pass when the interview's template defines
+   * dimensions.
+   *
+   * This is an enrichment step, not a requirement: a template without
+   * dimensions, an unconfigured LLM, or a failing call all fall back to the
+   * empty dimension report so the base analysis still completes. A real failure
+   * is recorded for the dead-letter queue instead of being swallowed.
+   */
+  private async runDimensionAnalysis(
+    interviewId: string,
+    topic: string,
+    qaPairs: Array<{ question: string; answer: string }>,
+    templateId: string
+  ): Promise<ReportWithDimensions> {
+    try {
+      const template = await this._prisma.template.findUnique({
+        where: { id: templateId },
+      });
+      if (!template?.dimensions) return createEmptyDimensionReport(interviewId);
+
+      const { OpenAICompatibleLLM } = await import('../integrations/llm/openai-compatible.js');
+      const llm = OpenAICompatibleLLM.fromEnv();
+      const dimResult = await generateReportWithDimensions(
+        interviewId,
+        topic,
+        qaPairs,
+        JSON.stringify(template.dimensions),
+        llm
+      );
+      if (!dimResult.dimensionTags) return dimResult;
+      return {
+        ...dimResult,
+        dimensionTags: dimResult.dimensionTags.map((tag) => ({
+          ...tag,
+          quotes: tag.quotes.map((q: string) => anonymizePII(q)),
+        })),
+      };
+    } catch (e) {
+      error('Dimension analysis failed', {
+        interviewId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      await recordAnalysisFailure(
+        this._prisma,
+        interviewId,
+        'DIMENSION_ANALYSIS_FAILED',
+        e instanceof Error ? e.message : String(e)
+      );
+      return createEmptyDimensionReport(interviewId);
+    }
   }
 
   async batchAnalyze(planId: string): Promise<AnalysisResult[]> {

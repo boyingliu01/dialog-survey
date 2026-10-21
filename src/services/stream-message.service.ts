@@ -16,6 +16,39 @@ export type { StreamMessage, ParsedStreamMessage, ProcessResult } from './stream
 const MAX_RETRIES = 3;
 const DEDUP_CACHE_SIZE = 1000;
 
+/**
+ * Read a positive integer setting, falling back when it is absent, unparsable,
+ * or non-positive.
+ *
+ * Three call sites repeated the same `parseInt` + `isNaN` + `<= 0` dance with
+ * their own default; centralising it keeps the fallback rule in one place.
+ */
+function positiveEnvInt(name: string, fallback: number): number {
+  const raw = Number.parseInt(process.env[name] || String(fallback), 10);
+  return Number.isNaN(raw) || raw <= 0 ? fallback : raw;
+}
+
+/**
+ * Queue the graph's assistant reply and the responses it produced onto the next
+ * state, leaving the status for the caller to decide.
+ *
+ * Shared by the first attempt and the version-conflict retry so the two paths
+ * cannot drift: before this helper they each duplicated the same four steps, and
+ * the retry copy had already drifted once.
+ */
+function stageAssistantReply(state: InterviewState, graphResult: GraphResult): InterviewState {
+  const nextState = graphResult.nextState;
+  const newResponses = nextState.responses.slice(state.responses.length);
+  if (newResponses.length > 0) {
+    nextState.pendingResponses = newResponses;
+  }
+  nextState.pendingMessages.push({
+    role: 'assistant',
+    content: graphResult.response,
+  });
+  return nextState;
+}
+
 export class StreamMessageService {
   private repo: InterviewStateRepository;
   private userLocks = new Map<string, Promise<void>>();
@@ -123,51 +156,9 @@ export class StreamMessageService {
     let state = await this.repo.findActiveInterview(parsed.userId);
 
     if (!state) {
-      // Check for recently completed interview to prevent infinite restart
-      const completed = await this.repo.findCompletedInterview(parsed.userId);
-      if (completed) {
-        const cooldownMinutes = Number.parseInt(
-          process.env['INTERVIEW_COOLDOWN_MINUTES'] || '30',
-          10
-        );
-        const effectiveCooldown =
-          Number.isNaN(cooldownMinutes) || cooldownMinutes <= 0 ? 30 : cooldownMinutes;
-        const cooldownMs = effectiveCooldown * 60 * 1000;
-        const elapsed = Date.now() - completed.completedAt.getTime();
-        if (elapsed < cooldownMs) {
-          const remainingMin = Math.ceil((cooldownMs - elapsed) / 60000);
-          const cooldownMsg = `您的访谈已经完成，感谢您的参与！如需再次访谈，请等待约 ${remainingMin} 分钟后重试。`;
-          if (parsed.sessionWebhook) {
-            await this.sendReply(parsed.sessionWebhook, cooldownMsg);
-          }
-          info('Cooldown active — blocked interview restart', {
-            userId: parsed.userId,
-            completedAt: completed.completedAt,
-            remainingMinutes: remainingMin,
-          });
-          return { success: true, response: cooldownMsg };
-        }
-      }
-
-      const templateId = await this.resolveDefaultTemplateId(prisma);
-      const interviewId = await this.repo.createInterview(parsed.userId, templateId);
-      state = {
-        userId: parsed.userId,
-        interviewId,
-        templateId,
-        status: 'PENDING',
-        messages: [],
-        currentQuestion: 0,
-        followupCount: 0,
-        maxFollowups: DEFAULT_MAX_FOLLOWUPS,
-        nudgeCount: 0,
-        responses: [],
-        reportGenerated: false,
-        version: 1,
-        originalVersion: 1,
-        pendingMessages: [],
-        pendingResponses: [],
-      };
+      const cooldown = await this.checkRestartCooldown(parsed);
+      if (cooldown) return cooldown;
+      state = await this.startInterview(parsed.userId, prisma);
     }
 
     state.pendingMessages.push({
@@ -175,27 +166,7 @@ export class StreamMessageService {
       content: parsed.content,
     });
 
-    if (!state.userName && prisma) {
-      try {
-        const interview = await prisma.interview.findFirst({
-          where: { userId: parsed.userId },
-          select: { planId: true },
-        });
-        if (interview?.planId) {
-          const plan = await prisma.interviewPlan.findUnique({
-            where: { id: interview.planId },
-            select: { inviteeData: true },
-          });
-          if (plan?.inviteeData) {
-            const invitees = plan.inviteeData as { userId: string; name?: string }[];
-            const matched = invitees.find((inv) => inv.userId === parsed.userId);
-            if (matched?.name) state.userName = matched.name;
-          }
-        }
-      } catch {
-        // Silently fail userName resolution
-      }
-    }
+    await this.resolveUserName(state, parsed.userId, prisma);
 
     this.checkTimeoutNudge(state, parsed);
 
@@ -239,21 +210,12 @@ export class StreamMessageService {
       nextStateCurrentQ: graphResult.nextState.currentQuestion,
     });
 
-    const nextState = graphResult.nextState;
-    const existingCount = state.responses.length;
-    const newResponses = nextState.responses.slice(existingCount);
-    if (newResponses.length > 0) {
-      nextState.pendingResponses = newResponses;
-    }
-    nextState.pendingMessages.push({
-      role: 'assistant',
-      content: graphResult.response,
-    });
+    const nextState = stageAssistantReply(state, graphResult);
     // Preserve COMPLETED status from graph (don't overwrite when interview ends)
-    if (nextState.status !== 'COMPLETED') {
-      nextState.status = 'ACTIVE';
-    } else {
+    if (nextState.status === 'COMPLETED') {
       info('[DIAG] COMPLETED status preserved', { userId: parsed.userId });
+    } else {
+      nextState.status = 'ACTIVE';
     }
 
     try {
@@ -264,61 +226,145 @@ export class StreamMessageService {
         newVersion: nextState.version,
       });
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-      if (errorMsg.includes('Version conflict') && retryCount < MAX_RETRIES) {
-        info('Retrying due to version conflict', {
-          userId: parsed.userId,
-          retryCount: retryCount + 1,
-        });
-        const freshState = await this.repo.loadFullState(
-          state.interviewId as string,
-          parsed.userId
-        );
-        if (freshState) {
-          freshState.pendingMessages = [{ role: 'user', content: parsed.content }];
-          const retryGraphResult = await runInterviewGraph(
-            freshState,
-            {
-              userId: parsed.userId,
-              content: parsed.content,
-            },
-            prisma
-          );
-          const retryExistingCount = freshState.responses.length;
-          const retryNewResponses = retryGraphResult.nextState.responses.slice(retryExistingCount);
-          if (retryNewResponses.length > 0) {
-            retryGraphResult.nextState.pendingResponses = retryNewResponses;
-          }
-          retryGraphResult.nextState.pendingMessages.push({
-            role: 'assistant',
-            content: retryGraphResult.response,
-          });
-          if (retryGraphResult.nextState.status !== 'COMPLETED') {
-            retryGraphResult.nextState.status = 'ACTIVE';
-          }
-          return this.processStreamMessageWithState(
-            message,
-            retryGraphResult,
-            freshState,
-            retryCount + 1
-          );
-        }
-      }
-
-      // H-5: Dead letter queue for pending data on retry exhaustion
-      if (retryCount >= MAX_RETRIES) {
-        error('Persistence retries exhausted - pending data may be lost', {
-          userId: parsed.userId,
-          interviewId: state.interviewId,
-          pendingMessagesCount: nextState.pendingMessages.length,
-          pendingResponsesCount: nextState.pendingResponses.length,
-        });
-      }
-
-      return { success: false, error: errorMsg };
+      return this.recoverFromPersistFailure(err, state, parsed, message, prisma, retryCount);
     }
 
     return this.finishWithReply(parsed.sessionWebhook, graphResult.response);
+  }
+
+  /**
+   * A finished interview stays closed for a cooldown window so a stray inbound
+   * message cannot silently restart the dialog.
+   *
+   * Returns the reply payload when the cooldown blocked the restart, or null when
+   * the user is free to start a new interview.
+   */
+  private async checkRestartCooldown(parsed: {
+    userId: string;
+    sessionWebhook?: string;
+  }): Promise<{ success: boolean; response?: string; error?: string } | null> {
+    // Check for recently completed interview to prevent infinite restart
+    const completed = await this.repo.findCompletedInterview(parsed.userId);
+    if (!completed) return null;
+
+    const cooldownMs = positiveEnvInt('INTERVIEW_COOLDOWN_MINUTES', 30) * 60 * 1000;
+    const elapsed = Date.now() - completed.completedAt.getTime();
+    if (elapsed >= cooldownMs) return null;
+
+    const remainingMin = Math.ceil((cooldownMs - elapsed) / 60000);
+    const cooldownMsg = `您的访谈已经完成，感谢您的参与！如需再次访谈，请等待约 ${remainingMin} 分钟后重试。`;
+    if (parsed.sessionWebhook) {
+      await this.sendReply(parsed.sessionWebhook, cooldownMsg);
+    }
+    info('Cooldown active — blocked interview restart', {
+      userId: parsed.userId,
+      completedAt: completed.completedAt,
+      remainingMinutes: remainingMin,
+    });
+    return { success: true, response: cooldownMsg };
+  }
+
+  /** Create a fresh PENDING interview state for a user with no active one. */
+  private async startInterview(userId: string, prisma?: PrismaClient): Promise<InterviewState> {
+    const templateId = await this.resolveDefaultTemplateId(prisma);
+    const interviewId = await this.repo.createInterview(userId, templateId);
+    return {
+      userId,
+      interviewId,
+      templateId,
+      status: 'PENDING',
+      messages: [],
+      currentQuestion: 0,
+      followupCount: 0,
+      maxFollowups: DEFAULT_MAX_FOLLOWUPS,
+      nudgeCount: 0,
+      responses: [],
+      reportGenerated: false,
+      version: 1,
+      originalVersion: 1,
+      pendingMessages: [],
+      pendingResponses: [],
+    };
+  }
+
+  /**
+   * Backfill `state.userName` from the plan's invitee data when it is still
+   * empty. Best-effort: a lookup failure must never abort the conversation, so
+   * the error is swallowed deliberately.
+   */
+  private async resolveUserName(
+    state: InterviewState,
+    userId: string,
+    prisma?: PrismaClient
+  ): Promise<void> {
+    if (state.userName || !prisma) return;
+    try {
+      const interview = await prisma.interview.findFirst({
+        where: { userId },
+        select: { planId: true },
+      });
+      if (!interview?.planId) return;
+      const plan = await prisma.interviewPlan.findUnique({
+        where: { id: interview.planId },
+        select: { inviteeData: true },
+      });
+      if (!plan?.inviteeData) return;
+      const invitees = plan.inviteeData as { userId: string; name?: string }[];
+      const matched = invitees.find((inv) => inv.userId === userId);
+      if (matched?.name) state.userName = matched.name;
+    } catch {
+      // Silently fail userName resolution
+    }
+  }
+
+  /**
+   * Handle a failed `saveFullState` after the graph ran: retry once on a version
+   * conflict, log a dead-letter warning when retries are exhausted, and report
+   * the failure.
+   */
+  private async recoverFromPersistFailure(
+    err: unknown,
+    state: InterviewState,
+    parsed: { userId: string; content: string; sessionWebhook?: string },
+    message: { data: string; headers: { messageId: string } },
+    prisma: PrismaClient | undefined,
+    retryCount: number
+  ): Promise<{ success: boolean; response?: string; error?: string }> {
+    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+    if (errorMsg.includes('Version conflict') && retryCount < MAX_RETRIES) {
+      info('Retrying due to version conflict', {
+        userId: parsed.userId,
+        retryCount: retryCount + 1,
+      });
+      const freshState = await this.repo.loadFullState(state.interviewId as string, parsed.userId);
+      if (freshState) {
+        freshState.pendingMessages = [{ role: 'user', content: parsed.content }];
+        const retryGraphResult = await runInterviewGraph(
+          freshState,
+          { userId: parsed.userId, content: parsed.content },
+          prisma
+        );
+        stageAssistantReply(freshState, retryGraphResult);
+        if (retryGraphResult.nextState.status !== 'COMPLETED') {
+          retryGraphResult.nextState.status = 'ACTIVE';
+        }
+        return this.processStreamMessageWithState(
+          message,
+          retryGraphResult,
+          freshState,
+          retryCount + 1
+        );
+      }
+    }
+
+    if (retryCount >= MAX_RETRIES) {
+      error('Persistence retries exhausted - pending data may be lost', {
+        userId: parsed.userId,
+        interviewId: state.interviewId,
+      });
+    }
+
+    return { success: false, error: errorMsg };
   }
 
   private async processStreamMessageWithState(
@@ -327,17 +373,12 @@ export class StreamMessageService {
     state: InterviewState,
     retryCount: number
   ): Promise<{ success: boolean; response?: string; error?: string }> {
-    const parsed = parseStreamMessage(message as import('./stream-message-utils.js').StreamMessage);
+    const parsed = parseStreamMessage(message as StreamMessage);
     if (!parsed) {
       return { success: false, error: 'Invalid message format' };
     }
 
     try {
-      const existingCount = state.responses.length;
-      const newResponses = graphResult.nextState.responses.slice(existingCount);
-      if (newResponses.length > 0) {
-        graphResult.nextState.pendingResponses = newResponses;
-      }
       await this.repo.saveFullState(state.interviewId as string, graphResult.nextState);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';
@@ -385,17 +426,11 @@ export class StreamMessageService {
     const lastBotMsg = [...state.messages].reverse().find((m) => m.role === 'assistant');
     if (!lastBotMsg?.timestamp) return;
 
-    const timeoutHours = Number.parseInt(process.env['INTERVIEW_TIMEOUT_HOURS'] || '1', 10);
-    const effectiveTimeout = Number.isNaN(timeoutHours) || timeoutHours <= 0 ? 1 : timeoutHours;
-    const timeoutMs = effectiveTimeout * 60 * 60 * 1000;
+    const timeoutMs = positiveEnvInt('INTERVIEW_TIMEOUT_HOURS', 1) * 60 * 60 * 1000;
     const elapsed = Date.now() - new Date(lastBotMsg.timestamp).getTime();
-
     if (elapsed < timeoutMs) return;
 
-    const maxNudges = Number.parseInt(process.env['INTERVIEW_TIMEOUT_MAX_NUDGES'] || '3', 10);
-    const effectiveMaxNudges = Number.isNaN(maxNudges) || maxNudges <= 0 ? 3 : maxNudges;
-
-    if (state.nudgeCount >= effectiveMaxNudges) {
+    if (state.nudgeCount >= positiveEnvInt('INTERVIEW_TIMEOUT_MAX_NUDGES', 3)) {
       info('Max nudges exceeded, will skip to next question', {
         userId: parsed.userId,
         nudgeCount: state.nudgeCount,

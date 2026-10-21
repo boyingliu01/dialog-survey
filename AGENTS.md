@@ -1,6 +1,6 @@
 # AGENTS.md — Dialog Survey Project Knowledge Base
 
-> Updated: 2026-10-20 (v1.11.7). Sprint #153 (Conventional Commits + auto CHANGELOG + release automation). 66 source TS files (src/, excluding generated), 142 test files. Tests need no PostgreSQL (PGlite).
+> Updated: 2026-10-20 (v1.11.8). Sprint #153 (Conventional Commits + auto CHANGELOG + release automation). 66 source TS files (src/, excluding generated), 142 test files. Tests need no PostgreSQL (PGlite).
 
 ## Overview
 
@@ -79,7 +79,7 @@ npm run type-check    # tsc --noEmit
 npm run check         # biome check (lint + imports)
 npm run check:fix     # biome check + auto-fix
 npm run duplicates    # jscpd duplication check on src (threshold 1%, tools/jscpd.conf.json)
-npm run complexity    # per-function CCN > 10 report (advisory; the ratchet lives in .ccn-baseline.json)
+npm run complexity    # per-function CCN > 10 report (TypeScript AST; the ratchet lives in .ccn-baseline.json)
 ```
 
 ## Notes

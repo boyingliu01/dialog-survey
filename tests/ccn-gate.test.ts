@@ -179,4 +179,132 @@ describe('ccn-report gate measurement', () => {
     const result = run(['--threshold', '10'], fixture);
     expect(result.code).toBe(0);
   });
+
+  describe('object return-type annotations', () => {
+    // Regression: `function f(): { a: string } { … }` had its type literal taken
+    // for the body, so a CCN-8 function was reported as CCN 1 and its real body
+    // was never inspected. `mapServiceErrorToStatus` in src/api/plans.ts was the
+    // production victim.
+    it('measures the body, not the return-type literal', () => {
+      const out = measure(
+        [
+          'export function typed(x: unknown): { status: number; message: string } {',
+          '  if (x) { return { status: 1, message: "a" }; }',
+          '  if (!x) { return { status: 2, message: "b" }; }',
+          '  if (x === null) { return { status: 3, message: "c" }; }',
+          '  return { status: 0, message: "" };',
+          '}',
+        ].join('\n')
+      );
+      // three `if` decisions, CCN 4 — the type literal must not be counted
+      expect(ccnOf(out, 'typed')).toBe(4);
+    });
+
+    it('measures the body behind a union return type', () => {
+      const out = measure(
+        [
+          'export function union(a: number): { ok: true } | { ok: false } {',
+          '  if (a > 1) { return { ok: true }; }',
+          '  if (a < 0) { return { ok: false }; }',
+          '  return { ok: false };',
+          '}',
+        ].join('\n')
+      );
+      expect(ccnOf(out, 'union')).toBe(3);
+    });
+  });
+
+  describe('class methods', () => {
+    // Regression: methods matched neither recognised declaration form, so 170
+    // methods — including an 8-method group above the threshold — were never
+    // measured and could never appear in the baseline.
+    it('measures a method with a return-type annotation', () => {
+      const out = measure(
+        [
+          'export class Svc {',
+          '  async run(x: number): Promise<string> {',
+          '    if (x > 1) { return "a"; }',
+          '    if (x < 0) { return "b"; }',
+          '  }',
+          '}',
+        ].join('\n')
+      );
+      expect(ccnOf(out, 'run')).toBe(3);
+    });
+
+    it('measures a private method and does not charge it to the class', () => {
+      const out = measure(
+        [
+          'export class Svc {',
+          '  private check(a: number, b: number): boolean {',
+          '    if (a && b) { return false; }',
+          '    if (a || b) { return false; }',
+          '    return true;',
+          '  }',
+          '}',
+        ].join('\n')
+      );
+      // two `if` + `&&` + `||` = 4 decisions, CCN 5
+      expect(ccnOf(out, 'check')).toBe(5);
+    });
+
+    it('counts a constructor body', () => {
+      const out = measure(
+        [
+          'export class Svc {',
+          '  constructor(public a?: number) {',
+          '    if (a === undefined) { this.a = 0; }',
+          '    if (a !== undefined && a < 0) { this.a = 0; }',
+          '  }',
+          '  a: number = 0;',
+          '}',
+        ].join('\n')
+      );
+      // two `if` + `&&` = 3 decisions, CCN 4
+      expect(ccnOf(out, 'constructor')).toBe(4);
+    });
+  });
+
+  describe('nested function attribution', () => {
+    it('does not charge a callback to the registration function', () => {
+      const out = measure(
+        [
+          'declare const app: { get(p: string, h: () => void): void };',
+          'export function register(): void {',
+          '  app.get("/a", () => {',
+          '    if (1) { return; }',
+          '  });',
+          '  app.get("/b", () => {',
+          '    if (2) { return; }',
+          '  });',
+          '}',
+        ].join('\n')
+      );
+      // The two inline handlers own their `if`s; register stays at CCN 1.
+      expect(ccnOf(out, 'register')).toBeNull();
+    });
+
+    it('measures a method nested in a class and an arrow field separately', () => {
+      const out = measure(
+        [
+          'export class Svc {',
+          '  run = (x: number) => {',
+          '    if (x) { return 1; }',
+          '  };',
+          '}',
+        ].join('\n')
+      );
+      expect(ccnOf(out, 'run')).toBe(2);
+    });
+  });
+
+  describe('fail-closed behaviour', () => {
+    it('exits non-zero when a file cannot be parsed', () => {
+      // Silently skipping an unparsable file is how a module can stay unmeasured
+      // while the gate still reports success.
+      writeFileSync(join(fixture, 'src', 'probe.ts'), 'export function x( {\n', 'utf8');
+      const result = run(['--threshold', '10', '--report-only'], fixture);
+      expect(result.code).toBe(1);
+    });
+  });
 });
