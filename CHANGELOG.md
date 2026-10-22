@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [1.11.10](https://github.com/boyingliu01/dialog-survey/compare/v1.11.9...v1.11.10) (2026-10-22)
+
+### Bug Fixes
+
+- fix(dingtalk): the Stream client ignored `DINGTALK_APP_KEY`/`DINGTALK_APP_SECRET`. REST already fell back between the two credential spellings, but `DingTalkStreamClient.fromEnv()` read only `DINGTALK_CLIENT_ID`/`DINGTALK_CLIENT_SECRET`. On a deployment configured with the `APP_KEY` spellings — the names DingTalk's own console uses, and the ones `client.ts` documents as supported — outbound messages went out normally while the WebSocket silently never connected, so the bot looked correctly configured and simply never replied. This is the worst shape a config bug can take: "can send, cannot receive" reads like a network or platform problem, not a variable-name one. Both clients now resolve through the same `dingTalkCredentialsFromEnv()`, so the two spellings cannot drift apart again.
+- fix(dingtalk): dropped `agentId` from `DingTalkClientOptions` and `DingTalkStreamConfig`. Neither client ever read it — only `message-sender.ts` needs the value and it reads the env var directly — so passing it had no effect and invited callers to believe it did. Nothing consumes the field, so this is a pure removal with no behaviour change.
+- chore(tooling): added `scripts/verify-xp-gate-patches.cjs` and wired it into `npm run smoke`. Gate M cannot produce a verdict with stock xp-gate 0.30.5: three bugs in the Stryker runner (repeated `--mutate` keeps only the last file, `--config` is not a Stryker option, the schema-1.0 report carries no aggregate score) and one in `hooks/pre-push` (the TypeScript branch never passes `--timeout`, so gate-m's 120s default applies where this repo needs ~48 minutes) make it report 0.0% or SKIP regardless of test quality. Those files live in `~/.config/xp-gate/`, outside version control, and an xp-gate update overwrote the hook patch once already mid-session. The verifier names what breaks when a patch is missing and can restore the timeout one with `--fix`.
+
+### Tests
+
+- `tests/dingtalk-credential-aliases.test.ts` (10 tests) pins both client call sites to the shared resolver: either spelling configures the Stream socket, the two sides resolve to the same credentials, `APP_KEY` wins when both are set, and `agentId` stays out of both config objects. Verified red before the fix (4 failures) and green after.
+- `tests/verify-xp-gate-patches.test.ts` (7 tests) drives the verifier against a throwaway fake `~/.config/xp-gate` tree so it asserts the detection logic rather than whatever happens to be installed on the machine, including that `--fix` refuses to claim success when the anchor text has been restructured upstream.
+
 ## [1.11.9](https://github.com/boyingliu01/dialog-survey/compare/v1.11.8...v1.11.9) (2026-10-21)
 
 ### Bug Fixes

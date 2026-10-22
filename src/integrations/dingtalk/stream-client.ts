@@ -1,12 +1,12 @@
 import { WebSocket } from 'ws';
 import type { StreamMessage } from '../../services/stream-message-utils.js';
 import { debug, error, info } from '../../utils/logger.js';
+import { dingTalkCredentialsFromEnv } from './client.js';
 
 export interface DingTalkStreamConfig {
   clientId: string;
   clientSecret: string;
   robotCode?: string;
-  agentId?: string;
 }
 
 export interface ConnectionToken {
@@ -75,15 +75,17 @@ export class DingTalkStreamClient {
    * Create client from environment variables
    */
   static fromEnv(): DingTalkStreamClient {
-    const clientId = process.env['DINGTALK_CLIENT_ID'] || '';
-    const clientSecret = process.env['DINGTALK_CLIENT_SECRET'] || '';
-    const agentId: string | undefined = process.env['DINGTALK_AGENT_ID'];
+    // Reuse the shared resolver so Stream and REST accept the same spellings.
+    // Reading `DINGTALK_CLIENT_ID` directly here meant a deployment configured
+    // with `DINGTALK_APP_KEY`/`_SECRET` could send messages fine (REST fell
+    // back) while the Stream socket silently never connected — the bot looked
+    // correctly configured yet never received a single reply.
+    const { appKey: clientId, appSecret: clientSecret } = dingTalkCredentialsFromEnv();
     const robotCode: string | undefined = process.env['DINGTALK_ROBOT_CODE'];
 
     return new DingTalkStreamClient({
       clientId,
       clientSecret,
-      ...(agentId != null ? { agentId } : {}),
       ...(robotCode != null ? { robotCode } : {}),
     });
   }

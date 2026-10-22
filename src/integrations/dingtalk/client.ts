@@ -25,7 +25,6 @@ export function dingTalkCredentialsFromEnv(env: NodeJS.ProcessEnv = process.env)
 interface DingTalkClientOptions {
   appKey: string;
   appSecret: string;
-  agentId?: string;
 }
 
 interface RequestOptions {
@@ -221,10 +220,10 @@ export class DingTalkClient {
   }
 
   static fromEnv() {
-    const agentId: string | undefined = process.env['DINGTALK_AGENT_ID'];
-    return new DingTalkClient({
-      ...dingTalkCredentialsFromEnv(),
-      ...(agentId != null ? { agentId } : {}),
-    });
+    // `agentId` is deliberately not carried here: this client never reads it
+    // (only `message-sender.ts` needs it, and it reads the env var directly).
+    // Keeping a field that is passed in and dropped invited callers to assume
+    // it took effect.
+    return new DingTalkClient(dingTalkCredentialsFromEnv());
   }
 }
