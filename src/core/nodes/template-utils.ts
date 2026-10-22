@@ -9,7 +9,14 @@ export async function loadTemplateContent(
   if (templateId && prisma) {
     const repo = new TemplateRepository(prisma);
     const template = await repo.findById(templateId);
-    if (template) return JSON.parse(template.content) as TemplateContent;
+    if (template) {
+      const parsed = JSON.parse(template.content) as TemplateContent;
+      // The name lives in the Template row, not in the content JSON, but the
+      // greeting interpolates it (`欢迎参加「${content.name}」…`). Returning the
+      // parsed JSON alone rendered `欢迎参加「undefined」访谈调查` for every
+      // template whose opening line did not contain an intent word.
+      return { ...parsed, name: parsed.name ?? template.name };
+    }
   }
   return { ...DEFAULT_TEMPLATE_CONTENT };
 }

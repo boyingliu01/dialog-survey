@@ -785,6 +785,75 @@ describe('StreamMessageService branch coverage', () => {
     });
   });
 
+  describe('first-turn detection (planningNode reachability)', () => {
+    /**
+     * @test REQ-200-01
+     * @intent 验证首条消息会告知 graph 这是首轮，从而执行 planningNode 而不是当作 q0 答案
+     * @covers PENDING 状态传入 firstTurn:true、ACTIVE 传入 false、PROCESSING 恢复传入 false
+     *
+     * The service flips the status to PROCESSING before calling the graph, so the
+     * graph cannot tell a first message from a real answer by looking at
+     * `state.status`. When it tried, planningNode was unreachable: the greeting
+     * never rendered and the opening message was stored as the answer to q1.
+     */
+    function graphOptions(): Record<string, unknown> {
+      const call = mockRunInterviewGraph.mock.calls[0];
+      expect(call).toBeDefined();
+      return call?.[3] as Record<string, unknown>;
+    }
+
+    it('marks a PENDING interview as the first turn', async () => {
+      repo.findActiveInterview.mockResolvedValue(state({ status: 'PENDING' }));
+
+      await service.processStreamMessage(
+        envelope({ senderStaffId: 'u1', text: { content: '开始访谈。' } }),
+        0
+      );
+
+      expect(graphOptions()['firstTurn']).toBe(true);
+    });
+
+    it('marks an ACTIVE interview as a later turn', async () => {
+      repo.findActiveInterview.mockResolvedValue(state({ status: 'ACTIVE' }));
+
+      await service.processStreamMessage(
+        envelope({ senderStaffId: 'u1', text: { content: '我的回答' } }),
+        0
+      );
+
+      expect(graphOptions()['firstTurn']).toBe(false);
+    });
+
+    it('treats a resumed PROCESSING interview as a later turn, not a restart', async () => {
+      repo.findActiveInterview.mockResolvedValue(state({ status: 'PROCESSING' }));
+
+      await service.processStreamMessage(
+        envelope({ senderStaffId: 'u1', text: { content: 'answer' } }),
+        0
+      );
+
+      // A resumed turn must not re-run planningNode: that would re-send the
+      // greeting and reset progress for someone who is mid-interview.
+      expect(graphOptions()['firstTurn']).toBe(false);
+    });
+
+    it('still hands the graph a PROCESSING status for two-phase persistence', async () => {
+      repo.findActiveInterview.mockResolvedValue(state({ status: 'PENDING' }));
+
+      await service.processStreamMessage(
+        envelope({ senderStaffId: 'u1', text: { content: '开始访谈。' } }),
+        0
+      );
+
+      const call = mockRunInterviewGraph.mock.calls[0];
+      const passedState = call?.[0] as { status: string };
+
+      expect(passedState.status).toBe('PROCESSING');
+      // ...while the firstTurn flag preserves the information the flip erased.
+      expect(graphOptions()['firstTurn']).toBe(true);
+    });
+  });
+
   describe('webhook delivery', () => {
     it('sends the graph reply to the webhook and still reports success when it fails', async () => {
       repo.findActiveInterview.mockResolvedValue(state());
