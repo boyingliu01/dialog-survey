@@ -11,6 +11,20 @@ export interface GraphResult {
   nextState: InterviewState;
 }
 
+/**
+ * How the turn was reached. `firstTurn` is decided by the caller from the state
+ * it loaded, *before* it flips the status to `PROCESSING` for two-phase
+ * persistence.
+ *
+ * This must not be inferred from `initialState.status`: the caller persists
+ * `PROCESSING` before the graph runs, so a first message would arrive with
+ * `PROCESSING` and skip `planningNode` entirely — the greeting never rendered
+ * and the opening message was stored as the answer to question 1.
+ */
+export interface GraphRunOptions {
+  firstTurn?: boolean;
+}
+
 /** States in which user input is processed. Anything else is a no-op turn. */
 const PROCESSABLE_STATUSES = new Set(['ACTIVE', 'WAITING', 'PROCESSING']);
 
@@ -35,10 +49,14 @@ function scheduleAnalysis(interviewId: string | undefined, prisma?: PrismaClient
 export async function runInterviewGraph(
   initialState: InterviewState,
   input: NodeInput,
-  prisma?: PrismaClient
+  prisma?: PrismaClient,
+  options: GraphRunOptions = {}
 ): Promise<GraphResult> {
-  // Phase 1: Initialize (only on first call)
-  if (initialState.status === 'PENDING') {
+  // Phase 1: Initialize (only on the first turn). `options.firstTurn` is the
+  // authoritative signal; the status check stays as a fallback for callers that
+  // hand over a genuinely PENDING state.
+  const isFirstTurn = options.firstTurn ?? initialState.status === 'PENDING';
+  if (isFirstTurn) {
     const result = await planningNode(initialState, prisma);
     return {
       response: result.response || DEFAULT_CLOSING_MESSAGE,

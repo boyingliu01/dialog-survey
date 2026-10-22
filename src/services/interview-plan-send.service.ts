@@ -4,6 +4,19 @@ import { PlanStatus, SendStatus } from '../utils/prisma-client.js';
 import { InterviewPlanServiceBase } from './interview-plan-base.service.js';
 
 /**
+ * Name of the DingTalk bot to tell invitees to reply to.
+ *
+ * The invitation text used to hardcode a single deployment's bot name, so every
+ * other deployment told invitees to message a robot that did not exist there.
+ * `DINGTALK_BOT_NAME` configures it; when unset the copy stays generic ("this
+ * robot") rather than guessing, because a wrong name is worse than a vague one.
+ */
+function resolveBotName(env: NodeJS.ProcessEnv = process.env): string | null {
+  const name = env['DINGTALK_BOT_NAME']?.trim();
+  return name ? name : null;
+}
+
+/**
  * Extract the invitation prompt from a template's stored JSON content.
  *
  * A malformed template must not abort the whole send run, so a parse failure is
@@ -224,11 +237,17 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
   protected async sendInvitation(
     userId: string,
     planName: string,
-    invitationPrompt: string
+    invitationPrompt: string,
+    botName: string | null = resolveBotName()
   ): Promise<void> {
+    // "Reply to <X> in DingTalk": name the bot when configured, stay generic
+    // otherwise. Never name a bot this deployment does not run — an invitee
+    // following a wrong name ends up messaging nothing and assumes the
+    // invitation is broken.
+    const replyTarget = botName ? `回复 ${botName} 任意消息` : '直接回复本机器人任意消息';
     const message = invitationPrompt
-      ? `${invitationPrompt}\n\n（来自「${planName}」访谈。请直接在钉钉中回复 OpenClaw小钉 任意消息即可开始访谈。）`
-      : `您被邀请参与「${planName}」访谈。请直接在钉钉中回复 OpenClaw小钉 任意消息（如"你好"或"开始"）即可开始访谈。`;
+      ? `${invitationPrompt}\n\n（来自「${planName}」访谈。请直接在钉钉中${replyTarget}即可开始访谈。）`
+      : `您被邀请参与「${planName}」访谈。请直接在钉钉中${replyTarget}（如"你好"或"开始"）即可开始访谈。`;
     const result = await messageSender.sendTextMessage([userId], message);
     if (result.failedUserIds.length > 0) {
       const errors =
