@@ -13,6 +13,8 @@
       ".quality-history.jsonl",
       ".architecture-baseline.json",
       "coverage/",
+      "reports/",
+      ".stryker-report.json",
       "dist/",
       "build/",
       "docs/sprints/",
