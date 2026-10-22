@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## [1.11.11](https://github.com/boyingliu01/dialog-survey/compare/v1.11.10...v1.11.11) (2026-10-22)
+
+### Bug Fixes
+
+- fix(core): the opening message was stored as the answer to question 1, and `planningNode` never ran. `StreamMessageService` persists `PROCESSING` before calling the graph (two-phase durability), and `runInterviewGraph` decided "is this the first turn?" by checking `initialState.status === 'PENDING'` — a status the caller had just overwritten. So `planningNode` was unreachable on the real message path: the greeting was never sent, `polishFirstQuestion` and the first-question send never happened, the user's "开始访谈。" landed in `q0`, and the same question then collected a second response when the real answer arrived. `runInterviewGraph` now takes an explicit `firstTurn` option that the service captures *before* the status flip; a resumed `PROCESSING` interview stays a later turn, so recovery does not re-send the greeting. Found by an E2E run against a live deployment — every existing test handed the graph a fresh `PENDING` state, which is exactly the shape production never produces.
+- fix(core): the greeting rendered `欢迎参加「undefined」访谈调查` for any template whose opening line lacked an intent word. Two independent halves combined: `loadTemplateContent` returned the parsed content JSON only, but the template `name` lives in the `Template` row (the content JSON never has one), and `planningNode` interpolated `content.name` when the first 40 characters of the prompt did not match `/访谈|采访|聊一聊|survey|interview/`. `loadTemplateContent` now merges the row's name, `TemplateContent.name` is optional so the type stops claiming a field the data does not have, and the greeting falls back to `本次访谈调查` when no name is resolvable — no empty quotes, no `undefined`. This only became visible once the planning gate above was fixed, since the greeting had never been sent before.
+- fix(services): invitation copy hardcoded one deployment's bot name, so every other deployment told invitees to message a robot that did not exist there. `DINGTALK_BOT_NAME` now supplies the name; when unset the copy says `直接回复本机器人任意消息` rather than naming a brand, because a wrong name is worse than a vague one. `.env.example` and `.env.production.example` document the variable.
+
+### Tests
+
+- `tests/planning-template-name.test.ts` (6 tests) pins the name merge and both greeting branches — named, nameless (no `「」`, no `undefined`), and the intent-word skip.
+- `tests/invitation-bot-name.test.ts` (6 tests) covers both copy branches with the name configured, unset, blank, and padded, and asserts the legacy brand never reappears.
+- `tests/graph.test.ts` gained 3 cases proving `firstTurn` is authoritative over `status`, and `tests/stream-message-branches.test.ts` gained 4 asserting the service reports `firstTurn` correctly for `PENDING`, `ACTIVE` and resumed `PROCESSING` while still persisting `PROCESSING` for durability.
+- All four new suites were verified red before their fix and green after.
+
 ## [1.11.10](https://github.com/boyingliu01/dialog-survey/compare/v1.11.9...v1.11.10) (2026-10-22)
 
 ### Bug Fixes

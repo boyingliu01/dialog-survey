@@ -77,7 +77,13 @@ export const DEFAULT_CLOSING_MESSAGE =
   '访谈已结束，非常感谢您拨冗参与！您的分享对我们很有价值，祝您一切顺利！';
 
 export interface TemplateContent {
-  name: string;
+  /**
+   * Display name. Optional because the content JSON stored in the database does
+   * not carry it: the name lives in the `Template.name` column and is merged in
+   * by `loadTemplateContent`. Declaring it required let the compiler accept code
+   * that read it at runtime and interpolated `undefined` into the greeting.
+   */
+  name?: string;
   description?: string;
   invitationPrompt: string;
   questions: string[];

@@ -178,6 +178,17 @@ export class StreamMessageService {
       });
     }
 
+    // Capture the turn kind BEFORE the two-phase write below overwrites the
+    // status with PROCESSING. The graph needs to know whether this is the first
+    // message (run planningNode, send the greeting, store no answer) or a real
+    // answer; deriving that from the status after the flip made planningNode
+    // unreachable, so the opening message was recorded as the answer to q1 and
+    // the greeting never rendered.
+    //
+    // A PROCESSING status here means a previous turn was interrupted: the user
+    // is resuming, not starting, so it must not be treated as a first turn.
+    const wasPending = state.status === 'PENDING';
+
     // Two-phase persistence: save PROCESSING before LLM call, then ACTIVE after
     state.status = 'PROCESSING';
     try {
@@ -197,7 +208,8 @@ export class StreamMessageService {
         userId: parsed.userId,
         content: parsed.content,
       },
-      prisma
+      prisma,
+      { firstTurn: wasPending }
     );
 
     info('[DIAG] runInterviewGraph returned', {

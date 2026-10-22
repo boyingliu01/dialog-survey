@@ -17,7 +17,10 @@ export async function planningNode(
   // brief, direct statement so the interviewee immediately understands this is an interview.
   const intentSignals = /访谈|采访|聊一聊|survey|interview/i;
   if (!intentSignals.test(greeting.substring(0, 40))) {
-    greeting = `欢迎参加「${content.name}」访谈调查。\n\n${greeting}`;
+    // `name` is optional by contract (the content JSON has no name field), so
+    // fall back rather than interpolating `undefined` into the greeting.
+    const title = content.name ? `「${content.name}」访谈调查` : '本次访谈调查';
+    greeting = `欢迎参加${title}。\n\n${greeting}`;
   }
 
   const fullMessage = `${greeting}\n\n${refinedFirstQuestion}`;

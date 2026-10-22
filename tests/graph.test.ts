@@ -70,6 +70,66 @@ describe('runInterviewGraph', () => {
   });
 
   /**
+   * @test REQ-200-02
+   * @intent 验证 firstTurn 选项能把 PROCESSING 状态识别为首轮，让 planningNode 可达
+   * @covers firstTurn:true 时即使 status 是 PROCESSING 也执行 planningNode、firstTurn:false 时不执行
+   *
+   * The caller persists PROCESSING before invoking the graph for two-phase
+   * durability, so status alone can no longer distinguish "first message" from
+   * "next answer". Deriving it from status made planningNode unreachable in
+   * production while this very test suite stayed green, because the tests always
+   * handed over a PENDING state.
+   */
+  it('runs the planning node for a PROCESSING state when firstTurn is set', async () => {
+    const resumed = { ...initialState, status: 'PROCESSING' as const };
+
+    const result = await runInterviewGraph(
+      resumed,
+      { userId: 'user-123', content: '' },
+      undefined,
+      { firstTurn: true }
+    );
+
+    expect(result.response).toBe('开场问题');
+    expect(result.nextState.currentQuestion).toBe(0);
+  });
+
+  it('skips the planning node when firstTurn is explicitly false', async () => {
+    const active = { ...initialState, status: 'ACTIVE' as const };
+
+    const result = await runInterviewGraph(
+      active,
+      { userId: 'user-123', content: 'My answer' },
+      undefined,
+      { firstTurn: false }
+    );
+
+    expect(result.response).toBe('下一个问题');
+    expect(result.nextState.currentQuestion).toBe(1);
+  });
+
+  it('prefers the firstTurn flag over the state status', async () => {
+    // Voice/stream callers always persist PROCESSING first, so the flag — not
+    // the status — must decide whether planningNode runs.
+    const processing = { ...initialState, status: 'PROCESSING' as const };
+    const planned = await runInterviewGraph(
+      processing,
+      { userId: 'user-123', content: '' },
+      undefined,
+      { firstTurn: true }
+    );
+    const answered = await runInterviewGraph(
+      processing,
+      { userId: 'user-123', content: 'My answer' },
+      undefined,
+      { firstTurn: false }
+    );
+
+    expect(planned.response).toBe('开场问题');
+    expect(answered.response).toBe('下一个问题');
+  });
+
+  /**
    * @test REQ-003-8-02
    * @intent 验证访谈节点的状态机边条件：当提供内容时执行访谈节点
    */
