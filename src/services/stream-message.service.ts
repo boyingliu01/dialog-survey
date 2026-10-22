@@ -355,7 +355,8 @@ export class StreamMessageService {
           message,
           retryGraphResult,
           freshState,
-          retryCount + 1
+          retryCount + 1,
+          prisma
         );
       }
     }
@@ -374,7 +375,8 @@ export class StreamMessageService {
     message: { data: string; headers: { messageId: string } },
     graphResult: GraphResult,
     state: InterviewState,
-    retryCount: number
+    retryCount: number,
+    prisma?: PrismaClient
   ): Promise<{ success: boolean; response?: string; error?: string }> {
     const parsed = parseStreamMessage(message as StreamMessage);
     if (!parsed) {
@@ -386,7 +388,22 @@ export class StreamMessageService {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Unknown error';
       if (errorMsg.includes('Version conflict') && retryCount < MAX_RETRIES) {
-        return this.processStreamMessage(message, retryCount + 1);
+        // Re-enter the internal path, not processStreamMessage: the public entry
+        // point would hit the dedup cache, which already holds this messageId
+        // because the first attempt registered it. Routing the retry through it
+        // made every version-conflict retry return "Duplicate message" instead
+        // of actually retrying, so MAX_RETRIES was unreachable in practice.
+        return this.processMessageInternal(
+          parsed as {
+            userId: string;
+            content: string;
+            messageId?: string;
+            sessionWebhook?: string;
+          },
+          message,
+          retryCount + 1,
+          prisma
+        );
       }
 
       // H-5: Dead letter logging on retry exhaustion

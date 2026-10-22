@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
   "_comment": "Full-run config (issue #155). Incremental PR runs go through scripts/mutation-test.mjs which overrides `mutate` via --mutate from git diff. concurrency is raised to >=4 by the orchestrator; CI sets it explicitly.",
+  "_ignorePatternsComment": "Each entry is anchored with a leading `/` so it matches only at the repo root. An unanchored `reports` also matched `src/views/reports/`, Stryker dropped those .njk templates from the sandbox, and every mutant run failed its dry run with `GET /admin/reports` -> 500 (the view engine could not find reports/index.njk). That is why Gate M reported a 0% mutation score on any change touching admin-templates.ts.",
   "testRunner": "vitest",
   "vitest": {
     "configFile": "vitest.config.mutation.ts"
@@ -16,10 +17,10 @@
   "logLevel": "info",
   "tempDirName": ".stryker-tmp",
   "ignorePatterns": [
-    "coverage",
-    "reports",
-    ".xp-gate",
-    ".quality-history.jsonl",
+    "/coverage",
+    "/reports",
+    "/.xp-gate",
+    "/.quality-history.jsonl",
     "**/*.pdf",
     "**/*.otf"
   ],
