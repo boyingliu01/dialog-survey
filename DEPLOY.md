@@ -379,26 +379,27 @@ cat prisma/schema.prisma
 
 ## Performance Tuning
 
-### Capacity Baseline (1.11.0)
-Full methodology, numbers and error bounds: `docs/reports/loadtest-baseline-2026-10.md`
-(issue #180). **All numbers below are local PGlite estimates pending calibration by the
-CI `loadtest` job (real PostgreSQL) and the #183 server-side re-test — do not treat them
-as production-sizing authority.**
+### Capacity Baseline (calibrated with real PostgreSQL, 2026-10-22)
+Full methodology and three-way data (PGlite / CI postgres:16 / deployment-host PG14):
+`docs/reports/loadtest-baseline-2026-10.md` §6 (issues #180/#183). **All numbers below
+are calibrated against real PostgreSQL — safe to use for production sizing.**
 
-- Single instance saturates at **~250–400 req/s** of business API traffic (single-process
-  event loop ceiling, measured in-process) — plan with **≥180 req/s** as a conservative,
-  *uncalibrated* local estimate; scale horizontally beyond that.
-- DingTalk message handler chain (in-flight conversations) sustains **~30–50
-  handler-calls/s per process** (application layer only, LLM round-trip excluded —
-  see caveat below). Keep concurrent message users **≤ 50 per instance** as a
-  conservative local lower-bound estimate (P50 reaches ~3.8s at 200 concurrent);
-  the real safe ceiling is expected to be higher once client and server are
-  separated — enforce rate limiting / queueing for bursts, and re-calibrate after
-  #183. **LLM caveat**: S6 latency covers the application layer only (credential-free
-  LLM fallback, zero network I/O). In real deployments the LLM round-trip (hundreds
-  of ms to seconds) dominates message-handling latency — the real concurrent-user
-  ceiling is governed by your LLM provider's quota and latency, not by these numbers.
-- Metrics/health endpoints are never the bottleneck (>1k req/s).
+- Single instance sustains **~1,100 req/s** of business API traffic on the deployment
+  host (read P95 197ms / write P95 222ms at 200 concurrent connections); plan with
+  **≥500 req/s** on materially weaker hosts (CI runner measured ~600 req/s); scale
+  horizontally beyond that.
+- DingTalk message handler chain (in-flight conversations) sustains **80–150
+  handler-calls/s per process** at the application layer (measured peak 152, P95 ≤1.5s
+  at 200 concurrent; LLM round-trip excluded). **LLM caveat unchanged**: real message
+  latency is dominated by the LLM round-trip (hundreds of ms to seconds) — the
+  concurrent-user ceiling is governed by your LLM provider's quota and latency, not by
+  these numbers.
+- Connection pool: pg default **max=10** (PrismaPg, no explicit override). Measured
+  over a full 24-scenario run via 1s `pg_stat_activity` sampling: backends stable at
+  10–11, zero PG-side lock waits, pool elastically shrinks when idle and refills under
+  load. Keep **≤10 connections per instance**; add pgBouncer only for multi-instance
+  deployments.
+- Metrics/health endpoints are never the bottleneck (>4k req/s).
 - Scale-out triggers: read P95 > 1s for 5 min, or message-handler P95 > 500ms.
 
 ### Production Defaults
