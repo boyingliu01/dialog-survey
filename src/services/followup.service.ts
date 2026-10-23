@@ -100,7 +100,9 @@ export function parseLLMResponse(rawContent: string): StructuredResponse | null 
 /** The neutral "move on" result used whenever the LLM answer is unusable. */
 function nextResult(response: string): SmartResponseResult {
   return {
-    response,
+    // The unparseable-JSON path hands raw model text in here, so the same
+    // one-question-per-turn rule applies as in `resultFromParsed`.
+    response: stripExtraQuestions(response),
     action: 'NEXT',
     shouldProceedToNext: true,
     shouldEndInterview: false,
@@ -122,7 +124,13 @@ export function resultFromParsed(
   const response = capped ? buildForcedNextTransition(nextQuestion) : parsed.response;
   const action = capped ? 'NEXT' : parsed.action;
   return {
-    response,
+    // "One question per turn" is a hard rule, not a prompt suggestion. Both the
+    // custom and the default prompt paths funnel through here, so enforcing it at
+    // this single exit covers both — before, nothing called this helper and a
+    // model that returned two questions had both sent to the interviewee.
+    // Only a re-asked follow-up is left alone: it is one question by
+    // construction, and trimming it risks cutting a summary mid-sentence.
+    response: action === 'FOLLOWUP' ? response : stripExtraQuestions(response),
     action,
     shouldProceedToNext: action === 'NEXT',
     shouldEndInterview: action === 'END',

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [1.11.13](https://github.com/boyingliu01/dialog-survey/compare/v1.11.12...v1.11.13) (2026-10-23)
+
+### Bug Fixes
+
+- fix(core): the "one question per turn" rule was never enforced. `stripExtraQuestions` was written for exactly that and had **zero call sites**, so both LLM paths relied on the prompt asking the model nicely; a model that returned two questions had both delivered to the interviewee. It is now applied at the single exit both paths funnel through (`resultFromParsed`) plus the unparseable-JSON path (`nextResult`). A re-asked follow-up is deliberately exempt — it is one question by construction, and trimming it risks cutting a summary sentence that happens to contain a question mark.
+- fix(core): the bot announced a next question and then ended without asking it. `interviewingNode` folded `shouldEndInterview` into the action by passing `'END'`, which erased the record of what the model's text meant: a `NEXT` response whose text said "let's move on to…" was concatenated with the closing message and sent as an ending. `routeAction` now receives `shouldEndInterview` as its own argument and keeps the model's lead-in only when the model itself chose `END`; an override sends the closing message alone.
+- fix(core): follow-up answers were indistinguishable from primary ones. `interviewingNode` hardcoded `isFollowup: false`, so a follow-up round could not be told apart from a fresh answer when reviewing a plan per question, and there was no depth recorded at all. Answers now carry `isFollowup` and `followupDepth` from the actual `followupCount`. `followupDepth` is optional in the schema rather than defaulted, because states persisted before the field existed have no such key.
+
+### Tests
+
+- `tests/interview-dialog-determinism.test.ts` (11 tests) covers all three: multi-question trimming on the parsed path, the follow-up exemption, ending copy that never promises an unasked question (override, genuine END, and the final-question wrap-up), and `isFollowup`/`followupDepth` at depths 0, 1 and 2. Verified red before the fixes.
+- `conversation-engine.integration.test.ts` updated for the added `followupDepth` key — the assertion failed exactly where the contract changed, which is the test doing its job.
+
 ## [1.11.12](https://github.com/boyingliu01/dialog-survey/compare/v1.11.11...v1.11.12) (2026-10-23)
 
 ### Bug Fixes

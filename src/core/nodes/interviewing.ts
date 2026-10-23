@@ -9,7 +9,14 @@ import {
 } from '../types/index.js';
 import { loadTemplateContent } from './template-utils.js';
 
-type ResponseEntry = { questionId: string; content: string; isFollowup: boolean };
+type ResponseEntry = {
+  questionId: string;
+  content: string;
+  isFollowup: boolean;
+  // `| undefined` is explicit because `exactOptionalPropertyTypes` is on and the
+  // schema's field is optional (states persisted before it existed lack the key).
+  followupDepth?: number | undefined;
+};
 type NewResponses = ResponseEntry[];
 
 interface ActionResult {
@@ -36,6 +43,14 @@ function enforceFollowupLimit(action: string, followupCount: number, maxFollowup
   return action;
 }
 
+/**
+ * Re-route the model's action once the follow-up cap is known.
+ *
+ * `shouldEndInterview` is passed alongside `initialAction` rather than folded into
+ * it: the model's wording was written for the action it chose, so overwriting the
+ * action with 'END' (the old approach) lost the only record of what the text
+ * actually means.
+ */
 function routeAction(
   initialAction: string,
   followupCount: number,
@@ -43,25 +58,31 @@ function routeAction(
   currentQ: number,
   totalQuestions: number,
   smartResponse: string,
-  closingMessage?: string
+  closingMessage?: string,
+  shouldEndInterview = false
 ): ActionResult {
   const isLastQuestion = currentQ >= totalQuestions - 1;
   const closing = closingMessage || DEFAULT_CLOSING_MESSAGE;
 
   // Two ways to finish: an explicit END keeps the pointer where it was, while a
   // NEXT that runs off the end advances past the final question.
-  const completeAt = (nextQuestionIndex: number): ActionResult => ({
+  //
+  // `smartResponse` is only reused as a lead-in when the model actually chose to
+  // end. When `shouldEndInterview` overrode a NEXT action, that text is a
+  // transition ("let's move on to...") and pairing it with an ending reads as a
+  // promise never kept — the next question it announces is never asked.
+  const completeAt = (nextQuestionIndex: number, isGenuineEnd: boolean): ActionResult => ({
     followupCount: 0,
     currentQuestion: nextQuestionIndex,
     shouldContinue: false,
     status: 'COMPLETED',
-    response: `${smartResponse}\n\n${closing}`,
+    response: isGenuineEnd ? `${smartResponse}\n\n${closing}` : closing,
   });
 
   const action = enforceFollowupLimit(initialAction, followupCount, maxFollowups);
 
   // Rule 2: END / shouldEndInterview — always complete the interview
-  if (TERMINAL_ACTIONS.has(action)) {
+  if (TERMINAL_ACTIONS.has(action) || shouldEndInterview) {
     if (!isLastQuestion) {
       warn('User requested to end interview early (current question not last)', {
         currentQ,
@@ -69,7 +90,9 @@ function routeAction(
         remainingQuestions: totalQuestions - currentQ - 1,
       });
     }
-    return completeAt(currentQ);
+    // The lead-in survives only when the model itself said END; an override from
+    // `shouldEndInterview` leaves text written for a different action.
+    return completeAt(currentQ, action === 'END');
   }
 
   // Rules 3-4: FOLLOWUP and STAY both re-ask, incrementing the followup counter
@@ -84,7 +107,9 @@ function routeAction(
   }
 
   // Rule 5: NEXT — advance, or complete when this was the last question.
-  if (isLastQuestion) return completeAt(currentQ + 1);
+  // On the final question the model was told this is the last one, so its text is
+  // already a wrap-up; keep it as the lead-in.
+  if (isLastQuestion) return completeAt(currentQ + 1, true);
 
   return {
     followupCount: 0,
@@ -131,7 +156,16 @@ export async function interviewingNode(
 
   const newResponses = [
     ...state.responses,
-    { questionId: `q${currentQ}`, content: input.content, isFollowup: false },
+    {
+      questionId: `q${currentQ}`,
+      content: input.content,
+      // A non-zero followupCount means the previous turn re-asked this question,
+      // so this message answers the follow-up, not the question itself. Marking
+      // everything `false` made follow-up answers indistinguishable from primary
+      // ones in the report and in the export.
+      isFollowup: state.followupCount > 0,
+      followupDepth: state.followupCount,
+    },
   ];
 
   try {
@@ -162,25 +196,16 @@ export async function interviewingNode(
       isLastQuestion: currentQ >= content.questions.length - 1,
     });
 
-    const handled = smartResult.shouldEndInterview
-      ? routeAction(
-          'END',
-          state.followupCount,
-          state.maxFollowups,
-          currentQ,
-          content.questions.length,
-          smartResult.response,
-          content.closingMessage
-        )
-      : routeAction(
-          smartResult.action,
-          state.followupCount,
-          state.maxFollowups,
-          currentQ,
-          content.questions.length,
-          smartResult.response,
-          content.closingMessage
-        );
+    const handled = routeAction(
+      smartResult.action,
+      state.followupCount,
+      state.maxFollowups,
+      currentQ,
+      content.questions.length,
+      smartResult.response,
+      content.closingMessage,
+      smartResult.shouldEndInterview
+    );
 
     info('[DIAG] routeAction result', {
       handledStatus: handled.status,

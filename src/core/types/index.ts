@@ -34,6 +34,15 @@ export const InterviewStateSchema = z.object({
       questionId: z.string(),
       content: z.string(),
       isFollowup: z.boolean().default(false),
+      /**
+       * Follow-up round this answer belongs to; 0 for an answer to the question
+       * itself. Recorded so a plan can be reviewed per question afterwards —
+       * without it every answer looked like it answered a different question.
+       *
+       * Optional rather than `.default(0)` because states persisted before this
+       * field existed have no such key; readers treat a missing value as 0.
+       */
+      followupDepth: z.number().optional(),
     })
   ),
   reportGenerated: z.boolean().default(false),
@@ -55,6 +64,7 @@ export const InterviewStateSchema = z.object({
         questionId: z.string(),
         content: z.string(),
         isFollowup: z.boolean().default(false),
+        followupDepth: z.number().optional(),
       })
     )
     .default([]), // 待保存回复列表

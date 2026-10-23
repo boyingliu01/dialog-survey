@@ -288,6 +288,9 @@ describe('ConversationEngine (Integration)', () => {
         questionId: 'q0',
         content: '我是全栈工程师，工作了3年',
         isFollowup: false,
+        // Answers now carry the follow-up round they belong to (issue #203);
+        // a first answer is depth 0.
+        followupDepth: 0,
       });
       expect(result.nextState.currentQuestion).toBe(1);
       expect(result.nextState.followupCount).toBe(0);
