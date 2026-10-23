@@ -350,7 +350,6 @@ describe('TemplateRepository', () => {
               name: 'Plan A',
               description: null,
               status: 'READY',
-              completedCount: 3,
               sentCount: 5,
               createdAt: new Date(),
               _count: { interviews: 10 },

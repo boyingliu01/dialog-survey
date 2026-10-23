@@ -113,7 +113,6 @@ model InterviewPlan {
   schedule      String?   // Cron expression for scheduling
   inviteeData   Json?     // Imported interviewee data (JSON)
   sentCount     Int       @default(0)
-  completedCount Int      @default(0)
   failedCount   Int       @default(0)
   sendStatus    SendStatus @default(NOT_SENT)
   createdAt     DateTime  @default(now())

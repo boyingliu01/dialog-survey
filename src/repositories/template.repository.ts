@@ -265,7 +265,6 @@ export class TemplateRepository {
             name: true,
             description: true,
             status: true,
-            completedCount: true,
             sentCount: true,
             createdAt: true,
             _count: { select: { interviews: true } },
