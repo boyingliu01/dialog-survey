@@ -82,8 +82,12 @@ htmlcov/
 # cleaning up generated PDFs/workbooks/mutation.html. The CJK font that used to
 # live here (and forced a whitelist exception) now lives in assets/fonts/, which
 # is tracked normally.
-reports/*
-!reports/.gitkeep
+#
+# No .gitkeep exception: the directory is created by ExportService's constructor
+# and by the mutation reporter, so a fresh clone simply does not have it until
+# something writes. Carrying an empty tracked file to reserve the name was the
+# habit from when the font lived here.
+reports/
 
 # Local database
 interview_bot.db

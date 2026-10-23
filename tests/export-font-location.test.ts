@@ -122,10 +122,44 @@ describe('CJK font location', () => {
     );
   });
 
+  /**
+   * The separation is what keeps `reports/` deletable, so it is asserted against
+   * the real layout — but only when this suite runs in the real checkout. Under
+   * Stryker the tests execute inside a sandbox that deliberately excludes the
+   * bundled font (a 15 MB copy per worker), so it is absent there by design and
+   * the assertion would fail for the wrong reason.
+   */
   it('keeps reports/ free of the tracked font in the repository layout', () => {
-    // The repository contract, not a temp-dir artefact: the font exists in
-    // assets/ and must not exist in reports/, so the output dir stays disposable.
-    expect(existsSync(join(process.cwd(), 'assets', 'fonts', FONT))).toBe(true);
-    expect(existsSync(join(process.cwd(), 'reports', FONT))).toBe(false);
+    const cwd = process.cwd();
+    if (cwd.includes('.stryker-tmp') || cwd.includes('sandbox-')) return;
+
+    expect(existsSync(join(cwd, 'assets', 'fonts', FONT))).toBe(true);
+    expect(existsSync(join(cwd, 'reports', FONT))).toBe(false);
+  });
+
+  /**
+   * The default matters more than any fixture: a deployment that sets neither
+   * ASSETS_DIR nor REPORTS_DIR must still resolve the bundled font, and must not
+   * fall back to the disposable output directory.
+   */
+  it('defaults to assets/fonts rather than the reports directory', () => {
+    const previousAssets = process.env['ASSETS_DIR'];
+    const previousReports = process.env['REPORTS_DIR'];
+    delete process.env['ASSETS_DIR'];
+    delete process.env['REPORTS_DIR'];
+
+    try {
+      const service = new ExportService(mockPrisma, reportsDir);
+      const dirs = service as unknown as { assetsDir: string; reportsDir: string };
+
+      expect(dirs.assetsDir).not.toBe(dirs.reportsDir);
+      expect(dirs.assetsDir.replace(/\\/g, '/')).toContain('assets/fonts');
+    } finally {
+      if (previousAssets === undefined) delete process.env['ASSETS_DIR'];
+      else process.env['ASSETS_DIR'] = previousAssets;
+
+      if (previousReports === undefined) delete process.env['REPORTS_DIR'];
+      else process.env['REPORTS_DIR'] = previousReports;
+    }
   });
 });
