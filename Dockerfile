@@ -34,11 +34,12 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/src/views ./src/views
 COPY --from=builder /app/public ./public
 
-# CJK font for PDF export. export.service.ts resolves it from REPORTS_DIR
-# (default ./reports), and Alpine ships no CJK font, so without this every
+# CJK font for PDF export. export.service.ts resolves it from ASSETS_DIR
+# (default ./assets/fonts); it deliberately does not live under reports/ so that
+# directory stays disposable. Alpine ships no CJK font, so without this every
 # exported PDF renders Chinese as blank boxes.
-COPY --from=builder /app/reports/NotoSansCJKsc-Regular.otf ./reports/NotoSansCJKsc-Regular.otf
-RUN mkdir -p /app/reports && chown -R nodejs:nodejs /app/reports
+COPY --from=builder /app/assets ./assets
+RUN mkdir -p /app/reports && chown -R nodejs:nodejs /app/reports /app/assets
 
 # Runtime files needed by the Prisma CLI (container-side migrate deploy, DD-009 / #152)
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts

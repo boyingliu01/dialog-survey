@@ -43,8 +43,10 @@ intentional standalone export (`processStreamMessage`, a thin repo+service
 wrapper) plus a re-export barrel of `stream-message-utils`.
 
 Known trade-off to keep an eye on: `export.service` reads the CJK font from
-`REPORTS_DIR` at export time and warns once if absent — the Docker image must
-ship `reports/NotoSansCJKsc-Regular.otf` (see Dockerfile / .dockerignore).
+`ASSETS_DIR` (default `./assets/fonts`) at export time and warns once if absent —
+the Docker image must ship `assets/fonts/NotoSansCJKsc-Regular.otf` (see
+Dockerfile). The font deliberately does **not** live under `reports/`: that is a
+pure output directory, safe to delete, while the font is a tracked asset.
 
 ## SERVICE DEPENDENCIES
 ```

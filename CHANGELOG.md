@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [1.11.14](https://github.com/boyingliu01/dialog-survey/compare/v1.11.13...v1.11.14) (2026-10-23)
+
+### Changed
+
+- refactor(assets): move the 15.68 MB CJK font out of `reports/` into `assets/fonts/`. The directory was doing two unrelated jobs: `ExportService` writes generated PDFs and workbooks into it, *and* it held a git-tracked font that tests and exports read. That mix caused real damage rather than theoretical risk — `rm -rf reports` during a cleanup deleted a tracked code asset (needing a `git checkout` to restore), `.gitignore` and `.dockerignore` each needed a whitelist exception that existed only for the font, and Stryker's `ignorePatterns` had to learn about the directory at all, which is the path that ended with an unanchored `reports` entry excluding `src/views/reports/` and breaking every mutant dry run. With the font elsewhere, `reports/` is a pure output directory: safe to delete wholesale, ignored as a unit, and no longer a trap for cleanup scripts.
+- `ExportService` now resolves the font from `ASSETS_DIR` (default `./assets/fonts`), independent of `REPORTS_DIR`. A deployment that still has the font in the old location keeps rendering Chinese and logs one line naming both paths, so the stale copy can be removed deliberately instead of silently.
+- `Dockerfile` copies `assets/` into the image; `.dockerignore` now excludes `reports/` outright instead of carving out a font exception.
+
+### Tests
+
+- `tests/export-font-location.test.ts` (4 tests) pins the new resolution order, the legacy fallback, and the repository contract that the font exists under `assets/` and not under `reports/`.
+- `tests/export.service.test.ts` points both directories into its temp tree, so it can never accidentally read the real bundled font and lose the "missing" branch it asserts.
+
 ## [1.11.13](https://github.com/boyingliu01/dialog-survey/compare/v1.11.12...v1.11.13) (2026-10-23)
 
 ### Bug Fixes

@@ -41,7 +41,13 @@ describe('ExportService', () => {
         findUnique: vi.fn(),
       },
     };
-    service = new ExportService(mockPrisma as unknown as PrismaClient, tmpDir);
+    // Reports (output) and assets (the CJK font) are separate directories; both
+    // point into the temp tree so a test never picks up the real bundled font.
+    service = new ExportService(
+      mockPrisma as unknown as PrismaClient,
+      tmpDir,
+      join(tmpDir, 'fonts')
+    );
     vi.clearAllMocks();
   });
 
@@ -111,7 +117,7 @@ describe('ExportService', () => {
 
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('CJK font missing'),
-        expect.objectContaining({ fontPath: join(tmpDir, 'NotoSansCJKsc-Regular.otf') })
+        expect.objectContaining({ fontPath: join(tmpDir, 'fonts', 'NotoSansCJKsc-Regular.otf') })
       );
     });
 

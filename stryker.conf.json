@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Full-run config (issue #155). Incremental PR runs go through scripts/mutation-test.mjs which overrides `mutate` via --mutate from git diff. concurrency is raised to >=4 by the orchestrator; CI sets it explicitly. Each ignorePatterns entry is anchored with a leading `/` so it matches only at the repo root: an unanchored `reports` also matched `src/views/reports/`, Stryker dropped those .njk templates from the sandbox, and every mutant run failed its dry run with `GET /admin/reports` -> 500. That is why Gate M reported a 0% mutation score on any change touching admin-templates.ts.",
+  "_comment": "Full-run config (issue #155). Incremental PR runs go through scripts/mutation-test.mjs which overrides `mutate` via --mutate from git diff. concurrency is raised to >=4 by the orchestrator; CI sets it explicitly. Each ignorePatterns entry is anchored with a leading `/` so it matches only at the repo root: an unanchored `reports` also matched `src/views/reports/`, Stryker dropped those .njk templates from the sandbox, and every mutant run failed its dry run with `GET /admin/reports` -> 500. That is why Gate M reported a 0% mutation score on any change touching admin-templates.ts. `/reports` (runtime output) and `**/*.otf` (the 15 MB CJK font in assets/) are both excluded from the sandbox: neither is needed to run a test and copying them per worker only slows the run.",
   "testRunner": "vitest",
   "vitest": {
     "configFile": "vitest.config.mutation.ts"

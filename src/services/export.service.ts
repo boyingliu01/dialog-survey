@@ -1,16 +1,53 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { chromium } from 'playwright';
-import * as XLSX from 'xlsx';
 import { info, warn } from '../utils/logger.js';
 import type { PrismaClient } from '../utils/prisma-client.js';
 import { buildQuestionMap as buildQuestionMapShared } from '../utils/template-content.js';
 
 /**
+ * PDF and Excel export are low-frequency admin actions, but `playwright` and
+ * `xlsx` together cost ~97 MB of RSS the moment they are *imported* — measured
+ * as 56 MB -> 153 MB on a bare Node process. That is paid at boot by every
+ * deployment that never exports anything. Issue #210: load them on first use.
+ *
+ * They stay at module scope (not per call) so repeat exports do not re-pay the
+ * load cost, and so tests can still `vi.mock('playwright')`.
+ */
+type PlaywrightModule = typeof import('playwright');
+type XlsxModule = typeof import('xlsx');
+
+let playwrightModule: PlaywrightModule | undefined;
+let xlsxModule: XlsxModule | undefined;
+
+async function loadPlaywright(): Promise<PlaywrightModule> {
+  if (!playwrightModule) {
+    playwrightModule = await import('playwright');
+  }
+  return playwrightModule;
+}
+
+async function loadXlsx(): Promise<XlsxModule> {
+  if (!xlsxModule) {
+    const loaded = await import('xlsx');
+    // `xlsx` is CommonJS: under Node ESM its exports land on `.default`, and
+    // the named bindings are only a compatibility mirror. Prefer `default`
+    // when present so both the CJS and the ESM-interop shapes work.
+    xlsxModule = (loaded as { default?: XlsxModule }).default ?? loaded;
+  }
+  return xlsxModule;
+}
+
+/** Test seam: drop the memoised modules so a suite can assert lazy loading. */
+export function resetExportModuleCacheForTests(): void {
+  playwrightModule = undefined;
+  xlsxModule = undefined;
+}
+
+/**
  * Report a missing CJK font once per process. PDF export degrades to a font
  * name the runtime may not have, and doing so on every export would either
  * flood the logs or (as before) stay invisible. One line is enough to tell an
- * operator the image is missing reports/NotoSansCJKsc-Regular.otf.
+ * operator the image is missing the bundled font.
  */
 let cjkFontWarned = false;
 function warnMissingCjkFont(fontPath: string): void {
@@ -59,11 +96,26 @@ const EXPORT_INTERVIEW_SELECT = {
 export class ExportService {
   private readonly reportsDir: string;
 
+  /**
+   * Where the bundled CJK font lives.
+   *
+   * Deliberately *not* `reportsDir`. That directory collects generated PDFs and
+   * spreadsheets, is gitignored wholesale, and gets deleted by cleanup scripts
+   * and mutation runs; the font is a tracked code asset that never changes. While
+   * the two shared a directory, `rm -rf reports` silently took the font with it,
+   * and Stryker's `ignorePatterns: ["/reports"]` existed only to work around the
+   * mix. Keeping them apart makes both directories honest: everything under
+   * `reports/` is disposable, everything under `assets/` is not.
+   */
+  private readonly assetsDir: string;
+
   constructor(
     private prisma: PrismaClient,
-    reportsDir?: string
+    reportsDir?: string,
+    assetsDir?: string
   ) {
     this.reportsDir = reportsDir ?? process.env['REPORTS_DIR'] ?? './reports';
+    this.assetsDir = assetsDir ?? process.env['ASSETS_DIR'] ?? './assets/fonts';
     mkdirSync(this.reportsDir, { recursive: true });
   }
 
@@ -109,6 +161,7 @@ export class ExportService {
     if (executablePath) {
       launchOpts = { executablePath };
     }
+    const { chromium } = await loadPlaywright();
     const browser = await chromium.launch(launchOpts);
     try {
       const page = await browser.newPage();
@@ -141,6 +194,7 @@ export class ExportService {
 
     const report = await this.findLatestReport(interviewId);
 
+    const XLSX = await loadXlsx();
     const wb = XLSX.utils.book_new();
 
     // Map question IDs to question text from template content
@@ -186,13 +240,29 @@ export class ExportService {
    * completely silent.
    */
   private loadCjkFontCss(): string {
-    const fontPath = join(this.reportsDir, 'NotoSansCJKsc-Regular.otf');
+    const fontPath = join(this.assetsDir, 'NotoSansCJKsc-Regular.otf');
     if (existsSync(fontPath)) {
       try {
         const fontBase64 = readFileSync(fontPath).toString('base64');
         return `@font-face{font-family:'NotoSansCJK';src:url(data:font/opentype;base64,${fontBase64})}body{font-family:'NotoSansCJK',sans-serif}`;
       } catch {
         warn('Failed to read CJK font for PDF', { fontPath });
+      }
+    }
+    // A deployment that still carries the font in the old location (before it
+    // moved out of the output directory) keeps working, but says so once, so the
+    // stale copy can be removed deliberately rather than rediscovered later.
+    const legacyPath = join(this.reportsDir, 'NotoSansCJKsc-Regular.otf');
+    if (existsSync(legacyPath)) {
+      warn('CJK font found in the legacy reports/ location — it now belongs in assets/fonts', {
+        legacyPath,
+        expected: fontPath,
+      });
+      try {
+        const fontBase64 = readFileSync(legacyPath).toString('base64');
+        return `@font-face{font-family:'NotoSansCJK';src:url(data:font/opentype;base64,${fontBase64})}body{font-family:'NotoSansCJK',sans-serif}`;
+      } catch {
+        warn('Failed to read CJK font for PDF', { fontPath: legacyPath });
       }
     }
     warnMissingCjkFont(fontPath);
