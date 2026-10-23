@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## [1.11.15](https://github.com/boyingliu01/dialog-survey/compare/v1.11.14...v1.11.15) (2026-10-23)
+
+### Changed
+
+- chore(deps): remove `@langchain/core` and `@langchain/langgraph`, which had zero references in `src/` and `tests/` — leftovers from the LangGraph evaluation that concluded not to migrate (`docs/langgraph-migration-evaluation.md`) without removing the dependencies. The lockfile drops 18 packages.
+- perf(export): load `playwright` and `xlsx` via dynamic `import()` inside the functions that need them instead of at module load. Both are only used by the PDF and Excel paths, so importing them at startup made every process pay their parse cost whether or not anyone exported anything.
+- feat(deploy): `scripts/deploy.sh` now prunes build-time tooling after the build and before the service starts (Phase 6.5), taking a deployed tree from ~373 MB to ~147 MB.
+
+### Notes
+
+- `npm ci --omit=dev` does **not** solve this, and neither does `npm prune --omit=dev`. `prisma` and `typescript` are devDependencies of this package *and* optional `peerDependencies` of `@prisma/client`, so npm records them as `devOptional` and `--omit=dev` deliberately keeps those. That one ambiguity drags in `@prisma/dev`, `@prisma/studio-core` (Prisma Studio, a GUI), `effect` and an embedded PGlite.
+- `scripts/prune-runtime-deps.mjs` therefore derives the runtime closure from the imports in the compiled `dist/` output rather than a hand-written deletion list — a hardcoded list goes stale silently the moment a package gains a dependency, and the failure mode is a broken deploy. It then verifies every kept package still resolves its real dependencies and exits non-zero rather than shipping a tree that is missing something. `--dry-run` reports what it would remove; on this repo that is 620 packages / 425 MB, keeping 148.
+- Ordering constraint: `migrate deploy` runs in Phase 4 while the Prisma CLI is still installed. Moving migrations after the prune removes the CLI.
+- Read with `docs/reports/deployment-cost-evaluation-2026-10.md` and `docs/sprints/2026-10-24-issue-deps-slim/`.
+
 ## [1.11.14](https://github.com/boyingliu01/dialog-survey/compare/v1.11.13...v1.11.14) (2026-10-23)
 
 ### Changed

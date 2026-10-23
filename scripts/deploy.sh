@@ -126,6 +126,32 @@ else
   log_info "Skipping quality gates for production deploy (run manually before deploy)"
 fi
 
+# ── Phase 6.5: Prune build-time tooling (issue #210) ───────────────────
+# Everything dev-flavoured has done its job by now: prisma generate (Phase 4),
+# tsc (Phase 5), and the gates above. Dropping it here takes the deployed tree
+# from ~373 MB to ~147 MB.
+#
+# This is NOT `npm ci --omit=dev`, and not `npm prune --omit=dev` either —
+# both leave `prisma`/`typescript` installed. They are devDependencies of this
+# package AND optional peerDependencies of @prisma/client, so npm records them
+# as "devOptional" and deliberately keeps them under --omit=dev. That single
+# ambiguity drags in @prisma/dev + @prisma/studio-core + effect + an embedded
+# PGlite — Prisma Studio (a GUI) plus other dev tooling that a running server
+# never loads.
+#
+# scripts/prune-runtime-deps.mjs derives the real runtime graph from the imports
+# in dist/ and removes the rest, then verifies every surviving package still
+# resolves its dependencies. It fails the deploy rather than shipping a tree
+# that is missing something.
+#
+# ORDERING MATTERS: migrate deploy runs in Phase 4, while the Prisma CLI is
+# still installed. The Docker image instead prunes then runs
+# `node node_modules/prisma/build/index.js migrate deploy`; that path is not
+# used here. If you ever move migrations after this line, the CLI will be gone.
+log_info "Pruning build-time dependencies..."
+node scripts/prune-runtime-deps.mjs --dir "$PROJECT_DIR"
+log_info "✓ Build-time dependencies pruned"
+
 # ── Phase 7: Start service ─────────────────────────────────────────────
 log_info "Starting Interview Bot..."
 export NODE_ENV="$ENV"
