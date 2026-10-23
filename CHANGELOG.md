@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## [1.11.17](https://github.com/boyingliu01/dialog-survey/compare/v1.11.16...v1.11.17) (2026-10-23)
+
+### Tests
+
+The 1.11.16 push was blocked by Gate M on three files I had assumed needed no work because their diffs were small — a one-line delegation and a boolean. The diffs were small; the files were not. Local scores after the fix:
+
+| File | Before | After |
+| --- | --- | --- |
+| `src/core/types/index.ts` | 25.7% | **91.43%** |
+| `src/core/graph.ts` | 57.1% | **92.06%** |
+| `src/integrations/dingtalk/stream-client.ts` | 53.5% | **73.90%** |
+
+- `tests/state-schema-contract.test.ts` (34 tests) makes the Zod schema a contract. All 35 mutants in that file were enum string literals, and nothing asserted them: renaming `'CANCELLED'` to `'CANCELED'` would have passed the entire suite while rejecting every cancelled interview already in the database. Each legal and illegal value is now pinned, along with the defaults. It also surfaced a real inconsistency — `responses` is required while the pending lists default to `[]`.
+- `tests/graph-edges.test.ts` (22 tests) covers the edges: `firstTurn` genuinely overriding the stored status (the whole point of #200), the blank-message guard, and the fire-and-forget analysis actually being scheduled on completion. The last one had no assertion at all because it runs in `setImmediate`.
+- `tests/stream-client-credentials.test.ts` (8 tests) proves `fromEnv` reads `DINGTALK_APP_KEY`/`_SECRET`. The pre-existing test asserted only `toBeInstanceOf`, so it passed both before and after the #200 fix — an assertion that cannot tell two behaviours apart is why a covered file still scored 53%.
+- `tests/stream-client-lifecycle.test.ts` (15 tests) covers the recovery machinery that had never executed: the circuit breaker opening at the threshold, going HALF_OPEN after the cooldown and reopening on the next failure, the reconnect backoff, and the shutdown short-circuits.
+
+A note for future mocks here: under Vitest 4, `vi.fn().mockImplementation(...)` is not constructible through `new`, so a class-shaped mock silently never runs its body — the analysis assertions failed for the mock's reasons rather than the code's. Declaring a real `class` in the factory works.
+
 ## [1.11.16](https://github.com/boyingliu01/dialog-survey/compare/v1.11.15...v1.11.16) (2026-10-23)
 
 ### Tests
