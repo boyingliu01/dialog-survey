@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## [1.11.12](https://github.com/boyingliu01/dialog-survey/compare/v1.11.11...v1.11.12) (2026-10-23)
+
+### Bug Fixes
+
+- fix(db): drop `InterviewPlan.completedCount`, a column nothing ever wrote. `sentCount` and `failedCount` each have increment/decrement paths in the send and member services; `completedCount` had none, so it stayed at its default 0 for the lifetime of every plan while `sentCount` beside it moved. Every reader already computed completion from the interviews relation instead — `admin-templates.ts` counts `p.interviews.filter(status === 'COMPLETED')` and `analytics.service.ts` does the same — so the admin UI showed the right number while the stored field disagreed with it. Keeping the column means keeping a field that is guaranteed to be stale, and the next report, export or integration to read it instead of the relation would silently report 0% completion. "A plan is complete" stays expressible as a query over its interviews, which cannot drift. A `template-crud` fixture that set `completedCount: 3` alongside a single completed interview (mismatching by design) is gone with it.
+
+### Changed
+
+- `prisma/migrations/20261023000000_drop_interview_plan_completed_count` performs the `ALTER TABLE ... DROP COLUMN`, generated with `prisma migrate diff` against the previous schema so the SQL is exactly what Prisma emits.
+- `TemplateRepository.getUsageStats` no longer selects `completedCount` on the nested plans.
+
 ## [1.11.11](https://github.com/boyingliu01/dialog-survey/compare/v1.11.10...v1.11.11) (2026-10-22)
 
 ### Bug Fixes
