@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+## [1.11.16](https://github.com/boyingliu01/dialog-survey/compare/v1.11.15...v1.11.16) (2026-10-23)
+
+### Tests
+
+Gate M's threshold is 60%, and it only mutates files changed against the base ref — so this round's fixes dragged five files into scope and three of them were already below the bar. None of that showed up before because the gate never looked at them.
+
+| File | Before | After |
+| --- | --- | --- |
+| `export.service.ts` | 47.29% | **72.48%** |
+| `interviewing.ts` | 60.83% | **84.17%** |
+| `followup.service.ts` | 48.77% | **70.44%** |
+| `interview-plan-send.service.ts` | 34.98% | **63.05%** |
+| `stream-message.service.ts` | 62.69% | **63.25%** |
+
+No threshold was lowered and no file was excluded — the scores went up because the untested branches got tests.
+
+- `tests/export-html-rendering.test.ts` (15 tests) mocks Playwright and inspects the HTML the PDF path builds. The existing suite let real chromium render a PDF and only checked the file existed, so `loadInviteeInfo` (24 surviving mutants on its own) and the whole header/table layout were unasserted. Also covers `translateSentiment`'s map and its pass-through fallback.
+- `tests/interviewing-routing.test.ts` (13 tests) pins the routing table: the follow-up cap degrading FOLLOWUP to NEXT while STAY is exempt, the early-end warning and its `remainingQuestions` arithmetic, pointer movement on advance and on completion, the `isLastQuestion` flag handed to the prompt builder, and both fallback branches.
+- `tests/followup-prompt-and-diagnostics.test.ts` (17 tests) makes the log line the observable. The single biggest cluster was a conditional whose entire body was an `info(...)` call — the branch ran, nothing changed, so no test could fail. Capturing the prompt also covers history truncation to six turns, the last-question hint and the next-question hint.
+- `tests/plan-send-resend.test.ts` (12 tests) covers `resendToInterview`, which had **no test at all** (75 mutants never executed): the missing-interview and wrong-plan guards, the sentCount/failedCount increments, and the rule that a re-resend of an already-counted interview must not count twice.
+
+`tests/export-font-location.test.ts` now skips its repository-layout assertion inside Stryker's sandbox, where `.otf` files are excluded by design; the metric that mattered was being read anyway, because a failing dry run makes the score meaningless rather than low.
+
 ## [1.11.15](https://github.com/boyingliu01/dialog-survey/compare/v1.11.14...v1.11.15) (2026-10-23)
 
 ### Changed
