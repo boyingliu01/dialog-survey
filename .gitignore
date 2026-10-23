@@ -77,14 +77,13 @@ htmlcov/
 # MyPy
 .mypy_cache/
 
-# Reports (generated at runtime by ExportService / mutation runs)
-# Ignore the whole directory and whitelist only what is genuinely source:
-# the CJK font is a runtime asset read by export.service.ts, .gitkeep keeps
-# the dir in the tree. Listing per-extension rules here is what previously let
-# mutation.html, PDFs and workbooks slip into git.
+# Reports — a pure output directory, generated at runtime by ExportService and by
+# mutation runs. Nothing here is source, so it is safe to `rm -rf reports` when
+# cleaning up generated PDFs/workbooks/mutation.html. The CJK font that used to
+# live here (and forced a whitelist exception) now lives in assets/fonts/, which
+# is tracked normally.
 reports/*
 !reports/.gitkeep
-!reports/NotoSansCJKsc-Regular.otf
 
 # Local database
 interview_bot.db
