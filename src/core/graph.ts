@@ -1,4 +1,5 @@
 import { AnalysisService } from '../services/analysis.service.js';
+import { PlanCompletionService } from '../services/plan-completion.service.js';
 import { getDb } from '../utils/db.js';
 import { error, info } from '../utils/logger.js';
 import type { PrismaClient } from '../utils/prisma-client.js';
@@ -43,6 +44,37 @@ function scheduleAnalysis(interviewId: string | undefined, prisma?: PrismaClient
         error: e instanceof Error ? e.message : String(e),
       });
     });
+  });
+}
+
+/**
+ * Re-evaluate the interview's plan once the interview finishes (issue #202).
+ *
+ * Fire-and-forget, and deliberately a separate `setImmediate` from
+ * `scheduleAnalysis`: plan completion only cares that the interview reached
+ * COMPLETED, so report generation failing must not also abort the plan
+ * bookkeeping (and vice versa). `getDb()` is called *inside* the try because it
+ * throws synchronously when DATABASE_URL is missing — an uncaught throw there
+ * would escape the deferred callback and take the process down mid-turn.
+ */
+function schedulePlanCompletion(interviewId: string | undefined, prisma?: PrismaClient): void {
+  if (!interviewId) return;
+  setImmediate(() => {
+    try {
+      new PlanCompletionService(prisma || getDb())
+        .reconcileAfterInterviewCompleted(interviewId)
+        .catch((e) => {
+          error('Plan completion failed', {
+            interviewId,
+            error: e instanceof Error ? e.message : String(e),
+          });
+        });
+    } catch (e) {
+      error('Plan completion failed', {
+        interviewId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
   });
 }
 
@@ -95,6 +127,7 @@ export async function runInterviewGraph(
   // If interview completed, trigger async analysis (fire-and-forget)
   if (result.shouldContinue === false) {
     scheduleAnalysis(initialState.interviewId, prisma);
+    schedulePlanCompletion(initialState.interviewId, prisma);
   }
 
   return {

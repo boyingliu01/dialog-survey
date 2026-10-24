@@ -4,11 +4,117 @@ import { info, warn } from '../utils/logger.js';
 import { withRetry } from '../utils/retry.js';
 import { promptService } from './prompt.service.js';
 
-function buildForcedNextTransition(nextQuestion?: string): string {
+/**
+ * Lead-in used whenever a NEXT reply would otherwise reach the interviewee with
+ * nothing acknowledging what they just said (issue #203).
+ *
+ * Deliberately topic-neutral: it never names the previous answer, because the
+ * bot has no reliable way to know which words in a free-text answer are the key
+ * ones. A keyword-overlap heuristic that guesses got replies rewritten for no
+ * reason, which is worse than a plain acknowledgement.
+ */
+export const FORCED_NEXT_LEAD_IN = '感谢您刚才的分享。我们接着聊下一个问题：';
+
+/**
+ * The "one question per turn" hard limit. A reply is allowed at most this many
+ * question marks — see `stripExtraQuestions`.
+ */
+export const MAX_QUESTION_MARKS = 1;
+
+/**
+ * Punctuation that closes a clause in front of the question. `,` / `，` are
+ * deliberately excluded — a comma alone is checked separately (`好的，…`), while
+ * these markers always end the preceding remark, so the reply already has a
+ * lead-in.
+ */
+const SENTENCE_BREAKS = /[。！!；;：:\n—…~～]/g;
+
+/**
+ * Openers that carry no acknowledgement of the previous answer, when they stand
+ * alone in front of the question and are followed by a comma. Kept short and
+ * literal — anything richer ("明白了，您提到的…") is already a lead-in.
+ */
+const BARE_FILLER_PREFIX =
+  /^(?:好的|好|嗯|嗯嗯|哦|噢|行|可以|明白了|明白|收到|了解了|了解|没问题|ok|okay)[,，]?$/i;
+
+/** Offsets of every sentence break in `text`. */
+function findSentenceBreaks(text: string): number[] {
+  return Array.from(text.matchAll(SENTENCE_BREAKS), (m) => m.index ?? 0);
+}
+
+/**
+ * True when the reply carries no acknowledgement in front of its question.
+ *
+ * `beforeQuestion` is the text up to the first question mark, so for a bare
+ * question it IS the question's own wording ("平时有什么爱好吗"). The check
+ * therefore asks whether anything *other* than that wording precedes the
+ * question:
+ *
+ *   1. no punctuation at all — the whole text is the question;
+ *   2. a bare filler followed by a comma ("好的，您平时…？").
+ *
+ * Anything else counts as a lead-in, including a filler joined by a dash
+ * ("好的——…"): the dash makes it a continuation, and this check must never
+ * rewrite a reply that has any opener.
+ */
+function hasNoLeadIn(beforeQuestion: string): boolean {
+  const trimmed = beforeQuestion.trim();
+  // Shape 1: nothing at all — the text is the question by itself.
+  if (!trimmed) return true;
+  // A sentence ended before the question: that sentence is the acknowledgement.
+  if (findSentenceBreaks(trimmed).length > 0) return false;
+  // Shape 2 (`好的，`): a bare filler closed by a comma, then the question.
+  const comma = trimmed.search(/[,，]/);
+  if (comma === -1) return true;
+  return BARE_FILLER_PREFIX.test(trimmed.slice(0, comma).trim());
+}
+
+export function buildForcedNextTransition(nextQuestion?: string): string {
   if (!nextQuestion) {
     return '好的，关于这个话题我们已经聊得比较深入了。我们继续看下一个问题。';
   }
-  return `好的，关于这个话题我们已经聊得比较深入了。那我们聊聊：${nextQuestion}`;
+  // The question text comes from the template, where a stray second question
+  // mark is possible. The "one question per turn" rule covers this copy too.
+  return `好的，关于这个话题我们已经聊得比较深入了。那我们聊聊：${stripExtraQuestions(nextQuestion)}`;
+}
+
+/**
+ * Add a neutral lead-in when a NEXT reply contains nothing but the question.
+ *
+ * `routeAction` rewrites the reply whenever the pointer has already advanced
+ * past the question it names, but it has nothing good to offer for the far more
+ * common "bare question" case: in the 12-question transcript 6 of 11 NEXT turns
+ * repeated the next question verbatim with no acknowledgement at all. This is
+ * the deterministic backstop for that shape.
+ *
+ * Conservative by design — false negatives are fine, false positives (rewriting
+ * a reply that already has a lead-in) are not:
+ *
+ *   - the reply must carry a question mark, so a statement-only reply (a wrap-up
+ *     or a closing) is left alone;
+ *   - anything before the question other than a bare filler ("好的，") counts as
+ *     a lead-in, so "感谢您的分享。那我们聊聊：…" is returned untouched;
+ *   - when the reply *is* the next question repeated verbatim, no acknowledgement
+ *     could possibly be credible (the bot would be answering a question it never
+ *     asked), so only the neutral opener is added.
+ *
+ * No LLM call is involved: this runs on every turn.
+ */
+export function addContinuityLeadIn(response: string, nextQuestion?: string): string {
+  const text = response.trim();
+  if (!text) return response;
+
+  const questionMark = text.search(/[?？]/);
+  // No question (a wrap-up or a statement) — outside this rule's scope.
+  if (questionMark === -1) return response;
+
+  const isNextQuestionVerbatim = nextQuestion != null && text === nextQuestion.trim();
+  if (!isNextQuestionVerbatim) {
+    const beforeQuestion = text.slice(0, questionMark);
+    if (!hasNoLeadIn(beforeQuestion)) return response;
+  }
+
+  return `${FORCED_NEXT_LEAD_IN}${text}`;
 }
 
 export interface StructuredResponse {
@@ -30,10 +136,13 @@ export const FALLBACK_RESPONSE = '感谢您的回答，我们继续下一个话�
 /**
  * Strip extra questions from LLM response to enforce "one question per turn" rule.
  * If the response contains multiple question marks, keep only the first question.
+ *
+ * The cut keeps a bracket that the first question mark opens — `「为什么？」` is
+ * one question mark and its closer belongs to it — and never splits a character.
  */
 export function stripExtraQuestions(response: string): string {
   const questionMarks = response.match(/[?？]/g);
-  if (!questionMarks || questionMarks.length <= 1) {
+  if (!questionMarks || questionMarks.length <= MAX_QUESTION_MARKS) {
     return response;
   }
 
@@ -42,7 +151,24 @@ export function stripExtraQuestions(response: string): string {
     return response;
   }
 
-  return response.substring(0, firstQuestionMarkIndex + 1).trim();
+  return response.substring(0, closingOffset(response, firstQuestionMarkIndex) + 1).trim();
+}
+
+/** Closing brackets whose opening character precedes the question they close. */
+const CLOSERS = new Set(['」', '』', '”', '》', '）', '】']);
+
+/**
+ * Offset of the last character to keep when cutting at `questionMarkIndex`.
+ *
+ * A closing bracket directly after the question mark belongs to the question
+ * that was just cut off at it, so it is kept rather than left dangling.
+ */
+function closingOffset(text: string, questionMarkIndex: number): number {
+  let end = questionMarkIndex;
+  while (end + 1 < text.length && CLOSERS.has(text[end + 1] ?? '')) {
+    end += 1;
+  }
+  return end;
 }
 
 export async function polishFirstQuestion(rawText: string): Promise<string> {
@@ -168,7 +294,16 @@ function nextQuestionFlag(
   nextQuestion: string | undefined
 ): string {
   if (isLastQuestion || !nextQuestion) return '';
-  return `\n【下一问题】：${nextQuestion}\n（如果你决定NEXT，你的回复中必须直接说出下一问题的具体内容，不能说"我们继续下一题"这种空话）\n`;
+  // Issue #203: "先承接上一回答再抛下一题" was stated only as a soft principle and
+  // measured ~40% compliance on a real 12-question interview (6 of 11 NEXT turns
+  // had no acknowledgement at all). It is spelled out here as a two-step, ordered
+  // requirement the model can self-check, next to the question it has to use.
+  return `\n【下一问题】：${nextQuestion}
+（如果你决定NEXT，必须按以下顺序写你的 response：
+  第 1 步 承接：先用一句话点出用户刚才回答里的**关键词或具体内容**，表示你听懂了（例如"您刚才提到…"）。不要泛泛地说"感谢分享"。
+  第 2 步 提问：再自然地引出并说出【下一问题】的具体内容，一次只问这一个问题。
+  不允许：只把【下一问题】原样抛出来、没有任何承接；也不允许说"我们继续下一题"这种不带内容的空话。）
+`;
 }
 
 function buildPromptVars(

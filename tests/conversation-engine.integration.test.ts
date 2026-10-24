@@ -11,13 +11,23 @@ import type { InterviewState } from '../src/core/types/index.js';
 import { InterviewStateRepository } from '../src/repositories/interview-state.repository.js';
 import { TestDatabase } from './helpers/test-db.js';
 
-vi.mock('../src/services/followup.service.js', () => ({
-  generateSmartResponse: vi.fn(),
-  polishFirstQuestion: vi.fn(),
-  parseLLMResponse: vi.fn(),
-  smartTruncate: vi.fn((text: string) => text),
-  FALLBACK_RESPONSE: '感谢您的回答，我们继续下一个话题。',
-}));
+// `{ ...actual }`: `interviewingNode` also imports the pure response helpers
+// (`buildForcedNextTransition`, `addContinuityLeadIn`) from this module. A bare
+// replacement made them `undefined`, the node threw, and every test silently got
+// the fallback copy instead of the behaviour under test.
+vi.mock('../src/services/followup.service.js', async () => {
+  const actual = await vi.importActual<typeof import('../src/services/followup.service.js')>(
+    '../src/services/followup.service.js'
+  );
+  return {
+    ...actual,
+    generateSmartResponse: vi.fn(),
+    polishFirstQuestion: vi.fn(),
+    parseLLMResponse: vi.fn(),
+    smartTruncate: vi.fn((text: string) => text),
+    FALLBACK_RESPONSE: '感谢您的回答，我们继续下一个话题。',
+  };
+});
 
 import { generateSmartResponse, polishFirstQuestion } from '../src/services/followup.service.js';
 

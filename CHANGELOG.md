@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+## [1.11.21](https://github.com/boyingliu01/dialog-survey/compare/v1.11.20...v1.11.21) (2026-10-24)
+
+### Bug Fixes
+
+Twelve open issues, plus the quality gates that were supposed to be catching them.
+
+**#202 — interview plans never left `RUNNING`.** `updatePlanStatus()` existed but only `pausePlan`/`resumePlan`/`cancelPlan` called it, so a one-member plan whose interview completed stayed `RUNNING` forever. New `PlanCompletionService` is scheduled from `src/core/graph.ts` at the same `shouldContinue === false` site as analysis, as an independent `setImmediate` — report generation failing must not also abort plan bookkeeping. The transition is guarded (`updateMany` matching `status: 'RUNNING'`), so a concurrent cancel or pause wins the race instead of being clobbered, and a cancelled plan is never resurrected. `getDb()` is called *inside* the try because it throws synchronously without `DATABASE_URL`, and an uncaught throw in a deferred callback would take the process down mid-turn.
+
+**#203 — forced-cap reply/question misalignment.** Two code paths handled "max follow-ups reached" differently: `resultFromParsed()` replaced the model's text with the next question, while `routeAction()` rewrote the action but kept the follow-up wording — so the user was shown a question about the topic being left while the pointer had already advanced, and their answer was filed under the next question. That is the same family as #200. `routeAction` is now the single consistency guarantee: a coerced FOLLOWUP→NEXT discards the follow-up wording and emits `buildForcedNextTransition(nextQuestion)` alongside `currentQuestion: currentQ + 1`; on the last question it completes with the closing copy rather than sending a stray question as the final message.
+
+NEXT continuity was prompt-only and measured ~40% compliance on a real 12-question interview. The prompt now states an ordered two-step requirement, and `addContinuityLeadIn()` adds a deterministic, LLM-free backstop that prepends a neutral lead-in **only** when nothing precedes the question — nine negative cases pin that any real opener survives byte-for-byte, so false positives are ruled out. Fabrication guidance and a "don't quote an 原话 that was never spoken" rule were added, and `stripExtraQuestions` leaks were closed (the forced transition's embedded question text, and a cut that left a dangling opening bracket).
+
+**#204 — the alias fix was unreachable in production.** `DingTalkStreamClient.fromEnv()` accepted `DINGTALK_APP_KEY`/`_SECRET`, but `src/server.ts` still gated *whether to build a client at all* on the canonical names — so an APP_KEY-only deployment took the credential-free path and never attempted the socket, which is the issue's silent-bot symptom with a different log line. Both `createDingTalkStreamClientOrWarn()` and `isDingTalkConfigured()` now resolve through `dingTalkCredentialsFromEnv()`.
+
+### Refactoring
+
+**#205 — `src/api/admin-templates.ts` was 1108 lines with 28 routes.** One file carried every template, plan, report, analytics and export route. It was the shared root cause behind Gate 6's `GodModule`, Gate 4's largest long-function finding, part of Gate 12, and 887 of the mutants that made Gate M take ~41 minutes.
+
+It is now 39 lines of pure wiring; the handlers live in `src/api/admin/` grouped by route responsibility (`templates.ts` 11 routes, `reports.ts` 7, `plans.ts` 6, `analytics.ts` 4, plus `template-form.ts`, `view-models.ts`, `report-view.ts`, `shared.ts`, `html.ts`). All 28 route paths are unchanged, `src/server.ts` needed zero edits, and `adminTemplatesRoutes` keeps its name, signature and options type so every test harness works untouched. archlint now reports `God Module found: 0`, and the largest new file is 343 lines.
+
+Also reduced `routeAction` from 8 parameters to 6 via an options object.
+
+### Tooling
+
+**#209 — the Gate M patches live outside the repo and xp-gate updates erase them.** While working this issue the `pre-commit` hook really was rewritten underneath us (185227 → 200065 bytes), which is the documented risk. `scripts/verify-xp-gate-patches.cjs` now also runs `bash -n` over both hooks: the update that overwrote `pre-commit` introduced a stray backtick (`echo "... $new_file — ..."`), bash read the closing backtick as a command substitution, and **every gate after Gate 5 silently did not run** while the commit was let through. None of the existing mutation-runner checks could see that. The syntax check is reported separately from the Gate M verdict, because a syntax error is fatal to all gates while a missing patch is fatal only to Gate M.
+
+`scripts/run-xp-gate.sh` runs the gates in a repaired environment. On this machine (`appendWindowsPath = false`) they had never actually executed: Gate 1 reported `SKIP - npx not available`, Gate 8 `BLOCKED - gitleaks not installed` with gitleaks on PATH, and Gate 9 `BLOCKED - build integrity check failed` for a path-translation problem. Five upstream xp-gate defects were filed (#579, #580, #581, #582, #592) and are recorded in `docs/xp-gate-defects-2026-10.md`.
+
+Gate 8 still reports SKIP, not PASS, and that is now documented rather than worked around: gitleaks 8.30.1 does not create its `--report-path` file when a scan finds nothing, so the gate's "did the scan run?" check sees no evidence on any clean machine. The scan itself runs and finds nothing — `INF scanned ~159459 bytes` / `INF no leaks found` — but the gate cannot distinguish that from "never scanned" (xp-gate #592).
+
+### Docs
+
+New `docs/xp-gate-defects-2026-10.md` records each upstream defect with its reproduction and the local workaround.
+
+### Known remaining work
+
+**#211** cannot be closed by code: the three leaked credentials need rotation by the repository owner. The history scan and CI step are in place, and that step deliberately stays non-blocking until rotation is done — a permanently-red check trains people to ignore it.
+
+**#210**'s dependency prune (`scripts/prune-runtime-deps.mjs`) is wired into `deploy.sh` but not into the Docker image, so the image still carries all 620 build-time packages. Wiring it needs a machine with Docker to verify, and it must be ordered before `migrate deploy` (pruning removes the `prisma` CLI) — which means a dedicated `migrate` build target rather than a one-line Dockerfile edit.
+
 ## [1.11.20](https://github.com/boyingliu01/dialog-survey/compare/v1.11.19...v1.11.20) (2026-10-23)
 
 ### Docs

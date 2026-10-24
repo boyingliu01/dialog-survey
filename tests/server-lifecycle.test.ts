@@ -114,13 +114,20 @@ vi.mock('../src/services/audit-cleanup.service.js', () => ({
 
 vi.mock('../src/integrations/dingtalk/stream-client.js', () => ({
   DingTalkStreamClient: class FakeDingTalkStreamClient {
-    // Mirrors the real constructor contract (stream-client.ts throws without
-    // clientId/clientSecret) so credential-free startup is behaviourally tested.
+    // Mirrors the real constructor contract (stream-client.ts throws without a
+    // clientId/clientSecret) so credential-free startup stays behaviourally
+    // tested. The spelling check goes through the same alias resolution the real
+    // `fromEnv` uses: accepting only DINGTALK_CLIENT_ID here made the fake
+    // stricter than production, so an APP_KEY-configured deployment threw at
+    // startup in the test while working for real (#204).
     constructor() {
-      if (!process.env['DINGTALK_CLIENT_ID']) {
+      const clientId = process.env['DINGTALK_APP_KEY'] || process.env['DINGTALK_CLIENT_ID'];
+      const clientSecret =
+        process.env['DINGTALK_APP_SECRET'] || process.env['DINGTALK_CLIENT_SECRET'];
+      if (!clientId) {
         throw new Error('clientId is required');
       }
-      if (!process.env['DINGTALK_CLIENT_SECRET']) {
+      if (!clientSecret) {
         throw new Error('clientSecret is required');
       }
     }
