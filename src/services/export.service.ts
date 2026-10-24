@@ -61,20 +61,31 @@ export function resetCjkFontWarningForTests(): void {
   cjkFontWarned = false;
 }
 
+/** True for a non-null object, which is all the invitee entry needs to be. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * Pull the invitee's own name and phone out of a plan's `inviteeData` blob.
+ *
+ * The blob is JSON authored elsewhere, so every read is guarded: `Array.isArray`
+ * for the container, `isRecord` per entry, and a `typeof` check per field. Kept
+ * flat (find-then-read rather than loop-and-nest) because the four levels of
+ * guard were the bulk of its cognitive complexity, not its logic.
+ */
 function loadInviteeInfo(inviteeData: unknown, userId: string): { name?: string; phone?: string } {
   if (!Array.isArray(inviteeData)) return {};
-  for (const entry of inviteeData) {
-    if (entry && typeof entry === 'object') {
-      const obj = entry as Record<string, unknown>;
-      if (obj['userId'] === userId) {
-        const result: { name?: string; phone?: string } = {};
-        if (typeof obj['name'] === 'string') result.name = obj['name'];
-        if (typeof obj['phone'] === 'string') result.phone = obj['phone'];
-        return result;
-      }
-    }
-  }
-  return {};
+
+  const match = inviteeData.find((entry) => isRecord(entry) && entry['userId'] === userId);
+  if (!isRecord(match)) return {};
+
+  const result: { name?: string; phone?: string } = {};
+  const name = match['name'];
+  const phone = match['phone'];
+  if (typeof name === 'string') result.name = name;
+  if (typeof phone === 'string') result.phone = phone;
+  return result;
 }
 
 /**
