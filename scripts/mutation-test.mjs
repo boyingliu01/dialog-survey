@@ -208,6 +208,54 @@ export function buildStrykerArgs({ files, concurrency }) {
   return args;
 }
 
+/**
+ * Work out which files to mutate, and say so.
+ *
+ * Returns `{ files }` on the normal path, or `{ exitCode }` when the run should
+ * stop before Stryker starts (nothing to mutate, or the base diff failed and we
+ * refuse to report a green no-op).
+ *
+ * Extracted from `main` because the three selection modes plus the empty-set
+ * handling pushed that function's cyclomatic complexity to 19, which archlint
+ * flags and neither `npm run complexity` (TS-only) nor Gate 3 (Python-only)
+ * would have caught on a .mjs file.
+ */
+export function resolveTargets({ options, git, log = console.log }) {
+  if (options.full || options.files !== undefined) {
+    log(
+      options.full
+        ? 'mutation-test: full run over all configured sources.'
+        : `mutation-test: explicit run over ${options.files?.length ?? 0} file(s).`
+    );
+    return { files: options.files };
+  }
+
+  const requestedBase = options.base ?? '';
+  // An empty or placeholder-resolved ref (e.g. GitHub's `${{ github.base_ref }}`
+  // expanding to "" on workflow_dispatch → "origin/") is not a real base —
+  // fall back to the candidate list instead of failing the diff silently.
+  const usableBase = /^origin\/?$/.test(requestedBase) ? '' : requestedBase;
+  const base =
+    usableBase ||
+    resolveBaseRef(DEFAULT_BASE_CANDIDATES, (ref) => git(['rev-parse', '--verify', ref]) !== null);
+  const collected = collectChangedFiles({ base, git });
+
+  if (collected.files.length === 0) {
+    if (collected.diffFailed) {
+      log(
+        'mutation-test: nothing mutable found AND the base diff failed — refusing to report success.'
+      );
+      return { exitCode: 3 };
+    }
+    log('mutation-test: no mutable source files changed — skipping Stryker run.');
+    return { exitCode: 0 };
+  }
+
+  log(`mutation-test: incremental run over ${collected.files.length} changed file(s):`);
+  for (const file of collected.files) log(`  - ${file}`);
+  return { files: collected.files };
+}
+
 export function main({
   argv = process.argv.slice(2),
   env = process.env,
@@ -231,51 +279,20 @@ export function main({
     return evaluateThreshold({ reportPath: resolvedReportPath, threshold, log });
   }
 
+  const resolved = resolveTargets({ options, git, log });
+  if (resolved.exitCode !== undefined) return resolved.exitCode;
+  const { files } = resolved;
+
   const concurrency = resolveConcurrency(
     options.concurrency ?? env['STRYKER_CONCURRENCY'],
     cpuCount
   );
 
-  let files = options.files;
-  if (!options.full && files === undefined) {
-    const requestedBase = options.base ?? '';
-    // An empty or placeholder-resolved ref (e.g. GitHub's `${{ github.base_ref }}`
-    // expanding to "" on workflow_dispatch → "origin/") is not a real base —
-    // fall back to the candidate list instead of failing the diff silently.
-    const usableBase = /^origin\/?$/.test(requestedBase) ? '' : requestedBase;
-    const base =
-      usableBase ||
-      resolveBaseRef(
-        DEFAULT_BASE_CANDIDATES,
-        (ref) => git(['rev-parse', '--verify', ref]) !== null
-      );
-    const collected = collectChangedFiles({ base, git });
-    files = collected.files;
-    if (files.length === 0) {
-      if (collected.diffFailed) {
-        console.error(
-          'mutation-test: nothing mutable found AND the base diff failed — refusing to report success.'
-        );
-        return 3;
-      }
-      console.log('mutation-test: no mutable source files changed — skipping Stryker run.');
-      return 0;
-    }
-    console.log(`mutation-test: incremental run over ${files.length} changed file(s):`);
-    for (const file of files) console.log(`  - ${file}`);
-  } else {
-    console.log(
-      options.full
-        ? 'mutation-test: full run over all configured sources.'
-        : `mutation-test: explicit run over ${files?.length ?? 0} file(s).`
-    );
-  }
-
   const strykerArgs = buildStrykerArgs({ files, concurrency });
-  console.log(`mutation-test: npx ${strykerArgs.join(' ')} (workers=${concurrency})`);
+  log(`mutation-test: npx ${strykerArgs.join(' ')} (workers=${concurrency})`);
   const result = spawn('npx', strykerArgs);
   if (result.error) {
-    console.error(`mutation-test: failed to launch Stryker: ${result.error.message}`);
+    log(`mutation-test: failed to launch Stryker: ${result.error.message}`);
     return 2;
   }
   if (result.status !== 0) return result.status ?? 2;

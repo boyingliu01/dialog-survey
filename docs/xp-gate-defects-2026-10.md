@@ -255,6 +255,71 @@ works.
 
 ---
 
+## 9. Gate 5 judges a `NaN` coverage figure as PASS
+
+**Severity: high (silently disables the local coverage gate). Filed as xp-gate
+#594 — and worked around in `vitest.config.ts`.**
+
+Gate 5's TypeScript coverage branch read the figure with
+`Math.round(data.total.lines.pct)` and compared it with `[ "$pct" -lt 80 ]`.
+When istanbul has no coverage to report it writes `"pct": "Unknown"`, and then:
+
+- `Math.round("Unknown")` is `NaN` — no exception, so the `parse_error` guard
+  never fires;
+- `[ "NaN" -lt 80 ]` makes bash print `integer expression expected` and return
+  **2**, and `if` treats any non-zero as "condition false", so it took the PASS
+  branch.
+
+Observed output:
+
+```
+TypeScript coverage: NaN% ✅ (≥ 80%)
+✅ PASSED - Coverage check completed.
+...: line 3041: [: NaN: integer expression expected
+```
+
+Reached whenever the gate runs a subset of tests (`vitest run --coverage
+<changed files>`) and none of them imports a src module. The verdict happened to
+be correct here — real coverage is ~94% — but the gate was not enforcing it.
+
+**Workaround:** `coverage.include: ['src/**/*.ts']` + `cleanOnRerun: false`.
+`@vitest/coverage-v8` merges untested files into the report only when
+`options.include != null && (allTestsRun || !cleanOnRerun)`; a subset run sets
+`allTestsRun=false`, so both halves are needed. The total is then a real number
+and the NaN path is unreachable. The gate now prints `⚠️ Partial coverage 0%
+(subset test run, not full suite)` — correctly labelled as partial rather than a
+false PASS. Note `coverage.all` does **not** work: it was removed in v4 and
+silently does nothing.
+
+---
+
+## 10. "Tool not installed" for tools that are installed
+
+**Severity: medium. Environment/UX, not filed separately — both mechanisms are
+now repaired in `scripts/run-xp-gate.sh`.**
+
+`lizard` (Gate 3), `semgrep` (Gate 10) and `detect-secrets-hook` (Gate 8) were
+reported missing on every run, with `pip install` hints attached. All three were
+installed and executable in the WSL user's `~/.local/bin`.
+
+1. `~/.profile` and `~/.bashrc` both export `~/.local/bin`, but only
+   *interactive login* shells read them. The gates run from a non-interactive
+   shell, so `command -v` genuinely found nothing — the gate reported what it
+   saw.
+2. Adding the directory to PATH was not sufficient. Python resolves user
+   site-packages from `$HOME`, and the wrapper repoints `HOME` at the Windows
+   profile so Gate 9 can resolve its node modules. A console script on PATH then
+   died with `ModuleNotFoundError: No module named 'semgrep'`.
+
+The symptom ("not installed") pointed at the wrong action (install), which is
+why the real fault stayed hidden across repeated "I installed it already"
+rounds. Suggested upstream fix: when `command -v` fails, distinguish "binary
+absent" from "binary present but not importable", and probe the language-specific
+user bin dirs (`~/.local/bin`, `%APPDATA%\Python\Scripts`) before concluding a
+tool is missing.
+
+---
+
 ## Not filed: already known upstream
 
 - Gate M (mutation) issues are tracked by dialog-survey issue #209 and the
@@ -262,11 +327,10 @@ works.
   `node scripts/verify-xp-gate-patches.cjs` on 0.31.1.
 - Gate 6 archlint `DeadSymbol` false positives for methods reached through
   callbacks — documented in dialog-survey `AGENTS.md`.
-- Gate 3 (`lizard`) and Gate 10 (`semgrep`) are not installed on this machine,
-  so they report WARN rather than running. Not a defect in the gate itself, but
-  it means their verdicts carry no information; `scripts/ccn-report.cjs` and the
-  `.ccn-baseline.json` ratchet cover complexity independently, and CI runs
-  semgrep.
+- Gate 3, Gate 8 and Gate 10 report SKIP/WARN rather than running, because the
+  underlying tools were unreachable. That was an environment fault, not a gate
+  defect; see section 10 for the two mechanisms and the repair. With the wrapper
+  they all run.
 
 ## Filed
 
@@ -277,3 +341,4 @@ works.
 | #581 | `$HOME` / `PROJECT_ROOT` POSIX paths handed to `node.exe` — Gate 9 reports a build failure |
 | #582 | Gate 8 passes a POSIX config path to native gitleaks; a tool that cannot start is judged "secrets found" |
 | #592 | Gate 8 reports a clean scan as SKIP — gitleaks writes no report when there are no findings |
+| #594 | Gate 5 judges a `NaN` coverage figure as PASS — `Math.round` does not throw, and bash integer comparison failure reads as "false" |

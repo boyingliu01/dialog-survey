@@ -52,6 +52,10 @@ win_env() {
 }
 
 # --- Windows profile first: EVERYTHING below keys off it (mismatch 2) --------
+# Capture the *WSL* home before anything overwrites HOME: pip-installed gate
+# tools (`lizard`, `semgrep`, `detect-secrets-hook`) live in the Linux user's
+# ~/.local/bin, which is not the Windows profile.
+wsl_home="$HOME"
 win_home=""
 userprofile="$(win_env USERPROFILE)"
 if [ -n "$userprofile" ]; then
@@ -95,6 +99,47 @@ if [ ! -x "$NODE_BIN/node.exe" ]; then
   exit 2
 fi
 export PATH="$NODE_BIN:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+# --- pip-installed gate tools (`~/.local/bin`) -------------------------------
+# Gate 3 needs `lizard`, Gate 10 needs `semgrep`, Gate 8 wants
+# `detect-secrets-hook`. All three are pip installs, so they land in the Linux
+# user's ~/.local/bin — and that directory is NOT on PATH here.
+#
+# This is why "the tool is not installed" kept appearing after it had been
+# installed. ~/.profile:25 and ~/.bashrc:188 both add ~/.local/bin, but those
+# are read by *interactive login* shells only; the gates run from a
+# non-interactive shell that reads neither. So the tools are present and
+# executable while `command -v` cannot see them, and the gate correctly reports
+# what it observes: no tool.
+#
+# Must use $wsl_home, not $HOME: the block above repointed HOME at the Windows
+# profile so Gate 9 can resolve its node modules.
+#
+# Prepending (rather than appending) so a pip-installed `semgrep` wins over any
+# distro copy. `pysemgrep` lives in the same directory and semgrep execs it by
+# bare name, so both must be reachable.
+if [ -d "$wsl_home/.local/bin" ]; then
+  export PATH="$wsl_home/.local/bin:$PATH"
+fi
+
+# Python resolves the *user* site-packages directory from $HOME, and the block
+# above repointed HOME at the Windows profile (needed by Gate 9). That makes
+# pip-installed console scripts findable on PATH but their modules unimportable:
+#   File ".../.local/bin/semgrep", line 5, in <module>
+#     from semgrep.console_scripts.entrypoint import main
+#   ModuleNotFoundError: No module named 'semgrep'
+# PYTHONUSERBASE pins that lookup to the Linux home independently of HOME, so
+# semgrep / detect-secrets work alongside the Windows-HOME requirement.
+if [ -d "$wsl_home/.local/lib" ]; then
+  export PYTHONUSERBASE="$wsl_home/.local"
+fi
+
+# semgrep's default budget is 180s (gate-10.sh: XP_GATE_SEMGREP_TIMEOUT). A full
+# `--config=auto` pass over src/ measures 169s here (config fetch alone ~10s),
+# so the run routinely lands on the limit and the gate reports "timed out — no
+# verdict", which is neither a pass nor a finding. 400s leaves headroom for a
+# slow network or a cold rule cache while still bounding a wedged run.
+export XP_GATE_SEMGREP_TIMEOUT="${XP_GATE_SEMGREP_TIMEOUT:-400}"
 
 SHIM_DIR="$HOME/.cache/xp-gate-shims"
 if mkdir -p "$SHIM_DIR" 2>/dev/null; then

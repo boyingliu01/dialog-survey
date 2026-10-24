@@ -31,4 +31,30 @@ describe('coverage gate (issue #150)', () => {
     expect(coverageJob?.[1]).not.toMatch(/^\s{4}if:/m);
     expect(coverageJob?.[1]).toMatch(/needs:\s*\[[^\]]*integration-tests/);
   });
+
+  /**
+   * xp-gate #594: Gate 5 runs `vitest run --coverage <changed test files>`.
+   * When none of those tests imports a src module, istanbul writes
+   * `total.lines.pct = "Unknown"`, the hook does `Math.round("Unknown")` -> NaN,
+   * and `[ NaN -lt 80 ]` fails in bash — which `if` reads as "condition false"
+   * and so prints the PASS branch. The gate reported `NaN% ✅` and enforced
+   * nothing.
+   *
+   * `coverage.include` + `cleanOnRerun: false` force untested files into the
+   * report on a subset run too (@vitest/coverage-v8 only merges them when
+   * `include != null && (allTestsRun || !cleanOnRerun)`), so the total is always
+   * a real number and the NaN path is unreachable.
+   */
+  it('forces unimported sources into the report so a subset run cannot yield NaN', () => {
+    expect(
+      vitestConfig,
+      'coverage.include is what makes untested files appear on a subset run'
+    ).toMatch(/include:\s*\[\s*'src\/\*\*\/\*\.ts'\s*\]/);
+    expect(
+      vitestConfig,
+      'cleanOnRerun: false is required for the include merge on a subset run'
+    ).toMatch(/cleanOnRerun:\s*false/);
+    // `all` was removed from @vitest/coverage-v8 v4; using it silently does nothing.
+    expect(vitestConfig).not.toMatch(/^\s*all:\s*true/m);
+  });
 });
