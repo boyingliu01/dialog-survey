@@ -1,4 +1,8 @@
-import { generateSmartResponse } from '../../services/followup.service.js';
+import {
+  addContinuityLeadIn,
+  buildForcedNextTransition,
+  generateSmartResponse,
+} from '../../services/followup.service.js';
 import { info, warn } from '../../utils/logger.js';
 import type { PrismaClient } from '../../utils/prisma-client.js';
 import {
@@ -50,6 +54,13 @@ function enforceFollowupLimit(action: string, followupCount: number, maxFollowup
  * it: the model's wording was written for the action it chose, so overwriting the
  * action with 'END' (the old approach) lost the only record of what the text
  * actually means.
+ *
+ * This is the last word before the turn is persisted, so it is also the single
+ * place that guarantees the reply and the advanced question index describe the
+ * same question. A reply that re-asks the question being left (an over-limit
+ * FOLLOWUP keeps the model's follow-up wording) must never travel with a pointer
+ * that has already moved on: the interviewee answers what they were shown, and
+ * on the next turn that answer is filed under the question after it (#200/#203).
  */
 function routeAction(
   initialAction: string,
@@ -58,9 +69,13 @@ function routeAction(
   currentQ: number,
   totalQuestions: number,
   smartResponse: string,
-  closingMessage?: string,
-  shouldEndInterview = false
+  opts: {
+    closingMessage?: string | undefined;
+    shouldEndInterview?: boolean;
+    nextQuestion?: string | undefined;
+  } = {}
 ): ActionResult {
+  const { closingMessage, shouldEndInterview = false, nextQuestion } = opts;
   const isLastQuestion = currentQ >= totalQuestions - 1;
   const closing = closingMessage || DEFAULT_CLOSING_MESSAGE;
 
@@ -80,6 +95,9 @@ function routeAction(
   });
 
   const action = enforceFollowupLimit(initialAction, followupCount, maxFollowups);
+  // A FOLLOWUP the cap just rewrote into NEXT carries wording about the question
+  // it wanted to re-ask, so it cannot be shown alongside the advanced pointer.
+  const coercedFromFollowup = action !== initialAction;
 
   // Rule 2: END / shouldEndInterview — always complete the interview
   if (TERMINAL_ACTIONS.has(action) || shouldEndInterview) {
@@ -108,14 +126,34 @@ function routeAction(
 
   // Rule 5: NEXT — advance, or complete when this was the last question.
   // On the final question the model was told this is the last one, so its text is
-  // already a wrap-up; keep it as the lead-in.
-  if (isLastQuestion) return completeAt(currentQ + 1, true);
+  // already a wrap-up; keep it as the lead-in. A coerced follow-up is not a
+  // wrap-up, so it still has to be replaced by the closing copy.
+  if (isLastQuestion) return completeAt(currentQ + 1, !coercedFromFollowup);
+
+  if (coercedFromFollowup) {
+    warn('Follow-up cap reached, replacing follow-up reply with the next question transition', {
+      currentQ,
+      nextQ: currentQ + 1,
+      followupCount,
+      maxFollowups,
+    });
+    return {
+      followupCount: 0,
+      currentQuestion: currentQ + 1,
+      shouldContinue: true,
+      response: buildForcedNextTransition(nextQuestion),
+    };
+  }
 
   return {
     followupCount: 0,
     currentQuestion: currentQ + 1,
     shouldContinue: true,
-    response: smartResponse,
+    // The model was told to acknowledge the previous answer before asking the
+    // next one, but that compliance measured ~40% on a real interview. A reply
+    // that is nothing but the question gets a neutral lead-in; anything with a
+    // lead-in already is left exactly as written.
+    response: addContinuityLeadIn(smartResponse, nextQuestion),
   };
 }
 
@@ -203,8 +241,11 @@ export async function interviewingNode(
       currentQ,
       content.questions.length,
       smartResult.response,
-      content.closingMessage,
-      smartResult.shouldEndInterview
+      {
+        closingMessage: content.closingMessage,
+        shouldEndInterview: smartResult.shouldEndInterview,
+        nextQuestion,
+      }
     );
 
     info('[DIAG] routeAction result', {

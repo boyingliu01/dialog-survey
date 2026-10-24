@@ -1,6 +1,6 @@
 # AGENTS.md — Dialog Survey Project Knowledge Base
 
-> Updated: 2026-10-20 (v1.11.20). Sprint #153 (Conventional Commits + auto CHANGELOG + release automation). 66 source TS files (src/, excluding generated), 142 test files. Tests need no PostgreSQL (PGlite).
+> Updated: 2026-10-24 (v1.11.21). Sprint #153 (Conventional Commits + auto CHANGELOG + release automation). 76 source TS files (src/, excluding generated), 167 test files. Tests need no PostgreSQL (PGlite).
 
 ## Overview
 
@@ -10,7 +10,7 @@ AI-powered survey dialog bot — async multi-turn conversations via DingTalk wit
 
 | Task | Location | Notes |
 |------|----------|-------|
-| API routes | `src/api/` | Fastify route handlers, no controllers |
+| API routes | `src/api/` | Fastify route handlers, no controllers; admin routes split by responsibility under `src/api/admin/` (see `src/api/admin-templates.ts`, now 39 lines of wiring) |
 | State machine | `src/core/` | Custom imperative graph (NOT LangGraph SDK) |
 | Business logic | `src/services/` | 16 services, orchestration + analytics + export |
 | Data access | `src/repositories/` | Prisma ORM, optimistic locking in state repo |
@@ -18,7 +18,7 @@ AI-powered survey dialog bot — async multi-turn conversations via DingTalk wit
 | Nunjucks views | `src/views/` | Admin UI via HTMX fragments + Alpine.js |
 | Utilities | `src/utils/` | Logger, security, retry, markdown, PII |
 | Prisma client | `src/generated/prisma` (generated, gitignored) | Facade `src/utils/prisma-client.ts` + factory `src/utils/prisma-factory.ts`; run `npx prisma generate` after checkout |
-| Tests | `tests/` | 142 files, flat structure, Vitest 4.x; needs no PostgreSQL |
+| Tests | `tests/` | 167 files, flat structure, Vitest 4.x; needs no PostgreSQL |
 
 ## Code Map (Top-Level Symbols)
 
@@ -97,6 +97,9 @@ npm run complexity    # per-function CCN > 10 report (TypeScript AST; the ratche
 - **xp-gate Gate 6 `DeadSymbol` false positives (verified on xp-gate 0.30.5)**: archlint reports `InterviewPlanSendService.{sendInvitations,resendToInterview,pausePlan,resumePlan,cancelPlan}` and `InterviewPlanService.importMembers` as dead. **They are not** — all are called from `src/api/plans.ts`, passed either to `registerLifecyclePost(path, (id) => planService.X(id))` or as a direct `planService.X(...)` call inside a route handler. archlint resolves direct calls but not a method reached through a callback/function reference, so a method that is only ever invoked indirectly looks unreferenced. Before "fixing" any DeadSymbol finding on this codebase, `grep` the method name across `src/` plus `tests/` — the ratchet baseline (`.architecture-baseline.json`) records them as known, so they do not block. Do not delete these methods and do not add `# noqa`-style suppression; the false positive is a tool limitation, not a code smell.
 - **API bug triage**: curl → isolate backend first. htmx.ajax() `.then()` fires on 4xx with `undefined` arg.
 - **Credential-free startup (issue #171)**: without `DINGTALK_CLIENT_ID`/`DINGTALK_CLIENT_SECRET`, `buildApp()` boots read-only (no Stream client). `runPostListenStartup` resends unsent messages only when all three DingTalk creds are set and `DISABLE_STARTUP_RESEND` (1/true/yes) is not set — startup outbound sends are a production side effect, never re-enable them unconditionally.
+- **Running the gates on this machine**: the hooks have never worked here as installed. This is Windows + WSL2 with `[interop] appendWindowsPath = false`, `core.hooksPath` pointing at the Windows xp-gate directory, and a WSL user that differs from the Windows user. Use `bash scripts/run-xp-gate.sh pre-commit` (or `pre-push`): it rebuilds a usable PATH, creates POSIX shims for native `.exe` tools (`command -v` cannot see the `.exe` suffix, so Gate 8 otherwise fail-closes with "gitleaks not installed" while gitleaks is on PATH), exports a Windows `HOME` so Gate 9 can find its own modules, and adds a mount-translating `node` shim so absolute `/mnt/d/...` paths handed to `node.exe` do not become `D:\mnt\d\...`. Without the wrapper, Gate 1 reports `SKIP - npx not available` and Gate 9 reports `BLOCKED - build integrity check failed` for a path-translation problem. Four upstream defects behind this are filed as xp-gate #579–#582 and documented in `docs/xp-gate-defects-2026-10.md`.
+- **Gate 8 reports SKIP, not PASS, and that is correct behaviour for a broken check.** gitleaks 8.30.1 does not create its `--report-path` file when a scan finds nothing, and the gate decides "did the scan run?" from that file — so on any clean machine it prints `gitleaks exited 0 but produced no readable report` and reports SKIP. The scan *does* run (`INF scanned ~N bytes` / `INF no leaks found`); the gate simply has no evidence it can trust. xp-gate #592. Do not "fix" this by making the gate print PASS, and do not treat Gate 8 SKIP as a scan failure.
+- **`bash -n` both hooks before trusting any gate result.** An xp-gate self-update on 2026-10-24 introduced a stray backtick in `hooks/pre-commit` (`echo "... $new_file — ..."`), bash read the closing backtick as a command substitution start, and the file stopped parsing — so every gate after Gate 5 silently did not run while the commit was let through. `scripts/verify-xp-gate-patches.cjs` now runs `bash -n` over `pre-commit` and `pre-push` and fails if either does not parse; `npm run smoke` calls it. A syntax error is fatal to *all* gates, so it is reported separately from the Gate M patch verdict.
 - **Commits**: Conventional Commits are enforced in CI by the `commit-lint` job (PR title blocking; branch range advisory). An opt-in local hook exists but is **not installed by default** — run `scripts/install-git-hooks.sh install` to enable it. See `docs/contributing.md`.
 - **Releasing**: `scripts/release.sh` is a **dry run by default**; pass `--execute` to release. It refuses to start unless `VERSION == package.json`, requires `GITHUB_TOKEN` when `github.release=true` (release-it otherwise skips the GitHub Release and still exits 0), and verifies the result afterwards. The `after:bump` hook key in `.release-it.json` must be the **bare** `after:bump`: a key naming a plugin namespace (e.g. `after:version:bump`) is never invoked, which leaves `VERSION` and `AGENTS.md` stale while still exiting 0 and still tagging. `tests/release-hook-key.test.ts` is the behavioural control proving this. Never force-move a released tag.
 

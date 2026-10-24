@@ -22,6 +22,7 @@
  * Exit codes: 0 = all patches present, 1 = at least one missing.
  */
 const { readFileSync, writeFileSync } = require('node:fs');
+const { spawnSync } = require('node:child_process');
 const { homedir } = require('node:os');
 const { join } = require('node:path');
 
@@ -35,6 +36,7 @@ function say(line) {
 const XPGATE = join(homedir(), '.config', 'xp-gate');
 const RUNNER = join(XPGATE, 'modules', 'mutation', 'runners', 'stryker-runner.ts');
 const HOOK = join(XPGATE, 'hooks', 'pre-push');
+const PRE_COMMIT = join(XPGATE, 'hooks', 'pre-commit');
 
 const ORIGINAL_HOOK_CALL =
   'RUN_TSX_TIMEOUT=600s run_tsx $MUTATION_SCRIPT --changed-files "$CHANGED_SOURCE_FILES" > "$MUTATION_OUTPUT" 2>&1';
@@ -124,4 +126,100 @@ if (restoredCount > 0) {
   say(`Restored ${restoredCount} patch(es). Gate M should work now.`);
 } else {
   say('All Gate M patches are in place.');
+}
+
+/**
+ * Above this line is Gate M. Below it is the check that FAILED first and worst:
+ * on 2026-10-24 an xp-gate self-update rewrote `hooks/pre-commit` and introduced
+ * a stray backtick (`echo "... $new_file — ..."`). Bash read the closing
+ * backtick as the start of a command substitution and the rest of the file
+ * stopped parsing, so every gate after Gate 5 silently did not run and the
+ * commit was let through. Nothing in the checks above could see it, because they
+ * all inspect the mutation runner and `pre-push`.
+ *
+ * `bash -n` is the cheapest defence there is and needs no gate to be running.
+ * It is reported separately from the Gate M verdict, because a syntax error is
+ * fatal to *all* gates while a missing patch is fatal only to Gate M.
+ *
+ * Exit code stays 1 for either, so `npm run check:gates` fails on both.
+ */
+/**
+ * Translate a Windows path to the form the `bash` we are about to invoke
+ * understands.
+ *
+ * On this machine `bash` is WSL, which cannot open `C:\Users\...` — it reads the
+ * backslashes as escapes and reports "No such file or directory", which is
+ * indistinguishable from a genuine failure unless it is translated.
+ *
+ * `wslpath` lives inside the WSL distribution and is not reachable as a Windows
+ * executable (spawning it directly is ENOENT), so the translation runs *through*
+ * bash. On a plain Linux/macOS bash the driver is already POSIX and comes back
+ * unchanged, and `wslpath` is absent — both cases are handled by the fallback.
+ */
+function toPosixPath(winPath) {
+  if (process.platform !== 'win32') return winPath;
+  const result = spawnSync('wsl', ['-e', 'wslpath', '-u', winPath], { encoding: 'utf-8' });
+  if (result.error || result.status !== 0) return winPath;
+  return (result.stdout || '').trim() || winPath;
+}
+
+/**
+ * Syntactic validity of both hooks.
+ *
+ * Also tries `git bash` as a fallback driver when `wsl` is unavailable, so the
+ * check still works on a Windows box using Git-for-Windows bash.
+ */
+function bashBinary() {
+  for (const candidate of [
+    ['wsl', ['-e', 'bash']],
+    ['bash', []],
+  ]) {
+    const probe = spawnSync(candidate[0], [...candidate[1], '-n', '-c', 'true'], {
+      encoding: 'utf-8',
+    });
+    if (!probe.error && probe.status === 0) return candidate;
+  }
+  return null;
+}
+
+function checkHookSyntax() {
+  const bash = bashBinary();
+  if (bash === null) {
+    say('SYNTAX?? no bash found — cannot verify that the xp-gate hooks parse');
+    return 0;
+  }
+  let broken = 0;
+  for (const [hook, path] of [
+    ['pre-commit', PRE_COMMIT],
+    ['pre-push', HOOK],
+  ]) {
+    if (readOrNull(path) === null) {
+      say(`SYNTAX?? ${hook} not found — is xp-gate installed?`);
+      continue;
+    }
+    const result = spawnSync(bash[0], [...bash[1], '-n', toPosixPath(path)], {
+      encoding: 'utf-8',
+    });
+    if (result.status === 0) {
+      say(`OK       ${hook} parses`);
+      continue;
+    }
+    broken += 1;
+    say(`SYNTAX   ${hook} has a syntax error — every gate after the failure point will NOT run`);
+    const detail = (result.stderr || '').trim().split('\n').slice(0, 3);
+    for (const line of detail) say(`         ${line}`);
+    say(`         inspect with: bash -n "${toPosixPath(path)}"`);
+  }
+  return broken;
+}
+
+say('');
+say('-- hook parseability (xp-gate issue: stray backtick killed pre-commit) --');
+const syntaxFailures = checkHookSyntax();
+if (syntaxFailures > 0) {
+  say('');
+  say(
+    `xp-gate hooks are unparseable (${syntaxFailures}). Fix the hook before trusting ANY gate result.`
+  );
+  process.exit(1);
 }

@@ -30,6 +30,7 @@ import { metricsOnRequest, metricsOnResponse, metricsRoutes } from './api/metric
 import { interviewPlanRoutes, isAdministrativePlanMutation } from './api/plans.js';
 import { templateRoutes } from './api/templates.js';
 import { DEFAULT_SESSION_MAX_AGE } from './config/constants.js';
+import { dingTalkCredentialsFromEnv } from './integrations/dingtalk/client.js';
 import { DingTalkMessageSender } from './integrations/dingtalk/message-sender.js';
 import { DingTalkStreamClient } from './integrations/dingtalk/stream-client.js';
 import { tokenManager } from './integrations/dingtalk/token-manager.js';
@@ -146,7 +147,14 @@ function createNunjucksEngine(): NunjucksEngine {
 }
 
 function createDingTalkStreamClientOrWarn(): DingTalkStreamClient | undefined {
-  const configured = !!(process.env['DINGTALK_CLIENT_ID'] && process.env['DINGTALK_CLIENT_SECRET']);
+  // Resolve through the shared helper rather than the raw env reads. This gate
+  // decides whether a Stream client is built at all, so keying it on one
+  // spelling reintroduces #204 one level up: a deployment configured with
+  // DINGTALK_APP_KEY/APP_SECRET would take the credential-free path and never
+  // attempt the socket — the same silent-bot symptom the issue describes,
+  // just with a different excuse in the log.
+  const { appKey, appSecret } = dingTalkCredentialsFromEnv();
+  const configured = !!(appKey && appSecret);
   if (!configured) {
     warn(
       'DingTalk credentials not configured: starting credential-free (read-only; no stream, no outbound messages)'
@@ -396,11 +404,11 @@ async function fetchStalledInterviews(prisma: PrismaClient) {
 type StalledInterview = Awaited<ReturnType<typeof fetchStalledInterviews>>[number];
 
 function isDingTalkConfigured(): boolean {
-  return !!(
-    process.env['DINGTALK_CLIENT_ID'] &&
-    process.env['DINGTALK_CLIENT_SECRET'] &&
-    process.env['DINGTALK_AGENT_ID']
-  );
+  // Same resolver as the clients, so a deployment configured with
+  // DINGTALK_APP_KEY/APP_SECRET (#204) is not classified as unconfigured here
+  // and silently skipped for both startup resend and the Stream connection.
+  const { appKey, appSecret } = dingTalkCredentialsFromEnv();
+  return !!(appKey && appSecret && process.env['DINGTALK_AGENT_ID']);
 }
 
 function resendLastAssistantMessage(sender: DingTalkMessageSender, iv: StalledInterview): void {
