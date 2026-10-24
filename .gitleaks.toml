@@ -26,6 +26,12 @@ paths = [
   # a run happens between staging and pushing, which multiplied issue #211's two
   # real hits into nineteen identical ones. The originals are still reported.
   '''\.stryker-tmp/''',
+  # detect-secrets' baseline legitimately contains every secret *pattern* it
+  # found, as hashed entries plus the raw match text, so gitleaks reports 158
+  # hits in it. The file is the mechanism that makes the second scanner
+  # incremental; excluding it here does not weaken gitleaks, which still scans
+  # every source the baseline was derived from.
+  '''\.secrets\.baseline''',
 ]
 # Issue #211: these regexes only matter for the full-history scan
 # (`scripts/scan-git-history-secrets.mjs`), because a diff-scoped scan never
@@ -85,3 +91,5 @@ regexTarget = "line"
 regexes = [
   '''VOLCENGINE_API_KEY=<.*>''',
 ]
+
+# probe
