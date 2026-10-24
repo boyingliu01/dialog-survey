@@ -9,6 +9,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege (checkov CKV2_GHA_1). Omitting this block leaves the token at
+# the repository default, which for older repos is write-all — the workflow only
+# reads code, posts check results, and uploads a SARIF file, so that is more than
+# it needs. `contents: read` covers checkout; the other two are what
+# gitleaks-action needs to annotate the pull request and upload its SARIF.
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
 jobs:
   static-analysis:
     name: Static Analysis (Biome + tsc + ast-grep)
@@ -167,7 +177,9 @@ jobs:
   security-scan:
     name: Security Scan (semgrep + gitleaks + checkov)
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Raised from 5: the full-history gitleaks scan (issue #211) walks ~400
+    # commits / ~19 MB on top of npm ci and the existing scanners.
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -208,6 +220,26 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Issue #211: gitleaks-action above scans the PR diff only, so a secret
+      # that entered history before the base branch's tip is invisible to it —
+      # that is exactly how two provider keys and a DingTalk app secret sat
+      # unreported for months. This scans every commit instead.
+      #
+      # `continue-on-error` stays true until the credentials in #211 are
+      # rotated; the known findings are already in history and cannot be
+      # removed, so a blocking step would be permanently red and teach everyone
+      # to ignore it. Flip this to false once the rotation is done — a NEW leak
+      # will then fail the build, which is the point.
+      - name: gitleaks full-history scan (issue #211)
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          GITLEAKS_VERSION=8.28.0
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin gitleaks
+          node scripts/scan-git-history-secrets.mjs --verbose
 
   coverage:
     name: Coverage Check (80/80/70/80)

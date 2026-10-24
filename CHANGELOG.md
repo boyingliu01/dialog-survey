@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## [1.11.19](https://github.com/boyingliu01/dialog-survey/compare/v1.11.18...v1.11.19) (2026-10-23)
+
+### Security
+
+Gate 8 has reported PASS on every commit and push, and it was never scanning the right thing. `gitleaks/gitleaks-action` inspects the pull request's diff; a credential that entered history before the base branch's tip never appears in a later diff, so nothing ever looked at it. Running `gitleaks git` across all 398 commits found three live credentials (issue #211):
+
+- A **DingTalk app** `CLIENT_ID` / `CLIENT_SECRET` / `AGENT_ID` in three planning documents (`.omo/`, `.sisyphus/`, `.speckit/`). Verified against the local `.env`: it is the credential this deployment currently uses.
+- Two provider API keys in `benchmark_llm.py` — DashScope (`sk-sp-…`) and Volcengine Ark.
+
+All three were deleted from the tree long ago, which accomplishes nothing: anyone who can clone can read any historical blob. **Rotation is the only remedy and only the repository owner can do it** — tracked in issue #211.
+
+What this change adds so it cannot happen quietly again:
+
+- `scripts/scan-git-history-secrets.mjs` — full-history scan with a clear exit-code contract: 0 clean, 1 findings, 2 the tool is missing. The 2 matters: a guard that reports green when its scanner is not installed is worse than no guard, because it answers the question and the answer is wrong.
+- `.gitleaks.toml` gains an allowlist for documentation placeholders (`your_api_key`, `<YOUR_CLIENT_SECRET>`, `xxx`, `test-secret-…`) and excludes `.stryker-tmp/`, which holds Stryker's copy of the working tree and multiplied the two real hits into nineteen.
+- CI `security-scan` runs the full-history scan. It stays `continue-on-error` until #211's rotation is done — the findings are already in immutable history, so a blocking step would be permanently red and train everyone to ignore it. Flip it to blocking after rotating.
+- `tests/scan-git-history-secrets.test.ts` pins the exit codes, including the missing-tool path.
+
+Also removed the last two `noExplicitAny` warnings, so `biome check` is now clean rather than carrying a permanent 2-warning floor.
+
+Touching `pr.yml` also surfaced a latent baseline problem: the workflow had no top-level `permissions` block, which checkov reads as the repository default and flags as `CKV2_GHA_1` (write-all). It had never been reported because Gate 7 only scans files a commit actually changes. Now `contents: read` / `pull-requests: read` / `security-events: write` — enough for checkout and for gitleaks to annotate the PR and upload SARIF, and nothing else.
+
 ## [1.11.18](https://github.com/boyingliu01/dialog-survey/compare/v1.11.17...v1.11.18) (2026-10-23)
 
 ### Refactor
