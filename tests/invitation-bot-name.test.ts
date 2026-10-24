@@ -54,7 +54,11 @@ interface MockPrisma {
   };
   interview: {
     findFirst: ReturnType<typeof vi.fn>;
+    findUnique: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
+  };
+  template: {
+    findUnique: ReturnType<typeof vi.fn>;
   };
   $disconnect: ReturnType<typeof vi.fn>;
 }
@@ -72,7 +76,11 @@ describe('invitation copy names the configured bot', () => {
       },
       interview: {
         findFirst: vi.fn().mockResolvedValue(null),
+        findUnique: vi.fn().mockResolvedValue(null),
         update: vi.fn().mockResolvedValue({}),
+      },
+      template: {
+        findUnique: vi.fn().mockResolvedValue(null),
       },
       $disconnect: vi.fn(),
     };
@@ -147,5 +155,61 @@ describe('invitation copy names the configured bot', () => {
 
     vi.mocked(prisma.interviewPlan.findUnique).mockResolvedValue(planFixture({}));
     expect(await sentMessage()).toContain('质量效能访谈计划');
+  });
+
+  /**
+   * @test REQ-BOT-NAME-02
+   * @intent 验证「重新发送邀约」路径同样使用配置的机器人名称，而不是只在首次发送时正确
+   * @covers resendToInterview → sendInvitation 复用同一 bot 名称解析
+   *
+   * The resend button in the admin UI is the documented remedy for an invitee
+   * who missed the message, so it is the copy most likely to be read twice. It
+   * reaches `sendInvitation` through a different public method; pinning only
+   * `sendInvitations` would let the two paths drift apart again.
+   */
+  it('uses the configured bot name when resending a single invitation', async () => {
+    process.env[BOT_NAME_VAR] = '智能访谈';
+    prisma.interview.findUnique.mockResolvedValue({
+      id: 'interview-1',
+      userId: 'user-1',
+      sendStatus: 'FAILED',
+      plan: { id: 'plan-1', name: '质量效能访谈计划', templateId: 'template-1' },
+    });
+    prisma.template.findUnique.mockResolvedValue({
+      content: JSON.stringify({ invitationPrompt: '开场白正文', questions: ['q1'] }),
+    });
+
+    const { messageSender } = await import('../src/integrations/dingtalk/message-sender.js');
+    const result = await service.resendToInterview('plan-1', 'interview-1');
+
+    expect(result).toEqual({ success: true });
+    const call = vi.mocked(messageSender.sendTextMessage).mock.calls[0];
+    expect(call).toBeDefined();
+    const message = call?.[1] as string;
+    expect(message).toContain('智能访谈');
+    expect(message).not.toContain(LEGACY_BRAND);
+  });
+
+  /**
+   * @test REQ-BOT-NAME-03
+   * @intent 验证 .env.example 记录了 DINGTALK_BOT_NAME，避免运维不知道这个配置项存在而回落到泛化文案
+   * @covers .env.example 的钉钉配置段
+   *
+   * A configuration knob nobody can discover is not a fix: every deployment
+   * would keep the generic wording even after #201 shipped. The example file is
+   * the only place operators learn the variable name.
+   */
+  it('documents DINGTALK_BOT_NAME in .env.example', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const example = readFileSync(join(process.cwd(), '.env.example'), 'utf8');
+
+    expect(example).toContain(BOT_NAME_VAR);
+    // Commented out on purpose: a sample value would name a bot the deployment
+    // does not run, which is the failure mode this issue is about.
+    const configuredLines = example
+      .split(/\r?\n/)
+      .filter((line) => line.includes(BOT_NAME_VAR) && !line.trim().startsWith('#'));
+    expect(configuredLines).toHaveLength(0);
   });
 });
