@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## [1.11.18](https://github.com/boyingliu01/dialog-survey/compare/v1.11.17...v1.11.18) (2026-10-23)
+
+### Refactor
+
+Two functions that Gate 6 (archlint) flagged as new MEDIUM findings once this round's work brought them into scope. Neither blocked the commit — Gate 6 ratschets on `--fail-on high` — but the whole point of a ratchet is that new debt does not get parked.
+
+- `export.service.ts:loadInviteeInfo` — cognitive complexity 16. Four nested guards (`Array.isArray` → per-entry object check → `userId` match → per-field `typeof`) read as one staircase. Restructured to find-the-matching-entry then read-its-fields, with an `isRecord` type guard. The guards still all run; they just no longer nest.
+- `scripts/prune-runtime-deps.mjs:main` — cognitive complexity 34, cyclomatic 21. Split into `reportRemoval` (what would be or was deleted) and `assertKeptPackagesResolve` (the post-condition that every kept package still resolves its dependencies). `main` now reads as the four steps it actually performs.
+
+`export.service.ts` mutation score went 72.48% → 73.28% as a side effect, since the flattened function is easier for the existing tests to reach. Its remaining archlint findings are MEDIUM DeadCode on the CLI script itself, which predates this change and is structural: a standalone entry point has no importer by definition.
+
+### Verified
+
+Every gate was re-run against the current tree rather than trusting the previous run's SKIPs. Gate 4 (principles) exits 0 with no ERROR findings — the 308 findings are all warnings/info. Gate 6 diffs clean against its baseline with 37 improvements and no new HIGH. Gate 10, which had never actually scanned this repo because no commit ever matched its file filter, reports exactly one finding — `src/api/templates.ts:91`, an Express-flavoured XSS rule matching a Fastify handler that returns a plain object for JSON serialisation. That is a false positive, confirmed by reading `formatTemplateResponse`, which builds no HTML. Coverage is 93.21% lines / 81.71% branches / 95.95% functions / 93.69% statements against an 80/80/70/80 floor.
+
 ## [1.11.17](https://github.com/boyingliu01/dialog-survey/compare/v1.11.16...v1.11.17) (2026-10-23)
 
 ### Tests

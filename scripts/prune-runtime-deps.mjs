@@ -205,6 +205,61 @@ function dirSize(dir) {
   return total;
 }
 
+/** Report what would be (or was) removed, and answer whether anything was. */
+function reportRemoval(installed, keep, flags, nodeModulesDir) {
+  // `installed` holds only top-level (hoisted) packages. A nested copy
+  // (`pkg/node_modules/dep`) vanishes together with its parent, so it needs no
+  // separate handling. Remove what the runtime graph does not reach.
+  const toRemove = installed.filter((dir) => !keep.has(dir));
+
+  if (toRemove.length === 0) {
+    process.stdout.write('[prune] nothing to remove — tree is already runtime-only\n');
+    return;
+  }
+
+  let freed = 0;
+  for (const dir of toRemove) freed += dirSize(dir);
+
+  if (!flags.dryRun) {
+    for (const dir of toRemove) rmSync(dir, { recursive: true, force: true });
+  }
+
+  const verb = flags.dryRun ? 'would remove' : 'removed';
+  process.stdout.write(
+    `[prune] ${verb} ${toRemove.length} package(s), ${(freed / 1048576).toFixed(1)} MB\n`
+  );
+
+  const names = toRemove.map((d) => nameFromDir(nodeModulesDir, d));
+  const shown = flags.verbose ? names : names.slice(0, 12);
+  for (const name of shown) process.stdout.write(`  - ${name}\n`);
+  if (!flags.verbose && names.length > 12) {
+    process.stdout.write(`  … and ${names.length - 12} more (--verbose for all)\n`);
+  }
+}
+
+/** Every dependency of every kept package must still resolve, or the tree is broken. */
+function assertKeptPackagesResolve(keep, nodeModulesDir) {
+  const dangling = [];
+  for (const dir of keep) {
+    const manifest = readJson(join(dir, 'package.json'));
+    if (!manifest) {
+      dangling.push(`${nameFromDir(nodeModulesDir, dir)} (manifest unreadable)`);
+      continue;
+    }
+    for (const dep of runtimeDepsOf(manifest)) {
+      if (!resolveFrom(nodeModulesDir, dir, dep)) {
+        dangling.push(`${manifest.name} -> ${dep}`);
+      }
+    }
+  }
+
+  if (dangling.length > 0) {
+    process.stderr.write('[prune] FAILED — kept packages lost dependencies:\n');
+    for (const entry of dangling) process.stderr.write(`  x ${entry}\n`);
+    process.exit(1);
+  }
+}
+
 function main() {
   const flags = parseArgs(process.argv.slice(2));
   const installDir = resolve(flags.dir);
@@ -231,57 +286,14 @@ function main() {
   const keep = reachableFrom(nodeModulesDir, appRoots);
   const installed = listInstalledDirs(nodeModulesDir);
 
-  // `installed` holds only top-level (hoisted) packages. A nested copy
-  // (`pkg/node_modules/dep`) vanishes together with its parent, so it needs no
-  // separate handling. Remove what the runtime graph does not reach.
-  const toRemove = installed.filter((dir) => !keep.has(dir));
-
-  let freed = 0;
-  for (const dir of toRemove) freed += dirSize(dir);
-
-  if (toRemove.length === 0) {
-    process.stdout.write('[prune] nothing to remove — tree is already runtime-only\n');
-  } else {
-    if (!flags.dryRun) {
-      for (const dir of toRemove) rmSync(dir, { recursive: true, force: true });
-    }
-    const verb = flags.dryRun ? 'would remove' : 'removed';
-    process.stdout.write(
-      `[prune] ${verb} ${toRemove.length} package(s), ${(freed / 1048576).toFixed(1)} MB\n`
-    );
-    const names = toRemove.map((d) => nameFromDir(nodeModulesDir, d));
-    const shown = flags.verbose ? names : names.slice(0, 12);
-    for (const name of shown) process.stdout.write(`  - ${name}\n`);
-    if (!flags.verbose && names.length > 12) {
-      process.stdout.write(`  … and ${names.length - 12} more (--verbose for all)\n`);
-    }
-  }
+  reportRemoval(installed, keep, flags, nodeModulesDir);
 
   if (flags.verbose) {
     process.stdout.write(`[prune] app imports ${appRoots.size} package(s) from dist/\n`);
     for (const root of [...appRoots].sort()) process.stdout.write(`  + ${root}\n`);
   }
 
-  // Post-condition: every kept package resolves all of its real dependencies.
-  const dangling = [];
-  for (const dir of keep) {
-    const manifest = readJson(join(dir, 'package.json'));
-    if (!manifest) {
-      dangling.push(`${nameFromDir(nodeModulesDir, dir)} (manifest unreadable)`);
-      continue;
-    }
-    for (const dep of runtimeDepsOf(manifest)) {
-      if (!resolveFrom(nodeModulesDir, dir, dep)) {
-        dangling.push(`${manifest.name} -> ${dep}`);
-      }
-    }
-  }
-
-  if (dangling.length > 0) {
-    process.stderr.write('[prune] FAILED — kept packages lost dependencies:\n');
-    for (const entry of dangling) process.stderr.write(`  x ${entry}\n`);
-    process.exit(1);
-  }
+  assertKeptPackagesResolve(keep, nodeModulesDir);
 
   process.stdout.write(
     `[prune] verified: ${keep.size} kept package(s), all dependencies resolve\n`
