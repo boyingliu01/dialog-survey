@@ -4,6 +4,36 @@
 
 ### Tooling
 
+**The three "not installed" gate tools were installed all along.** Gate 3 (`lizard`), Gate 8 (`detect-secrets-hook`) and Gate 10 (`semgrep`) were each reported as missing, with an install hint, on every run. All three were present and executable in the WSL user's `~/.local/bin` (lizard 1.21.3, semgrep 1.164.0, detect-secrets 1.5.47). Two separate mechanisms hid them:
+
+1. `~/.profile:25` and `~/.bashrc:188` both add `~/.local/bin` to PATH, but only *interactive login* shells read those files. The gates run from a non-interactive shell, so `command -v` found nothing — and the gate correctly reported what it observed.
+2. Fixing PATH alone was not enough: Python resolves user site-packages from `$HOME`, and `scripts/run-xp-gate.sh` repoints `HOME` at the Windows profile so Gate 9 can find its own node modules. A console script on PATH then died with `ModuleNotFoundError: No module named 'semgrep'`.
+
+The wrapper now captures `$wsl_home` before overwriting `HOME` and exports `PATH` and `PYTHONUSERBASE` from it. Gate 10 went from SKIP to PASS, Gate 3 from "lizard not installed" to running, and Gate 8's second scanner from silently disabled to actually blocking.
+
+Two further issues surfaced only because the tools started running:
+
+- **Gate 8 had been doing half a scan.** `adapters/gate-8.sh` gates detect-secrets on `command -v detect-secrets-hook && [ -f .secrets.baseline ]`, so with the tool present but no baseline it still printed "unavailable". Added `.secrets.baseline` (82 recorded findings) and allowlisted it in `.gitleaks.toml` — the baseline contains every pattern it found as literal text, which made gitleaks report 158 hits inside it.
+- **Gate 10's 180s budget was too tight for this repo.** A full `--config=auto` pass over `src/` measures 169s (rule fetch alone ~10s), so runs landed on the limit and reported "timed out — no verdict", which is neither a pass nor a finding. `XP_GATE_SEMGREP_TIMEOUT` is now 400s in the wrapper.
+
+**Gate 5's local coverage judgement was inert — xp-gate #594, worked around.** The gate runs `vitest run --coverage <changed test files>`. When none of those tests imports a src module, istanbul writes `total.lines.pct = "Unknown"`, the hook does `Math.round("Unknown")` → `NaN`, and `[ NaN -lt 80 ]` makes bash print `integer expression expected` and return 2 — which `if` reads as "condition false", so it took the PASS branch and logged:
+
+```
+TypeScript coverage: NaN% ✅ (≥ 80%)
+```
+
+The threshold was never enforced locally, and the log showed a ✅ next to a bash error. `coverage.include: ['src/**/*.ts']` plus `cleanOnRerun: false` forces untested files into the report on subset runs too (`@vitest/coverage-v8` only merges them when `include != null && (allTestsRun || !cleanOnRerun)`), so the total is always a real number. The gate now reports `⚠️ Partial coverage 0% (subset test run, not full suite)` — honest, and labelled as partial. Full-suite coverage is unaffected: 93.85% statements, 82.32% branches, 96.56% functions, 94.17% lines. `tests/coverage-gate.test.ts` guards it, verified to fail when either option is removed.
+
+Note: `coverage.all` no longer exists in `@vitest/coverage-v8` v4 and silently does nothing — it was tried first and produced `0` files with no error.
+
+### Refactoring
+
+`scripts/mutation-test.mjs`'s `main()` had grown to 19 cyclomatic complexity while adding the threshold check in the previous commit. Neither `npm run complexity` (TypeScript AST only) nor Gate 3 (`lizard`, Python only) covers a `.mjs` file, so archlint's NEW MEDIUM was the only signal. The target-selection branch — three modes plus the empty-set handling — moved to `resolveTargets()`; the archlint finding is gone and the 23 tests still pass.
+
+## [1.11.21](https://github.com/boyingliu01/dialog-survey/compare/v1.11.20...v1.11.21) (2026-10-24)
+
+### Tooling
+
 **#209, suggestion 3 — the mutation threshold no longer depends on the xp-gate patches.** The three upstream bugs that make Gate M report 0.0% (repeated `--mutate` keeping only the last file, `--config` not being a Stryker option, and the schema-1.0 report having no aggregate score) are patched by hand in `~/.config/xp-gate/`, where any xp-gate update erases them — which has now happened twice.
 
 `scripts/mutation-test.mjs` already bypassed the first two: it invokes `npx stryker run` directly and joins the file list with a comma. What it did *not* do was enforce the threshold, because `stryker.conf.json` sets `break: 0` — Stryker itself never fails on a low score, so the 60% gate existed only inside the patched xp-gate runner.
@@ -11,8 +41,6 @@
 It now reads `.stryker-report.json` itself, aggregates the raw `files[].mutants[]` list into `Killed+Timeout / (Killed+Timeout+Survived+NoCoverage)`, and exits 1 below the threshold (override with `MUTATION_THRESHOLD`). `RuntimeError`/`CompileError`/`Ignored`/`Pending` are excluded from the denominator, matching Stryker's own definition — counting them would turn an infrastructure failure into a "weak tests" verdict. A missing or empty report exits 2 rather than reporting a fabricated 0% or a false pass, because "no report" means the run told us nothing.
 
 So the Gate M threshold is now enforceable without the global patches, and an xp-gate update can no longer silently change the verdict. `npm run test:mutation:verify` (`--verify-report`) re-judges an already-produced report without re-running Stryker, so a CI artifact can be checked by this repo's threshold too. Eight new tests pin the aggregation, the denominator rule, the tolerance override, and the fail-closed handling of a missing report.
-
-## [1.11.21](https://github.com/boyingliu01/dialog-survey/compare/v1.11.20...v1.11.21) (2026-10-24)
 
 ### Bug Fixes
 
