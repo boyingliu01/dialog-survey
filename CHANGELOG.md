@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## [1.11.20](https://github.com/boyingliu01/dialog-survey/compare/v1.11.19...v1.11.20) (2026-10-23)
+
+### Docs
+
+`docs/quality-gates-audit-2026-10.md` — an audit of what each gate actually inspects, prompted by the discovery that several of them had been reporting PASS without ever scanning the thing they claim to check. It records the verification command for each gate, the structural SKIPs (Gate MP checks xp-gate's own mirrors; Gate MW is PR-only), and the distinction between archlint's DeadSymbol false positives and its two genuine ones (`PromptService.getTemplate`, `DingTalkClient.generateSignature` — the latter shadowed by an unrelated same-named function in `middleware.ts`).
+
+The short version: every gate that can apply to this repository now passes on its own terms, with two exceptions that are documented rather than hidden — issue #211's credential rotation, which only the repository owner can perform, and `admin-templates.ts` at 1019 lines (issue #205), which is the shared root cause behind Gate 4's largest long-function finding, part of Gate 6, and Gate 12.
+
 ## [1.11.19](https://github.com/boyingliu01/dialog-survey/compare/v1.11.18...v1.11.19) (2026-10-23)
 
 ### Security
