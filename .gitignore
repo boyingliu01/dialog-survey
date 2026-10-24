@@ -156,3 +156,5 @@ docs/code-race-8th/
 docs/reports/loadtest-results-*.json
 
 .sprint-archives/
+
+.commitmsg*
