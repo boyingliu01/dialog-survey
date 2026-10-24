@@ -46,7 +46,8 @@
     "smoke": "npm run type-check && npm run lint && node scripts/verify-xp-gate-patches.cjs && vitest run tests/health-check.test.ts tests/project-structure.test.ts tests/env-config.test.ts tests/health-api.test.ts tests/server-api.test.ts",
     "start": "node dist/src/server-entry.js",
     "deploy": "bash scripts/deploy.sh",
-    "loadtest": "tsx scripts/loadtest/run-loadtest.ts"
+    "loadtest": "tsx scripts/loadtest/run-loadtest.ts",
+    "test:mutation:verify": "node scripts/mutation-test.mjs --verify-report"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",

@@ -14,12 +14,14 @@
  * mutants in untouched files are never generated or executed. Combined with
  * parallel workers this keeps PR runs far below a full run's wall time.
  *
- * Exit codes: whatever Stryker exits (0 = score at/above break-threshold).
- * CI treats this job as advisory via continue-on-error, so a low score never
- * blocks a PR — it is reported.
+ * Exit codes: whatever Stryker exits, unless Stryker passes and the report's
+ * mutation score is below the enforced threshold (see THRESHOLD), in which case
+ * this exits 1. CI treats this job as advisory via continue-on-error, so a low
+ * score never blocks a PR — it is reported.
  */
 
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import cpus from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -28,6 +30,91 @@ const DEFAULT_BASE_CANDIDATES = ['origin/master', 'master', 'HEAD~1'];
 const MUTABLE_EXTENSIONS = /\.ts$/;
 const MUTABLE_PATH = /^src\//;
 const EXCLUDED_PATHS = [/^src\/generated\//, /\.d\.ts$/, /^src\/server\.ts$/, /^src\/index\.ts$/];
+
+/**
+ * Stryker's JSON report, written by the `json` reporter in stryker.config.json.
+ *
+ * Line-mutator events Stryker counts toward the score. `RuntimeError` and
+ * `CompileError` are excluded from the denominator on purpose: those mean the
+ * mutant could not be evaluated at all, and counting them as "not killed" would
+ * make an infrastructure failure look like weak tests. Same convention as
+ * Stryker's own `mutationScore` and as the xp-gate runner (issue #209).
+ */
+const SCORED_EVENTS = new Set(['Killed', 'Timeout', 'Survived', 'NoCoverage']);
+
+/** The Gate M threshold, restated here so this repo can enforce it itself. */
+const DEFAULT_THRESHOLD = 60;
+const REPORT_FILE = '.stryker-report.json';
+
+/**
+ * Aggregate a Stryker JSON report into `{ score, killed, scored }`.
+ *
+ * The report is schema 1.0 — a raw `files[].mutants[]` list with no aggregate
+ * `mutationScore` field — so the score has to be computed here (issue #209
+ * documents the same discovery upstream).
+ *
+ * Returns `null` when the report is missing or has no scored mutants, so the
+ * caller can report "no evidence" rather than a fabricated 0% or a false pass.
+ */
+export function summarizeMutationReport(report) {
+  const files = report?.files;
+  if (!files || typeof files !== 'object') return null;
+
+  let killed = 0;
+  let scored = 0;
+  for (const file of Object.values(files)) {
+    const mutants = file?.mutants;
+    if (!Array.isArray(mutants)) continue;
+    for (const mutant of mutants) {
+      if (!SCORED_EVENTS.has(mutant?.status)) continue;
+      scored += 1;
+      if (mutant.status === 'Killed' || mutant.status === 'Timeout') killed += 1;
+    }
+  }
+  if (scored === 0) return null;
+  return { score: (killed / scored) * 100, killed, scored };
+}
+
+/** Read and summarize the JSON report at `reportPath`; `null` if unreadable. */
+export function readMutationReport(reportPath) {
+  try {
+    return summarizeMutationReport(JSON.parse(readFileSync(reportPath, 'utf-8')));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Enforce the mutation threshold against the produced report.
+ *
+ * Returns 0 when the score meets the threshold, 1 when it does not, and 2 when
+ * there is no usable report. "No report" is an environment failure, not a pass:
+ * the same fail-closed-on-the-claim rule the gates themselves use, because a
+ * missing artifact means the mutation run told us nothing.
+ */
+export function evaluateThreshold({ reportPath, report, threshold, log = () => {} }) {
+  // `report` exists so tests (and any caller that already parsed it) can supply
+  // the document directly instead of routing through the filesystem.
+  const summary =
+    report === undefined ? readMutationReport(reportPath) : summarizeMutationReport(report);
+  if (summary === null) {
+    log(
+      `mutation-test: no usable report at ${reportPath ?? '<inline>'} — cannot verify the ${threshold}% threshold.`
+    );
+    return 2;
+  }
+  const score = summary.score.toFixed(2);
+  if (summary.score >= threshold) {
+    log(
+      `mutation-test: mutation score ${score}% (${summary.killed}/${summary.scored}) meets the ${threshold}% threshold.`
+    );
+    return 0;
+  }
+  log(
+    `mutation-test: mutation score ${score}% (${summary.killed}/${summary.scored}) is BELOW the ${threshold}% threshold.`
+  );
+  return 1;
+}
 
 /** Parse `git diff --name-only` output into the mutable source subset. */
 export function selectMutableFiles(diffOutput) {
@@ -93,10 +180,17 @@ export function collectChangedFiles({ base, git = defaultGit }) {
 }
 
 export function parseArgs(argv) {
-  const options = { full: false, base: undefined, files: undefined, concurrency: undefined };
+  const options = {
+    full: false,
+    base: undefined,
+    files: undefined,
+    concurrency: undefined,
+    verifyReport: false,
+  };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--full') options.full = true;
+    else if (arg === '--verify-report') options.verifyReport = true;
     else if (arg === '--base') options.base = argv[++i];
     else if (arg === '--files')
       options.files = (argv[++i] ?? '')
@@ -121,8 +215,22 @@ export function main({
     spawnSync(command, args, { stdio: 'inherit', shell: process.platform === 'win32' }),
   git = defaultGit,
   cpuCount = cpus.cpus().length,
+  cwd = process.cwd(),
+  log = console.log,
+  reportPath = null,
 } = {}) {
   const options = parseArgs(argv);
+  const threshold = Number(env['MUTATION_THRESHOLD'] ?? DEFAULT_THRESHOLD);
+  const resolvedReportPath = reportPath ?? path.join(cwd, REPORT_FILE);
+
+  // `--verify-report` re-checks an existing report without running Stryker. It
+  // exists so a report produced elsewhere (CI artifact, a previous local run)
+  // can be judged by this repo's threshold instead of by the patched xp-gate
+  // runner — the point of issue #209's third suggestion.
+  if (options.verifyReport) {
+    return evaluateThreshold({ reportPath: resolvedReportPath, threshold, log });
+  }
+
   const concurrency = resolveConcurrency(
     options.concurrency ?? env['STRYKER_CONCURRENCY'],
     cpuCount
@@ -170,7 +278,13 @@ export function main({
     console.error(`mutation-test: failed to launch Stryker: ${result.error.message}`);
     return 2;
   }
-  return result.status ?? 2;
+  if (result.status !== 0) return result.status ?? 2;
+
+  return evaluateThreshold({
+    reportPath: reportPath ?? path.join(cwd, REPORT_FILE),
+    threshold,
+    log,
+  });
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]).replace(/\\/g, '/') : '';
