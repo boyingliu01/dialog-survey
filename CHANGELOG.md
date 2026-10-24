@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Tooling
+
+**#209, suggestion 3 — the mutation threshold no longer depends on the xp-gate patches.** The three upstream bugs that make Gate M report 0.0% (repeated `--mutate` keeping only the last file, `--config` not being a Stryker option, and the schema-1.0 report having no aggregate score) are patched by hand in `~/.config/xp-gate/`, where any xp-gate update erases them — which has now happened twice.
+
+`scripts/mutation-test.mjs` already bypassed the first two: it invokes `npx stryker run` directly and joins the file list with a comma. What it did *not* do was enforce the threshold, because `stryker.conf.json` sets `break: 0` — Stryker itself never fails on a low score, so the 60% gate existed only inside the patched xp-gate runner.
+
+It now reads `.stryker-report.json` itself, aggregates the raw `files[].mutants[]` list into `Killed+Timeout / (Killed+Timeout+Survived+NoCoverage)`, and exits 1 below the threshold (override with `MUTATION_THRESHOLD`). `RuntimeError`/`CompileError`/`Ignored`/`Pending` are excluded from the denominator, matching Stryker's own definition — counting them would turn an infrastructure failure into a "weak tests" verdict. A missing or empty report exits 2 rather than reporting a fabricated 0% or a false pass, because "no report" means the run told us nothing.
+
+So the Gate M threshold is now enforceable without the global patches, and an xp-gate update can no longer silently change the verdict. `npm run test:mutation:verify` (`--verify-report`) re-judges an already-produced report without re-running Stryker, so a CI artifact can be checked by this repo's threshold too. Eight new tests pin the aggregation, the denominator rule, the tolerance override, and the fail-closed handling of a missing report.
+
 ## [1.11.21](https://github.com/boyingliu01/dialog-survey/compare/v1.11.20...v1.11.21) (2026-10-24)
 
 ### Bug Fixes

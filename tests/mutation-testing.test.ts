@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -26,6 +27,14 @@ interface MutationTestModule {
     git: (args: string[]) => string | null;
   }) => { files: string[]; diffFailed: boolean };
   main: (opts: Record<string, unknown>) => number;
+  summarizeMutationReport: (
+    report: unknown
+  ) => { score: number; killed: number; scored: number } | null;
+  evaluateThreshold: (opts: {
+    reportPath?: string;
+    report?: unknown;
+    threshold: number;
+  }) => number;
 }
 
 async function loadModule(): Promise<MutationTestModule> {
@@ -215,21 +224,167 @@ describe('behavioural proof of the incremental skip path', () => {
   it('falls back to base candidates when --base resolves to a bare "origin/"', async () => {
     const mod = await loadModule();
     const bases: string[] = [];
-    const exitCode = mod.main({
-      argv: ['--base', 'origin/'],
-      env: {},
-      git: (args: string[]) => {
-        if (args[0] === 'rev-parse') return args[2] === 'origin/master' ? 'sha\n' : null;
-        if (args[0] === 'diff' && args[2]) bases.push(args[2]);
-        if (args[0] === 'diff') return 'src/x.ts\n';
-        if (args[0] === 'ls-files') return '';
-        return null;
-      },
-      spawn: () => ({ status: 0 }),
-      cpuCount: 8,
+    const reportPath = path.join(tmpdir(), `mutation-report-${process.pid}-${Math.random()}.json`);
+    writeFileSync(reportPath, JSON.stringify(passingReport()), 'utf-8');
+    try {
+      const exitCode = mod.main({
+        argv: ['--base', 'origin/'],
+        env: {},
+        git: (args: string[]) => {
+          if (args[0] === 'rev-parse') return args[2] === 'origin/master' ? 'sha\n' : null;
+          if (args[0] === 'diff' && args[2]) bases.push(args[2]);
+          if (args[0] === 'diff') return 'src/x.ts\n';
+          if (args[0] === 'ls-files') return '';
+          return null;
+        },
+        spawn: () => ({ status: 0 }),
+        cpuCount: 8,
+        reportPath,
+      });
+      // It must have resolved origin/master as the range base, not "origin/".
+      expect(bases.some((b) => b.startsWith('origin/master...'))).toBe(true);
+      expect(exitCode).toBe(0);
+    } finally {
+      rmSync(reportPath, { force: true });
+    }
+  });
+
+  it('passes a report path through so the threshold check is not coupled to the cwd', async () => {
+    const mod = await loadModule();
+    const reportPath = path.join(tmpdir(), `mutation-report-${process.pid}-${Math.random()}.json`);
+    writeFileSync(reportPath, JSON.stringify(passingReport()), 'utf-8');
+    try {
+      const exitCode = mod.main({
+        argv: [],
+        env: {},
+        git: (args: string[]) => (args[0] === 'diff' ? 'src/x.ts\n' : ''),
+        spawn: () => ({ status: 0 }),
+        cpuCount: 8,
+        reportPath,
+      });
+      expect(exitCode).toBe(0);
+    } finally {
+      rmSync(reportPath, { force: true });
+    }
+  });
+});
+
+/**
+ * A minimal Stryker schema-1.0 report: a raw `files[].mutants[]` list, with no
+ * aggregate `mutationScore` field (that absence is the whole point of #209).
+ */
+function reportWith(statuses: string[]): { files: Record<string, unknown> } {
+  return {
+    files: {
+      'src/x.ts': { mutants: statuses.map((status) => ({ status })) },
+    },
+  };
+}
+
+/** 8 killed of 10 scored = 80%, comfortably above the 60% threshold. */
+function passingReport(): { files: Record<string, unknown> } {
+  return reportWith([
+    'Killed',
+    'Killed',
+    'Killed',
+    'Killed',
+    'Killed',
+    'Killed',
+    'Killed',
+    'Killed',
+    'Survived',
+    'NoCoverage',
+  ]);
+}
+
+describe('mutation threshold enforcement (issue #209)', () => {
+  it('aggregates a schema-1.0 report that has no aggregate score field', async () => {
+    const mod = await loadModule();
+    const summary = mod.summarizeMutationReport(
+      reportWith(['Killed', 'Survived', 'NoCoverage', 'Timeout'])
+    );
+    expect(summary).not.toBeNull();
+    // Killed + Timeout are kills; Survived + NoCoverage are misses: 2/4.
+    expect(summary?.killed).toBe(2);
+    expect(summary?.scored).toBe(4);
+    expect(summary?.score).toBeCloseTo(50, 5);
+  });
+
+  it('excludes mutants that could not be evaluated from the denominator', async () => {
+    const mod = await loadModule();
+    // RuntimeError / CompileError / Ignored / Pending are not evidence about the
+    // tests, so counting them would turn infrastructure failure into a low score.
+    const summary = mod.summarizeMutationReport(
+      reportWith(['Killed', 'Survived', 'RuntimeError', 'CompileError', 'Ignored', 'Pending'])
+    );
+    expect(summary?.scored).toBe(2);
+    expect(summary?.score).toBeCloseTo(50, 5);
+  });
+
+  it('returns null rather than a fabricated 0% when the report has no scored mutants', async () => {
+    const mod = await loadModule();
+    expect(mod.summarizeMutationReport(reportWith([]))).toBeNull();
+    expect(mod.summarizeMutationReport({ files: {} })).toBeNull();
+    expect(mod.summarizeMutationReport(null)).toBeNull();
+  });
+
+  it('passes at or above the threshold, fails below it', async () => {
+    const mod = await loadModule();
+    expect(mod.evaluateThreshold({ report: passingReport(), threshold: 60 })).toBe(0);
+    const weak = mod.evaluateThreshold({
+      report: reportWith(['Killed', 'Survived']),
+      threshold: 60,
     });
-    // It must have resolved origin/master as the range base, not "origin/".
-    expect(bases.some((b) => b.startsWith('origin/master...'))).toBe(true);
-    expect(exitCode).toBe(0);
+    expect(weak).toBe(1);
+  });
+
+  it('treats a missing report as no evidence, never as a pass', async () => {
+    const mod = await loadModule();
+    const missing = path.join(tmpdir(), `absent-${process.pid}.json`);
+    expect(mod.evaluateThreshold({ reportPath: missing, threshold: 60 })).toBe(2);
+  });
+
+  it('--verify-report judges an existing report without launching Stryker', async () => {
+    const mod = await loadModule();
+    const reportPath = path.join(tmpdir(), `mutation-report-${process.pid}-${Math.random()}.json`);
+    writeFileSync(reportPath, JSON.stringify(passingReport()), 'utf-8');
+    let launched = false;
+    try {
+      const exitCode = mod.main({
+        argv: ['--verify-report'],
+        env: {},
+        git: () => null,
+        spawn: () => {
+          launched = true;
+          return { status: 0 };
+        },
+        cpuCount: 8,
+        reportPath,
+      });
+      expect(exitCode).toBe(0);
+      // The whole point: re-judging a report must not re-run the mutation suite.
+      expect(launched).toBe(false);
+    } finally {
+      rmSync(reportPath, { force: true });
+    }
+  });
+
+  it('--verify-report honours the MUTATION_THRESHOLD override', async () => {
+    const mod = await loadModule();
+    const reportPath = path.join(tmpdir(), `mutation-report-${process.pid}-${Math.random()}.json`);
+    // 1 killed of 5 = 20%: below the default 60%, above an explicit 5%.
+    writeFileSync(
+      reportPath,
+      JSON.stringify(reportWith(['Killed', 'Survived', 'Survived', 'NoCoverage', 'NoCoverage'])),
+      'utf-8'
+    );
+    try {
+      expect(mod.main({ argv: ['--verify-report'], env: {}, reportPath, log: () => {} })).toBe(1);
+      expect(
+        mod.main({ argv: ['--verify-report'], env: { MUTATION_THRESHOLD: '5' }, reportPath })
+      ).toBe(0);
+    } finally {
+      rmSync(reportPath, { force: true });
+    }
   });
 });
