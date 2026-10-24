@@ -21,6 +21,27 @@ paths = [
   '''\.env\.production\.example''',
   # Generated Prisma client
   '''node_modules/\.prisma/''',
+  # Stryker copies the whole working tree into .stryker-tmp/sandbox-* before
+  # mutating. Those copies are gitignored, but they end up committed anyway when
+  # a run happens between staging and pushing, which multiplied issue #211's two
+  # real hits into nineteen identical ones. The originals are still reported.
+  '''\.stryker-tmp/''',
+]
+# Issue #211: these regexes only matter for the full-history scan
+# (`scripts/scan-git-history-secrets.mjs`), because a diff-scoped scan never
+# reaches the older commits where they occur. Every entry was checked by hand
+# against the actual matched text before being suppressed. They must live in the
+# SAME `[allowlist]` table as `paths`: TOML rejects a second table with the same
+# name ("table allowlist already exists").
+regexes = [
+  # Docs show the *shape* of a credential: '-H "X-Admin-Key: your-api-key"',
+  # "DINGTALK_CLIENT_SECRET=<YOUR_CLIENT_SECRET>" and similar. Confirmed
+  # placeholders, not live values.
+  '''(?i)your[_-]?(api[_-]?key|secret|client[_-]?id|client[_-]?secret|agent[_-]?id)''',
+  '''(?i)<YOUR_[A-Z_]+>''',
+  '''(?i)\bxxx+\b''',
+  '''(?i)test[-_]?(secret|api)?[-_]?key''',
+  '''sk-test''',
 ]
 
 # Custom project-specific rules

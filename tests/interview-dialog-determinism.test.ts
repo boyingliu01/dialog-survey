@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { interviewingNode } from '../src/core/nodes/interviewing.js';
 import type { InterviewState } from '../src/core/types/index.js';
 import { resultFromParsed, stripExtraQuestions } from '../src/services/followup.service.js';
+import type { StructuredResponse } from '../src/services/followup.service.js';
 
 /**
  * @test REQ-203a
@@ -88,8 +89,7 @@ describe('one question per turn', () => {
       {
         response: '好的。第一问？第二问？第三问？',
         action: 'NEXT',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any,
+      } as StructuredResponse,
       0,
       2,
       '下一题？'
@@ -106,8 +106,7 @@ describe('one question per turn', () => {
   it('does not trim a follow-up reply', () => {
     const text = '我理解您的意思。能再多说说吗？为什么？';
     const result = resultFromParsed(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { response: text, action: 'FOLLOWUP' } as any,
+      { response: text, action: 'FOLLOWUP' } as StructuredResponse,
       0,
       2,
       '下一题？'
