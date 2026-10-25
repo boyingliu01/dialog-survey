@@ -10,7 +10,9 @@ Every tool the gates need is already installed natively on Windows, several of t
 
 Measured: a full pre-commit run from Git Bash scores **10.0/10 with 9 of 12 gates actually executing** and contains **zero `/mnt/` paths**. Gate 8 reaches a real PASS (both scanners), Gate 10 PASS, Gate 6 PASS.
 
-`git commit` still routes through WSL unless PATH is reordered, because the machine PATH row is concatenated before the user row and `C:\WINDOWS\system32` sits near its front. Making that permanent needs admin rights to edit the machine PATH; until then use the wrapper, or prepend `C:\Program Files\Git\bin` for the session.
+The last step was PATH ordering, and it had to be done at the right level. Windows concatenates the **machine** PATH row *before* the user row, so adding `C:\Program Files\Git\bin` to the user PATH changed nothing while `C:\WINDOWS\system32` sat at machine index 5 — `where bash` still found the WSL launcher first. `C:\Program Files\Git\bin` is now prepended to the **machine** PATH, which needs admin rights and is what makes a plain `git commit` run the hooks in Git Bash with no wrapper involved. Verified by reading the registry value directly rather than `$env:PATH`: a running shell keeps the environment it started with and passes that stale copy to every child, so `where bash` keeps reporting `System32` until the shell is restarted, which makes the change look like it failed when it did not.
+
+This stays dependent on WSL being installed and on `system32\bash.exe` existing — nothing was deleted to achieve it, because `wsl` itself lives there and must keep working.
 
 Two gate defects found while making this work:
 
