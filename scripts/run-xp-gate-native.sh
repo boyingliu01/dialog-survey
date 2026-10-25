@@ -4,14 +4,21 @@
 # Why this exists
 # ---------------
 # `core.hooksPath` points at C:/Users/think/.config/xp-gate/hooks and the hooks
-# start with `#!/bin/bash`. On this machine `bash` on PATH resolves to
+# start with `#!/bin/bash`. On this machine `bash` on PATH *used to* resolve to
 # C:\WINDOWS\system32\bash.exe — the *WSL launcher*, not Git Bash — so a plain
-# `git commit` from Windows silently runs the gate suite inside WSL. That is the
-# whole reason scripts/run-xp-gate.sh exists and needs mount-translating node
-# shims, .exe shims and a Windows HOME: it was patching up a cross-environment
-# jump that nothing asked for.
+# `git commit` from Windows silently ran the gate suite inside WSL.
 #
-# Every tool the gates need is already installed on the Windows side:
+# The machine PATH now puts C:\Program Files\Git\bin first, so a `git commit` runs
+# the hooks in Git Bash directly and this problem is gone at the root. This script
+# remains as the explicit, inspectable entry point: it is what to run when you
+# want to see which tools a gate will actually use before trusting its verdict.
+#
+# It deliberately does nothing environment-specific. An earlier wrapper
+# (scripts/run-xp-gate.sh) needed mount-translating node shims, .exe shims, a
+# Windows HOME and PYTHONUSERBASE, because it was patching up a cross-environment
+# jump nothing had asked for. All of that was deleted along with the WSL path.
+#
+# Every tool the gates need is installed on the Windows side:
 #
 #   node / npx        C:\Program Files\nodejs
 #   git               C:\Program Files\Git
@@ -20,8 +27,7 @@
 #   semgrep           C:\Users\think\bin\semgrep.exe
 #   detect-secrets    %APPDATA%\Python\Python312\Scripts\detect-secrets-hook.exe
 #
-# Run the hooks through Git Bash instead and the entire cross-environment
-# problem disappears: one filesystem, one PATH, one Python, no path translation.
+# One filesystem, one PATH, one Python, no path translation.
 # Verified: a full pre-commit run from Git Bash scores 10.0/10 with zero /mnt/
 # paths in the log and no WSL process involved.
 #
