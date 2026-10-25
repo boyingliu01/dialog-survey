@@ -24,3 +24,12 @@ layers:
     # Prisma 7 生成物（.ts 源码，gitignore 排除）；唯一消费方为 src/utils 门面
     pattern: "src/generated/**"
     depends: []
+
+# PowerShell 在 xp-gate Gate 6 里是独立的一层校验（见 tools/Test-PowerShellArchitecture.ps1）。
+# 本仓库的 PowerShell 只有 scripts/ 下的独立工具脚本：互不 dot-source，也没有下层依赖，
+# 所以只有一层且 depends 为空。这不是为了消警告而写的占位——它如实描述现状，
+# 并且一旦将来有脚本跨层引用就会失败。
+powershell:
+  scripts:
+    pattern: "scripts/**.ps1"
+    depends: []

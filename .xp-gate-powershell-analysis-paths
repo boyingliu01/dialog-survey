@@ -1,0 +1,23 @@
+# PowerShell static-analysis scope for xp-gate Gate 1 (PSScriptAnalyzer).
+#
+# One path per line: a directory or a single file. Blank lines and lines that
+# start with '#' are ignored. Every listed path must exist — a missing entry is
+# reported fail-closed, which is the point: it means product code escaped the
+# declared scope.
+#
+# Why this file exists at all
+# ---------------------------
+# xp-gate #595. Without it, adapters/powershell.sh takes its legacy branch and
+# runs `Invoke-ScriptAnalyzer -Path . -Recurse`, which walks *the entire repo
+# including node_modules*. Playwright ships three .ps1 helper scripts there
+# (install_webkit_wsl.ps1, reinstall_chrome_beta_win.ps1, install_media_pack.ps1)
+# that use Write-Host and a WMI cmdlet, so every commit was blocked by findings
+# in third-party code that cannot be edited and is overwritten by `npm ci`.
+#
+# Note the same adapter's own _find_ps_files helper already prunes node_modules —
+# only the legacy branch skips that pruning. Declaring the scope explicitly opts
+# into the scoped branch and keeps the gate judging our code only.
+#
+# Keep this list to the directories that actually hold our PowerShell. Adding a
+# path here widens what the gate inspects; it does not silence findings.
+scripts/

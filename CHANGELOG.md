@@ -4,6 +4,19 @@
 
 ### Tooling
 
+**The gates no longer cross between Windows and WSL — that hop was the whole problem.** On the Windows PATH, `bash` resolves to `C:\WINDOWS\system32\bash.exe`, which is the *WSL launcher*, not Git Bash. Because `core.hooksPath` points at a `#!/bin/bash` hook, every `git commit` from Windows quietly ran the gate suite inside WSL. `scripts/run-xp-gate.sh` had grown a shim layer to survive that jump — POSIX shims for `.exe` tools, a mount-translating `node` shim so `/mnt/d/...` would not become `D:\mnt\d\...`, a Windows `HOME` for Gate 9's module resolution, `PYTHONUSERBASE` for the Python tools. All of it was compensating for a boundary nothing had asked to cross. It also produced the misleading "tool not installed" reports: the tools were installed, just in a user bin directory that only interactive login shells put on PATH, and Python looked for them under the wrong `HOME`.
+
+Every tool the gates need is already installed natively on Windows, several of them newer than the WSL copies: `lizard` 1.24.2, `semgrep` 1.171.0, gitleaks 8.30.1, node 24. `scripts/run-xp-gate-native.sh` runs the hooks through Git Bash instead of WSL — one filesystem, one PATH, one Python, no path translation. It prints the resolved path of each tool before running, so a wrong interpreter is visible immediately rather than surfacing as a mysterious SKIP. `scripts/run-xp-gate-native.ps1` is the same entry point for a PowerShell prompt, locating Git Bash from `git.exe` rather than a hard-coded path.
+
+Measured: a full pre-commit run from Git Bash scores **10.0/10 with 9 of 12 gates actually executing** and contains **zero `/mnt/` paths**. Gate 8 reaches a real PASS (both scanners), Gate 10 PASS, Gate 6 PASS.
+
+`git commit` still routes through WSL unless PATH is reordered, because the machine PATH row is concatenated before the user row and `C:\WINDOWS\system32` sits near its front. Making that permanent needs admin rights to edit the machine PATH; until then use the wrapper, or prepend `C:\Program Files\Git\bin` for the session.
+
+Two gate defects found while making this work:
+
+- **xp-gate #595 — Gate 1's PowerShell branch scans `node_modules`.** Without a `.xp-gate-powershell-analysis-paths` scope file the adapter runs `Invoke-ScriptAnalyzer -Path . -Recurse`, which walks third-party code. Playwright ships three `.ps1` helpers in `node_modules/playwright-core/bin/` that use `Write-Host` and a WMI cmdlet, so Gate 1 blocked **every commit** on findings in code that cannot be edited and is replaced by `npm ci`. The adapter's own `_find_ps_files` helper already prunes `node_modules`; only the legacy branch skips that pruning. Added the scope file declaring `scripts/`, so the gate judges our code only.
+- **Gate 6 demanded PowerShell layering that did not exist.** Rather than silence the warning, `architecture.yaml` now declares the actual structure — one `scripts` layer, no dependencies, since the two PowerShell files are standalone and never dot-source each other — and `tools/Test-PowerShellArchitecture.ps1` enforces it. The checker was verified to *fail* on a genuine cross-layer dot-source (`violations=1 failing=1`), so it is a control, not decoration.
+
 **The three "not installed" gate tools were installed all along.** Gate 3 (`lizard`), Gate 8 (`detect-secrets-hook`) and Gate 10 (`semgrep`) were each reported as missing, with an install hint, on every run. All three were present and executable in the WSL user's `~/.local/bin` (lizard 1.21.3, semgrep 1.164.0, detect-secrets 1.5.47). Two separate mechanisms hid them:
 
 1. `~/.profile:25` and `~/.bashrc:188` both add `~/.local/bin` to PATH, but only *interactive login* shells read those files. The gates run from a non-interactive shell, so `command -v` found nothing — and the gate correctly reported what it observed.
