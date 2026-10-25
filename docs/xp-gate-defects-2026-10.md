@@ -6,8 +6,11 @@ Environment: xp-gate 0.31.1, Windows 11 + WSL2 (Ubuntu), git 2.43, Node 24.19.
 is what exposes most of these. Each entry says whether the defect is "the hook
 assumes MSYS/Git-Bash" (environmental) or a plain bug that fires everywhere.
 
-Reproduce any of them with `bash scripts/run-xp-gate.sh pre-commit` in this repo
-after reverting the corresponding local patch.
+Reproduce any of them with `powershell -File scripts/run-xp-gate-native.ps1 pre-commit`
+(or `bash scripts/run-xp-gate-native.sh pre-commit`) in this repo after reverting
+the corresponding local patch. The gates run natively in Git Bash; the WSL
+wrapper that used to be needed here (`scripts/run-xp-gate.sh`) has been deleted,
+because the machine PATH now puts Git Bash ahead of the WSL launcher.
 
 ---
 
@@ -295,8 +298,9 @@ silently does nothing.
 
 ## 10. "Tool not installed" for tools that are installed
 
-**Severity: medium. Environment/UX, not filed separately — both mechanisms are
-now repaired in `scripts/run-xp-gate.sh`.**
+**Severity: medium. Environment/UX, not filed separately — the underlying cause
+turned out to be the WSL detour itself, and it is gone now that the gates run
+natively in Git Bash.**
 
 `lizard` (Gate 3), `semgrep` (Gate 10) and `detect-secrets-hook` (Gate 8) were
 reported missing on every run, with `pip install` hints attached. All three were
@@ -313,10 +317,20 @@ installed and executable in the WSL user's `~/.local/bin`.
 
 The symptom ("not installed") pointed at the wrong action (install), which is
 why the real fault stayed hidden across repeated "I installed it already"
-rounds. Suggested upstream fix: when `command -v` fails, distinguish "binary
-absent" from "binary present but not importable", and probe the language-specific
-user bin dirs (`~/.local/bin`, `%APPDATA%\Python\Scripts`) before concluding a
-tool is missing.
+rounds.
+
+**How it was actually resolved:** not by patching the WSL environment, but by
+leaving it. All three tools were *also* installed natively on the Windows side,
+several of them newer (lizard 1.24.2, semgrep 1.171.0 vs 1.21.3 / 1.164.0). Once
+the machine PATH puts `C:\Program Files\Git\bin` ahead of the WSL launcher, the
+hooks run in Git Bash where `$HOME` already is the Windows profile — both
+mechanisms above vanish rather than needing to be worked around, and the
+`scripts/run-xp-gate.sh` wrapper that carried the workarounds was deleted.
+
+Suggested upstream fix: when `command -v` fails, distinguish "binary absent"
+from "binary present but not importable", and probe the language-specific user
+bin dirs (`~/.local/bin`, `%APPDATA%\Python\Scripts`) before concluding a tool is
+missing.
 
 ---
 
