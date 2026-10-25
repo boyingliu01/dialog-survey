@@ -334,6 +334,73 @@ missing.
 
 ---
 
+## 11. The gates cannot run in WSL against this checkout at all — and it is not the tools
+
+**Severity: n/a (not a gate defect). Recorded because it is easy to blame the
+wrong thing, and was initially blamed on the wrong thing here.**
+
+The Python tools *are* reachable in WSL. Measured:
+
+```
+$ wsl bash -c 'command -v node npx lizard semgrep detect-secrets-hook'
+                             # all NOT FOUND in a bare non-interactive shell
+$ wsl bash -c 'source ~/.nvm/nvm.sh; export PATH=$HOME/.local/bin:$PATH; ...'
+node                 /home/boyingliu01/.nvm/versions/node/v24.19.0/bin/node
+lizard               /home/boyingliu01/.local/bin/lizard
+semgrep              /home/boyingliu01/.local/bin/semgrep
+detect-secrets-hook  /home/boyingliu01/.local/bin/detect-secrets-hook
+```
+
+So after sourcing nvm and adding `~/.local/bin`, every gate tool resolves inside
+WSL, and the hooks do start and reach Gate 1. They then stop here:
+
+```
+→ Gate 1: Code Quality (static analysis + linting)...
+✅ PASSED - TypeScript static analysis.
+Running Biome lint/format check...
+Error: Cannot find module '@biomejs/cli-linux-x64/biome'
+❌ BLOCKED - Biome check failed
+```
+
+**The real blocker is `node_modules`, not the tooling.** `/mnt/d` is one
+directory seen by two operating systems, so Windows and WSL share a single
+`node_modules` — and it was populated by `npm install` on Windows. Native
+packages therefore exist only in their win32 builds:
+
+| package | present | missing |
+|---|---|---|
+| `@biomejs` | `cli-win32-x64` | `cli-linux-x64` |
+| `lightningcss` | `win32-x64-msvc` | `linux-x64-gnu` |
+| `@esbuild` | `win32-x64` | `linux-x64` |
+
+Any gate that shells out to a native binary (Biome here; esbuild/rollup and
+lightningcss behind Vite/Build Integrity) fails in WSL for that reason. This is
+inherent to a shared checkout and cannot be fixed by adding PATH entries — the
+Linux binaries are simply not on disk.
+
+**Consequences, stated plainly:**
+
+- Running the gates from Windows is the supported configuration. They are
+  Windows-native and self-contained.
+- Running them from WSL would require its own dependency tree (a second
+  `npm install` performed *from WSL* into a separate directory, e.g. a dedicated
+  worktree), i.e. exactly the two-environment split that was just removed. It is
+  a deliberate choice not to maintain that.
+- `scripts/run-xp-gate-native.sh` invokes Git Bash explicitly, so calling it from
+  a WSL shell does not "fall back" to a WSL run — it fails loudly on the missing
+  Git Bash path, which is the honest outcome rather than a misleading half-run.
+- The WSL environment itself is untouched and still works for everything else;
+  its tool versions are simply older and it cannot run *this checkout's* JS
+  tooling.
+
+Suggested upstream improvement: the failure surface would be much clearer if the
+adapter distinguished "native binary missing for this platform" from "code
+quality violation". `Cannot find module '@biomejs/cli-linux-x64/biome'` presented
+under `❌ BLOCKED - Biome check failed` reads as the project having a lint
+problem.
+
+---
+
 ## Not filed: already known upstream
 
 - Gate M (mutation) issues are tracked by dialog-survey issue #209 and the
