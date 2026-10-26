@@ -4,6 +4,26 @@
 
 ### Tooling
 
+**WSL is a working second environment again, with its own dependency tree.** Windows stays primary. The reason WSL needs its own directory is not PATH — every gate tool is reachable there — it is `node_modules`. `/mnt/d` is one directory seen by two operating systems, so a checkout there has a single `node_modules`, populated by whichever platform last ran `npm install`. Windows writes `@biomejs/cli-win32-x64`; WSL needs `cli-linux-x64`, which is not on disk, and Gate 1 stops with `Cannot find module '@biomejs/cli-linux-x64/biome'` — presented as a lint failure, which is how it was blamed on the tools for a while.
+
+So WSL works in `~/dialog-survey-wsl` (branch `wsl/dev`, on ext4), created with `git worktree add` and its own `npm ci` run *from WSL*. Measured there: 167/167 test files, 1967 tests, `tsc` clean, `biome check` clean on 284 files, and `bash scripts/run-xp-gate-wsl.sh pre-commit` executing 8/12 gates for real including Gate 8 and Gate 10.
+
+Two things had to be fixed that were silent failures:
+
+1. **`~/.local/bin` is invisible to gate shells.** `~/.profile` adds it, but only *login* shells read that file, and Ubuntu's `~/.bashrc` returns early for non-interactive ones — so `command -v` found nothing and the gates reported installed tools as missing. Node is nvm-managed and equally `~/.bashrc`-only. Fixed by symlinking `node`/`npm`/`npx` into `~/.local/bin` and having the WSL runner put that directory first, so no interactive shell or nvm sourcing is required. `gitleaks` was genuinely absent and was installed from the release tarball without sudo (via a mirror; the direct GitHub download stalled).
+2. **`core.hooksPath` pointed at a Windows path, so WSL commits skipped every gate.** The shared `.git/config` sets `C:/Users/think/.config/xp-gate/hooks`, which does not exist inside WSL — `git commit` there succeeded while running nothing. That is the worst failure mode a hook can have: it looks like protection. Fixed with a worktree-scoped override, leaving the Windows value untouched; `git config --show-origin --get core.hooksPath` shows which side you are on.
+
+**Gate 5 has a second, worse defect than #594, now filed as [xp-gate#611](https://github.com/boyingliu01/xp-gate/issues/611).** Gate 5 branches on `$?` from `vitest run --coverage`, but vitest exits **1** both for a failing test and for any unmet coverage threshold. Measured with 15 passing tests:
+
+```
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+ERROR: Coverage for lines (0%) does not meet global threshold (80%)
+$ echo $?   # → 1
+```
+
+The gate then prints `❌ BLOCKED - Tests FAILED in related test files`. Nothing failed. Combined with `coverage.include: ['src/**/*.ts']` (added for #594), which puts all ~76 source files in the denominator of every subset run, Gate 5 becomes **unsatisfiable** for a single-file `src/` edit: test files changed, `src` file changed, anything short of a full-suite run lands at 1-2% coverage and is reported as a test failure. This is why a docs-only commit scores 10.0/10 while one small `src` change blocks with a message pointing at the wrong thing. Workaround: run the full suite when touching `src/`.
+
 **The gates no longer cross between Windows and WSL — that hop was the whole problem.** On the Windows PATH, `bash` resolves to `C:\WINDOWS\system32\bash.exe`, which is the *WSL launcher*, not Git Bash. Because `core.hooksPath` points at a `#!/bin/bash` hook, every `git commit` from Windows quietly ran the gate suite inside WSL. `scripts/run-xp-gate.sh` had grown a shim layer to survive that jump — POSIX shims for `.exe` tools, a mount-translating `node` shim so `/mnt/d/...` would not become `D:\mnt\d\...`, a Windows `HOME` for Gate 9's module resolution, `PYTHONUSERBASE` for the Python tools. All of it was compensating for a boundary nothing had asked to cross. It also produced the misleading "tool not installed" reports: the tools were installed, just in a user bin directory that only interactive login shells put on PATH, and Python looked for them under the wrong `HOME`.
 
 Every tool the gates need is already installed natively on Windows, several of them newer than the WSL copies: `lizard` 1.24.2, `semgrep` 1.171.0, gitleaks 8.30.1, node 24. `scripts/run-xp-gate-native.sh` runs the hooks through Git Bash instead of WSL — one filesystem, one PATH, one Python, no path translation. It prints the resolved path of each tool before running, so a wrong interpreter is visible immediately rather than surfacing as a mysterious SKIP. `scripts/run-xp-gate-native.ps1` is the same entry point for a PowerShell prompt, locating Git Bash from `git.exe` rather than a hard-coded path.

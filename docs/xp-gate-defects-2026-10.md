@@ -378,26 +378,125 @@ lightningcss behind Vite/Build Integrity) fails in WSL for that reason. This is
 inherent to a shared checkout and cannot be fixed by adding PATH entries — the
 Linux binaries are simply not on disk.
 
-**Consequences, stated plainly:**
+**Resolved: WSL has its own worktree on the Linux filesystem.** Two separate
+dependency trees, one per operating system, each with native binaries that match:
 
-- Running the gates from Windows is the supported configuration. They are
-  Windows-native and self-contained.
-- Running them from WSL would require its own dependency tree (a second
-  `npm install` performed *from WSL* into a separate directory, e.g. a dedicated
-  worktree), i.e. exactly the two-environment split that was just removed. It is
-  a deliberate choice not to maintain that.
-- `scripts/run-xp-gate-native.sh` invokes Git Bash explicitly, so calling it from
-  a WSL shell does not "fall back" to a WSL run — it fails loudly on the missing
-  Git Bash path, which is the honest outcome rather than a misleading half-run.
-- The WSL environment itself is untouched and still works for everything else;
-  its tool versions are simply older and it cannot run *this checkout's* JS
-  tooling.
+```
+~/dialog-survey-wsl   (branch wsl/dev, on ext4)   → @biomejs/cli-linux-x64   ✓
+D:\projects\dialog-survey (on NTFS)               → @biomejs/cli-win32-x64   ✓
+```
+
+Set up with:
+
+```bash
+git worktree add -b wsl/dev ~/dialog-survey-wsl master
+cd ~/dialog-survey-wsl && npm ci          # run from WSL → Linux binaries
+```
+
+`npm ci` warns that the `@prisma/engines` postinstall was not run (the repo's
+`allowScripts` gate); `npx prisma generate` still succeeds and produces the
+client, so it does not block anything.
+
+Two further things were needed, both environmental rather than gate defects:
+
+1. **PATH.** Every gate tool lives in `~/.local/bin`, which `~/.profile` adds —
+   but `~/.profile` is read only by *login* shells, and Ubuntu's `~/.bashrc`
+   returns early for non-interactive ones, so a gate shell saw nothing. Node is
+   installed via nvm, which is also `~/.bashrc`-only. Fixed by symlinking
+   `node`/`npm`/`npx` into `~/.local/bin` and having the WSL runner put that
+   directory first, so neither nvm sourcing nor an interactive shell is required.
+2. **`core.hooksPath`.** The shared `.git/config` sets
+   `C:/Users/think/.config/xp-gate/hooks`, which does not exist inside WSL — so
+   `git commit` from WSL **silently skipped every gate** while still succeeding.
+   Fixed with a worktree-scoped value (`extensions.worktreeConfig = true`, then
+   `git config --worktree core.hooksPath "$HOME/.config/xp-gate/hooks"`). The
+   Windows checkout keeps its own value untouched; verify either side with
+   `git config --show-origin --get core.hooksPath`.
+
+WSL also needed `gitleaks` (Gate 8); the other tools were already present. It was
+installed to `~/.local/bin` from the release tarball (no sudo), via a mirror
+because the direct GitHub download stalled.
+
+Measured in the WSL worktree: **167/167 test files, 1967 tests passing**, `tsc`
+clean, `biome check` clean on 284 files, and `bash scripts/run-xp-gate-wsl.sh
+pre-commit` running 8/12 gates for real — Gate 8 (both scanners) and Gate 10
+included. Gates 3 and 4 SKIP on doc-only changes; Gate 11 SKIP (not a sprint
+project).
+
+`scripts/run-xp-gate-wsl.sh` therefore replaces the "cannot run from WSL" verdict
+above. It refuses a `/mnt/` checkout with exit code 2 and an explanation, rather
+than letting Gate 1 fail on the missing Linux Biome and be read as a lint
+problem.
 
 Suggested upstream improvement: the failure surface would be much clearer if the
 adapter distinguished "native binary missing for this platform" from "code
 quality violation". `Cannot find module '@biomejs/cli-linux-x64/biome'` presented
 under `❌ BLOCKED - Biome check failed` reads as the project having a lint
 problem.
+
+---
+
+## 12. Gate 5 reports "Tests FAILED" when the tests passed and only coverage was low
+
+**Severity: high. Reported to the user, not yet filed upstream — reproduce below
+before filing.**
+
+Gate 5 runs `npx vitest run --coverage <targets>` and then branches on the
+process exit code alone:
+
+```sh
+TESTS_OUTPUT=$(run_without_git_context npx vitest run --coverage $RELATED_TESTS 2>&1)
+TESTS_EXIT_CODE=$?
+if [ "$TESTS_EXIT_CODE" -ne 0 ]; then
+  echo "❌ BLOCKED - Tests FAILED in related test files"
+  exit 1
+fi
+```
+
+But `vitest run --coverage` exits **1 for two different reasons**: a failing
+test, *or* any configured coverage threshold that is not met. The gate cannot
+tell them apart, so a coverage shortfall — which is a different finding with a
+different fix — is reported as a broken test.
+
+Measured on this repo, both platforms, with a single test file whose 15 tests
+all pass:
+
+```
+$ npx vitest run --coverage tests/admin-auth.test.ts
+ Test Files  1 passed (1)
+      Tests  15 passed (15)
+ERROR: Coverage for lines (0%) does not meet global threshold (80%)
+$ echo $?
+1
+```
+
+The gate prints `❌ BLOCKED - Tests FAILED in related test files` for that run.
+Nothing is failing. The number 0% is the second half of the bug: `vitest.config.ts`
+sets `coverage.include: ['src/**/*.ts']` (added deliberately for defect #9), which
+puts all ~76 source files in the denominator of every subset run, so a
+one-file run can never reach 80%. Combined, Gate 5 becomes **unsatisfiable** for
+any change that touches `src/` without also running the full suite:
+
+| change | target selection | result |
+|---|---|---|
+| test file(s) changed | those files | coverage ≈ 1-2% → exit 1 → "Tests FAILED" |
+| src file changed | related tests | coverage ≈ 1-2% → exit 1 → "Tests FAILED" |
+| >20 test files | full suite | coverage ≈ 94% → passes |
+
+This is why the Windows pre-commit run scores 10.0/10 on documentation-only or
+wide changes but blocks on a single-file `src/` edit even when every test in that
+file passes.
+
+**Suggested upstream fix:** separate the two signals. Either run without
+`--coverage` for the pass/fail decision and evaluate coverage in a second step, or
+read the coverage verdict from the JSON report rather than the exit code, and emit
+a distinct message such as `❌ BLOCKED - Coverage X% below threshold Y%` so the
+operator fixes the right thing. A gate that says "tests failed" when they did not
+costs more than the check is worth — it trains people to reach for `--no-verify`.
+
+**Workaround in this repo:** run the full suite
+(`npx vitest run --coverage`) when a change touches `src/`, so the coverage total
+is real and above threshold; the gate then passes on evidence.
 
 ---
 
