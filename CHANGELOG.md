@@ -4,6 +4,29 @@
 
 ### Tooling
 
+**The Docker image drops its build-time tooling and finally boots (issue #210).** Two things were wrong, and only one of them was the issue as filed.
+
+The filed problem was size. `Dockerfile:7` installed everything and copied the whole tree into the runner stage, so the image carried the Prisma CLI, Prisma Studio, `effect`, an embedded PGlite and `typescript` — none of which a server loads. `npm prune --omit=dev` cannot fix it: `prisma` and `typescript` are devDependencies *and* optional peerDependencies of `@prisma/client`, so npm records them as `devOptional` and keeps them under `--omit=dev`. The existing `scripts/prune-runtime-deps.mjs` derives the real graph from what `dist/` imports instead, and running it between build and runner achieves **`node_modules` 731 MB → 163 MB, image 1.22 GB → 574 MB** (`[prune] removed 623 package(s), 481.9 MB` / `[prune] verified: 148 kept package(s), all dependencies resolve`).
+
+The bigger problem was that **the image had never started at all.** Building it and running it — with the Dockerfile unmodified — died at boot:
+
+```
+Error: Cannot find addon '.' imported from 'sodium-native/binding.js'
+Candidates:
+- .../node_modules/sodium-native/prebuilds/linux-x64-musl/sodium-native@5.1.0.node
+```
+
+`node:20-alpine` is musl, and `sodium-native` (pulled in by `@fastify/secure-session`) ships prebuilds for `linux-x64` but not `linux-x64-musl`. Both images were verified to lack that directory, so pruning did not cause this — it was latent. The base is now `node:20-slim` (Debian/glibc), with `addgroup`/`adduser` replaced by `groupadd`/`useradd`.
+
+Pruning also removed the Prisma CLI that `CMD` used for migrations, so `scripts/migrate-deploy.mjs` replaces it: it applies `prisma/migrations/*.sql` through `pg` and records them in `_prisma_migrations` using Prisma's own schema and SHA-256 checksums. Interchangeability was verified in both directions against the real CLI — a database migrated by the script reports `No pending migrations to apply` under `prisma migrate deploy`, and a CLI-migrated database is recognised by the script — so `deploy.sh` and the container can both manage the same database.
+
+Two smaller defects surfaced while running it for real:
+
+- **`pino-pretty` is a devDependency, so a container started without `NODE_ENV=production` crashed** with `unable to determine transport target for "pino-pretty"`. `createLoggerConfig` now falls back to plain JSON when the package cannot be resolved; pretty logs are a convenience, never a startup requirement.
+- **`SESSION_SALT` must be 32 hex characters**, because `src/server.ts` does `Buffer.from(salt, 'hex')` and secure-session needs 16 bytes after decoding. 16 arbitrary characters fails with `salt must be length 16`, which reads as if the count were wrong when it is the encoding.
+
+Verified end to end on WSL2 + Docker 29.9.2 against real PostgreSQL: migrations applied, restart idempotent (`up to date (2 migration(s))`), container `healthy`, `/health` returning `db: ok`.
+
 **A WSL development worktree was set up, measured, and then removed — Windows is the only development environment.** WSL is not part of this project's development flow: `scripts/deploy.sh`, the `Dockerfile`, `docker-compose.yml` and every CI workflow are WSL-agnostic, and the gates run entirely on Windows. Production targets plain Linux (`DEPLOY.md` — any box with Node 20.19+ and PostgreSQL 14+), which is a deployment concern, not a development one.
 
 It was worth trying, because the reason WSL *cannot* share the Windows checkout is a real constraint worth recording: `/mnt/d` is one directory seen by two operating systems, so it carries a single `node_modules` holding only the native binaries of whichever platform last ran `npm install`. Windows writes `@biomejs/cli-win32-x64`; WSL needs `cli-linux-x64`, which is not on disk, and Gate 1 stops with `Cannot find module '@biomejs/cli-linux-x64/biome'` — presented as a lint failure, which is how it got blamed on the tools for several rounds.

@@ -200,6 +200,50 @@ sudo certbot --nginx -d interview.example.com
 > bypass the limiter entirely. Keep Mode 2 (direct/PM2) for production admin access, or
 > harden the proxy before enabling `trustProxy`.
 
+### Mode 4: Docker
+
+The image is a two-stage build on `node:20-slim`. The builder installs everything,
+generates the Prisma client, compiles, and then **prunes build-time tooling** — the
+runner stage only receives what `dist/` actually imports. Measured: `node_modules`
+731 MB → 163 MB, image 1.22 GB → 574 MB.
+
+```bash
+docker build -t dialog-survey:latest .
+
+docker run -d --name dialog-survey -p 3001:3001 \
+  -e DATABASE_URL='postgresql://<user>:<password>@<host>:5432/dialog_survey' \
+  -e SESSION_SECRET='<at least 32 chars>' \
+  -e SESSION_SALT='<32 hex chars>' \
+  dialog-survey:latest
+```
+
+> **`SESSION_SALT` is 32 hexadecimal characters, not 16 arbitrary ones.**
+> `src/server.ts` does `Buffer.from(salt, 'hex')` and `@fastify/secure-session`
+> requires 16 *bytes* after decoding. A 16-character string decodes to 8 bytes and
+> fails with `salt must be length 16`, which reads as if 16 characters were given —
+> they were; they were just not hex. Generate one with
+> `node -e "console.log(require('crypto').randomBytes(16).toString('hex'))"`.
+
+Migrations run automatically before the server starts. The image has no Prisma CLI —
+it is pruned away — so `scripts/migrate-deploy.mjs` applies `prisma/migrations/*.sql`
+with `pg` and records them in `_prisma_migrations` using Prisma's own schema and
+SHA-256 checksums. A database migrated by the image is readable by
+`prisma migrate deploy` (Mode 1/2), and vice versa; both directions were verified
+against the CLI. Applying is idempotent, so restarts and scale-out replicas are safe.
+
+> **Base image is Debian, not Alpine, on purpose.** `sodium-native` (required by
+> `@fastify/secure-session`) ships prebuilt binaries for `linux-x64` (glibc) but not
+> `linux-x64-musl`, so an Alpine image cannot load it and dies at boot with
+> `Cannot find addon '.' imported from sodium-native/binding.js`. Do not switch the
+> base back to `node:20-alpine` without first solving that.
+
+To verify the deployed size and schema in one pass:
+
+```bash
+docker run --rm dialog-survey:latest du -sh /app/node_modules
+docker exec dialog-survey node scripts/migrate-deploy.mjs --dry-run
+```
+
 ## Health Checks
 
 ```bash
