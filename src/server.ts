@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { basename, dirname, normalize } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import cors from '@fastify/cors';
@@ -102,8 +103,33 @@ export async function checkDatabaseConnection(
   }
 }
 
+/**
+ * Whether an optional dependency can be resolved at runtime.
+ *
+ * Used for packages that are dev-only but guarded by a runtime branch: a deployed
+ * tree legitimately lacks them (issue #210 prunes devDependencies), so the branch
+ * must degrade instead of throwing. `createRequire` is used because the logger
+ * config is built synchronously and `import()` would force it async.
+ */
+export function isPackageResolvable(name: string): boolean {
+  try {
+    createRequire(import.meta.url).resolve(name);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function createLoggerConfig(isProduction: boolean): Record<string, unknown> {
   if (isProduction) {
+    return { level: LOG_LEVEL };
+  }
+  // `pino-pretty` is a devDependency. A production image prunes devDependencies
+  // (issue #210), so a container started without NODE_ENV=production would die at
+  // boot with "unable to determine transport target for 'pino-pretty'". Pretty
+  // logs are a developer convenience, never a startup requirement, so fall back
+  // to plain JSON when the package is not installed.
+  if (!isPackageResolvable('pino-pretty')) {
     return { level: LOG_LEVEL };
   }
   return {
