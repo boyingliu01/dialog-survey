@@ -378,15 +378,12 @@ lightningcss behind Vite/Build Integrity) fails in WSL for that reason. This is
 inherent to a shared checkout and cannot be fixed by adding PATH entries — the
 Linux binaries are simply not on disk.
 
-**Resolved: WSL has its own worktree on the Linux filesystem.** Two separate
-dependency trees, one per operating system, each with native binaries that match:
+**Outcome: a WSL worktree worked, then was removed because WSL is not a
+development environment here.** Kept in this document because the *reason* it
+needs a separate checkout is a durable constraint, and rediscovering it costs
+an afternoon.
 
-```
-~/dialog-survey-wsl   (branch wsl/dev, on ext4)   → @biomejs/cli-linux-x64   ✓
-D:\projects\dialog-survey (on NTFS)               → @biomejs/cli-win32-x64   ✓
-```
-
-Set up with:
+Recreate it if ever needed — two commands and one `npm ci`:
 
 ```bash
 git worktree add -b wsl/dev ~/dialog-survey-wsl master
@@ -397,36 +394,33 @@ cd ~/dialog-survey-wsl && npm ci          # run from WSL → Linux binaries
 `allowScripts` gate); `npx prisma generate` still succeeds and produces the
 client, so it does not block anything.
 
-Two further things were needed, both environmental rather than gate defects:
+Two further traps that cost most of the time, both silent:
 
 1. **PATH.** Every gate tool lives in `~/.local/bin`, which `~/.profile` adds —
    but `~/.profile` is read only by *login* shells, and Ubuntu's `~/.bashrc`
    returns early for non-interactive ones, so a gate shell saw nothing. Node is
    installed via nvm, which is also `~/.bashrc`-only. Fixed by symlinking
-   `node`/`npm`/`npx` into `~/.local/bin` and having the WSL runner put that
-   directory first, so neither nvm sourcing nor an interactive shell is required.
+   `node`/`npm`/`npx` into `~/.local/bin` and putting that directory first, so
+   neither nvm sourcing nor an interactive shell is required. WSL also genuinely
+   lacked `gitleaks` (Gate 8); it installs to `~/.local/bin` from the release
+   tarball without sudo — use a mirror, the direct GitHub download stalls.
 2. **`core.hooksPath`.** The shared `.git/config` sets
    `C:/Users/think/.config/xp-gate/hooks`, which does not exist inside WSL — so
    `git commit` from WSL **silently skipped every gate** while still succeeding.
-   Fixed with a worktree-scoped value (`extensions.worktreeConfig = true`, then
-   `git config --worktree core.hooksPath "$HOME/.config/xp-gate/hooks"`). The
-   Windows checkout keeps its own value untouched; verify either side with
+   This is the worst failure mode a hook can have: it looks like protection. Fix
+   with a worktree-scoped value (`extensions.worktreeConfig = true`, then
+   `git config --worktree core.hooksPath "$HOME/.config/xp-gate/hooks"`) and
+   remove it again when the worktree goes away. Verify either side with
    `git config --show-origin --get core.hooksPath`.
 
-WSL also needed `gitleaks` (Gate 8); the other tools were already present. It was
-installed to `~/.local/bin` from the release tarball (no sudo), via a mirror
-because the direct GitHub download stalled.
+Measured while it existed: **167/167 test files, 1967 tests passing**, `tsc`
+clean, `biome check` clean on 284 files, and 8/12 gates running for real — Gate 8
+(both scanners) and Gate 10 included.
 
-Measured in the WSL worktree: **167/167 test files, 1967 tests passing**, `tsc`
-clean, `biome check` clean on 284 files, and `bash scripts/run-xp-gate-wsl.sh
-pre-commit` running 8/12 gates for real — Gate 8 (both scanners) and Gate 10
-included. Gates 3 and 4 SKIP on doc-only changes; Gate 11 SKIP (not a sprint
-project).
-
-`scripts/run-xp-gate-wsl.sh` therefore replaces the "cannot run from WSL" verdict
-above. It refuses a `/mnt/` checkout with exit code 2 and an explanation, rather
-than letting Gate 1 fail on the missing Linux Biome and be read as a lint
-problem.
+It was removed because it duplicated a 663 MB dependency tree and required manual
+`git fetch && git merge` before every WSL session, for an environment used
+rarely. `scripts/deploy.sh`, the `Dockerfile`, `docker-compose.yml` and all CI
+workflows are WSL-agnostic, so nothing regressed by deleting it.
 
 Suggested upstream improvement: the failure surface would be much clearer if the
 adapter distinguished "native binary missing for this platform" from "code
