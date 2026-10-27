@@ -340,6 +340,7 @@ git config --global http.sslBackend openssl
 | 9 | HTTP/2 | ALPN 探测 | — 服务端 ALPN 不提供 h2，无法走该通道 |
 | 10 | SSH 替代通道 | TCP 22 端口 | — 内网不可达，无法作为规避手段 |
 | 11 | **真实 push（新提交）** | 向临时分支推送 1 个新提交 | ✅ exit 0，`git ls-remote` 确认远端收到目标 SHA（随后已删除该临时分支） |
+| 12 | `http.postBuffer=524288000` + `http.version=HTTP/1.1`（第二轮建议） | 本机早已生效；另用 curl 模拟其请求形态（HTTP/1.1 + Expect:100-continue）拉大响应 | ❌ `HTTP=200 size=28522829` + exit 56，详见 §11.3 |
 
 两个关键读数：
 
@@ -357,7 +358,36 @@ git config --global http.sslBackend openssl
 
 我方立场不变（§6）：严格 TLS 客户端把「无 close_notify 的断开」判为错误是 RFC 要求的正确行为，Git/curl 无法宽容处理，否则会产生静默截断风险。**这不是任何客户端的配置问题**，§11.1 的 11 组实验已穷尽客户端侧可控变量。
 
-### 11.3 我方可提供的追加材料
+### 11.3 第二轮答复：`http.postBuffer` / `http.version`（2026-10-27 晚补充）
+
+贵方第二次建议执行：
+
+```bash
+git config --global http.postBuffer 524288000
+git config --global http.version HTTP/1.1
+```
+
+**实测结论：同样无效，且这两条在本机早已生效**（自首次排障起就在全局配置里，值与建议完全一致）。原理上也命中不了本缺陷：
+
+- `http.postBuffer` 只改变**客户端上行请求体**的缓冲方式——超过该阈值时改用 chunked 上传，低于时用带 Content-Length 的一次性 POST。它不改变服务端返回响应后的收尾行为。
+- 本缺陷发生在**下行响应的 TLS 关闭阶段**（§4–§6），与请求如何发出无关。
+- 两条生效后 `git fetch` 依旧必现 curl 56；用 curl 直接模拟 postBuffer 生效后的请求形态（HTTP/1.1 + `Expect: 100-continue`）拉取大响应，结果不变：`HTTP=200 size=28522829` + exit 56（§10.1 脚本 #6 行即此组合）。
+
+至此三个客户端侧方案（sslBackend、TLS 版本、postBuffer/http.version）均已按贵方指引逐一验证并排除。**请贵方按 §11.2 排查 openresty 的连接收尾逻辑**——所有证据都指向同一处：大响应 `Connection: close` 前缺少 `close_notify`。
+
+### 11.4 传输量说明（回应"代码量不大为何传输 28 MB"）
+
+本仓库 TS 源码仅约 1 万行，但完整历史 pack 为 **26.4 MB**，其中：
+
+| 对象 | 大小 | 状态 |
+|---|---|---|
+| `assets/fonts/NotoSansCJKsc-Regular.otf` | **16.4 MB** | 仍在 HEAD（PDF 导出嵌入 CJK 字体，功能必需） |
+| 两份 PDF（项目研究/规范库） | 各 ~6.5 MB | 已从工作树删除，但留在历史中 |
+| 其余全部源码/测试/文档合计 | ~3 MB | — |
+
+克隆与全量 fetch 必须传输完整历史，故必然触发大响应路径。即使做最激进的瘦身（历史重写剔除 PDF），pack 仍约 20 MB——**瘦身只是把复现概率从"必现"降到"大概率"，不能消除缺陷**（小响应阈值在 4 KB 以下才安全，见 §4）。根治仍在服务端收尾逻辑。
+
+### 11.5 我方可提供的追加材料
 
 - 上述 11 组实验的完整原始输出与时间戳；
 - 同一时刻大小响应对照抓包（§4 的扩展版，含 TLS 记录层日志 `SSLKEYLOGFILE`）。
