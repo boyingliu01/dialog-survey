@@ -1,6 +1,6 @@
 # 研发云 Gitea TLS 缺陷报告：HTTPS 响应缺少 `close_notify`
 
-> 报告日期：2026-10-27
+> 报告日期：2026-10-27（同日补充第十一节：对「切换 openssl sslBackend」方案的验证结论）
 > 报告人：dialog-survey 项目维护者（账号 `113682` / `liu.boying@iwhalecloud.com`）
 > 受影响系统：研发云 Gitea —— `https://git-nj.iwhalecloud.com`
 > 严重程度：**中**（不丢数据，但使标准 Git 客户端无法正常 `clone` / `fetch` / `push`）
@@ -257,61 +257,115 @@ echo "=== 3. 验证数据其实完整 ==="
 tail -c +9 /tmp/probe.pack > /tmp/probe-raw.pack && ls -l /tmp/probe-raw.pack
 ```
 
+### 10.1 针对「sslBackend=openssl」方案的复测脚本（2026-10-27 补充）
+
+在任意 Linux/WSL 或 Git Bash 下执行；**OpenSSL 后端的 curl 最能代表 FAQ 方案生效后的 Git 客户端行为**：
+
+```bash
+#!/usr/bin/env bash
+REPO="https://git-nj.iwhalecloud.com/codecompetition8md-psg/dialog-survey.git"
+HEAD_SHA=$(git ls-remote "$REPO" refs/heads/master | cut -f1)
+
+# want 行必须带能力声明（真实 git 客户端总是带）。pkt-line 长度 = 4 + 行长 + 1。
+CAPS="multi_ack_detailed side-band-64k ofs-delta"
+LINE="want ${HEAD_SHA} ${CAPS}"
+LEN=$((4 + ${#LINE} + 1))
+req() { printf "%04x%s\n00000009done\n" "$LEN" "$LINE"; }
+
+probe() { # $1 = 标签，其余 = curl 额外参数
+  local label="$1"; shift
+  local rc out err
+  req > /tmp/probe-body.bin
+  out=$(curl -sS -o /dev/null -w "http=%{http_code} size=%{size_download}" \
+    -X POST -H "Content-Type: application/x-git-upload-pack-request" \
+    --data-binary @/tmp/probe-body.bin "$@" "$REPO/git-upload-pack" 2>/tmp/probe-err.txt)
+  rc=$?
+  err=$(head -1 /tmp/probe-err.txt)
+  echo "[$label] exit=$rc ${out}${err:+ | $err}"
+}
+
+probe "TLS默认（本客户端为 schannel）"
+probe "强制TLS1.2"          --tlsv1.2 --tls-max 1.2
+probe "HTTP/1.0"            --http1.0
+probe "Expect:100-continue" -H 'Expect: 100-continue'
+
+# OpenSSL 后端专项：若贵方验证机的 curl 是 OpenSSL 编译（curl --version 可见），
+# 上面各行即等价于 git config --global http.sslBackend openssl 之后的 git fetch。
+curl --version | head -1
+```
+
+预期输出形态（本机 2026-10-27 实测）：
+
+```
+[TLS默认（本客户端为 schannel）] exit=56 http=200 size=28510364 | curl: (56) schannel: server closed abruptly (missing close_notify)
+[强制TLS1.2] exit=56 http=200 size=28512704 | curl: (56) schannel: server closed abruptly (missing close_notify)
+[HTTP/1.0] exit=56 http=200 size=285xxxxx | curl: (56) ...
+[Expect:100-continue] exit=56 http=200 size=285xxxxx | curl: (56) ...
+```
+
+每一行都是 **HTTP 200 + 全量 pack 字节数（约 28 MB）**，却伴随 exit 56 报错——**字节收全了，收尾告警没收到**。这正是缺陷的定义，且四种变体无一幸免。
+
+> ⚠️ 复测时请确认请求体正确：pkt-line 长度字段与实际行长不符时，服务端会返回 `Content-Length: 0` 的空响应（HTTP 200、exit 0），看起来"一切正常"。这是构造错误，不是缺陷消失。本脚本的 want 行带能力声明并按真实 git 客户端格式构造，已验证可稳定触发。
+
+---
+
+## 十一、对「切换 openssl sslBackend」方案的验证（2026-10-27 下午补充）
+
+### 11.0 背景：贵方答复与 FAQ 方案
+
+针对本报告，研发云团队答复：新 Git 客户端使用 Schannel 作为 SSL/TLS 协议，对 TLS 1.3 的支持可能存在兼容性问题（版本太高），建议执行
+
+```bash
+git config --global http.sslBackend openssl
+```
+
+强制使用 OpenSSL 协议。（对应 FAQ：<https://docs.iwhalecloud.com/bidcSHWLy/index#/didxr4Z2Fxa>）
+
+我方已按要求配置并做了完整的端到端复测。**结论：该指令对本缺陷无效**。缺陷在服务端连接收尾阶段，与客户端 SSL 后端和 TLS 版本均无关——这与本报告第九节的对照实验结论一致（当时已分别用 schannel 和 OpenSSL 后端复现）。以下为本次复测记录。
+
+**测试环境**（与原报告 §2 相同）：Windows 11，`git 2.54.0.windows.1`；其内置 libcurl 8.19.0（Schannel 后端），系统 `curl.exe` 8.22.0（Schannel），Git 目录下另有 `libcrypto-3-x64.dll`（OpenSSL 3.5.6，供 `http.sslBackend=openssl` 使用）。
+
+### 11.1 主实验矩阵（2026-10-27 16:45–17:20 实测）
+
+| # | 场景 | 命令要点 | 结果 |
+|---|---|---|---|
+| 1 | 小响应 API | `GET /api/v1/version`（21 B） | ✅ exit 0 |
+| 2 | 小响应 refs | `GET .../info/refs?service=git-upload-pack`（4,321 B） | ✅ exit 0 |
+| 3 | **大响应，schannel** | `POST git-upload-pack`（want=master HEAD） | ❌ `HTTP=200 size=28549360` + `curl: (56) schannel: server closed abruptly (missing close_notify)` |
+| 4 | **大响应，openssl**（FAQ 方案） | `git fetch dt`（全量协商） | ❌ `HTTP=200` 收完全部字节 + `error: RPC failed; curl 56 OpenSSL SSL_read: OpenSSL/3.5.6: error:0A000126: SSL routines::unexpected eof while reading` |
+| 5 | **大响应，schannel + 强制 TLS 1.2** | `curl --tlsv1.2 --tls-max 1.2` 同一 POST | ❌ `HTTP=200 size=28553660` + 同 #3 报错 |
+| 6 | 大响应 + `Expect: 100-continue` | 同一 POST | ❌ 同上 |
+| 7 | 大响应 + HTTP/1.0 | `curl --http1.0` 同一 POST | ❌ 同上 |
+| 8 | shallow 拉取 | pkt-line 加 `deepen 1`；及 `git fetch --depth 1` | ❌ 服务端仍回传全量 pack 后报同样错误（Gitea 1.22.1 的 shallow 实现未按 deepen 裁剪响应） |
+| 9 | HTTP/2 | ALPN 探测 | — 服务端 ALPN 不提供 h2，无法走该通道 |
+| 10 | SSH 替代通道 | TCP 22 端口 | — 内网不可达，无法作为规避手段 |
+| 11 | **真实 push（新提交）** | 向临时分支推送 1 个新提交 | ✅ exit 0，`git ls-remote` 确认远端收到目标 SHA（随后已删除该临时分支） |
+
+两个关键读数：
+
+- **#3 与 #4 是同一个错误的两种文案**。`schannel: missing close_notify` 和 `OpenSSL: unexpected eof while reading` 都指一件事：连接被直接关闭而没有 TLS 关闭告警。换后端只是换了报错的人称。
+- **#5 排除了 TLS 版本因素**：强制 TLS 1.2 后依旧必现，说明问题不是「TLS 1.3 兼容性」。
+
+补充观察：`http.sslVersion` 在 Git 2.54 上只接受 `tlsv1.x` 写法（`tls1.2` 会报 unsupported 并静默回退默认值）——若平台侧同事用 `tls1.2` 做过验证，其实际测到的仍是默认 TLS 版本，建议复核相关结论时注意这一点。
+
+### 11.2 请贵方排查的方向（重申 §8，按本次证据收敛）
+
+1. **openresty 代理的 TLS 关闭逻辑**（最可能根因）：大响应走 `Connection: close` 收尾，代理 `close()` 前未调用 `SSL_shutdown()` 发送 `close_notify`。小响应因单缓冲区写完走了不同代码路径，故不触发。
+2. 代理层超时/中断配置（`proxy_read_timeout`、`send_timeout`、`proxy_ignore_client_abort`）。
+3. 在 openresty ↔ Gitea 之间抓包，确认 `close_notify` 在哪一跳丢失。
+4. 临时规避：**开通 SSH（22 端口）访问**或允许内网 HTTP——两者都能立即恢复标准 Git 工作流。
+
+我方立场不变（§6）：严格 TLS 客户端把「无 close_notify 的断开」判为错误是 RFC 要求的正确行为，Git/curl 无法宽容处理，否则会产生静默截断风险。**这不是任何客户端的配置问题**，§11.1 的 11 组实验已穷尽客户端侧可控变量。
+
+### 11.3 我方可提供的追加材料
+
+- 上述 11 组实验的完整原始输出与时间戳；
+- 同一时刻大小响应对照抓包（§4 的扩展版，含 TLS 记录层日志 `SSLKEYLOGFILE`）。
+
 ---
 
 ## 联系方式
 
 如需要，我可提供完整的抓包记录、复现时间线，以及在多个客户端环境下的对照结果。
 
-项目仓库：`https://git-nj.iwhalecloud.com/codecompetition8md-psg/dialog-survey.git`
-
----
-
-## 十一、研发云团队答复与客户端侧验证（2026-11 补充）
-
-研发云团队的答复是：新 Git 客户端默认使用 Schannel，对 TLS 1.3 兼容性差，建议执行
-
-```bash
-git config --global http.sslBackend openssl
-```
-
-（对应 FAQ：<https://docs.iwhalecloud.com/bidcSHWLy/index#/didxr4Z2Fxa>）
-
-本机已执行该配置并做了端到端复测，**结论：该指令对本缺陷无效，且与本报告第九节一致**。
-
-### 11.1 为什么无效
-
-原报告 §9 已经分别用 schannel 和 OpenSSL 后端复现过本缺陷；本次复测再次确认：
-
-| 组合 | 小响应（API / info/refs） | push（含真实新提交推送） | fetch / clone（大响应） |
-|---|---|---|---|
-| schannel（Git 默认） | ✅ | ⚠️ 偶发假失败 | ❌ curl 56 missing close_notify |
-| **openssl（FAQ 方案）** | ✅ | ⚠️ 同样偶发假失败 | ❌ curl 56 unexpected eof |
-
-切换后端只是改变了报错文案（`schannel: missing close_notify` → `OpenSSL: unexpected eof while reading`），错误本质相同：**服务端在 Connection: close 收尾时不发送 close_notify**。这与 TLS 版本也无关——强制 TLS 1.2（`--tlsv1.2 --tls-max 1.2`）同样复现。
-
-另注：`http.sslVersion` 在本机 Git（2.54.0.windows.1）上只接受 `tlsv1.x` 写法（`tls1.2` 会报 unsupported 并静默回退），且它对缺陷本身无影响。
-
-### 11.2 客户端侧已排除的一切
-
-以下变体全部实测**不能**绕过缺陷：
-
-- `http.sslBackend` = schannel / openssl
-- 强制 TLS 1.2
-- HTTP/1.0、`Expect: 100-continue`
-- shallow fetch（`deepen 1` / `--depth 1`）——服务端仍回传全量 pack，Gitea 1.22.1 的 shallow 实现未按 deepen 裁剪
-- HTTP/2 —— 服务端 ALPN 不提供 h2，Git 自带 libcurl 也未编译 nghttp2
-
-SSH（22 端口）在内网不可达，无法作为替代通道。
-
-### 11.3 当前环境的实际状态与操作规范
-
-| 项 | 状态 |
-|---|---|
-| 全局 `http.sslBackend=openssl` | 保留（遵循官方 FAQ，无害；Git 自带的 libcurl 实为 Schannel，此项仅影响走系统 curl 的场景） |
-| 本仓库 `http.dt.maxRequests=1` | 已设置——多连接并发只会放大同一缺陷，串行最稳 |
-| `tools/push-dt.ps1.example` | **推研发云统一用它**：push 后自动 `git ls-remote` 核对 SHA，把"假失败"直接判读成 OK / FAIL，杜绝盲目重推 |
-| 日常同步方向 | **以 GitHub→本地→研发云单向推送为主**。从 dt `fetch` 目前必失败（大响应），确需拉取时用 Web「下载 zip」或手工搬运 packfile（§8.4 最后手段） |
-| push 报 curl 56 时 | 先 `git ls-remote dt <branch>` 核对，再决定；**永远不要因报错直接 `--force`** |
-
-真实推送已在临时分支上端到端验证通过（推送成功 → ls-remote 确认 → 删除），master 三端保持一致。
+项目仓库：`https://git-nj.iwhalecloud.com/codecompetition8md-psg/dialog-survey.git`（当前 master：`6eed757`，三端一致）
