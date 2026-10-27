@@ -387,6 +387,8 @@ git config --global http.version HTTP/1.1
 
 克隆与全量 fetch 必须传输完整历史，故必然触发大响应路径。即使做最激进的瘦身（历史重写剔除 PDF），pack 仍约 20 MB——**瘦身只是把复现概率从"必现"降到"大概率"，不能消除缺陷**（小响应阈值在 4 KB 以下才安全，见 §4）。根治仍在服务端收尾逻辑。
 
+**2026-10-27 晚更新：我方已完成上述瘦身**（filter-repo 剔除两份 PDF + 字体转 Git LFS），全史 pack 现为 **17.5 MB**。实测表明这仍然不够：`git ls-remote`（4 KB 级）正常，而任何拉取完整历史的 clone/fetch（17 MB）**依旧 100% 触发本缺陷**——这是对"客户端瘦身即可绕过"设想的又一次证伪。**请贵方勿以客户端瘦身作为修复方向，回归 §11.2。**
+
 ### 11.5 我方可提供的追加材料
 
 - 上述 11 组实验的完整原始输出与时间戳；
@@ -398,4 +400,4 @@ git config --global http.version HTTP/1.1
 
 如需要，我可提供完整的抓包记录、复现时间线，以及在多个客户端环境下的对照结果。
 
-项目仓库：`https://git-nj.iwhalecloud.com/codecompetition8md-psg/dialog-survey.git`（当前 master：`6eed757`，三端一致）
+项目仓库：`https://git-nj.iwhalecloud.com/codecompetition8md-psg/dialog-survey.git`（当前 master：`c5f33b6`，三端一致）
