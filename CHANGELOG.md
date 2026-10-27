@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Documentation
+
+**Competition materials recovered from the DT mirror.** The 研发云 (DT) Gitea repository had drifted into a separate history — its last common ancestor with this branch is from 2026-03-12, because earlier syncs went over as "snapshot sync from mainline" commits that rewrote history instead of pushing. Its head was a v1.11.4-era snapshot eight versions behind, so bringing it up to date meant replacing that branch wholesale. Before doing so, the tree was checked for content that exists in no other copy, and eight files did:
+
+- `docs/code-race-8th/` — the competition submission (statement, core-code list, demo handbook, video script, README).
+- `LICENSE` — MIT, which this repository had never contained.
+- `MAX_FOLLOWUPS_FIX.md` and `scripts/fix-max-followups.ts` — the one-off note and script behind the v1.8.0 `maxFollowups` default change.
+
+They are restored here so the upcoming mirror replacement destroys nothing. `reports/` was deliberately left behind: it is gitignored build output (two interview exports and a mutation report), not source.
+
+### Fixed
+
+**The admin UI no longer depends on a public CDN for htmx.** Both layouts loaded it as `<script src="https://unpkg.com/htmx.org@2.0.4/...">` with `onerror="this.src='/js/htmx.min.js'"` as a fallback. That fallback is unreliable by construction: `onerror` only fires when a request fails outright, not when it is merely slow, so a half-loaded script leaves `htmx` undefined while the page still renders. Two Playwright tests in `tests/e2e/admin-ui-coverage.e2e.test.ts` failed exactly this way with `htmx is not loaded on the admin shell` — measured on the previous commit, so they predate this change. `public/js/htmx.min.js` (82 KB) was already vendored but sat unused on the happy path; both layouts now load it directly and never reach the network. Alpine.js was pinned to jsdelivr the same way and is now local too. Verified by running the full suite on the previous commit (2 failed / 1963 passed) and on this one (1965 passed).
+
+Tailwind still comes from `cdn.tailwindcss.com`. It is a runtime compiler that generates the utility classes these templates use, so it cannot be swapped for a static file without introducing a build step; it remains the only network dependency in the admin shell.
+
 ### Tooling
 
 **The Docker image drops its build-time tooling and finally boots (issue #210).** Two things were wrong, and only one of them was the issue as filed.
