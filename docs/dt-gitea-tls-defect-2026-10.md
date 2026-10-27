@@ -264,3 +264,54 @@ tail -c +9 /tmp/probe.pack > /tmp/probe-raw.pack && ls -l /tmp/probe-raw.pack
 如需要，我可提供完整的抓包记录、复现时间线，以及在多个客户端环境下的对照结果。
 
 项目仓库：`https://git-nj.iwhalecloud.com/codecompetition8md-psg/dialog-survey.git`
+
+---
+
+## 十一、研发云团队答复与客户端侧验证（2026-11 补充）
+
+研发云团队的答复是：新 Git 客户端默认使用 Schannel，对 TLS 1.3 兼容性差，建议执行
+
+```bash
+git config --global http.sslBackend openssl
+```
+
+（对应 FAQ：<https://docs.iwhalecloud.com/bidcSHWLy/index#/didxr4Z2Fxa>）
+
+本机已执行该配置并做了端到端复测，**结论：该指令对本缺陷无效，且与本报告第九节一致**。
+
+### 11.1 为什么无效
+
+原报告 §9 已经分别用 schannel 和 OpenSSL 后端复现过本缺陷；本次复测再次确认：
+
+| 组合 | 小响应（API / info/refs） | push（含真实新提交推送） | fetch / clone（大响应） |
+|---|---|---|---|
+| schannel（Git 默认） | ✅ | ⚠️ 偶发假失败 | ❌ curl 56 missing close_notify |
+| **openssl（FAQ 方案）** | ✅ | ⚠️ 同样偶发假失败 | ❌ curl 56 unexpected eof |
+
+切换后端只是改变了报错文案（`schannel: missing close_notify` → `OpenSSL: unexpected eof while reading`），错误本质相同：**服务端在 Connection: close 收尾时不发送 close_notify**。这与 TLS 版本也无关——强制 TLS 1.2（`--tlsv1.2 --tls-max 1.2`）同样复现。
+
+另注：`http.sslVersion` 在本机 Git（2.54.0.windows.1）上只接受 `tlsv1.x` 写法（`tls1.2` 会报 unsupported 并静默回退），且它对缺陷本身无影响。
+
+### 11.2 客户端侧已排除的一切
+
+以下变体全部实测**不能**绕过缺陷：
+
+- `http.sslBackend` = schannel / openssl
+- 强制 TLS 1.2
+- HTTP/1.0、`Expect: 100-continue`
+- shallow fetch（`deepen 1` / `--depth 1`）——服务端仍回传全量 pack，Gitea 1.22.1 的 shallow 实现未按 deepen 裁剪
+- HTTP/2 —— 服务端 ALPN 不提供 h2，Git 自带 libcurl 也未编译 nghttp2
+
+SSH（22 端口）在内网不可达，无法作为替代通道。
+
+### 11.3 当前环境的实际状态与操作规范
+
+| 项 | 状态 |
+|---|---|
+| 全局 `http.sslBackend=openssl` | 保留（遵循官方 FAQ，无害；Git 自带的 libcurl 实为 Schannel，此项仅影响走系统 curl 的场景） |
+| 本仓库 `http.dt.maxRequests=1` | 已设置——多连接并发只会放大同一缺陷，串行最稳 |
+| `tools/push-dt.ps1.example` | **推研发云统一用它**：push 后自动 `git ls-remote` 核对 SHA，把"假失败"直接判读成 OK / FAIL，杜绝盲目重推 |
+| 日常同步方向 | **以 GitHub→本地→研发云单向推送为主**。从 dt `fetch` 目前必失败（大响应），确需拉取时用 Web「下载 zip」或手工搬运 packfile（§8.4 最后手段） |
+| push 报 curl 56 时 | 先 `git ls-remote dt <branch>` 核对，再决定；**永远不要因报错直接 `--force`** |
+
+真实推送已在临时分支上端到端验证通过（推送成功 → ls-remote 确认 → 删除），master 三端保持一致。

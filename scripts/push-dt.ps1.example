@@ -1,0 +1,81 @@
+﻿<#
+.SYNOPSIS
+    向研发云 Gitea（remote "dt"）推送，并自动核对远端 SHA。
+
+.DESCRIPTION
+    研发云 openresty 代理在大响应收尾时缺少 TLS close_notify（见
+    docs/dt-gitea-tls-defect-2026-10.md）。该缺陷导致：
+      - fetch / clone 拉取大数据时报 curl 56（无法绕过，只能等服务端修复）；
+      - push 偶发“假失败”——服务端已收下提交，客户端仍报错。
+    因此对 dt 的每一次 push 都必须以 `git ls-remote` 的结果为准。
+    本脚本把「推送 → 核对 SHA → 必要时只读确认」固化成一条命令：
+
+      退出码 0 = 远端已确认收到目标提交（即使 git push 本身报了 TLS 错误）
+      退出码 1 = 远端未收到目标提交，且未重复推送；请人工排查后再试
+
+    用法：
+      powershell -File scripts/push-dt.ps1                 # 推当前分支到 dt
+      powershell -File scripts/push-dt.ps1 -Ref topic-x    # 推 topic-x
+      powershell -File scripts/push-dt.ps1 -DryRun         # 只演练 + 报告差异
+#>
+[CmdletBinding()]
+param(
+    # 要推送的本地分支/ref；默认当前分支
+    [string]$Ref,
+    # 只演练，不真正推送
+    [switch]$DryRun
+)
+
+$ErrorActionPreference = 'Continue'
+$remote = 'dt'
+
+if (-not $Ref) {
+    $Ref = (git rev-parse --abbrev-ref HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $Ref -or $Ref -eq 'HEAD') {
+        Write-Output 'ERROR: 无法确定当前分支，请用 -Ref 显式指定。'
+        exit 1
+    }
+}
+
+$localSha = (git rev-parse "$Ref").Trim()
+if ($LASTEXITCODE -ne 0) {
+    Write-Output "ERROR: 无法解析 $Ref"
+    exit 1
+}
+
+Write-Output "本地 $Ref = $localSha"
+Write-Output "--- git push $(if ($DryRun) {'--dry-run '})$remote ${Ref}:refs/heads/${Ref} ---"
+if ($DryRun) {
+    git push --dry-run $remote "${Ref}:refs/heads/${Ref}" 2>&1 | ForEach-Object { "$_" }
+    exit $LASTEXITCODE
+}
+
+git push $remote "${Ref}:refs/heads/${Ref}" 2>&1 | ForEach-Object { "$_" }
+$pushExit = $LASTEXITCODE
+
+# 无论 push 报错与否，以 ls-remote 为唯一事实来源（大响应可能触发假失败）。
+$remoteLine = git ls-remote $remote "refs/heads/$Ref" 2>$null
+$remoteSha = if ($remoteLine) { ($remoteLine -split "`t")[0].Trim() } else { '' }
+
+Write-Output ''
+if ($remoteSha -eq $localSha) {
+    Write-Output "OK: 远端 $remote/$Ref 已确认为 $localSha"
+    if ($pushExit -ne 0) {
+        Write-Output '（git push 报了错，但那是 close_notify 假失败，无需重推。）'
+    }
+    exit 0
+}
+
+Write-Output "WARN: git push 退出码 $pushExit，远端 SHA=${remoteSha:-<无>} != 本地 $localSha"
+Write-Output '做一次只读探测，判断服务端是否其实已处理（输出中的 remote: Processed ... 即已生效）：'
+git push --dry-run $remote "${Ref}:refs/heads/${Ref}" 2>&1 | ForEach-Object { "$_" }
+$probe = git ls-remote $remote "refs/heads/$Ref" 2>$null
+$probeSha = if ($probe) { ($probe -split "`t")[0].Trim() } else { '' }
+if ($probeSha -eq $localSha) {
+    Write-Output "OK: 复查确认远端已收到 $localSha（第一次报错是假失败）。"
+    exit 0
+}
+Write-Output 'FAIL: 远端确实未收到。**不要盲目重推、更不要 --force**。'
+Write-Output '若待推提交较多，先分小段推送（大请求更容易触发 close_notify 假失败）：'
+Write-Output "  git push $remote <更早的SHA>:refs/heads/$Ref   # 然后逐步推进到 $Ref"
+exit 1

@@ -158,3 +158,5 @@ docs/reports/loadtest-results-*.json
 .sprint-archives/
 
 .commitmsg*
+
+.acl-recovery/
