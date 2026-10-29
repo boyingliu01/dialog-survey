@@ -206,8 +206,12 @@ describe('version-consistency job in .github/workflows/pr.yml (REQ-153-4)', () =
    */
   it('exists as a job that needs no dependencies or build', () => {
     expect(workflow).toMatch(/^ {2}version-consistency:$/m);
-    // No build step: the check must stay fast and incapable of flaking.
-    const block = workflow.slice(workflow.indexOf('  version-consistency:'));
+    // No build step: the check must stay fast and incapable of flaking. Scope
+    // the assertion to THIS job's block — slicing from the job name to the end
+    // of the file also read every LATER job, so appending any job that runs
+    // `npm ci` (the lockfile-registry job does) failed this test from a
+    // thousand lines away.
+    const block = jobBlock('version-consistency');
     expect(block).not.toMatch(/npm ci/);
     expect(block).not.toMatch(/npx prisma generate/);
   });

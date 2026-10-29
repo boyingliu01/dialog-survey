@@ -99,11 +99,23 @@ CLI 会自动生成 `.env`、通过 `prisma migrate deploy` 应用数据库迁�
 #### 方式 B：Docker Compose（评估推荐）
 
 ```bash
+git lfs install && git lfs pull    # 中文字体是 Git LFS 对象（见下）
 cp .env.example .env
-# 填入钉钉 + LLM 配置
+# 填入钉钉 + LLM 配置，并设置 POSTGRES_PASSWORD
 docker compose up -d
-curl http://localhost:3001/health
+curl -i http://localhost:3001/health/ready   # 配置完整才返回 200
 ```
+
+三个能省下一个晚上的提示：
+
+- **`.env` 里的 `ADMIN_PASSWORD_HASH` 要用 `$$` 而不是 `$`。** compose 会对 `env_file`
+  的值做变量插值，`$2b$12$...` 被截断成 `$2b$12`，管理员登录对**正确**的口令也返回 401。
+  应写成 `ADMIN_PASSWORD_HASH=$$2b$$12$$<salt><digest>`。直接安装（`npx dialog-survey
+  install`、PM2、`docker run -e`）不走插值，用的是单个 `$` 形式。
+- **`git lfs pull` 不是可选项。** 不执行时检出的只是 133 字节的指针文件，导出的 PDF
+  中文全是空白方框。现在 Docker 构建遇到这种状态会直接失败。
+- **`/health` 对 degraded 部署仍返回 200**（进程活着，但凭据缺失），要探活请看
+  `/health/ready`。详见 [DEPLOY.md](./DEPLOY.md#health-checks)。
 
 #### 方式 C：手动安装（开发环境）
 
@@ -173,7 +185,8 @@ docker compose up -d
 docker compose logs -f app
 ```
 
-健康检查：`curl http://localhost:3001/health`
+健康检查：`curl http://localhost:3001/health`（存活）与
+`curl -i http://localhost:3001/health/ready`（就绪，容器健康检查应当用这个）。
 
 > **安全提示**: `pm2 save` 会把进程的完整环境变量持久化到 `~/.pm2/dump.pm2`
 > （权限跟随 umask，通常为 0644，全局可读）。安装器与 `npx dialog-survey start`
