@@ -202,10 +202,21 @@ sudo certbot --nginx -d interview.example.com
 
 ### Mode 4: Docker
 
-The image is a two-stage build on `node:20-slim`. The builder installs everything,
+The image is a two-stage build on `node:22-slim`. The builder installs everything,
 generates the Prisma client, compiles, and then **prunes build-time tooling** — the
 runner stage only receives what `dist/` actually imports. Measured: `node_modules`
 731 MB → 163 MB, image 1.22 GB → 574 MB.
+
+> **The CJK font must be fetched before building (issue #217).** `assets/fonts/*.otf`
+> is a Git LFS object. A clone that never ran `git lfs pull` contains a 133-byte
+> pointer file instead — right name, right path, right extension — and the image
+> then builds and runs while every exported PDF renders Chinese as blank boxes.
+> The build now **fails** with an explicit message instead
+> (`scripts/verify-font-asset.mjs`), so run this first:
+>
+> ```bash
+> git lfs install && git lfs pull
+> ```
 
 ```bash
 docker build -t dialog-survey:latest .
@@ -214,8 +225,79 @@ docker run -d --name dialog-survey -p 3001:3001 \
   -e DATABASE_URL='postgresql://<user>:<password>@<host>:5432/dialog_survey' \
   -e SESSION_SECRET='<at least 32 chars>' \
   -e SESSION_SALT='<32 hex chars>' \
+  -e REPORTS_DIR=/app/reports \
+  -v dialog-survey-reports:/app/reports \
   dialog-survey:latest
 ```
+
+> **`docker run -e` does not interpolate `$`, so a bcrypt hash goes in unescaped
+> here.** That is the *opposite* of the compose path below (issue #214) — see
+> [Deploy with Docker Compose](#deploy-with-docker-compose) for the `$$` rule.
+
+#### Deploy with Docker Compose
+
+`docker-compose.yml` is the recommended evaluation path, and it is careful about
+four things that are easy to get wrong by hand.
+
+**1. Every `$` in a bcrypt hash must be doubled (issue #214).**
+
+`docker compose` interpolates variables inside `env_file` values. A bcrypt hash
+reads as `$2b` + `$12` + salt + digest, so compose sees two undefined variables and
+replaces them with empty strings. Measured in a container, from an `.env` holding
+`$2b$12$<salt><digest>`:
+
+```
+unescaped=[$2b$12]                     # the rest was eaten
+escaped=  [$2b$12$<salt><digest>]      # correct
+```
+
+The symptom is not an error: the service starts, `/health` answers, and the admin
+login returns **401 for a correct password forever**. In `.env`:
+
+```bash
+ADMIN_PASSWORD_HASH=$$2b$$12$$<salt><digest>
+```
+
+`.env.example` carries the same note. A hash that arrives truncated is now
+reported as a configuration error (HTTP 500 with an explicit message) instead of
+being treated as a wrong password, and the server logs it at `error` level on boot.
+
+**2. `POSTGRES_PASSWORD` is required — there is no default (issue #215).**
+
+`docker-compose.yml` uses `${POSTGRES_PASSWORD:?...}`, so `docker compose up`
+refuses to start without it rather than quietly running the database on
+`change-me-in-env`. The postgres port is **not published to the host** either: the
+app reaches it as `postgres:5432` on the compose network, and a host mapping only
+collides with a PostgreSQL you already run and exposes the database to the LAN.
+Need `psql` from the host? Use an override, not an edit:
+
+```yaml
+# docker-compose.override.yml
+services:
+  postgres:
+    ports: !override
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+```
+
+`!override` is required: the default merge semantics *append* to `ports`, and the
+duplicate mapping fails with a confusing error.
+
+**3. Exported reports live in a named volume (issue #216).**
+
+`reports_data:/app/reports` with `REPORTS_DIR=/app/reports` set explicitly. A
+named volume is created by dockerd owned by the image's runtime user (uid 1001
+`nodejs`), which is why it is used instead of a bind mount of a host directory
+(usually uid 1000) that the container cannot write to. See
+[Backup scope for containers](#backup-scope-for-containers) — `postgres_data`
+alone is not a complete backup.
+
+**4. The healthcheck asks `/health/ready`, not `/health` (issue #218).**
+
+A degraded deployment (no LLM key, placeholder DingTalk credentials) is a `200`
+on `/health` by design — it is a liveness probe — so the container used to show
+`healthy` while it could not hold a single interview. `depends_on` and
+`restart: unless-stopped` therefore never engaged. Both healthchecks now poll
+`/health/ready`, which is `200` only when every dependency works.
 
 > **`SESSION_SALT` is 32 hexadecimal characters, not 16 arbitrary ones.**
 > `src/server.ts` does `Buffer.from(salt, 'hex')` and `@fastify/secure-session`
@@ -235,7 +317,14 @@ against the CLI. Applying is idempotent, so restarts and scale-out replicas are 
 > `@fastify/secure-session`) ships prebuilt binaries for `linux-x64` (glibc) but not
 > `linux-x64-musl`, so an Alpine image cannot load it and dies at boot with
 > `Cannot find addon '.' imported from sodium-native/binding.js`. Do not switch the
-> base back to `node:20-alpine` without first solving that.
+> base back to `node:22-alpine` without first solving that.
+
+> **Node 22, not 20 (issue #213).** `@fastify/secure-session` pulls
+> `@fastify/cookie`, whose `cookie@2` dependency declares `engines.node: >=22`.
+> The image, `package.json` `engines` and `.nvmrc` are aligned on 22, and
+> `package.json` pins `@fastify/cookie@11.1.0` (the last release still on
+> `cookie@1`) so the tree, the manifest and the image agree.
+> `tests/docker-engine-consistency.test.ts` fails if any of the three drifts.
 
 To verify the deployed size and schema in one pass:
 
@@ -246,13 +335,38 @@ docker exec dialog-survey node scripts/migrate-deploy.mjs --dry-run
 
 ## Health Checks
 
+Two endpoints, two questions (issue #218):
+
+| Endpoint | Question | `healthy` | `degraded` | `unhealthy` |
+|----------|----------|-----------|------------|-------------|
+| `GET /health` | Is the process alive? | 200 | **200** | 503 |
+| `GET /health/ready` | Can it actually work? | 200 | **503** | 503 |
+
+`degraded` means the database is fine but a dependency is not — no LLM key, no
+model, placeholder DingTalk credentials. That is a legitimate state for a
+read-only deployment, so `/health` keeps answering 200 and stays usable as a
+liveness probe; everything that waits for a *working* deployment (container
+healthchecks, orchestrators, monitors) must poll `/health/ready`. Both return the
+same body, so a monitor can read either:
+
 ```bash
-# Basic health
 curl http://localhost:3001/health
+curl -i http://localhost:3001/health/ready   # 503 until the deployment is complete
 
 # Expected response (example):
-# {"status":"healthy","timestamp":"...","checks":{"db":{"status":"ok","latencyMs":0},"llm":{"status":"ok"},"dingtalk":{"status":"ok"}}}
+# {"status":"healthy","timestamp":"...","checks":{"db":{"status":"ok","latencyMs":0},
+#  "llm":{"status":"ok"},"dingtalk":{"status":"ok"}}}
 # status is "healthy" | "degraded" | "unhealthy"; a failing db check returns HTTP 503.
+```
+
+Missing configuration is also reported once at startup, at `error` level, naming
+each variable — a container that boots without an LLM key says so in its log
+instead of looking healthy:
+
+```
+Incomplete deployment configuration (2 issue(s)): no LLM API key configured — every
+interview turn will fail; DingTalk credentials are still placeholder values — no
+messages will be received
 ```
 
 ## Monitoring
@@ -310,6 +424,39 @@ DATABASE_URL='postgres://...' ./scripts/backup.sh
 # Daily 02:00 via cron or systemd timer (recommended) — full setup + restore
 # drill runbook: docs/operations.md
 ```
+
+#### Backup scope for containers
+
+`scripts/backup.sh` dumps the **database**. In a container deployment that is
+only part of the backup surface (issue #216) — exported reports are the
+deliverable of this product and live outside the database:
+
+| Volume | Holds | Losing it means |
+|--------|-------|-----------------|
+| `postgres_data` | interviews, templates, plans | everything in the admin UI, permanently |
+| `reports_data` | exported PDF/Excel files | the documents already handed to stakeholders cannot be regenerated |
+
+```bash
+# Both volumes, named after the compose project (directory name by default)
+PROJECT=$(basename "$PWD")
+docker run --rm -v "${PROJECT}_postgres_data:/data:ro" -v "$PWD:/backup" \
+  docker.m.daocloud.io/library/postgres:16-alpine \
+  tar czf /backup/postgres_data-$(date +%F).tar.gz -C /data .
+docker run --rm -v "${PROJECT}_reports_data:/data:ro" -v "$PWD:/backup" \
+  docker.m.daocloud.io/library/postgres:16-alpine \
+  tar czf /backup/reports_data-$(date +%F).tar.gz -C /data .
+```
+
+Keep `backup.sh`'s `pg_dump` output as the primary database backup (it is
+restorable into any PostgreSQL and is what the restore drill exercises); the
+volume copy is the belt-and-braces path for the container case.
+
+> **Do not switch `reports_data` to a bind mount without fixing ownership.**
+> `./reports:/app/reports` binds a host directory that is usually owned by uid
+> 1000, while the container process is uid 1001 (`nodejs`) — export then fails
+> with `EACCES`. Either keep the named volume (recommended), or
+> `sudo chown -R 1001:1001 ./reports` and accept that the image's runtime user
+> is now a deployment constraint.
 
 ## Rollback
 
@@ -463,10 +610,15 @@ For >100 concurrent interviews:
 ## Security Checklist
 
 - [ ] `ADMIN_PASSWORD_HASH` is a bcrypt hash (cost 12) of a strong password; password not committed anywhere
+- [ ] If deployed with `docker compose`, every `$` in `ADMIN_PASSWORD_HASH` is doubled (`$$2b$$12$$...`, issue #214) — verify with `docker compose exec app printenv ADMIN_PASSWORD_HASH`
+- [ ] `POSTGRES_PASSWORD` is set explicitly (compose refuses to start without it — no default)
 - [ ] `SESSION_SECRET` is 32 random bytes and `SESSION_SALT` is 16 random bytes — regenerate per environment
 - [ ] `ADMIN_API_KEY` (optional) is set only when automation needs it, and is strong and unique
 - [ ] Database user has minimal privileges (no superuser)
 - [ ] PostgreSQL password is strong
+- [ ] Exported reports persist (`docker compose` uses the `reports_data` volume; a bind mount needs uid 1001 ownership)
+- [ ] Backup covers **both** `postgres_data` and `reports_data`, and a restore has been drilled (`docs/operations.md`)
+- [ ] `/health/ready` answers 200 (a `degraded` deployment is not a finished one)
 - [ ] HTTPS enabled (reverse proxy or certbot)
 - [ ] Firewall blocks unnecessary ports (`ufw allow 3001` only)
 - [ ] Log files are not world-readable
