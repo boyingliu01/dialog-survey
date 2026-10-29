@@ -2,6 +2,124 @@
 
 ## Unreleased
 
+### Fixed
+
+**Seven defects found by deploying the Docker image on a real machine (issues
+#212–#218).** Every one of them was a default that looked correct and failed
+later, and every one is now guarded by a test that fails if it comes back.
+
+**`package-lock.json` pinned all 899 `resolved` URLs to `registry.npmmirror.com`
+(#212).** `npm ci` fetches exactly the URLs recorded in the lockfile, and neither
+`npm config set registry` nor `NPM_CONFIG_REGISTRY` rewrites them for
+lockfileVersion 3 — so on any network that cannot reach that mirror the build
+failed halfway through arborist with nothing pointing at the cause. The lock now
+resolves every package from `registry.npmjs.org`, and `.npmrc` no longer selects
+a mirror (acceleration belongs on the machine: `npm ci --registry=…`). A new
+static CI job, `lockfile-registry`, fails on any non-official host and names it.
+
+Note on regenerating: `npm ci --package-lock-only` does **not** rewrite the URLs
+when the lockfile is otherwise current — it reports "up to date" and changes
+nothing. The host rewrite has to be explicit; the version tree was left untouched
+because re-resolving ranges would have pulled in 201 unrelated version bumps.
+
+**The image could report `healthy` while it was unable to hold an interview
+(#218).** `/health` answered 200 for `degraded`, and both the compose service and
+the Dockerfile healthcheck decided health from `r.ok` alone, so a deployment with
+no LLM key and the installer's `xxx` DingTalk placeholders stayed green — and
+`restart: unless-stopped` never engaged. There are now two routes: `/health`
+stays a liveness probe (200 for `degraded`, 503 only when the database is down),
+and `/health/ready` is a readiness probe (200 only when every dependency works).
+Both healthchecks poll the readiness route *and* parse the body, so a change that
+forgets the status code still cannot make a broken deployment green. Missing
+configuration is also logged once at startup at `error` level, naming each
+variable (`src/utils/startup-config-check.ts`).
+
+**A bcrypt hash was silently truncated by compose's `env_file` interpolation
+(#214).** Measured in a container, from an `.env` holding `$2b$12$<salt><digest>`:
+
+```
+unescaped=[$2b$12]                     # compose ate the rest
+escaped=  [$2b$12$<salt><digest>]      # with every `$` doubled
+```
+
+The service started, `/health` answered, and the admin login returned 401 for a
+*correct* password with nothing in any log pointing at the cause. `.env.example`
+and `DEPLOY.md` now state the `$$` rule (and that `docker run -e` does *not*
+interpolate, so the direct-install path takes the single-`$` form). In code, a
+hash that is not a well-formed bcrypt hash is reported as a configuration error
+(HTTP 500 with an explicit message) instead of being treated as a wrong password,
+and `checkAdminPasswordHash()` logs it at boot.
+
+**Exported reports died with the container (#216).** `REPORTS_DIR` pointed at
+`/app/reports` on the container's writable layer — the reports *are* the
+deliverable of this product, and only the database had a volume. A bind mount was
+the obvious fix and it collides with ownership (host directory usually uid 1000,
+runtime user uid 1001 `nodejs`, `EACCES` on write). `compose` now mounts a named
+volume `reports_data:/app/reports` and states `REPORTS_DIR=/app/reports`
+explicitly; `DEPLOY.md` explains why a named volume avoids the ownership trap,
+that a bind mount needs `chown 1001`, and that the backup scope is **two**
+volumes, not one.
+
+**The postgres port was published to `0.0.0.0:5432` behind a `change-me-in-env`
+password (#215).** The app reaches the database over the compose network as
+`postgres:5432`, so publishing the port only collided with a host PostgreSQL
+(`Bind for 0.0.0.0:5432 failed`) and exposed a writable business database to the
+LAN. The port is no longer published (an override is documented, including the
+`!override` requirement for the append-by-default merge), `POSTGRES_PASSWORD` is
+required via `${POSTGRES_PASSWORD:?…}` rather than defaulted, and the obsolete
+top-level `version:` key is gone.
+
+**The image shipped a 133-byte Git LFS pointer instead of the CJK font (#217).**
+`assets/fonts/*.otf` is an LFS object and nothing fetched it: the pointer file
+exists, at the right path, with the right extension, so every "is the font
+there?" check passed and every exported PDF rendered Chinese as blank boxes with
+no error anywhere. `scripts/verify-font-asset.mjs` now validates the *bytes* (LFS
+pointer magic, OpenType/TrueType magic, size floor) in both Dockerfile stages, so
+a missing font fails the build with the `git lfs pull` command in the message.
+CI checks out with `lfs: true`, `DEPLOY.md`/`README` make the fetch a documented
+prerequisite, and `ExportService` reports a missing font at `error` level instead
+of `warn`.
+
+**Three Node-version declarations contradicted each other (#213).**
+`Dockerfile` pinned `node:20-slim`, `package.json` allowed `>=20.19`, and the
+pruned *runtime* tree contained `cookie@2.0.1` (via `@fastify/cookie` 11.1.x,
+required by `@fastify/secure-session`) declaring `engines.node: >=22` — an
+EBADENGINE warning on every build that everyone was trained to ignore. The base
+image, `engines`, and `.nvmrc` are now all Node 22, and `package.json` overrides
+`@fastify/cookie` to `11.1.0` (the last release still on `cookie@1`), which
+deduplicates `cookie` to one `>=18` entry instead of keeping a second copy at
+`>=22`. `tests/docker-engine-consistency.test.ts` asserts the three-way agreement
+and that no runtime dependency excludes the image's major. Bumping the image to
+22 is on the safe side of glibc (`sodium-native` is unaffected) and left the
+pruned tree the same size.
+
+**Three tests could not survive a job being appended to `pr.yml`.** The
+`version-consistency` assertions sliced the workflow from that job to the end of
+the file, so `lockfile-registry`'s `npm ci` failed a check about a job a thousand
+lines earlier; they now scope to their own job block.
+
+### Added
+
+- `GET /health/ready` — readiness probe; 200 only when every dependency works
+  (#218). `tests/health-readiness.test.ts` fixes both routes' semantics.
+- `scripts/verify-font-asset.mjs` — build-time validation of a Git LFS asset
+  (#217). Run it by hand to check a checkout: `node scripts/verify-font-asset.mjs`.
+- `src/utils/startup-config-check.ts` — one `error` line per incomplete
+  deployment, naming the variables to fix (#218).
+- `lockfile-registry` CI job — a static, dependency-free assertion that every
+  lockfile entry resolves from an official registry (#212).
+- `tests/docker-compose-deployment.test.ts` — structural guarantees for the
+  compose/Dockerfile defaults behind #214–#218.
+
+### Changed
+
+- `engines.node` is `>=22.0.0` (was `>=20.19.0`) and `.nvmrc` is `22` — see #213.
+- The container `HEALTHCHECK` and the compose healthcheck poll `/health/ready`
+  and parse the response body; `start_period` is 60s because the first readiness
+  probe runs the LLM reachability check, which has a 30s timeout of its own.
+- A missing CJK font is logged with `error` (was `warn`) — it means every
+  exported PDF is unreadable, not a degradation.
+
 ### Documentation
 
 **Competition materials recovered from the DT mirror.** The 研发云 (DT) Gitea repository had drifted into a separate history — its last common ancestor with this branch is from 2026-03-12, because earlier syncs went over as "snapshot sync from mainline" commits that rewrote history instead of pushing. Its head was a v1.11.4-era snapshot eight versions behind, so bringing it up to date meant replacing that branch wholesale. Before doing so, the tree was checked for content that exists in no other copy, and eight files did:

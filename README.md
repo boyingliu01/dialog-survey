@@ -99,11 +99,26 @@ This generates `.env`, applies database migrations with `prisma migrate deploy` 
 #### Option B: Docker Compose (recommended for evaluation)
 
 ```bash
+git lfs install && git lfs pull    # the CJK font is a Git LFS object (see below)
 cp .env.example .env
-# Fill in your DingTalk + LLM config
+# Fill in your DingTalk + LLM config, and set POSTGRES_PASSWORD
 docker compose up -d
-curl http://localhost:3001/health
+curl -i http://localhost:3001/health/ready   # 200 only when fully configured
 ```
+
+Three notes that save an evening:
+
+- **`ADMIN_PASSWORD_HASH` needs `$$` in `.env`, not `$`.** `docker compose`
+  interpolates `env_file` values, so `$2b$12$...` is truncated to `$2b$12` and the
+  admin login answers 401 for a correct password. Write
+  `ADMIN_PASSWORD_HASH=$$2b$$12$$<salt><digest>`. A direct install (`npx
+  dialog-survey install`, PM2, `docker run -e`) takes the single-`$` form.
+- **`git lfs pull` is not optional.** Without it the repository checkout contains
+  a 133-byte pointer instead of the font, and every exported PDF renders Chinese
+  as blank boxes. The Docker build now refuses to proceed in that state.
+- **`/health` answers 200 for a degraded deployment** (alive, but missing
+  credentials); `/health/ready` is the one to poll. See
+  [DEPLOY.md](./DEPLOY.md#health-checks).
 
 #### Option C: Manual setup (development)
 
@@ -247,7 +262,9 @@ docker compose up -d
 docker compose logs -f app
 ```
 
-Health check: `curl http://localhost:3001/health`
+Health check: `curl http://localhost:3001/health` (liveness) and
+`curl -i http://localhost:3001/health/ready` (readiness — a container healthcheck
+should use this one).
 
 > **Security note**: `pm2 save` persists the full process environment to
 > `~/.pm2/dump.pm2` (mode follows umask — usually 0644, world-readable). The
