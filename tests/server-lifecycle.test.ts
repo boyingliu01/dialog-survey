@@ -2,6 +2,13 @@ import type { FastifyInstance, FastifyServerOptions } from 'fastify';
 import type { ScheduledTask } from 'node-cron';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+/**
+ * @test ISSUE-218
+ * @intent 构建失败时不能泄漏资源：无论是 cron 创建前还是之后失败，Prisma 都必须断开，
+ *   已创建的定时任务必须销毁。
+ * @covers cron 前失败断开 Prisma、cron 后失败销毁任务并断开 Prisma、启动配置自检被调用
+ */
+
 type DestroyableScheduledTask = Pick<ScheduledTask, 'destroy'>;
 type AuditCallback = () => Promise<void>;
 type StreamHandler = (message: unknown) => void;
