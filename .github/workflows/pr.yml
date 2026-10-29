@@ -26,6 +26,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The CJK font is a Git LFS object (issue #217). Without this the
+          # checkout contains a 133-byte pointer and the image/tests work on a
+          # file that is not a font.
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -57,6 +62,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The CJK font is a Git LFS object (issue #217). Without this the
+          # checkout contains a 133-byte pointer and the image/tests work on a
+          # file that is not a font.
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -86,6 +96,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The CJK font is a Git LFS object (issue #217). Without this the
+          # checkout contains a 133-byte pointer and the image/tests work on a
+          # file that is not a font.
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -252,6 +267,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The CJK font is a Git LFS object (issue #217). Without this the
+          # checkout contains a 133-byte pointer and the image/tests work on a
+          # file that is not a font.
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -295,6 +315,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The CJK font is a Git LFS object (issue #217). Without this the
+          # checkout contains a 133-byte pointer and the image/tests work on a
+          # file that is not a font.
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -337,6 +362,8 @@ jobs:
         with:
           # Full history so merge-base with the PR base is resolvable.
           fetch-depth: 0
+          # The CJK font is a Git LFS object (issue #217).
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -377,6 +404,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The CJK font is a Git LFS object (issue #217). Without this the
+          # checkout contains a 133-byte pointer and the image/tests work on a
+          # file that is not a font.
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -477,6 +509,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The CJK font is a Git LFS object (issue #217). Without this the
+          # checkout contains a 133-byte pointer and the image/tests work on a
+          # file that is not a font.
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -547,3 +584,76 @@ jobs:
           fi
 
           echo "Version consistency OK: VERSION = package.json = package-lock.json = AGENTS.md = ${FILE_VERSION}"
+
+  # Issue #212: `npm ci` fetches the exact `resolved` URL recorded in
+  # package-lock.json, and neither `npm config set registry` nor
+  # NPM_CONFIG_REGISTRY rewrites them for lockfileVersion 3. A lockfile pinned to
+  # a mirror (all 899 entries once pointed at registry.npmmirror.com) therefore
+  # makes the build unbuildable on any network that cannot reach that host, with
+  # no client-side fix. Like `version-consistency`, this job is deliberately
+  # static: a dozen lines, no install, no build, cannot be flaky.
+  lockfile-registry:
+    name: Lockfile Portability (official registry only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Assert every resolved URL uses the official registry
+        run: |
+          set -euo pipefail
+
+          # Count hosts across the lockfile, then fail on anything that is not
+          # an official registry. Naming the offending host is the whole point:
+          # the original issue was undiagnosable precisely because the failure
+          # surfaced as arborist crashing mid-install, not as "host unreachable".
+          node - <<'NODE'
+          const { readFileSync } = require('node:fs');
+          const OFFICIAL = new Set(['registry.npmjs.org', 'registry.yarnpkg.com']);
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+
+          const byHost = new Map();
+          const insecure = [];
+          for (const [name, entry] of Object.entries(lock.packages)) {
+            if (!entry.resolved) continue;
+            if (!entry.resolved.startsWith('https://')) {
+              insecure.push(`${name}: ${entry.resolved}`);
+              continue;
+            }
+            const host = new URL(entry.resolved).host;
+            if (OFFICIAL.has(host)) continue;
+            const list = byHost.get(host) ?? [];
+            list.push(name);
+            byHost.set(host, list);
+          }
+
+          let failed = false;
+          for (const [host, names] of byHost) {
+            console.log(`::error::package-lock.json resolves ${names.length} package(s) from ${host} — only the official registry is allowed (issue #212). First: ${names.slice(0, 5).join(', ')}`);
+            failed = true;
+          }
+          for (const line of insecure) {
+            console.log(`::error::non-https resolved URL — ${line}`);
+            failed = true;
+          }
+
+          if (failed) {
+            console.log('Fix: sed -i "s|https://<mirror>|https://registry.npmjs.org|g" package-lock.json, then run `npm install --package-lock-only` to confirm.');
+            process.exit(1);
+          }
+          console.log(`Lockfile portability OK: ${Object.keys(lock.packages).length - 1} package(s), all resolved from an official registry.`);
+          NODE
+
+      - name: Assert .npmrc keeps generating official URLs
+        run: |
+          set -euo pipefail
+          # The lockfile is generated from whatever registry is configured, so a
+          # mirror in .npmrc re-poisons it on the next `npm install`.
+          grep -qx 'registry=https://registry.npmjs.org/' .npmrc \
+            || { echo "::error::.npmrc must set registry=https://registry.npmjs.org/ (issue #212)"; exit 1; }
+          echo ".npmrc OK"
