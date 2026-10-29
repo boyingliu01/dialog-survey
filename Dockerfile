@@ -1,4 +1,14 @@
-FROM node:20-slim AS builder
+# FROM node:20-slim AS builder
+#
+# Node 22, not 20 (issue #213): the runtime tree contains `cookie@2.0.1`, whose
+# `engines.node` is `>=22`, pulled in by `@fastify/cookie` 11.1.x — which
+# `@fastify/secure-session` requires for the session cookie path. Keeping node:20
+# meant `npm ci` printed an EBADENGINE warning on every build while that cookie
+# code ran on a runtime it declares unsupported. Aligned rather than silenced:
+# the image, `package.json` `engines`, and every runtime dependency's own
+# `engines.node` now agree. `tests/docker-engine-consistency.test.ts` enforces
+# that agreement, including that this line matches the runner stage and .nvmrc.
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -8,6 +18,17 @@ RUN npm ci --ignore-scripts
 
 # Copy source
 COPY . .
+
+# The CJK font is a Git LFS object (`.gitattributes`: assets/fonts/*.otf).
+# A clone that never ran `git lfs pull` — the default for anything that is not
+# an interactive developer machine — checks out a 133-byte POINTER file: it
+# exists, it has the right name and extension, so every "does the font exist"
+# check passes and the image ships a text file instead of a font. Chinese then
+# renders as blank boxes in every exported PDF while the build and the running
+# service report nothing (issue #217). Fail the build instead: a missing font is
+# an operator fixable in one command, a silently broken deliverable is not.
+COPY scripts/verify-font-asset.mjs ./scripts/verify-font-asset.mjs
+RUN node scripts/verify-font-asset.mjs assets/fonts/NotoSansCJKsc-Regular.otf
 
 # Generate Prisma client
 RUN npx prisma generate
@@ -26,7 +47,7 @@ RUN npm run build
 RUN node scripts/prune-runtime-deps.mjs --dir /app && du -sh /app/node_modules
 
 # --- Runner Stage ---
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 
 WORKDIR /app
 
@@ -57,6 +78,13 @@ RUN mkdir -p /app/reports && chown -R nodejs:nodejs /app/reports /app/assets
 # scripts/ holds the runner itself now that the Prisma CLI is pruned away.
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/scripts/migrate-deploy.mjs ./scripts/migrate-deploy.mjs
+COPY --from=builder /app/scripts/verify-font-asset.mjs ./scripts/verify-font-asset.mjs
+
+# Re-assert the font here, not only in the builder (issue #217): this is the
+# stage that actually ships, so the check belongs on the bytes the runner
+# received. Cheap (one file read) and it turns "every PDF here is broken" into a
+# failed build.
+RUN node scripts/verify-font-asset.mjs assets/fonts/NotoSansCJKsc-Regular.otf
 
 # Copy environment template
 COPY --from=builder /app/.env.example ./.env.example
@@ -64,9 +92,12 @@ COPY --from=builder /app/.env.example ./.env.example
 # Switch to non-root user
 USER nodejs
 
-# Health check — node fetch, not curl (curl is not guaranteed in either base image)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:3001/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+# Health check — node fetch, not curl (curl is not guaranteed in either base image).
+# Probes /health/ready, and parses the body (issue #218): `r.ok` alone made a
+# deployment with no LLM key or placeholder DingTalk credentials report
+# `healthy`. Readiness is 200 only when every dependency works.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3001/health/ready').then(async (r) => { const body = await r.json().catch(() => ({})); process.exit(r.ok && body.status === 'healthy' ? 0 : 1); }).catch(() => process.exit(1))"
 
 EXPOSE 3001
 
