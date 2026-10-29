@@ -58,6 +58,7 @@ import { error, info, warn } from './utils/logger.js';
 import { renderMarkdown } from './utils/markdown.js';
 import { resolveAssetRoots } from './utils/path-resolver.js';
 import { createVerifyApiKey, securityMiddleware } from './utils/security.js';
+import { logStartupConfigSummary } from './utils/startup-config-check.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -200,6 +201,37 @@ function assertSessionEnv(): { secret: string; salt: string } {
     throw new Error('SESSION_SALT environment variable is required');
   }
   return { secret, salt };
+}
+
+/**
+ * Catch a bcrypt hash that docker compose's `env_file` interpolation has eaten
+ * before it ever reaches `bcrypt.compare` (issue #214).
+ *
+ * `docker-compose.yml` loads `.env` through `env_file:`, and compose performs
+ * variable interpolation on those values. A bcrypt hash looks like
+ * `$2b$12$<salt><digest>`, so `$2b` and `$12` are read as (undefined) variables
+ * and replaced with the empty string. What arrives in the container is
+ * `$$12$...`-shaped garbage: non-empty, present, and impossible to match. The
+ * symptom is a permanent 401 on the admin login with nothing in any log
+ * pointing at the cause.
+ *
+ * Warn rather than throw: an operator who set the variable to something else is
+ * free to do so, and the login route now reports the malformed-hash case
+ * explicitly. A *truncated* hash is recognisable and gets a message naming the
+ * fix.
+ */
+function checkAdminPasswordHash(): void {
+  const hash = process.env['ADMIN_PASSWORD_HASH'];
+  if (!hash) return;
+
+  if (/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(hash)) return;
+
+  error(
+    'ADMIN_PASSWORD_HASH is not a valid bcrypt hash — admin login will fail for every password. ' +
+      'If this deployment uses docker compose, its `env_file` interpolation consumes the `$` signs: ' +
+      'write every `$` in the hash as `$$` in .env (issue #214).',
+    { length: hash.length, prefix: hash.slice(0, 4) }
+  );
 }
 
 function addSecurityHeadersHook(fastify: FastifyInstance): void {
@@ -507,6 +539,13 @@ export async function runPostListenStartup({
   lifecycle,
   prisma,
 }: Awaited<ReturnType<typeof buildApp>>): Promise<void> {
+  // Issue #218: the configuration a deployment needs to actually work is
+  // reported once here, at error level, instead of only inside a /health JSON
+  // body. Issue #214: a bcrypt hash mangled by compose's env_file interpolation
+  // is named explicitly.
+  logStartupConfigSummary();
+  checkAdminPasswordHash();
+
   const dingTalkConfigured = isDingTalkConfigured();
   const resendDisabled = ['1', 'true', 'yes'].includes(
     (process.env['DISABLE_STARTUP_RESEND'] || '').toLowerCase()

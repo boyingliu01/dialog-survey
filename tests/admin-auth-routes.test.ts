@@ -219,6 +219,47 @@ describe('adminAuthRoutes', () => {
     expect(response.body).toContain('管理员凭据未设置');
   });
 
+  // Issue #214: docker compose's `env_file` interpolation eats the `$` in a
+  // bcrypt hash, so the container receives something like `2b12KIXq...`. That
+  // value is non-empty, so the old code took the "wrong password" branch and
+  // returned 401 forever — the operator retyped a correct password instead of
+  // looking at the `.env` escaping. A malformed hash is a server-side
+  // configuration error (500), never a credential failure (401).
+  it('reports a $2b$12$ hash that compose interpolation truncated as a config error', async () => {
+    process.env['ADMIN_PASSWORD_HASH'] = '2b12KIXqQ0H2m9Q0hV0dQ0c0eO8Y2h5k3k5k5k5k5k5k5k5k5k5k5k';
+
+    const response = await login(await getCsrfState());
+
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toContain('ADMIN_PASSWORD_HASH');
+    expect(response.body).not.toContain('用户名或密码错误');
+  });
+
+  it('rejects a hash carrying compose $$ escapes (it must be unescaped before use)', async () => {
+    process.env['ADMIN_PASSWORD_HASH'] = testHash.replace(/\$/g, '$$$$');
+
+    const response = await login(await getCsrfState());
+
+    expect(response.statusCode).toBe(500);
+  });
+
+  it('rejects a truncated hash even when the username is right', async () => {
+    process.env['ADMIN_PASSWORD_HASH'] = '$2b$12$tooshort';
+
+    const response = await login(await getCsrfState());
+
+    expect(response.statusCode).toBe(500);
+  });
+
+  it('still returns 401 (not 500) for a well-formed hash and a wrong password', async () => {
+    // The 500 branch must key on hash FORMAT only: a real hash with a wrong
+    // password is an ordinary failed login and must not leak which part failed.
+    const response = await login(await getCsrfState(), testUsername, 'wrong-password');
+
+    expect(response.statusCode).toBe(401);
+    expect(response.body).toContain('用户名或密码错误');
+  });
+
   it('reaches request validation with valid CSRF', async () => {
     const csrf = await getCsrfState();
     const response = await app.inject({

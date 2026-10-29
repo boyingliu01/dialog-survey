@@ -18,6 +18,9 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+/** A bcrypt hash as bcryptjs writes it: `$2b$12$` + 22-char salt + 31-char digest. */
+const BCRYPT_HASH_PATTERN = /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
 export async function adminAuthRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.get('/admin/login', async (request: FastifyRequest, reply: FastifyReply) => {
     const session = request.session.get('admin') as AdminSession | undefined;
@@ -67,6 +70,21 @@ export async function adminAuthRoutes(fastify: FastifyInstance): Promise<void> {
         fastify.log.error('Admin credentials not configured');
         return reply.status(500).view('admin/login.njk', {
           error: '服务器配置错误：管理员凭据未设置',
+          csrfToken: reply.generateCsrf(),
+        });
+      }
+
+      // Issue #214: a bcrypt hash mangled by docker compose's env_file
+      // interpolation (`$2b`/`$12` eaten) used to surface as an ordinary
+      // "wrong password" 401 forever. Name it instead: the operator's next
+      // twenty minutes would otherwise go into retyping a correct password.
+      if (!BCRYPT_HASH_PATTERN.test(expectedHash)) {
+        fastify.log.error(
+          'ADMIN_PASSWORD_HASH is not a valid bcrypt hash — check for `$` interpolation by docker compose (write `$$` in .env)'
+        );
+        return reply.status(500).view('admin/login.njk', {
+          error:
+            '服务器配置错误：ADMIN_PASSWORD_HASH 不是有效的 bcrypt 哈希（compose 的 env_file 会吃掉 $）',
           csrfToken: reply.generateCsrf(),
         });
       }
