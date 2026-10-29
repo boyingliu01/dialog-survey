@@ -59,7 +59,11 @@ describe('prisma 7 generate contract (AC-001-01)', () => {
     expect(dep('@prisma/adapter-pg')).toBe('7.10.0');
     expect(dep('@electric-sql/pglite')).toBe('0.5.8');
     expect(dep('pglite-prisma-adapter')).toBe('0.7.2');
-    expect(pkg.engines?.['node']).toBe('>=20.19.0');
+    // Node 22 since issue #213: the runtime tree contains a package declaring
+    // engines.node >= 22 (cookie@2 via @fastify/cookie), so the image, the
+    // manifest and .nvmrc are aligned on 22.  owns the full three-way agreement; this assertion only pins the
+    // manifest value the Prisma 7 spike was validated against.
+    expect(pkg.engines?.['node']).toBe('>=22.0.0');
     expect(pkg.scripts?.['prisma:generate']).toBe('prisma generate');
   });
 
