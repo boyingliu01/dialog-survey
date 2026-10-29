@@ -241,13 +241,26 @@ jobs:
       # that is exactly how two provider keys and a DingTalk app secret sat
       # unreported for months. This scans every commit instead.
       #
-      # `continue-on-error` stays true until the credentials in #211 are
-      # rotated; the known findings are already in history and cannot be
-      # removed, so a blocking step would be permanently red and teach everyone
-      # to ignore it. Flip this to false once the rotation is done — a NEW leak
-      # will then fail the build, which is the point.
+      # Blocking, and that is a deliberate reversal. This step used to carry
+      # `continue-on-error: true` because eleven known findings are already in
+      # history and a plain failure would have been permanently red. The side
+      # effect was worse than the noise: a genuinely NEW leak could never fail
+      # the build either, so the guard reported but never gated.
+      #
+      # The known findings are now named individually in
+      # `.secrets-history-baseline.json`, each with a reviewed reason, and the
+      # scan fails on anything outside that list. Two properties keep that
+      # baseline honest instead of letting it become a blanket exemption: an
+      # entry that stops matching anything is itself an error (it cannot rot
+      # into a wildcard), and matching is on rule+file+line rather than file
+      # alone (a new secret on another line of a historical file still fails).
+      #
+      # The historical entries cannot be removed from history — the commits are
+      # pushed and cloned. They are acceptable because the DingTalk credentials
+      # belong to a virtual/test organization and both cloud keys are revoked
+      # (see issue #211). Nothing here is fixed by editing the baseline: a
+      # finding nobody has read must never be added to it.
       - name: gitleaks full-history scan (issue #211)
-        continue-on-error: true
         run: |
           set -o pipefail
           GITLEAKS_VERSION=8.28.0

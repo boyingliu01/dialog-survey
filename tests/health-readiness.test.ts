@@ -66,7 +66,9 @@ describe('health readiness vs liveness (issue #218)', () => {
   const apps: FastifyInstance[] = [];
   const mockFetch = vi.fn();
 
-  async function app(db: DbHealthResult = { status: 'ok', latencyMs: 1 }): Promise<FastifyInstance> {
+  async function app(
+    db: DbHealthResult = { status: 'ok', latencyMs: 1 }
+  ): Promise<FastifyInstance> {
     const built = await buildHealthApp(db);
     apps.push(built);
     return built;
