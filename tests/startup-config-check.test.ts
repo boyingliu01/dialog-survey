@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+/**
+ * @test ISSUE-218
+ * @intent 启动时必须把「哪些配置项缺失/是占位符」一次性说清楚，而不是让部署者从
+ *   一个绿色的健康徽章去猜。凭据缺失属于 error 级，且要指明去 /health/ready 看。
+ * @covers LLM key 缺失、占位符识别、钉钉凭据检查、ADMIN_PASSWORD_HASH 格式、一次性聚合报错
+ */
+
 const logInfo = vi.fn();
 const logWarn = vi.fn();
 const logError = vi.fn();

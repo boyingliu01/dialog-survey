@@ -4,6 +4,13 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as XLSX from 'xlsx';
 import { ExportService, resetCjkFontWarningForTests } from '../src/services/export.service.js';
+
+/**
+ * @test ISSUE-217
+ * @intent 中文字体缺失不会优雅降级——每一份导出 PDF 都会丢中文，所以必须是 error 级
+ *   而不是没人会看的 warn，并且同一进程内只报一次以免刷屏。
+ * @covers 字体缺失时的 error 级报告、每进程仅一次、字体存在时正常导出
+ */
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 
 vi.mock('../src/utils/logger.js', () => ({

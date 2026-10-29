@@ -3,6 +3,13 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { DatabaseHealthRepository } from '../src/repositories/database-health.repository.js';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 
+/**
+ * @test ISSUE-218
+ * @intent /health 是存活探针（degraded 也返回 200，避免既有监控误报），/health/ready 是
+ *   就绪探针（只有一切正常才 200）。两者都不能被缓存成过期的 healthy。
+ * @covers 两条路由的状态码与响应体、数据库不可用、degraded 语义、缓存不得复用
+ */
+
 vi.mock('../src/utils/logger.js', () => ({
   info: vi.fn(),
   error: vi.fn(),

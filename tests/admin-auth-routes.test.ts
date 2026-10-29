@@ -11,6 +11,14 @@ import type { AdminSession } from '../src/middleware/session-auth.js';
 import { adminAuthRoutes } from '../src/routes/admin-auth.js';
 import { loginRateLimiter } from '../src/utils/security.js';
 
+/**
+ * @test ISSUE-214
+ * @intent 管理员登录必须能区分「密码错误」和「哈希格式错误」：compose 的 env_file 会吃掉
+ *   bcrypt 哈希里的 $，此时正确密码也会 401，且日志里没有任何线索。格式非法必须是 500
+ *   加明确提示，而不是伪装成密码错误。
+ * @covers 合法哈希正常登录、非法哈希返回 500 且消息指向 $ 转义、缺失哈希的配置错误处理
+ */
+
 const testUsername = 'testadmin';
 const testPassword = 'testpassword123';
 let testHash: string;
