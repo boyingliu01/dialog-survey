@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### Security
+
+**The full-history secret scan now blocks, instead of only reporting (issue
+#211).** The CI step that scans every commit carried `continue-on-error: true`,
+because eleven findings are already in git history and could not be removed —
+the commits are pushed and cloned. The cost was worse than the noise it avoided:
+a genuinely *new* leaked credential could never fail the build either. The guard
+reported, but never gated.
+
+The known findings are now named individually in
+`.secrets-history-baseline.json` — eleven entries, each with a fingerprint and a
+hand-written reason — and the scan fails on anything outside that list. Three
+properties keep the baseline from becoming the vulnerability it is supposed to
+prevent:
+
+- **An entry that matches nothing is a failure.** A baseline that has rotted
+  would otherwise silently accept whatever replaced what it once described.
+- **Matching is on rule+file+line, not file.** A new secret on another line of
+  an already-listed historical file still fails.
+- **The secret text is never stored.** The fingerprint is
+  `sha256(rule + file + line)`; embedding the plaintext would have put a second
+  copy of the leak in a public repository, and a test asserts it is not there.
+  `--write-baseline` marks entries it cannot attribute as `NOT REVIEWED`, and a
+  test fails on that marker, so regenerating the file cannot quietly launder a
+  finding nobody read.
+
+**A clean verdict from a scan that read nothing is now impossible.** Two new
+refusals (exit 2, never 0) sit alongside the existing missing-gitleaks one: a
+missing `.gitleaks.toml`, and `git rev-list --all --count` returning 0. The
+second was not hypothetical — writing its test revealed that `gitleaks git` in a
+directory that is not a repository **exits 0 with an empty report**, so the
+guard had been announcing "history is clean" for a history it never read.
+
+The historical entries themselves are acceptable rather than fixed: the DingTalk
+credentials belong to a virtual/test organization, and both cloud keys
+(DashScope, Volcengine Ark) are revoked. Rewriting history would not help even
+if it were worth the disruption — the strings stay readable in every existing
+clone and in GitHub's object cache. Revoking a credential is the only thing that
+ends an exposure.
+
 ### Fixed
 
 **Seven defects found by deploying the Docker image on a real machine (issues
