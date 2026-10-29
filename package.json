@@ -23,7 +23,7 @@
     "dialog-survey": "scripts/cli.mjs"
   },
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "dev": "tsx --env-file=.env --watch src/server.ts",
@@ -103,7 +103,8 @@
     "vitest": "^4.1.2"
   },
   "overrides": {
-    "qs": "6.15.2"
+    "qs": "6.15.2",
+    "@fastify/cookie": "11.1.0"
   },
   "allowScripts": {
     "esbuild@0.28.1": true,
