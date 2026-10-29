@@ -1,1 +1,7 @@
+# The CJK font is a Git LFS object. A clone that does not run `git lfs pull`
+# checks out a 133-byte pointer instead of the font, and the image then ships a
+# text file that every "does the font exist" check accepts — Chinese renders as
+# blank boxes in every exported PDF with no error anywhere (issue #217).
+# `scripts/verify-font-asset.mjs` fails the Docker build when that happens, and
+# CI checks the font out with `lfs: true`.
 assets/fonts/*.otf filter=lfs diff=lfs merge=lfs -text
