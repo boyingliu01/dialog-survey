@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { info, warn } from '../utils/logger.js';
+import { info, error as loggerError, warn } from '../utils/logger.js';
 import type { PrismaClient } from '../utils/prisma-client.js';
 import { buildQuestionMap as buildQuestionMapShared } from '../utils/template-content.js';
 
@@ -48,12 +48,23 @@ export function resetExportModuleCacheForTests(): void {
  * name the runtime may not have, and doing so on every export would either
  * flood the logs or (as before) stay invisible. One line is enough to tell an
  * operator the image is missing the bundled font.
+ *
+ * Error level, not warn (issue #217): a missing font means every delivered PDF
+ * renders Chinese as blank boxes — the product's whole deliverable is silently
+ * broken. `warn` is what nobody reads in a container log; the issue asked for a
+ * failure an operator cannot miss, and a predicted-broken report deserves the
+ * `error` stream.
  */
 let cjkFontWarned = false;
 function warnMissingCjkFont(fontPath: string): void {
   if (cjkFontWarned) return;
   cjkFontWarned = true;
-  warn('CJK font missing — exported PDFs will not render Chinese correctly', { fontPath });
+  loggerError(
+    'CJK font missing — every exported PDF will render Chinese as blank boxes. ' +
+      'The image is missing assets/fonts/NotoSansCJKsc-Regular.otf; if the source ' +
+      'tree has it as a Git LFS pointer, run `git lfs pull` and rebuild (issue #217).',
+    { fontPath }
+  );
 }
 
 /** Test seam: allow a suite to observe the one-shot warning more than once. */

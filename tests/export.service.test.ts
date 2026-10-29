@@ -98,8 +98,11 @@ describe('ExportService', () => {
      * shipped rendering Chinese as boxes. The warning is the only signal an
      * operator gets, so assert it fires and names the file.
      */
-    it('warns when the CJK font is absent from the reports dir', async () => {
-      const { warn } = await import('../src/utils/logger.js');
+    it('reports at error level when the CJK font is absent from the assets dir', async () => {
+      // Issue #217: a missing font does not degrade gracefully — every exported
+      // PDF loses its Chinese text — so it is logged as an error, not a warning
+      // that scrolls past unread in a container log.
+      const { error } = await import('../src/utils/logger.js');
       resetCjkFontWarningForTests();
       mockPrisma.interview.findUnique.mockResolvedValue({
         id: 'iv-1',
@@ -115,14 +118,14 @@ describe('ExportService', () => {
 
       await service.exportInterviewToPdf('iv-1');
 
-      expect(warn).toHaveBeenCalledWith(
+      expect(error).toHaveBeenCalledWith(
         expect.stringContaining('CJK font missing'),
         expect.objectContaining({ fontPath: join(tmpDir, 'fonts', 'NotoSansCJKsc-Regular.otf') })
       );
     });
 
-    it('warns about the missing font only once per process', async () => {
-      const { warn } = await import('../src/utils/logger.js');
+    it('reports the missing font only once per process', async () => {
+      const { error } = await import('../src/utils/logger.js');
       resetCjkFontWarningForTests();
       mockPrisma.interview.findUnique.mockResolvedValue({
         id: 'iv-1',
@@ -135,15 +138,15 @@ describe('ExportService', () => {
       });
       mockPrisma.interviewPlan.findUnique.mockResolvedValue({ inviteeData: [] });
       mockPrisma.analysisReport.findFirst.mockResolvedValue(null);
-      vi.mocked(warn).mockClear();
+      vi.mocked(error).mockClear();
 
       await service.exportInterviewToPdf('iv-1');
       await service.exportInterviewToPdf('iv-1');
 
-      const fontWarnings = vi
-        .mocked(warn)
+      const fontErrors = vi
+        .mocked(error)
         .mock.calls.filter(([msg]) => String(msg).includes('CJK font missing'));
-      expect(fontWarnings).toHaveLength(1);
+      expect(fontErrors).toHaveLength(1);
     });
 
     it('should throw when interview not found', async () => {

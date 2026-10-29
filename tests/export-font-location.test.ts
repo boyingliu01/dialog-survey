@@ -17,10 +17,13 @@ import type { PrismaClient } from '../src/utils/prisma-client.js';
  */
 
 const mockWarn = vi.fn();
+const mockError = vi.fn();
 vi.mock('../src/utils/logger.js', () => ({
   warn: (...args: unknown[]) => mockWarn(...args),
   info: vi.fn(),
-  error: vi.fn(),
+  // A missing font is an ERROR (issue #217): every exported PDF loses its
+  // Chinese text, so it must not be a warn line nobody reads.
+  error: (...args: unknown[]) => mockError(...args),
   debug: vi.fn(),
 }));
 
@@ -81,7 +84,7 @@ describe('CJK font location', () => {
   it('reports the font as missing from the assets directory, not reports/', async () => {
     await runExport();
 
-    expect(mockWarn).toHaveBeenCalledWith(
+    expect(mockError).toHaveBeenCalledWith(
       expect.stringContaining('CJK font missing'),
       expect.objectContaining({ fontPath: join(assetsDir, FONT) })
     );
