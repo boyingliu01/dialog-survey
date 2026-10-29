@@ -21,7 +21,44 @@ interface HealthResponse {
   };
 }
 
+/**
+ * A degraded dependency means "the process answers HTTP but cannot do the job"
+ * — a missing LLM key, a placeholder DingTalk credential. Issue #218: `/health`
+ * reported that as 200, so `docker compose` (which only looked at `r.ok`) showed
+ * `healthy` for a deployment that could not hold a single interview.
+ *
+ * Two routes, two questions:
+ *   - `/health`        liveness  — is the process up and talking? degraded is 200.
+ *   - `/health/ready`  readiness — can it actually work? only `healthy` is 200.
+ * Containers, orchestrators and monitors ask the second one; flipping `/health`
+ * to 503 instead would have broken its documented use as an availability probe.
+ */
+export const READINESS_PATH = '/health/ready';
+
+type HealthStatus = HealthResponse['status'];
+
+/** Status code per route: liveness tolerates `degraded`, readiness does not. */
+function statusCodeFor(status: HealthStatus, readiness: boolean): number {
+  if (readiness) {
+    return status === 'healthy' ? 200 : 503;
+  }
+  return status === 'unhealthy' ? 503 : 200;
+}
+
 let llmCacheTime: number | null = null;
+
+/**
+ * Drop the 60s LLM probe cache.
+ *
+ * Without this, a suite that asserts "no key means degraded" passes only by
+ * ordering luck: an earlier `healthy` case caches its verdict for a minute and
+ * every later assertion reads the cached `ok` instead of re-resolving the
+ * configuration. Same shape as `resetCjkFontWarningForTests()` in
+ * export.service.ts.
+ */
+export function resetHealthProbeCacheForTests(): void {
+  llmCacheTime = null;
+}
 
 type LlmCheckResult = HealthResponse['checks']['llm'];
 
@@ -153,44 +190,67 @@ async function checkDingTalk(): Promise<{
   return { status: 'ok' };
 }
 
+/**
+ * Run the three probes once and classify the deployment.
+ *
+ * `unhealthy` is reserved for a failing database: without it the process cannot
+ * serve anything. Every other failing dependency degrades the deployment — it
+ * still answers HTTP, it just cannot do the job.
+ */
+async function probeHealth(databaseHealth: DatabaseHealthRepository): Promise<HealthResponse> {
+  const [dbCheck, llmCheck, dingtalkCheck] = await Promise.all([
+    databaseHealth.check(),
+    checkLLM(),
+    checkDingTalk(),
+  ]);
+
+  const dbOk = dbCheck.status === 'ok';
+  const dependenciesOk = dbOk && llmCheck.status === 'ok' && dingtalkCheck.status === 'ok';
+
+  let status: HealthStatus;
+  if (!dbOk) {
+    status = 'unhealthy';
+  } else if (dependenciesOk) {
+    status = 'healthy';
+  } else {
+    status = 'degraded';
+  }
+
+  return {
+    status,
+    version: getAppVersion(),
+    timestamp: new Date().toISOString(),
+    checks: {
+      db: dbCheck,
+      llm: llmCheck,
+      dingtalk: dingtalkCheck,
+    },
+  };
+}
+
 export async function healthRoutes(
   fastify: FastifyInstance,
   opts: { databaseHealth: DatabaseHealthRepository }
 ) {
+  // Liveness: 200 for healthy and degraded, 503 only when the DB is down.
   fastify.get<{ Reply: HealthResponse }>('/health', async (_request, reply) => {
     info('Health check requested');
+    const response = await probeHealth(opts.databaseHealth);
+    // Never cached: a stale `healthy` is exactly the failure this route exists
+    // to prevent (a monitor caching 200 while the deployment is broken).
+    return reply
+      .header('Cache-Control', 'no-store')
+      .status(statusCodeFor(response.status, false))
+      .send(response);
+  });
 
-    const [dbCheck, llmCheck, dingtalkCheck] = await Promise.all([
-      opts.databaseHealth.check(),
-      checkLLM(),
-      checkDingTalk(),
-    ]);
-
-    const dbOk = dbCheck.status === 'ok';
-    const llmOk = llmCheck.status === 'ok';
-    const dingtalkOk = dingtalkCheck.status === 'ok';
-
-    let status: 'healthy' | 'degraded' | 'unhealthy';
-    if (dbOk && llmOk && dingtalkOk) {
-      status = 'healthy';
-    } else if (dbOk) {
-      status = 'degraded';
-    } else {
-      status = 'unhealthy';
-    }
-
-    const response: HealthResponse = {
-      status,
-      version: getAppVersion(),
-      timestamp: new Date().toISOString(),
-      checks: {
-        db: dbCheck,
-        llm: llmCheck,
-        dingtalk: dingtalkCheck,
-      },
-    };
-
-    const statusCode = status === 'healthy' ? 200 : status === 'degraded' ? 200 : 503;
-    return reply.status(statusCode).send(response);
+  // Readiness: 200 only when every check passes, 503 otherwise. This is what
+  // container healthchecks, orchestrators and uptime monitors should poll.
+  fastify.get<{ Reply: HealthResponse }>(READINESS_PATH, async (_request, reply) => {
+    const response = await probeHealth(opts.databaseHealth);
+    return reply
+      .header('Cache-Control', 'no-store')
+      .status(statusCodeFor(response.status, true))
+      .send(response);
   });
 }
