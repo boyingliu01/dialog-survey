@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.12.0](https://github.com/boyingliu01/dialog-survey/compare/v1.11.4...v1.12.0) (2026-10-29)
+
+### Features
+
+* **tooling:** enforce the mutation threshold inside the repo ([#209](https://github.com/boyingliu01/dialog-survey/issues/209)) ([be664de](https://github.com/boyingliu01/dialog-survey/commit/be664de01bba30a10a0b04a7ffd566e13bee88c1))
+* **tooling:** give WSL its own working environment with a dedicated worktree ([615a0b6](https://github.com/boyingliu01/dialog-survey/commit/615a0b6a293746e801ff32aff15ee580d5987729))
+* **tooling:** run the gates natively on Windows instead of through WSL ([3bcbc9c](https://github.com/boyingliu01/dialog-survey/commit/3bcbc9c441a7f528dc6d7db7d12e66db5c15f9a7)), closes [#595](https://github.com/boyingliu01/dialog-survey/issues/595)
+
+### Bug Fixes
+
+* **compose:** keep the database off the host network and require a password ([ca49979](https://github.com/boyingliu01/dialog-survey/commit/ca4997956b086bfff3d23b62b871097086984b5d)), closes [#215](https://github.com/boyingliu01/dialog-survey/issues/215)
+* **compose:** persist exported reports in a named volume ([245b6bd](https://github.com/boyingliu01/dialog-survey/commit/245b6bd4f8a51d3c293e55fcf348a196f354fc7b)), closes [#216](https://github.com/boyingliu01/dialog-survey/issues/216)
+* **config:** stop compose from eating the bcrypt hash, and fail loudly instead ([058e442](https://github.com/boyingliu01/dialog-survey/commit/058e4424ea958c149d4b97106933db1715d81d7a)), closes [#214](https://github.com/boyingliu01/dialog-survey/issues/214)
+* **core:** enforce one-question-per-turn, align end copy, record follow-up depth ([7e729b5](https://github.com/boyingliu01/dialog-survey/commit/7e729b503c59ef570704cdd9767cdce05ef9161f)), closes [#203](https://github.com/boyingliu01/dialog-survey/issues/203)
+* **core:** make planningNode reachable and stop the greeting rendering "undefined" ([0541840](https://github.com/boyingliu01/dialog-survey/commit/0541840f6e4d1384047cc843faa7d48635c2f66d))
+* **db:** drop InterviewPlan.completedCount, a column nothing ever wrote ([cbe2b5f](https://github.com/boyingliu01/dialog-survey/commit/cbe2b5f3824214b6e0318093c7bca0fe7a24853c))
+* **deps:** resolve the lockfile from the official npm registry ([dc30ddb](https://github.com/boyingliu01/dialog-survey/commit/dc30ddbd978dfb336fe447199015def49675b45a)), closes [#212](https://github.com/boyingliu01/dialog-survey/issues/212)
+* **dingtalk:** let the Stream client read DINGTALK_APP_KEY/SECRET ([f9de36f](https://github.com/boyingliu01/dialog-survey/commit/f9de36fc8227e083e88f7df8a2edc8e8f59a9333))
+* **docker:** align the image, engines and .nvmrc on Node 22 ([62761f3](https://github.com/boyingliu01/dialog-survey/commit/62761f34f5dd056ef4beb246caf27d83776a2210)), closes [#213](https://github.com/boyingliu01/dialog-survey/issues/213)
+* **docker:** prune build-time tooling, migrate without the Prisma CLI, and boot on Debian ([6cbb124](https://github.com/boyingliu01/dialog-survey/commit/6cbb12431d76417950a3908491feb33847cc34c5)), closes [#210](https://github.com/boyingliu01/dialog-survey/issues/210)
+* **docker:** refuse to build an image containing a Git LFS pointer ([4618b02](https://github.com/boyingliu01/dialog-survey/commit/4618b0219da836e64b2dc672de0f4deff50e15ce)), closes [#217](https://github.com/boyingliu01/dialog-survey/issues/217)
+* **gate:** measure complexity with the TypeScript AST, not regex parsing ([c5c9522](https://github.com/boyingliu01/dialog-survey/commit/c5c952268e9b6306f88e6729f987465c40d8033a))
+* **gate:** pay down the six real findings from xp-gate 0.30.5 ([8a3ad93](https://github.com/boyingliu01/dialog-survey/commit/8a3ad93bdf3d8e545d72916e184a381a602ff9f2))
+* **gate:** stop trusting lizard's phantom rows, and measure concise arrows ([c2a3c4d](https://github.com/boyingliu01/dialog-survey/commit/c2a3c4d5467660c7fb1f219a8e5bbbf7732d0e8e))
+* **health:** report a broken deployment as not-ready instead of healthy ([e2e3234](https://github.com/boyingliu01/dialog-survey/commit/e2e32343d2dc5666da39fa5ce2754caea87e31b1)), closes [#218](https://github.com/boyingliu01/dialog-survey/issues/218)
+* repair the phone-member chain broken by three defects ([#197](https://github.com/boyingliu01/dialog-survey/issues/197) [#198](https://github.com/boyingliu01/dialog-survey/issues/198) [#199](https://github.com/boyingliu01/dialog-survey/issues/199)) ([4b90373](https://github.com/boyingliu01/dialog-survey/commit/4b903739f1a6015d5717dad8822b1c203e9ce065))
+* resolve open issues [#202](https://github.com/boyingliu01/dialog-survey/issues/202) [#203](https://github.com/boyingliu01/dialog-survey/issues/203) [#204](https://github.com/boyingliu01/dialog-survey/issues/204) and split the admin route GodModule ([bcfd358](https://github.com/boyingliu01/dialog-survey/commit/bcfd3586398695021bd8d776cdb067f3832575ea)), closes [#200](https://github.com/boyingliu01/dialog-survey/issues/200) [#201](https://github.com/boyingliu01/dialog-survey/issues/201) [#206](https://github.com/boyingliu01/dialog-survey/issues/206) [#207](https://github.com/boyingliu01/dialog-survey/issues/207) [#208](https://github.com/boyingliu01/dialog-survey/issues/208) [#205](https://github.com/boyingliu01/dialog-survey/issues/205) [#209](https://github.com/boyingliu01/dialog-survey/issues/209) [579-#582](https://github.com/boyingliu01/579-/issues/582) [#592](https://github.com/boyingliu01/dialog-survey/issues/592)
+* **security:** make the full-history secret scan block new leaks ([202da51](https://github.com/boyingliu01/dialog-survey/commit/202da51c99969aa05c19b9092294b83227d97648)), closes [#218](https://github.com/boyingliu01/dialog-survey/issues/218) [#211](https://github.com/boyingliu01/dialog-survey/issues/211)
+* **services:** make version-conflict retries actually retry ([88d4226](https://github.com/boyingliu01/dialog-survey/commit/88d42266e256be22abf25925d40412a23639d80e))
+* **tooling:** make the three "missing" gate tools actually reachable ([2d697d0](https://github.com/boyingliu01/dialog-survey/commit/2d697d05bed7b399ae5d1799d7c2625356c1594f)), closes [#594](https://github.com/boyingliu01/dialog-survey/issues/594)
+* **views:** load htmx and Alpine locally, restore DT-only materials ([6ccf2ae](https://github.com/boyingliu01/dialog-survey/commit/6ccf2ae79de9726d20a00c36f9815cf8882646f5))
+
 ## Unreleased
 
 ### Security
