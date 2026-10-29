@@ -94,6 +94,14 @@ describe('Retry Utility', () => {
         .mockRejectedValueOnce(new Error('fail'))
         .mockResolvedValue('success');
 
+      // The cap is what has to be proved, not the wall clock. Without it the
+      // backoff would be 20ms then 200ms (multiplier 10), so the uncapped total
+      // is 220ms against a capped 20ms — two orders of magnitude apart.
+      //
+      // The bound is deliberately loose. The old one (80ms) asserted a 20ms
+      // design against a 60ms margin, and failed under parallel file execution
+      // with 113ms when the event loop was busy — a timing assertion that is
+      // sensitive to machine load tests the scheduler, not withRetry.
       const startTime = Date.now();
       await withRetry(fn, {
         maxRetries: 2,
@@ -103,7 +111,7 @@ describe('Retry Utility', () => {
       });
       const elapsed = Date.now() - startTime;
 
-      expect(elapsed).toBeLessThanOrEqual(80);
+      expect(elapsed).toBeLessThan(110);
     });
 
     /**
