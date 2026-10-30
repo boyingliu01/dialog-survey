@@ -155,9 +155,54 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install PostgreSQL client matching server major
+        # The client major MUST match the `postgres:16-alpine` service above: a
+        # 16-server dump restored by a differently-versioned pg_restore is not a
+        # supported combination, and the drill exists to prove the real upgrade
+        # path works.
+        #
+        # Read from PGDG rather than the distribution archive. `ubuntu-latest`
+        # moved to ubuntu-26.04 ("resolute"), which ships postgresql-client-18
+        # and no longer carries postgresql-client-16 at all, so the plain
+        # `apt-get install postgresql-client-16` failed with "Unable to locate
+        # package" — a red drill that never ran a single backup. PGDG keeps every
+        # supported major available regardless of which Ubuntu the runner ships.
         run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates gnupg lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          # --batch is required: gpg opens /dev/tty to confirm overwriting the
+          # output file, and a CI runner has no tty, so it aborted with
+          # "cannot open '/dev/tty'" and took the pipe (curl 23) with it.
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --batch --yes --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update
           sudo apt-get install -y postgresql-client-16
+          # Installing the 16 client is NOT enough: the runner image already
+          # ships a newer client, so /usr/bin/psql and /usr/bin/pg_restore stay
+          # symlinked to that one. Measured on ubuntu-26.04: client 16 installed
+          # as 16.15-1.pgdg26.04+2 while `pg_restore --version` still reported
+          # 18.6, which would have restored this 16-server dump with an
+          # unsupported major. Pin the alternatives and then prove it.
+          # Pin ALL THREE client binaries, not just the restore side. Pinning
+          # only psql+pg_restore left `pg_dump` at the image's 18.x, so the
+          # backup was written in an 18 custom-format archive and the 16
+          # pg_restore that consumed it rejected the file outright
+          # ("backup file is not a valid pg_dump custom archive") — the drill
+          # failed even though both halves ran without error.
+          for tool in psql pg_dump pg_restore; do
+            sudo update-alternatives --install "/usr/bin/${tool}" "${tool}" \
+              "/usr/lib/postgresql/16/bin/${tool}" 1600
+            sudo update-alternatives --set "${tool}" "/usr/lib/postgresql/16/bin/${tool}"
+          done
+          # Fail here, not 5 steps later, if the wrong major is in effect.
+          for tool in psql pg_dump pg_restore; do
+            "${tool}" --version
+            "${tool}" --version | grep -q ' 16\.' \
+              || { echo "DRILL SETUP: ${tool} is not major 16"; "${tool}" --version; exit 1; }
+          done
 
       - name: Seed probe data
         run: |
