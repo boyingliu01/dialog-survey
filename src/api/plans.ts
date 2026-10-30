@@ -387,10 +387,6 @@ export async function interviewPlanRoutes(
 
   /**
    * Read one value out of a JSON object, fresh each call: the first key present
-   * wins, so callers pass the aliases in priority order.
-   */
-  /**
-   * Read one value out of a JSON object, fresh each call: the first key present
    * wins, so callers pass their aliases in priority order. Keys are matched
    * case-insensitively, like CSV headers, because the alias sets are lowercase.
    */
@@ -555,11 +551,9 @@ export async function interviewPlanRoutes(
   }
 
   /**
-   * Classify a userId-mode row: the userId is trusted, the name is only
-   * checked (issue #219 DR-001: a differing name is a warning, not a failure).
+   * Map a userId-mode name check onto the row verdict. Pure, so the mapping —
+   * which is the part that encodes DR-001 and DR-002 — is easy to read.
    */
-  /** Map a userId-mode name check onto the row verdict. Pure, so the mapping
-   * (which is the part that encodes DR-001 and DR-002) is easy to read. */
   function userIdVerdict(
     check: UserNameCheck,
     inputName: string | undefined
