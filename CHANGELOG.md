@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.0](https://github.com/boyingliu01/dialog-survey/compare/v1.12.0...v1.13.0) (2026-10-30)
+
+### Features
+
+* **admin:** 批量导入支持 userId 列，姓名仅作校验 ([#220](https://github.com/boyingliu01/dialog-survey/issues/220)) ([81564a8](https://github.com/boyingliu01/dialog-survey/commit/81564a8c40fbb9ddf150c469426658214a9b2a72))
+
 ## [1.12.0](https://github.com/boyingliu01/dialog-survey/compare/v1.11.4...v1.12.0) (2026-10-29)
 
 ### Features
