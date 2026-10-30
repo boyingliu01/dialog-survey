@@ -1,167 +1,146 @@
 specification:
-  id: "SPEC-PRISMA7-001"
-  name: "Prisma 7 + PGlite 集成 — 解除集成测试对真实 PostgreSQL 的依赖"
+  id: "SPEC-IMPORT-USERID-001"
+  name: "批量导入支持 userId（CSV + JSON）"
   version: "1.0.0"
-  issue: "#149"
-  created_at: "2026-09-29T13:00:00Z"
-  source: "docs/sprints/2026-09-24-issue-149/phase-outputs/design-doc.md → .sprint-state/phase-outputs/design-doc.md (v5)"
+  issue: "#219"
+  created_at: "2026-10-30T02:25:31Z"
+  source: "docs/plans/2026-10-29-issue-219-csv-userid-import-design.md (v2, R2 APPROVED 100%)"
+  previous_spec_archive: ".sprint-state/archive/specification-issue-149-prisma7.yaml"
   requirements:
-    - id: REQ-PRISMA7-001
+    - id: REQ-USERID-001
       description: |
-        Prisma 升级至 7.10.0（prisma-client generator，生成物 src/generated/prisma），
-        并完成生产路径适配：门面模块（prisma-client.ts 纯符号缝）+ 工厂（prisma-factory.ts
-        createPrismaClient），全部消费方经门面导入、经工厂或显式 adapter 构造。
+        CSV 导入识别 userId 列（别名 userid/用户id/钉钉id/user_id/dingtalkid，大小写不敏感），
+        有 userId 的行按 userId 模式导入、跳过钉钉手机号反查；仅当既无手机号列又无 userId 列时拒绝。
       priority: MUST
       acceptance_criteria:
-        - id: AC-PRISMA7-001-01
-          given: "依赖升级至 prisma@7.10.0 / @prisma/client@7.10.0 且 generator 配置为 prisma-client（output=../src/generated/prisma）"
-          when: "执行 npx prisma generate 与 npx tsc --noEmit"
-          then: "generate 成功产出 .ts 生成物，tsc 对生成物 + 全仓编译零错误"
-        - id: AC-PRISMA7-001-02
-          given: "门面 src/utils/prisma-client.ts 与工厂 src/utils/prisma-factory.ts 就位"
-          when: "生产路径（server.ts / db.ts / seeds / scripts）构建 PrismaClient"
-          then: "全部经门面导入（禁止直连生成目录）且类型同一性成立：factory 返回值可赋给 BuildAppOptions.prismaFactory 形参"
+        - id: AC-USERID-001-01
+          given: "上传仅含 userId,姓名 两列的 CSV"
+          when: "调用 POST /api/plans/:id/import-preview"
+          then: "不抛缺列错误；每行进入分类；有 userId 的行 status=ok 且 userId 与输入一致"
+        - id: AC-USERID-001-02
+          given: "上传 手机号,姓名,userId 三列、手机号列留空但 userId 有值的 CSV"
+          when: "调用 import-preview"
+          then: "该行不被丢弃，按 userId 模式分类（不调用手机号反查）"
+        - id: AC-USERID-001-03
+          given: "CSV 表头既无手机号列也无 userId 列"
+          when: "调用 import-preview"
+          then: "返回 400，错误信息包含「必须包含手机号或 userId 列之一」"
       edge_cases:
-        - "顶层 eager 构造经 beforeAll 惰性化后首查询不落空 schema"
-        - "vi.mock partial-mock 模式（importOriginal）下门面模块求值期零副作用"
+        - "全表所有行都缺手机号与 userId → 400 且信息明确指出缺少两者"
+        - "部分行缺标识 → 200，逐行 status=missing_identifier"
       test_coverage_requirements:
         unit: true
         integration: true
         e2e: false
 
-    - id: REQ-PRISMA7-002
+    - id: REQ-USERID-002
       description: |
-        测试基础设施迁移至 PGlite（in-process WASM PostgreSQL 16）：
-        TestDatabase 每实例独占内存库 + DDL 回放 + cleanup/teardown 契约；
-        createTestPrisma 提供文件级单例与独立实例；测试域 26 构造点按清单工件三分类勾销。
+        姓名校验按模式分流：userId 模式下姓名与钉钉真名不一致 → 状态 name_differs 但可导入（DR-001）；
+        姓名反查因配额/权限/网络失败 → 仍可导入并在 message 标注「姓名未校验」（DR-002）；
+        钉钉明确返回用户不存在 → 状态 user_not_found 不可导入。手机号模式 name_mismatch 语义不变（不可导入）。
       priority: MUST
       acceptance_criteria:
-        - id: AC-PRISMA7-002-01
-          given: "tests/helpers/test-db.ts 重构为 PGlite 后端且 create-test-prisma.ts 就位"
-          when: "测试调用 TestDatabase.setup()/getPrisma() 并执行 CRUD"
-          then: "PGlite 内存库回放 DDL 成功、adapter 构造的 PrismaClient 可用；teardown 后 cleanup 为静默 no-op（isClosed 同步置位）"
-        - id: AC-PRISMA7-002-02
-          given: "Stage A 产出 prisma-import-inventory.md（grep 派生清单）"
-          when: "按清单逐点执行三分类处置（a22 切换 getSharedTestPrisma / b3 vi.mock 域保持 / c1 helper 重构）"
-          then: "清单全部勾销，无遗留 new PrismaClient() 直连生成目录的测试实例"
+        - id: AC-USERID-002-01
+          given: "userId 行姓名与钉钉真名不一致"
+          when: "import-preview"
+          then: "status=name_differs 且该行计入 passed（可导入），message 明示仅提示"
+        - id: AC-USERID-002-02
+          given: "userId 行姓名反查抛配额/网络错误"
+          when: "import-preview"
+          then: "status=ok，message 含「姓名未校验」，并记录 warn 日志"
+        - id: AC-USERID-002-03
+          given: "手机号行姓名与钉钉真名不一致"
+          when: "import-preview"
+          then: "status=name_mismatch 且不可导入（与现状一致）"
       edge_cases:
-        - "同文件多实例共享库语义保持（analysis-api 跨实例硬依赖）"
-        - "vi.mock 域内构造 Mock 实例不替换为 getSharedTestPrisma"
-        - "teardown 与清理并发调用竞态（isClosed 提前置位）"
+        - "userId 行未填姓名 → 不发起反查，直接 ok"
+        - "userId 行姓名反查返回用户不存在 → user_not_found，不可导入"
       test_coverage_requirements:
         unit: true
         integration: true
         e2e: false
 
-    - id: REQ-PRISMA7-003
+    - id: REQ-USERID-003
       description: |
-        全部测试（unit + 6 集成 + 11 e2e，~100 文件）在无外部 PostgreSQL 环境下全绿；
-        本地 npx vitest run（含 e2e）零手动步骤。
+        可导入性为 status 的纯函数（IMPORTABLE_STATUSES={ok,name_differs}），预览计数与 commit 校验共用同一白名单；
+        预览响应计数自洽：warnings ⊆ passed，passed + failed === totalRows。
       priority: MUST
       acceptance_criteria:
-        - id: AC-PRISMA7-003-01
-          given: "CI 无 postgres service、本机无 PG 运行环境"
-          when: "运行全量测试（unit + 集成 + e2e）"
-          then: "全绿（Windows 本机证据 + CI 无 PG job 证据）"
-        - id: AC-PRISMA7-003-02
-          given: "全新克隆 + npm ci 后（冷启动，DDL 缓存未生成）"
-          when: "执行 npx vitest run 包含 e2e"
-          then: "零手动步骤全绿；冷启动首次 setup ≤5s、warm p95 ≤2s"
+        - id: AC-USERID-003-01
+          given: "混合结果（ok / name_differs / name_mismatch）"
+          when: "import-preview"
+          then: "passed 含 name_differs；warnings <= passed；passed + failed === totalRows"
+        - id: AC-USERID-003-02
+          given: "commit 请求携带 status=name_mismatch 的行"
+          when: "POST import-commit"
+          then: "返回 400（非可导入状态被拒）"
       edge_cases:
-        - "冷启动 DDL diff 子进程 2-4s 不计入 warm p95"
-        - "内存峰值无 OOM（maxWorkers 先验预算）"
+        - "客户端试图用附加字段伪造可导入性 → 服务端仅凭 status 判定，不受影响"
       test_coverage_requirements:
         unit: true
         integration: true
-        e2e: true
-
-    - id: REQ-PRISMA7-004
-      description: |
-        CI workflows（pr.yml 4 个 job + publish.yml）移除 postgres service 与 db push；
-        6 个 job 显式新增 prisma generate 步且置于 tsc/test 之前。
-      priority: MUST
-      acceptance_criteria:
-        - id: AC-PRISMA7-004-01
-          given: "pr.yml 与 publish.yml 修改完成"
-          when: "静态检查 workflow 文件"
-          then: "无 postgres service 声明、无 db push 步；node 版本取自 .nvmrc"
-        - id: AC-PRISMA7-004-02
-          given: "v7 生成物不入库（src/generated 被 gitignore）"
-          when: "检查 6 个 job（static-analysis/unit/integration/coverage/e2e/smoke）步序"
-          then: "每个 job 的 generate 步存在且先于同 job 内 tsc / vitest / smoke 命令"
-      edge_cases:
-        - "generate 阶段是否需要 dummy DATABASE_URL（spike #8 定案后的分支落地）"
-        - "coverage job 的 if: always() 保持不动（#150 范围）"
-      test_coverage_requirements:
-        unit: true
-        integration: false
         e2e: false
 
-    - id: REQ-PRISMA7-005
+    - id: REQ-USERID-004
       description: |
-        发布链路适配：Dockerfile / deploy.sh / cli.mjs / package.json（files+allowScripts）/
-        publish.yml；全新安装场景与生产构建回归验证。
+        commit 契约放宽且向后兼容：phone 改为可选（纯 userId 行），status 接受 ok|name_differs，userId 保持必填。
       priority: MUST
       acceptance_criteria:
-        - id: AC-PRISMA7-005-01
-          given: "发布包包含 prisma.config.ts（files + cli.mjs filesToCopy + verifyInstallation）"
-          when: "全新安装场景（npm pack / 隔离 prefix 全局安装 → npx prisma db push）"
-          then: "prisma.config.ts 可解析、db push 可用；自动 generate 行为定案（必要时 --no-generate）"
-        - id: AC-PRISMA7-005-02
-          given: "生产构建产物 dist + node_modules"
-          when: "npm run build + 无源码树启动（node dist/src/server.js）+ /health 探测"
-          then: "启动正常、/health 返回 db ok；docker build 端到端或按预定义替代证据（builder 单阶段/等价工具/残余风险声明）"
-      edge_cases:
-        - "seeds 仅 dev 场景（发布包内相对门面路径不可解析）"
-        - "runner 阶段缺 prisma.config.ts 时容器内 db push 失败"
+        - id: AC-USERID-004-01
+          given: "commit 行无 phone 字段、status=ok、userId 有值"
+          when: "POST import-commit"
+          then: "200，成功创建访谈记录"
+        - id: AC-USERID-004-02
+          given: "旧客户端提交带 phone 的 status=ok 行"
+          when: "POST import-commit"
+          then: "200，行为与改动前一致"
+        - id: AC-USERID-004-03
+          given: "commit 行 status=name_differs、无 phone"
+          when: "POST import-commit"
+          then: "200，成功创建访谈记录"
+      test_coverage_requirements:
+        unit: false
+        integration: true
+        e2e: false
+
+    - id: REQ-USERID-005
+      description: |
+        JSON 批量导入：[{userId, name}]（兼容键名 用户id/姓名）上传到同一 import-preview 端点，
+        复用同一行模型与分类/提交管线。结构错误（非法 JSON / 非数组）返回 400；语义错误（元素缺字段）逐行展示不阻断。
+      priority: MUST
+      acceptance_criteria:
+        - id: AC-USERID-005-01
+          given: "上传 application/json 的 [{userId,name}]"
+          when: "import-preview"
+          then: "结果与等价 CSV 一致，且可 import-commit"
+        - id: AC-USERID-005-02
+          given: "上传语法非法的 JSON 或非数组 JSON"
+          when: "import-preview"
+          then: "返回 400，信息说明 JSON 解析失败/必须为数组"
+        - id: AC-USERID-005-03
+          given: "JSON 数组含缺字段元素与有效元素混合"
+          when: "import-preview"
+          then: "返回 200，缺字段元素逐行 status=missing_identifier，有效元素正常分类"
       test_coverage_requirements:
         unit: true
         integration: true
-        e2e: true
+        e2e: false
 
-    - id: REQ-PRISMA7-006
+    - id: REQ-USERID-006
       description: |
-        治理与文档：工具链排除（biome / vitest coverage / .gitignore）、architecture.yaml
-        门面/工厂模块声明、Stage 0 spike 报告（#0-#12 判据）、项目文档更新。
+        UI 文案与预览/提交行为一致：上传提示列出实际支持的列头（含 userId）与 JSON 支持，
+        accept 接受 .csv/.json，预览计数与提交过滤与后端可导入性一致。
       priority: SHOULD
       acceptance_criteria:
-        - id: AC-PRISMA7-006-01
-          given: "生成物目录 src/generated 存在且为 .ts 源码"
-          when: "检查工具链配置与架构声明"
-          then: "biome 三处 ignore + vitest coverage.exclude + .gitignore 均排除生成物；architecture.yaml 声明门面/工厂归属与依赖"
-        - id: AC-PRISMA7-006-02
-          given: "Stage 0 spike 执行完毕"
-          when: "审阅 spike 报告与文档 diff"
-          then: "报告含 #0-#12 全部判据结果与结论；AGENTS.md / README / docs/setup-guide.md / DEPLOY.md 更新到位"
-      edge_cases:
-        - "spike 判据部分失败时按 §4.2 映射收敛（降级 Y/Y'/Y''）并记录"
+        - id: AC-USERID-006-01
+          given: "管理员打开访谈计划详情页的 CSV 导入弹窗"
+          when: "查看上传提示与文件选择器"
+          then: "提示含 userId 与 JSON，accept 含 .json"
+        - id: AC-USERID-006-02
+          given: "预览含 name_differs 行"
+          when: "点击确认导入"
+          then: "该行被提交（不被 'ok'-only 过滤丢弃）"
       test_coverage_requirements:
         unit: true
         integration: false
-        e2e: false
-
-  design_decisions:
-    - id: DD-001
-      description: "版本选择：@prisma/client 7.10.0 / prisma 7.10.0 / @prisma/adapter-pg 7.10.0 / @electric-sql/pglite 0.5.8 / pglite-prisma-adapter 0.7.2（精确 pin）"
-    - id: DD-002
-      description: "生成器 prisma-client → src/generated/prisma（.ts 源码），tsconfig 不排除生成目录"
-    - id: DD-003
-      description: "门面 prisma-client.ts（纯 export * 符号缝）+ 工厂 prisma-factory.ts（唯一生产构造点）；类型同一性硬规则"
-    - id: DD-004
-      description: "prismaFactory 注入缝（BuildAppOptions），checkDatabaseConnection 参数化；双 client 为 v6 既有行为"
-    - id: DD-005
-      description: "TestDatabase → PGlite；cleanup/teardown 契约（isClosed 同步置位）；测试域 26 构造点三分类 + Stage A 清单工件"
-    - id: DD-006
-      description: "测试 schema 初始化：migrate diff 生成 DDL + 缓存；globalSetup 仅生成物守卫（兜底 generate 仅失败路径）"
-    - id: DD-007
-      description: "分阶段执行 Stage 0/A/B + 回滚点 + merge commit（禁 squash）+ Stage B 延期 AC 重基线"
-    - id: DD-008
-      description: "CI workflows：4 job 移除 service + 6 job 显式 generate（先于 tsc/test）+ dummy env 两分支落点预定"
-    - id: DD-009
-      description: "发布链路 6 处适配（Dockerfile/deploy.sh/cli.mjs/publish.yml/package.json/engines 20.19）"
-    - id: DD-010
-      description: "连接池与生产行为基线：PrismaPg 显式 connectionTimeoutMillis 等对齐 v6"
-    - id: DD-011
-      description: "工具链排除（biome/vitest/gitignore）+ architecture.yaml 声明"
-    - id: DD-012
-      description: "e2e 策略：主方案 X（全 PGlite 注入）+ 降级 Y/Y'/Y''"
+        e2e: true

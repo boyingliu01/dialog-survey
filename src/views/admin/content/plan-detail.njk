@@ -205,7 +205,7 @@
     </div>
     {% endif %}
   </div>
-  <div x-show="activeTab==='members'" x-cloak class="text-sm" x-data="{ showAdd: false, newUserId: '', newPhone: '', newName: '', showImport: false, importStatus: '', importFile: null, importResults: null, importConfirmed: false, getFailedRows() { return this.importResults?.results?.filter(r => r.status !== 'ok' && r.status !== 'name_mismatch' && r.status !== 'duplicate_phone') || []; }, getPassedRows() { return this.importResults?.results?.filter(r => r.status === 'ok' || r.status === 'name_mismatch' || r.status === 'duplicate_phone') || []; } }">
+  <div x-show="activeTab==='members'" x-cloak class="text-sm" x-data="{ showAdd: false, newUserId: '', newPhone: '', newName: '', showImport: false, importStatus: '', importFile: null, importResults: null, importConfirmed: false, IMPORTABLE: ['ok', 'name_differs'], isImportable(row) { return this.IMPORTABLE.indexOf(row.status) !== -1; }, getFailedRows() { return this.importResults?.results?.filter(r => !this.isImportable(r)) || []; }, getPassedRows() { return this.importResults?.results?.filter(r => this.isImportable(r)) || []; }, statusLabel(s) { return { ok: '验证通过', name_differs: '姓名不一致(仅提示，可导入)', name_mismatch: '姓名不匹配', duplicate_phone: '手机号重复', duplicate_member: 'userId 重复', phone_not_found: '手机号未注册', user_not_found: 'userId 不存在', dingtalk_error: '钉钉接口错误', phone_invalid: '手机号格式有误', missing_identifier: '缺少手机号/userId' }[s] || s; } }">
     <div class="flex gap-2 mb-3">
       {% if plan.status == 'PENDING' or plan.status == 'READY' %}
        <button
@@ -245,10 +245,10 @@
           <!-- Step 1: Upload CSV -->
           <template x-if="!importResults">
             <div>
-              <p class="text-sm text-gray-600 mb-3">上传 CSV 文件，支持以下列头：手机号、姓名、userId</p>
+              <p class="text-sm text-gray-600 mb-3">上传 CSV 或 JSON 文件，支持以下列头：手机号、姓名、userId（有 userId 时优先按 userId 导入，姓名仅作校验提示）</p>
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.json,application/json"
                 @change="importFile = $event.target.files[0]"
                 class="w-full text-sm border rounded p-2 mb-4"
               />
@@ -257,7 +257,7 @@
                 <button @click="showImport = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">取消</button>
                 <button
                   @click="
-                    if (!importFile) { importStatus = '请选择 CSV 文件'; return; }
+                    if (!importFile) { importStatus = '请选择 CSV 或 JSON 文件'; return; }
                     importStatus = '正在解析...';
                     importConfirmed = false;
                     const formData = new FormData();
@@ -288,7 +288,8 @@
             <div>
               <div class="mb-3">
                 <h4 class="text-sm font-medium text-gray-700 mb-2">
-                  <span class="text-emerald-600" x-text="'通过：' + importResults.passed + ' 人'"></span>
+                  <span class="text-emerald-600" x-text="'可导入：' + importResults.passed + ' 人'"></span>
+                  <span class="text-amber-600 ml-3" x-show="importResults.warnings" x-text="'其中姓名仅提示：' + importResults.warnings + ' 人'"></span>
                   <span class="text-red-600 ml-3" x-show="importResults.failed" x-text="'失败：' + importResults.failed + ' 人'"></span>
                 </h4>
                 <!-- Failed rows -->
@@ -322,7 +323,7 @@
                           <td class="p-1" x-text="row.inputName || row.dingtalkName || '-'"></td>
                           <td class="p-1" x-text="row.phone || '-'"></td>
                           <td class="p-1" x-text="row.userId || '-'"></td>
-                          <td class="p-1" :class="row.status === 'name_mismatch' ? 'text-amber-600' : row.status === 'duplicate_phone' ? 'text-blue-600' : 'text-emerald-600'" x-text="row.status === 'name_mismatch' ? '姓名不匹配' : row.status === 'duplicate_phone' ? '手机号重复' : '验证通过'"></td>
+                          <td class="p-1" :class="row.status === 'name_differs' ? 'text-amber-600' : 'text-emerald-600'" x-text="statusLabel(row.status)"></td>
                         </tr>
                       </template>
                     </tbody>
@@ -335,7 +336,7 @@
                   @click="
                     importConfirmed = true;
                     importStatus = '正在导入...';
-                    const rows = importResults.results.filter(r => r.status === 'ok');
+                    const rows = importResults.results.filter(r => isImportable(r));
                     fetch('/api/plans/{{ plan.id }}/import-commit', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', 'x-csrf-token': adminCsrfToken() },
