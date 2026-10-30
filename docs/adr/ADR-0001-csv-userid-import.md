@@ -20,6 +20,7 @@
 2. **表头级错误**：`phoneIdx < 0 && userIdIdx < 0` → 抛 `CSV 必须包含手机号或 userId 列之一`（→ 400）。
 3. **新增可导入警告状态 `name_differs`**：userId 模式下姓名与钉钉真名不一致 → `status: 'name_differs'`（该状态在 `IMPORTABLE_STATUSES` 白名单内）、message 提示「仅提示，将按 userId 导入」。手机号模式保持 `name_mismatch`、不可导入。二者状态值不同，避免语义冲突。
 4. **姓名反查失败降级（与「不存在」严格区分）**：userId 模式下 `getUserByUserId` 抛错时，只有「用户不存在」（errmsg 含 `user not found`/`no such user`，或 errcode 60121/60111）→ `status: 'user_not_found'`，**不可导入**（userId 本身是错的）；其余（配额 90018、权限、网络）→ `status: 'ok'`、message「姓名未校验」并 `logger.warn`，不阻塞。
+   - **「成功但无姓名」同属未校验**：`getUserByUserId` 返回 200 却不带姓名（空串或 `undefined`）时，输入姓名与「空」之间没有发生任何比对，因此**不得**报告为已验证，同样降级为「姓名未校验」（`status: 'ok'`，仍可导入）。此分支由 `AC-USERID-002-04` 锁定——code-walkthrough 第 1 轮指出原实现会把它误判为 `verified`，属于「报告了一次并未发生的校验」。
 5. **权威导入门 = 服务端 `IMPORTABLE_STATUSES` 白名单（`ok` / `name_differs`）**：不向客户端暴露 `importable` 字段——否则客户端可伪造该字段越过校验。`passed` 由 `isImportableStatus()` 派生，提交端 zod schema 用同一状态枚举，两处不可能漂移；`warnings`（`name_differs` 计数）是 `passed` 的子集。
 6. **commit 契约放宽（向后兼容）**：`phone` 改为可选；`status` 由 `literal('ok')` 放宽为 `enum(['ok','name_differs'])`（两者皆可导入）；`userId` 仍必填。原有 `name_mismatch` 等非可导入状态仍被拒 → 保持既有「reject non-ok rows」测试语义。
 7. **JSON 导入**：`readImportRows` 检测 JSON（mimetype 含 json 或内容以 `[` 开头）→ 解析 `[{userId,name}]`，映射为同一行模型，复用分类/提交管线；解析失败 → 400 `JSON 解析失败：…`。

@@ -390,14 +390,19 @@ export async function interviewPlanRoutes(
    * wins, so callers pass their aliases in priority order. Keys are matched
    * case-insensitively, like CSV headers, because the alias sets are lowercase.
    */
-  function readJsonField(
-    record: Record<string, unknown>,
-    aliases: ReadonlySet<string>
-  ): string | undefined {
+  /** Normalise a JSON record's keys once, so each row costs one pass. */
+  function normalizeJsonKeys(record: Record<string, unknown>): Map<string, unknown> {
     const lowered = new Map<string, unknown>();
     for (const [key, value] of Object.entries(record)) {
       lowered.set(normalizeHeaderCell(key), value);
     }
+    return lowered;
+  }
+
+  function readJsonField(
+    lowered: ReadonlyMap<string, unknown>,
+    aliases: ReadonlySet<string>
+  ): string | undefined {
     for (const alias of aliases) {
       const value = lowered.get(alias);
       if (typeof value === 'string' && value.trim() !== '') return value.trim();
@@ -439,12 +444,12 @@ export async function interviewPlanRoutes(
     }
 
     const rows = parsed.map((item: unknown) => {
-      const record = asJsonRecord(item);
-      const phone = normalizePhoneOrUndefined(readJsonField(record, PHONE_ALIASES));
+      const lowered = normalizeJsonKeys(asJsonRecord(item));
+      const phone = normalizePhoneOrUndefined(readJsonField(lowered, PHONE_ALIASES));
       return buildCsvRow({
         phone,
-        userId: readJsonField(record, USERID_ALIASES),
-        name: readJsonField(record, NAME_ALIASES),
+        userId: readJsonField(lowered, USERID_ALIASES),
+        name: readJsonField(lowered, NAME_ALIASES),
       });
     });
     return markDuplicates(rows);
@@ -528,7 +533,13 @@ export async function interviewPlanRoutes(
     try {
       const info = await client.getUserByUserId(userId);
       const dingtalkName = (info.name ?? '').trim();
-      if (dingtalkName && inputName !== dingtalkName) {
+      // DingTalk can answer successfully with no name at all. Reporting
+      // `verified` there would claim a comparison that never happened, so the
+      // row degrades to "unverified" instead (a warning, still importable).
+      if (!dingtalkName) {
+        return { kind: 'unverified', reason: '钉钉未返回姓名，无法校验' };
+      }
+      if (inputName !== dingtalkName) {
         return { kind: 'differs', dingtalkName };
       }
       return { kind: 'verified', dingtalkName };

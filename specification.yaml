@@ -52,6 +52,10 @@ specification:
           given: "手机号行姓名与钉钉真名不一致"
           when: "import-preview"
           then: "status=name_mismatch 且不可导入（与现状一致）"
+        - id: AC-USERID-002-04
+          given: "userId 行填了姓名，但钉钉 user/get 返回成功却不带姓名（空串或 undefined）"
+          when: "import-preview"
+          then: "不得报告为已验证；status=ok 且 message 含「姓名未校验」（DR-002 降级放行），因为实际未发生任何姓名比对"
       edge_cases:
         - "userId 行未填姓名 → 不发起反查，直接 ok"
         - "userId 行姓名反查返回用户不存在 → user_not_found，不可导入"

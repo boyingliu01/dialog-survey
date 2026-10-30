@@ -94,6 +94,7 @@ const isImportableStatus = (s: ImportStatus): boolean => IMPORTABLE_STATUSES.has
   2. 否则调用 `client.getUserByUserId(userId)`：
      - 成功且姓名不一致 → `name_differs`（可导入），message「姓名与钉钉不一致（仅提示），将按 userId 导入」
      - 成功且一致 → `ok`
+     - **成功但钉钉未返回姓名**（空串或 `undefined`）→ `ok` + message「姓名未校验：钉钉未返回姓名」，按 DR-002 降级。理由：输入姓名与「空」之间没有发生任何比对，报 `ok`/已验证会谎称做过一次校验（`AC-USERID-002-04`，code-walkthrough 第 1 轮修正）
      - 抛错「用户不存在」（P3 分支 a）→ `user_not_found`（不可导入），message「该 userId 在钉钉通讯录中不存在」
      - 抛错「配额/权限/网络」（P3 分支 b）→ `ok` + message「姓名未校验：<原因>」，并 `logger.warn` 记录（DR-002 降级，故障不再静默）
   3. 重复 userId → `duplicate_member`（不可导入）

@@ -41,6 +41,12 @@ const MockDingTalkClient = class {
       throw new Error('DingTalk user/get failed: 用户不存在 (errcode: 60111)');
     if (userId === 'batch-user-err90018')
       throw new Error('DingTalk user/get failed: 请求过于频繁 (errcode: 90018)');
+    // DingTalk can answer 200 with no name at all. Reporting that as "verified"
+    // would claim a comparison that never happened (code-walkthrough round 1).
+    if (userId === 'batch-user-noname')
+      return { userid: 'batch-user-noname', name: '', mobile: '' };
+    if (userId === 'batch-user-noname-undefined')
+      return { userid: 'batch-user-noname-undefined', name: undefined, mobile: '' };
     throw new Error('DingTalk user/get failed: user not found');
   }
 };
@@ -371,6 +377,38 @@ ${userId},张三`
         await cleanup();
       }
     });
+
+    /**
+     * @test REQ-USERID-002
+     * @intent a 200 response carrying no DingTalk name must not be reported as verified
+     * @covers AC-USERID-002-04
+     */
+    it.each([
+      ['batch-user-noname', 'empty'],
+      ['batch-user-noname-undefined', 'undefined'],
+    ])(
+      'AC-USERID-002-04 treats a %s name (%s) as unverified rather than verified',
+      async (userId) => {
+        const { planId, cleanup } = await createPlan(`No Name ${userId}`);
+        try {
+          const { statusCode, body } = await preview(
+            planId,
+            `userId,姓名
+${userId},张三`
+          );
+          expect(statusCode).toBe(200);
+          const row = (body.results ?? [])[0];
+          // The user supplied a name but DingTalk returned none, so nothing was
+          // compared. Claiming "verified" would be a lie; the row must still
+          // import (DR-002), flagged as unverified.
+          expect(row.status).toBe('ok');
+          expect(String(row.message)).toContain('姓名未校验');
+          expect(body.passed).toBe(1);
+        } finally {
+          await cleanup();
+        }
+      }
+    );
 
     it('marks an unknown userId as user_not_found and not importable', async () => {
       const { planId, cleanup } = await createPlan('Unknown User');
