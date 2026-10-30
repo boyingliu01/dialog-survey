@@ -14,6 +14,7 @@ import {
   PlanNotFoundError,
 } from '../services/interview-plan.service.js';
 import { normalizePhone } from '../services/member-verification.service.js';
+import { warn } from '../utils/logger.js';
 import type { PlanStatus } from '../utils/prisma-client.js';
 
 const createPlanSchema = z.object({
@@ -276,67 +277,229 @@ export async function interviewPlanRoutes(
 
   const PHONE_ALIASES = new Set(['phone', '手机号', 'phonenumber', 'mobile']);
   const NAME_ALIASES = new Set(['name', '姓名', 'fullname']);
+  // Issue #219: enterprise contact-list exports carry a userId and a name but
+  // no phone number, so the import must accept userId as a first-class
+  // identifier. Same alias style as PHONE_ALIASES / NAME_ALIASES.
+  const USERID_ALIASES = new Set(['userid', '用户id', '钉钉id', 'user_id', 'dingtalkid']);
+
+  /**
+   * How a row identifies the person. `userId` rows are imported on the strength
+   * of the supplied userId alone (matching `addMember`, which skips DingTalk
+   * entirely); only `phone` rows go through the mobile lookup.
+   */
+  type ImportMode = 'phone' | 'userId' | 'none';
 
   interface CsvRow {
-    phone: string;
+    phone: string | undefined;
+    userId: string | undefined;
     name: string | undefined;
+    mode: ImportMode;
     isDuplicate: boolean;
+  }
+
+  type ImportStatus =
+    | 'ok'
+    | 'name_mismatch'
+    | 'name_differs'
+    | 'phone_not_found'
+    | 'user_not_found'
+    | 'dingtalk_error'
+    | 'duplicate_phone'
+    | 'duplicate_member'
+    | 'phone_invalid'
+    | 'missing_identifier';
+
+  /**
+   * The single source of truth for "may this row be written to the plan".
+   * Preview counts and the commit schema both derive from it, so a client
+   * cannot claim importability the server did not grant (issue #219 R2).
+   */
+  const IMPORTABLE_STATUSES: ReadonlySet<ImportStatus> = new Set<ImportStatus>([
+    'ok',
+    'name_differs',
+  ]);
+
+  function isImportableStatus(status: ImportStatus): boolean {
+    return IMPORTABLE_STATUSES.has(status);
   }
 
   interface ImportRowResult {
     rowIndex: number;
-    phone: string;
+    phone: string | undefined;
     inputName: string | undefined;
-    status:
-      | 'ok'
-      | 'name_mismatch'
-      | 'phone_not_found'
-      | 'dingtalk_error'
-      | 'duplicate_phone'
-      | 'phone_invalid';
+    status: ImportStatus;
     userId: string | undefined;
     dingtalkName: string | undefined;
     message: string;
   }
 
-  function parseCsv(buffer: Buffer): { rows: CsvRow[]; dedupedPhones: Map<string, boolean> } {
+  /** Lower-cased header cells, so alias matching is case-insensitive. */
+  function headerIndex(header: string[], aliases: ReadonlySet<string>): number {
+    return header.findIndex((h: string) => aliases.has(normalizeHeaderCell(h)));
+  }
+
+  /**
+   * Normalise a header/key so `钉钉 ID`, `钉钉ID` and `dingtalk_id` all match the
+   * same alias. The admin UI labels this field "钉钉 ID", which is exactly the
+   * spelling an export is likely to carry.
+   */
+  function normalizeHeaderCell(cell: string): string {
+    return cell.toLowerCase().replace(/[\s_-]/g, '');
+  }
+
+  function columnValue(row: string[], index: number): string | undefined {
+    if (index < 0) return undefined;
+    return row[index]?.trim() || undefined;
+  }
+
+  /**
+   * Turn one raw input row into the row model. A row carrying a userId wins
+   * over a phone number; a row carrying neither is kept (mode `none`) so the
+   * preview can tell the admin *which* rows are unusable instead of silently
+   * dropping them (the pre-#219 behaviour that made pure-userId lists vanish).
+   */
+  function buildCsvRow(fields: {
+    phone: string | undefined;
+    userId: string | undefined;
+    name: string | undefined;
+  }): CsvRow {
+    const mode: ImportMode = fields.userId ? 'userId' : fields.phone ? 'phone' : 'none';
+    return {
+      phone: fields.phone,
+      userId: fields.userId,
+      name: fields.name,
+      mode,
+      isDuplicate: false,
+    };
+  }
+
+  /** Mark repeated identifiers so the preview can merge them (first one wins). */
+  function markDuplicates(rows: CsvRow[]): CsvRow[] {
+    const seen = new Set<string>();
+    return rows.map((row) => {
+      const key = row.userId ?? row.phone;
+      if (key === undefined) return { ...row, isDuplicate: false };
+      const isDuplicate = seen.has(key);
+      seen.add(key);
+      return { ...row, isDuplicate };
+    });
+  }
+
+  /**
+   * Read one value out of a JSON object, fresh each call: the first key present
+   * wins, so callers pass their aliases in priority order. Keys are matched
+   * case-insensitively, like CSV headers, because the alias sets are lowercase.
+   */
+  /** Normalise a JSON record's keys once, so each row costs one pass. */
+  function normalizeJsonKeys(record: Record<string, unknown>): Map<string, unknown> {
+    const lowered = new Map<string, unknown>();
+    for (const [key, value] of Object.entries(record)) {
+      lowered.set(normalizeHeaderCell(key), value);
+    }
+    return lowered;
+  }
+
+  function readJsonField(
+    lowered: ReadonlyMap<string, unknown>,
+    aliases: ReadonlySet<string>
+  ): string | undefined {
+    for (const alias of aliases) {
+      const value = lowered.get(alias);
+      if (typeof value === 'string' && value.trim() !== '') return value.trim();
+      if (typeof value === 'number') return String(value);
+    }
+    return undefined;
+  }
+
+  function normalizePhoneOrUndefined(raw: string | undefined): string | undefined {
+    return raw === undefined ? undefined : normalizePhone(raw);
+  }
+
+  function asJsonRecord(item: unknown): Record<string, unknown> {
+    return item !== null && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+  }
+
+  /** Decide whether the upload is JSON rather than CSV. */
+  function isJsonPayload(content: string, mimetype?: string): boolean {
+    if (mimetype !== undefined && /json/i.test(mimetype)) return true;
+    const head = content.trimStart();
+    return head.startsWith('[') || head.startsWith('{');
+  }
+
+  /**
+   * Parse a JSON array of `{userId, name}` (or `{phone, name}`) objects into the
+   * shared row model. Unknown-shaped elements become `mode: 'none'` rows rather
+   * than failing the upload — they are reported per row, like a blank CSV cell.
+   */
+  function parseJsonRows(content: string): CsvRow[] {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'unknown';
+      throw new Error(`JSON 解析失败：${message}`);
+    }
+    if (!Array.isArray(parsed)) {
+      throw new Error('JSON 必须为数组：[{"userId": "...", "name": "..."}]');
+    }
+
+    const rows = parsed.map((item: unknown) => {
+      const lowered = normalizeJsonKeys(asJsonRecord(item));
+      const phone = normalizePhoneOrUndefined(readJsonField(lowered, PHONE_ALIASES));
+      return buildCsvRow({
+        phone,
+        userId: readJsonField(lowered, USERID_ALIASES),
+        name: readJsonField(lowered, NAME_ALIASES),
+      });
+    });
+    return markDuplicates(rows);
+  }
+
+  /** Locate the identifier column indices, or throw when neither is present. */
+  function requireIdentifierColumns(header: string[]): {
+    phoneIdx: number;
+    userIdIdx: number;
+    nameIdx: number;
+  } {
+    const phoneIdx = headerIndex(header, PHONE_ALIASES);
+    const userIdIdx = headerIndex(header, USERID_ALIASES);
+    if (phoneIdx < 0 && userIdIdx < 0) {
+      throw new Error('CSV 必须包含手机号或 userId 列之一');
+    }
+    return { phoneIdx, userIdIdx, nameIdx: headerIndex(header, NAME_ALIASES) };
+  }
+
+  /** Map one CSV record (header already resolved) into the row model. */
+  function csvRecordToRow(
+    row: string[],
+    columns: { phoneIdx: number; userIdIdx: number; nameIdx: number }
+  ): CsvRow {
+    return buildCsvRow({
+      phone: normalizePhoneOrUndefined(columnValue(row, columns.phoneIdx)),
+      userId: columnValue(row, columns.userIdIdx),
+      name: columnValue(row, columns.nameIdx),
+    });
+  }
+
+  function parseCsv(buffer: Buffer, mimetype?: string): CsvRow[] {
     const content = buffer.toString('utf-8').replace(/^\uFEFF/, '');
+    if (isJsonPayload(content, mimetype)) return parseJsonRows(content);
+
     const records: string[][] = parse(content, {
       skip_empty_lines: true,
       relax_column_count: true,
       trim: true,
     });
-    if (records.length === 0) return { rows: [], dedupedPhones: new Map() };
+    if (records.length === 0) return [];
 
-    const header = records[0].map((h: string) => h.toLowerCase().trim());
-    const phoneIdx = header.findIndex((h: string) => PHONE_ALIASES.has(h));
-    const nameIdx = header.findIndex((h: string) => NAME_ALIASES.has(h));
-
-    if (phoneIdx < 0) {
-      throw new Error('CSV missing phone column. Expected header: phone or 手机号');
-    }
-
-    const seenPhones = new Map<string, boolean>();
-    const result: CsvRow[] = [];
-    for (let i = 1; i < records.length; i++) {
-      const row = records[i];
-      const rawPhone = row[phoneIdx]?.trim();
-      if (!rawPhone) continue;
-      const phone = normalizePhone(rawPhone);
-      const isDuplicate = seenPhones.has(phone);
-      seenPhones.set(phone, true);
-      result.push({
-        phone,
-        name: nameIdx >= 0 ? row[nameIdx]?.trim() || undefined : undefined,
-        isDuplicate,
-      });
-    }
-    return { rows: result, dedupedPhones: seenPhones };
+    const header = records[0].map((h: string) => normalizeHeaderCell(h));
+    const columns = requireIdentifierColumns(header);
+    return markDuplicates(records.slice(1).map((row) => csvRecordToRow(row, columns)));
   }
 
   async function verifyRow(
     client: DingTalkClient,
-    row: CsvRow
+    row: CsvRow & { phone: string }
   ): Promise<{ userId: string; dingtalkName: string }> {
     const lookup = await client.getUserIdByMobile(row.phone);
     if (!lookup.found) {
@@ -347,41 +510,140 @@ export async function interviewPlanRoutes(
     return { userId: lookup.userId, dingtalkName: lookup.name.trim() };
   }
 
+  /** Outcome of the userId-mode name check — never throws, by design. */
+  type UserNameCheck =
+    | { kind: 'verified'; dingtalkName: string }
+    | { kind: 'differs'; dingtalkName: string }
+    | { kind: 'unverified'; reason: string }
+    | { kind: 'not_found' };
+
   /**
-   * Classify one CSV row into an import result. Extracted from the route handler
-   * so the duplicate / found / mismatch / error precedence is readable in one
-   * place instead of nested inside the request loop.
+   * Look the supplied userId up so the name can be *validated*. The userId is
+   * already authoritative (issue #219 / DR-001, DR-002), so a lookup failure
+   * must not fail the row — it only downgrades the row to "name unverified".
+   * The one failure that does block is an explicit "no such user", because that
+   * means the userId itself is wrong.
    */
-  async function classifyImportRow(
+  async function checkUserName(
+    client: DingTalkClient,
+    userId: string,
+    inputName: string | undefined
+  ): Promise<UserNameCheck> {
+    if (!inputName) return { kind: 'unverified', reason: '未填写姓名，跳过校验' };
+    try {
+      const info = await client.getUserByUserId(userId);
+      const dingtalkName = (info.name ?? '').trim();
+      // DingTalk can answer successfully with no name at all. Reporting
+      // `verified` there would claim a comparison that never happened, so the
+      // row degrades to "unverified" instead (a warning, still importable).
+      if (!dingtalkName) {
+        return { kind: 'unverified', reason: '钉钉未返回姓名，无法校验' };
+      }
+      if (inputName !== dingtalkName) {
+        return { kind: 'differs', dingtalkName };
+      }
+      return { kind: 'verified', dingtalkName };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'unknown';
+      // DingTalk answers 60121/60111 for "user not found"; only that is fatal
+      // for a userId-mode row. Quota, permission and network failures downgrade.
+      if (/60121|60111|user not found|no such user/i.test(msg)) {
+        return { kind: 'not_found' };
+      }
+      // DR-002 degrades the row rather than failing it, so this log is the only
+      // signal that name validation is broken — without it a quota exhaustion
+      // would silently stop every name check on the deployment.
+      warn('DingTalk name check failed; importing on userId without name validation', {
+        userId,
+        reason: msg,
+      });
+      return { kind: 'unverified', reason: msg };
+    }
+  }
+
+  /**
+   * Map a userId-mode name check onto the row verdict. Pure, so the mapping —
+   * which is the part that encodes DR-001 and DR-002 — is easy to read.
+   */
+  function userIdVerdict(
+    check: UserNameCheck,
+    inputName: string | undefined
+  ): { status: ImportStatus; dingtalkName: string | undefined; message: string } {
+    switch (check.kind) {
+      case 'not_found':
+        return {
+          status: 'user_not_found',
+          dingtalkName: undefined,
+          message: '该 userId 在钉钉通讯录中不存在',
+        };
+      case 'differs':
+        return {
+          status: 'name_differs',
+          dingtalkName: check.dingtalkName,
+          message: `姓名与钉钉不一致：输入 "${inputName}"，钉钉返回 "${check.dingtalkName}"（仅提示，将按 userId 导入）`,
+        };
+      case 'unverified':
+        return {
+          status: 'ok',
+          dingtalkName: undefined,
+          message: `按 userId 导入（姓名未校验：${check.reason}）`,
+        };
+      default:
+        return { status: 'ok', dingtalkName: check.dingtalkName, message: '验证通过' };
+    }
+  }
+
+  /**
+   * Classify a userId-mode row. The userId is authoritative (issue #219), so
+   * the lookup only ever adjusts the verdict — it never gated the import.
+   */
+  async function classifyUserIdRow(
     client: DingTalkClient,
     row: CsvRow,
     base: Omit<ImportRowResult, 'status' | 'userId' | 'dingtalkName' | 'message'>,
-    cache: Map<string, { userId: string; dingtalkName: string }>,
     rowNumber: number
   ): Promise<ImportRowResult> {
+    const userId = row.userId as string;
     if (row.isDuplicate) {
-      const cached = cache.get(row.phone);
-      if (!cached) {
-        return {
-          ...base,
-          status: 'phone_not_found',
-          userId: undefined,
-          dingtalkName: undefined,
-          message: '该手机号未在钉钉通讯录中注册',
-        };
-      }
       return {
         ...base,
-        status: 'duplicate_phone',
-        userId: cached.userId,
-        dingtalkName: cached.dingtalkName,
-        message: `手机号重复，与第 ${rowNumber} 行合并为同一人`,
+        status: 'duplicate_member',
+        userId,
+        dingtalkName: undefined,
+        message: `userId 重复，与第 ${rowNumber} 行合并为同一人`,
       };
     }
+    return {
+      ...base,
+      userId,
+      ...userIdVerdict(await checkUserName(client, userId, row.name), row.name),
+    };
+  }
 
+  /** The row verdict for a phone that DingTalk does not know. */
+  function phoneNotFound(
+    base: Omit<ImportRowResult, 'status' | 'userId' | 'dingtalkName' | 'message'>
+  ): ImportRowResult {
+    return {
+      ...base,
+      status: 'phone_not_found',
+      userId: undefined,
+      dingtalkName: undefined,
+      message: '该手机号未在钉钉通讯录中注册',
+    };
+  }
+
+  /** Resolve a first-seen phone through DingTalk and compare the name. */
+  async function verifyPhoneRow(
+    client: DingTalkClient,
+    row: CsvRow,
+    base: Omit<ImportRowResult, 'status' | 'userId' | 'dingtalkName' | 'message'>,
+    cache: Map<string, { userId: string; dingtalkName: string }>
+  ): Promise<ImportRowResult> {
+    const phone = row.phone as string;
     try {
-      const { userId, dingtalkName } = await verifyRow(client, row);
-      cache.set(row.phone, { userId, dingtalkName });
+      const { userId, dingtalkName } = await verifyRow(client, { ...row, phone });
+      cache.set(phone, { userId, dingtalkName });
       if (row.name && dingtalkName && row.name !== dingtalkName) {
         return {
           ...base,
@@ -394,27 +656,96 @@ export async function interviewPlanRoutes(
       return { ...base, status: 'ok', userId, dingtalkName, message: '验证通过' };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'unknown';
+      if (msg === 'phone_not_found') return phoneNotFound(base);
       return {
         ...base,
-        status: msg === 'phone_not_found' ? 'phone_not_found' : 'dingtalk_error',
+        status: 'dingtalk_error',
         userId: undefined,
         dingtalkName: undefined,
-        message:
-          msg === 'phone_not_found' ? '该手机号未在钉钉通讯录中注册' : `钉钉 API 错误：${msg}`,
+        message: `钉钉 API 错误：${msg}`,
       };
     }
+  }
+
+  /**
+   * Classify a phone-mode row: the mobile number is the identifier, so the row
+   * is only usable once DingTalk confirms the number belongs to a real user.
+   * A name mismatch is a hard failure here (unlike userId mode), because the
+   * lookup did return the authoritative name to compare against.
+   */
+  async function classifyPhoneRow(
+    client: DingTalkClient,
+    row: CsvRow,
+    base: Omit<ImportRowResult, 'status' | 'userId' | 'dingtalkName' | 'message'>,
+    cache: Map<string, { userId: string; dingtalkName: string }>,
+    rowNumber: number
+  ): Promise<ImportRowResult> {
+    if (!row.isDuplicate) return verifyPhoneRow(client, row, base, cache);
+
+    const phone = row.phone as string;
+    const cached = cache.get(phone);
+    if (!cached) return phoneNotFound(base);
+    return {
+      ...base,
+      status: 'duplicate_phone',
+      userId: cached.userId,
+      dingtalkName: cached.dingtalkName,
+      message: `手机号重复，与第 ${rowNumber} 行合并为同一人`,
+    };
+  }
+
+  /**
+   * Classify one row into an import result. Extracted from the route handler
+   * so the duplicate / found / mismatch / error precedence is readable in one
+   * place instead of nested inside the request loop. Dispatches on the row's
+   * identifier mode; each mode's rules live in their own function.
+   */
+  async function classifyImportRow(
+    client: DingTalkClient,
+    row: CsvRow,
+    base: Omit<ImportRowResult, 'status' | 'userId' | 'dingtalkName' | 'message'>,
+    cache: Map<string, { userId: string; dingtalkName: string }>,
+    rowNumber: number
+  ): Promise<ImportRowResult> {
+    if (row.mode === 'none') {
+      return {
+        ...base,
+        status: 'missing_identifier',
+        userId: undefined,
+        dingtalkName: undefined,
+        message: '缺少手机号与 userId',
+      };
+    }
+    if (row.mode === 'userId') {
+      return classifyUserIdRow(client, row, base, rowNumber);
+    }
+    return classifyPhoneRow(client, row, base, cache, rowNumber);
   }
 
   const MAX_IMPORT_ROWS = 2000;
 
   /**
-   * Read and validate the uploaded CSV, returning either the rows or the HTTP
+   * Read and validate the uploaded file, returning either the rows or the HTTP
    * error to send. Kept out of the handler so the route reads as
    * "validate input → classify rows → summarize".
    */
+  type ImportRowsError = { errorCode: number; error: string };
+
+  /** The row-level checks, split out so each reason reads on its own line. */
+  function validateImportRows(rows: CsvRow[]): ImportRowsError | null {
+    if (rows.length === 0) return { errorCode: 400, error: 'CSV 中没有有效数据行' };
+    if (rows.every((row) => row.mode === 'none')) {
+      return { errorCode: 400, error: '没有可导入的数据行：所有行都缺少手机号与 userId' };
+    }
+    if (rows.length > MAX_IMPORT_ROWS) {
+      return { errorCode: 400, error: `单次最多导入 ${MAX_IMPORT_ROWS} 行` };
+    }
+    return null;
+  }
+
   async function readImportRows(
     request: FastifyRequest
-  ): Promise<{ rows: CsvRow[] } | { errorCode: number; error: string }> {
+  ): Promise<{ rows: CsvRow[] } | ImportRowsError> {
     const data = await request.file();
     if (!data) return { errorCode: 400, error: '请上传 CSV 文件' };
 
@@ -423,17 +754,13 @@ export async function interviewPlanRoutes(
 
     let rows: CsvRow[];
     try {
-      rows = parseCsv(buffer).rows;
+      rows = parseCsv(buffer, data.mimetype);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : '未知错误';
       return { errorCode: 400, error: `CSV 解析失败：${message}` };
     }
 
-    if (rows.length === 0) return { errorCode: 400, error: 'CSV 中没有有效数据行' };
-    if (rows.length > MAX_IMPORT_ROWS) {
-      return { errorCode: 400, error: `单次最多导入 ${MAX_IMPORT_ROWS} 行` };
-    }
-    return { rows };
+    return validateImportRows(rows) ?? { rows };
   }
 
   /**
@@ -478,12 +805,24 @@ export async function interviewPlanRoutes(
         results.push(await classifyImportRow(client, row, base, phoneResultCache, i + 1));
       }
 
-      const passed = results.filter((r) => r.status === 'ok').length;
+      // Issue #219: passed counts everything that may be imported — including
+      // `name_differs` warnings — so the preview total and the commit filter
+      // can never disagree. `warnings` is a subset of `passed`, and
+      // passed + failed === totalRows always holds.
+      const passed = results.filter((r) => isImportableStatus(r.status)).length;
+      // Derived from the same `isImportableStatus` predicate as `passed`, so
+      // "warnings ⊆ passed" holds structurally: if `name_differs` ever left
+      // IMPORTABLE_STATUSES, warnings would drop to 0 rather than silently
+      // exceeding the importable count.
+      const warnings = results.filter(
+        (r) => r.status === 'name_differs' && isImportableStatus(r.status)
+      ).length;
       const failed = results.length - passed;
       return {
         totalRows: results.length,
         passed,
         failed,
+        warnings,
         skipped: 0,
         summary: failed === 0 ? ('all_passed' as const) : ('has_errors' as const),
         results,
@@ -495,8 +834,11 @@ export async function interviewPlanRoutes(
     rows: z.array(
       z.object({
         rowIndex: z.number().int().min(1),
-        phone: z.string().min(1),
-        status: z.literal('ok'),
+        // Optional since #219: a userId-only row has no phone number.
+        phone: z.string().min(1).optional(),
+        // Mirrors IMPORTABLE_STATUSES — a non-importable status is rejected
+        // here rather than trusted from the client.
+        status: z.enum(['ok', 'name_differs']),
         userId: z.string().min(1),
         inputName: z.string().optional(),
         dingtalkName: z.string().optional(),

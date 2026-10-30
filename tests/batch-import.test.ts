@@ -28,7 +28,12 @@ const MockDingTalkClient = class {
       return { userid: 'batch-user-zhangsan', name: '张三', mobile: '13800138000' };
     if (userId === 'batch-user-lisi')
       return { userid: 'batch-user-lisi', name: '李四', mobile: '13900139000' };
-    throw new Error('user not found');
+    // Issue #219: a userId-mode row is imported on the userId alone, so the name
+    // lookup is only a check. "user not found" is the one lookup failure that
+    // invalidates the row; quota/permission/network failures downgrade it.
+    if (userId === 'batch-user-quota')
+      throw new Error('DingTalk user/get failed: SENSITIVE_PARAM_CUMULATIVE_EXCEEDED');
+    throw new Error('DingTalk user/get failed: user not found');
   }
 };
 
@@ -256,7 +261,7 @@ describe('Batch Import API', () => {
       }
     });
 
-    it('should reject CSV with no phone column', async () => {
+    it('should reject CSV with neither a phone nor a userId column', async () => {
       let templateId: string | undefined;
       let planId: string | undefined;
       try {
