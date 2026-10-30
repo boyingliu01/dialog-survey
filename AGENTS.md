@@ -1,6 +1,6 @@
 # AGENTS.md — Dialog Survey Project Knowledge Base
 
-> Updated: 2026-10-24 (v1.12.0). Sprint #153 (Conventional Commits + auto CHANGELOG + release automation). 77 source TS files (src/, excluding generated), 174 test files (162 + 12 e2e). Tests need no PostgreSQL (PGlite).
+> Updated: 2026-10-24 (v1.13.0). Sprint #153 (Conventional Commits + auto CHANGELOG + release automation). 77 source TS files (src/, excluding generated), 174 test files (162 + 12 e2e). Tests need no PostgreSQL (PGlite).
 
 ## Overview
 
