@@ -155,9 +155,32 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install PostgreSQL client matching server major
+        # The client major MUST match the `postgres:16-alpine` service above: a
+        # 16-server dump restored by a differently-versioned pg_restore is not a
+        # supported combination, and the drill exists to prove the real upgrade
+        # path works.
+        #
+        # Read from PGDG rather than the distribution archive. `ubuntu-latest`
+        # moved to ubuntu-26.04 ("resolute"), which ships postgresql-client-18
+        # and no longer carries postgresql-client-16 at all, so the plain
+        # `apt-get install postgresql-client-16` failed with "Unable to locate
+        # package" — a red drill that never ran a single backup. PGDG keeps every
+        # supported major available regardless of which Ubuntu the runner ships.
         run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates gnupg lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update
           sudo apt-get install -y postgresql-client-16
+          # Fail here, not 5 steps later, if the wrong major got installed.
+          psql --version
+          pg_restore --version | grep -q ' 16\.' \
+            || { echo "DRILL SETUP: pg_restore is not major 16"; pg_restore --version; exit 1; }
 
       - name: Seed probe data
         run: |
