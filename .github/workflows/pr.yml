@@ -180,10 +180,24 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update
           sudo apt-get install -y postgresql-client-16
-          # Fail here, not 5 steps later, if the wrong major got installed.
-          psql --version
+          # Installing the 16 client is NOT enough: the runner image already
+          # ships a newer client, so /usr/bin/psql and /usr/bin/pg_restore stay
+          # symlinked to that one. Measured on ubuntu-26.04: client 16 installed
+          # as 16.15-1.pgdg26.04+2 while `pg_restore --version` still reported
+          # 18.6, which would have restored this 16-server dump with an
+          # unsupported major. Pin the alternatives and then prove it.
+          sudo update-alternatives --install /usr/bin/pg_restore pg_restore \
+            /usr/lib/postgresql/16/bin/pg_restore 1600
+          sudo update-alternatives --install /usr/bin/psql psql \
+            /usr/lib/postgresql/16/bin/psql 1600
+          sudo update-alternatives --set pg_restore /usr/lib/postgresql/16/bin/pg_restore
+          sudo update-alternatives --set psql /usr/lib/postgresql/16/bin/psql
+          # Fail here, not 5 steps later, if the wrong major is in effect.
+          pg_restore --version
           pg_restore --version | grep -q ' 16\.' \
             || { echo "DRILL SETUP: pg_restore is not major 16"; pg_restore --version; exit 1; }
+          psql --version | grep -q ' 16\.' \
+            || { echo "DRILL SETUP: psql is not major 16"; psql --version; exit 1; }
 
       - name: Seed probe data
         run: |
