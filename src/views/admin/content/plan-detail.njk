@@ -297,13 +297,14 @@
                   <details class="mb-2 text-xs">
                     <summary class="cursor-pointer text-red-600 font-medium">查看失败行</summary>
                     <table class="w-full mt-1 border text-xs">
-                      <thead><tr class="bg-red-50"><th class="text-left p-1 border">行</th><th class="text-left p-1 border">姓名</th><th class="text-left p-1 border">手机号</th><th class="text-left p-1 border">原因</th></tr></thead>
+                      <thead><tr class="bg-red-50"><th class="text-left p-1 border">行</th><th class="text-left p-1 border">姓名</th><th class="text-left p-1 border">手机号</th><th class="text-left p-1 border">钉钉 ID</th><th class="text-left p-1 border">原因</th></tr></thead>
                       <tbody>
                         <template x-for="row in getFailedRows()" :key="row.rowIndex">
                           <tr class="border-b">
                             <td class="p-1" x-text="row.rowIndex"></td>
-                            <td class="p-1" x-text="row.inputName || '-'"></td>
+                            <td class="p-1" x-text="row.inputName || row.dingtalkName || '-'"></td>
                             <td class="p-1" x-text="row.phone || '-'"></td>
+                            <td class="p-1" x-text="row.userId || '-'"></td>
                             <td class="p-1 text-red-600" x-text="row.message"></td>
                           </tr>
                         </template>
