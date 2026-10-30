@@ -1,5 +1,14 @@
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -165,7 +174,11 @@ describe('the full-history scan is a blocking gate (issue #211)', () => {
       const result = spawnSync(
         process.execPath,
         [join(isolated, 'scripts', 'scan-git-history-secrets.mjs')],
-        { encoding: 'utf8', cwd: isolated }
+        {
+          encoding: 'utf8',
+          cwd: isolated,
+          env: { ...process.env, GITLEAKS_BIN: 'definitely-not-installed' },
+        }
       );
 
       // The isolated directory is not a git repository, which is its own trap:
@@ -173,10 +186,63 @@ describe('the full-history scan is a blocking gate (issue #211)', () => {
       // announce "history is clean" for a history it never read. The commit
       // count guard turns that into an explicit refusal (exit 2), and the
       // property under test is the general one — it never reports clean.
+      //
+      // gitleaks is force-hidden here rather than inherited from the runner.
+      // The script checks for gitleaks BEFORE it counts commits, so whichever
+      // guard fires first depends on the host: the CI unit-test job installs no
+      // gitleaks, and pinning "no commits found" made this test fail there while
+      // passing on any developer machine that has it. Hiding it explicitly makes
+      // the same refusal fire everywhere, and the commit-count guard keeps its
+      // own coverage in 'refuses a tree with no commits when gitleaks is present'.
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain('cannot scan history');
+    } finally {
+      rmSync(isolated, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a tree with no commits when gitleaks is present', () => {
+    // The companion to the test above: there, the missing-scanner guard fires
+    // first; here gitleaks is stubbed as present so the commit-count guard is
+    // the one under test. Without it the guard would report "clean history" for
+    // a directory that has no history at all.
+    expect(existsSync(baselinePath)).toBe(true);
+
+    const isolated = mkdtempSync(join(tmpdir(), 'history-scan-no-commits-'));
+    const stubDir = mkdtempSync(join(tmpdir(), 'history-scan-stub-'));
+    try {
+      copyFileSync(join(process.cwd(), '.gitleaks.toml'), join(isolated, '.gitleaks.toml'));
+      mkdirSync(join(isolated, 'scripts'), { recursive: true });
+      copyFileSync(script, join(isolated, 'scripts', 'scan-git-history-secrets.mjs'));
+
+      // A stub that answers the gitleaks invocation successfully without doing
+      // any scanning, so execution reaches the commit-count guard.
+      const stubName = process.platform === 'win32' ? 'gitleaks-stub.cmd' : 'gitleaks-stub';
+      // Each platform's shortest no-op script. The shebang is assembled from
+      // parts so it cannot be read as a directive inside this file.
+      const stubBody =
+        process.platform === 'win32'
+          ? ['@exit /b 0', ''].join(String.fromCharCode(13) + String.fromCharCode(10))
+          : [['#', '!/bin/sh'].join(''), 'exit 0', ''].join(String.fromCharCode(10));
+      const stubPath = join(stubDir, stubName);
+      writeFileSync(stubPath, stubBody);
+      if (process.platform !== 'win32') chmodSync(stubPath, 0o755);
+
+      const result = spawnSync(
+        process.execPath,
+        [join(isolated, 'scripts', 'scan-git-history-secrets.mjs')],
+        {
+          encoding: 'utf8',
+          cwd: isolated,
+          env: { ...process.env, GITLEAKS_BIN: stubPath },
+        }
+      );
+
       expect(result.status).toBe(2);
       expect(result.stderr).toContain('no commits found');
     } finally {
       rmSync(isolated, { recursive: true, force: true });
+      rmSync(stubDir, { recursive: true, force: true });
     }
   });
 });
