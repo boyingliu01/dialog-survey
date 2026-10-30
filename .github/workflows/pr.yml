@@ -171,8 +171,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y curl ca-certificates gnupg lsb-release
           sudo install -d /usr/share/postgresql-common/pgdg
+          # --batch is required: gpg opens /dev/tty to confirm overwriting the
+          # output file, and a CI runner has no tty, so it aborted with
+          # "cannot open '/dev/tty'" and took the pipe (curl 23) with it.
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-            | sudo gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+            | sudo gpg --batch --yes --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update
