@@ -56,6 +56,12 @@ describe('non-production startup (issue #210 regression)', () => {
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('SESSION_SECRET', SESSION_SECRET);
     vi.stubEnv('SESSION_SALT', SESSION_SALT);
+    // buildApp() constructs the Prisma client, which throws without a
+    // connection string. This suite never talks to a database — it only needs
+    // the URL to be present so the client can be constructed — so a stub keeps
+    // it runnable in CI, where the unit-test job exports no DATABASE_URL.
+    // The host is unroutable on purpose: nothing may ever connect through it.
+    vi.stubEnv('DATABASE_URL', 'postgresql://stub@127.0.0.1:1/stub');
   });
 
   afterEach(() => {
