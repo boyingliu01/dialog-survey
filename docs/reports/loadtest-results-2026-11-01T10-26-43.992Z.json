@@ -1,0 +1,283 @@
+{
+  "meta": {
+    "timestamp": "2026-11-01T10:26:43.992Z",
+    "db": "postgres",
+    "node": "v22.23.3",
+    "durationSec": 30,
+    "warmupSec": 5,
+    "tiers": [
+      10,
+      50,
+      100,
+      200
+    ],
+    "notes": [
+      "PGlite runs in-process: client+server share one event loop/CPU; numbers are an upper-bound throughput / lower-bound latency baseline for relative regression only.",
+      "S6 outbound DingTalk replies are stubbed via the SSRF allowlist; LLM runs the credential-free fallback path (LLM latency not included).",
+      "Warmup passes (5 s per tier) are run and discarded before each measurement (S1-S6).",
+      "Percentile provenance: S1-S5 p95 interpolated from the autocannon histogram (p90/p97_5); S6 nearest-rank over raw handler samples."
+    ]
+  },
+  "results": [
+    {
+      "scenario": "S1-health",
+      "tier": 10,
+      "rps": 6046,
+      "p50Ms": 1,
+      "p95Ms": 2.67,
+      "p99Ms": 3,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S1-health",
+      "tier": 50,
+      "rps": 7083,
+      "p50Ms": 6,
+      "p95Ms": 9.67,
+      "p99Ms": 11,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S1-health",
+      "tier": 100,
+      "rps": 6658,
+      "p50Ms": 14,
+      "p95Ms": 20,
+      "p99Ms": 22,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S1-health",
+      "tier": 200,
+      "rps": 5775,
+      "p50Ms": 34,
+      "p95Ms": 42.67,
+      "p99Ms": 48,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S2-metrics",
+      "tier": 10,
+      "rps": 12022,
+      "p50Ms": 0,
+      "p95Ms": 1,
+      "p99Ms": 2,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S2-metrics",
+      "tier": 50,
+      "rps": 11434,
+      "p50Ms": 3,
+      "p95Ms": 7.33,
+      "p99Ms": 9,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S2-metrics",
+      "tier": 100,
+      "rps": 11829,
+      "p50Ms": 7,
+      "p95Ms": 14.33,
+      "p99Ms": 16,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S2-metrics",
+      "tier": 200,
+      "rps": 11172,
+      "p50Ms": 16,
+      "p95Ms": 29,
+      "p99Ms": 33,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S3-template-list",
+      "tier": 10,
+      "rps": 1894,
+      "p50Ms": 4,
+      "p95Ms": 7.67,
+      "p99Ms": 9,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S3-template-list",
+      "tier": 50,
+      "rps": 2137,
+      "p50Ms": 23,
+      "p95Ms": 27.33,
+      "p99Ms": 30,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S3-template-list",
+      "tier": 100,
+      "rps": 2042,
+      "p50Ms": 48,
+      "p95Ms": 54.67,
+      "p99Ms": 64,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S3-template-list",
+      "tier": 200,
+      "rps": 1947,
+      "p50Ms": 101,
+      "p95Ms": 115.33,
+      "p99Ms": 131,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S4-plan-detail",
+      "tier": 10,
+      "rps": 1022,
+      "p50Ms": 9,
+      "p95Ms": 12.33,
+      "p99Ms": 14,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S4-plan-detail",
+      "tier": 50,
+      "rps": 1014,
+      "p50Ms": 48,
+      "p95Ms": 54.67,
+      "p99Ms": 63,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S4-plan-detail",
+      "tier": 100,
+      "rps": 966,
+      "p50Ms": 102,
+      "p95Ms": 116.67,
+      "p99Ms": 129,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S4-plan-detail",
+      "tier": 200,
+      "rps": 915,
+      "p50Ms": 214,
+      "p95Ms": 241,
+      "p99Ms": 272,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S5-plan-create",
+      "tier": 10,
+      "rps": 1036,
+      "p50Ms": 9,
+      "p95Ms": 11.67,
+      "p99Ms": 13,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S5-plan-create",
+      "tier": 50,
+      "rps": 1054,
+      "p50Ms": 47,
+      "p95Ms": 52.67,
+      "p99Ms": 61,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S5-plan-create",
+      "tier": 100,
+      "rps": 1074,
+      "p50Ms": 92,
+      "p95Ms": 106,
+      "p99Ms": 120,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    },
+    {
+      "scenario": "S5-plan-create",
+      "tier": 200,
+      "rps": 1095,
+      "p50Ms": 176,
+      "p95Ms": 215.33,
+      "p99Ms": 233,
+      "errors": 0,
+      "non2xx": 0,
+      "seconds": 30
+    }
+  ],
+  "s6": {
+    "tiers": [
+      {
+        "tier": 10,
+        "handlerCalls": 3467,
+        "rps": 116,
+        "p50Ms": 84.47,
+        "p95Ms": 128.37,
+        "p99Ms": 150.52,
+        "successRate": 100
+      },
+      {
+        "tier": 50,
+        "handlerCalls": 4177,
+        "rps": 139,
+        "p50Ms": 362.33,
+        "p95Ms": 409.71,
+        "p99Ms": 430.19,
+        "successRate": 100
+      },
+      {
+        "tier": 100,
+        "handlerCalls": 4200,
+        "rps": 140,
+        "p50Ms": 727.34,
+        "p95Ms": 772.56,
+        "p99Ms": 794.31,
+        "successRate": 100
+      },
+      {
+        "tier": 200,
+        "handlerCalls": 4314,
+        "rps": 144,
+        "p50Ms": 1454.7,
+        "p95Ms": 1561.29,
+        "p99Ms": 1594.9,
+        "successRate": 100
+      }
+    ]
+  }
+}
