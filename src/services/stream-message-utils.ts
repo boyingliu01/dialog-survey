@@ -24,19 +24,78 @@ export interface ProcessResult {
   error?: string;
 }
 
+/** One segment of a DingTalk richText payload; pictures/voice carry no `text`. */
+interface RichTextSegment {
+  text?: unknown;
+  richText?: unknown;
+  content?: unknown;
+}
+
+/** Subset of the DingTalk bot message payload that the interview bot reads. */
+export interface DingTalkMessagePayload {
+  senderStaffId?: unknown;
+  sessionWebhook?: unknown;
+  text?: { content?: unknown } | null;
+  content?: unknown;
+  markdown?: { text?: unknown } | null;
+}
+
+/**
+ * Flattens DingTalk rich-text segments into plain text.
+ *
+ * A richText message carries `content: { richText: [...] }` and each segment is
+ * either a plain string or an object with a `text` field. Picture/voice
+ * segments carry no `text` and are dropped rather than stringified.
+ */
+function richTextToPlain(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map(richTextToPlain).join('');
+  if (typeof value !== 'object' || value === null) return '';
+
+  const segment = value as RichTextSegment;
+  if (typeof segment.text === 'string') return segment.text;
+  if (Array.isArray(segment.richText)) return richTextToPlain(segment.richText);
+  if (Array.isArray(segment.content)) return richTextToPlain(segment.content);
+  if (typeof segment.content === 'string') return segment.content;
+  return '';
+}
+
+/**
+ * Extracts the user's plain-text answer from a DingTalk bot message payload.
+ *
+ * Handles `text` (plain), `content.richText` (pasted/formatted text) and
+ * `markdown`. Returns '' for messages with no readable text (image, voice,
+ * file), which the caller treats as "no answer" instead of advancing the
+ * interview with garbage such as "[object Object]".
+ */
+export function extractMessageContent(data: DingTalkMessagePayload): string {
+  const textContent =
+    typeof data.text === 'object' && data.text !== null ? data.text.content : undefined;
+  if (typeof textContent === 'string') return textContent;
+
+  const richText = richTextToPlain(textContent).trim();
+  if (richText) return richText;
+
+  if (typeof data.content === 'string') return data.content;
+  const contentText = richTextToPlain(data.content).trim();
+  if (contentText) return contentText;
+
+  const markdownText =
+    typeof data.markdown === 'object' && data.markdown !== null ? data.markdown.text : undefined;
+  if (typeof markdownText === 'string') return markdownText;
+
+  return '';
+}
+
 export function parseStreamMessage(message: StreamMessage): ParsedStreamMessage | null {
   try {
-    const data = JSON.parse(message.data);
-    const rawContent = data.text?.content ?? data.content ?? '';
-
-    // Guard: DingTalk may send non-text messages (rich text, images, voice)
-    // where content is an object/array instead of a string.
-    const content = typeof rawContent === 'string' ? rawContent : String(rawContent);
+    const data = JSON.parse(message.data) as DingTalkMessagePayload;
+    const content = extractMessageContent(data);
 
     return {
-      userId: data.senderStaffId || '',
+      userId: typeof data.senderStaffId === 'string' ? data.senderStaffId : '',
       content: content,
-      sessionWebhook: data.sessionWebhook || '',
+      sessionWebhook: typeof data.sessionWebhook === 'string' ? data.sessionWebhook : '',
       messageId: message.headers.messageId,
     };
   } catch (e) {
