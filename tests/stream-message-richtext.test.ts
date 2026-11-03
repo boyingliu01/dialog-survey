@@ -88,12 +88,33 @@ describe('parseStreamMessage — DingTalk rich text (issue #221)', () => {
       expect(parsed?.content).not.toContain('object');
     });
 
-    it('returns empty content when richText is not an array', () => {
+    it('treats a plain string richText value as the answer, not as nothing', () => {
+      // DingTalk always sends an array here, but if a client sends the text
+      // directly it IS the user's answer: dropping it would reproduce the very
+      // "reply silently discarded" failure this issue is about.
       const parsed = parseStreamMessage(
-        makeMessage({ ...SENDER, msgtype: 'richText', content: { richText: 'not-an-array' } })
+        makeMessage({ ...SENDER, msgtype: 'richText', content: { richText: '直接给的文本' } })
       );
 
-      expect(parsed?.content).toBe('');
+      expect(parsed?.content).toBe('直接给的文本');
+    });
+
+    it('flattens a quoted block nested one level deeper', () => {
+      const parsed = parseStreamMessage(
+        makeMessage({
+          ...SENDER,
+          msgtype: 'richText',
+          content: {
+            richText: [
+              { text: '引用：' },
+              { richText: [{ text: '被引用的原文' }] },
+              { content: ['尾巴'] },
+            ],
+          },
+        })
+      );
+
+      expect(parsed?.content).toBe('引用：被引用的原文尾巴');
     });
 
     it('skips null segments and segments whose text is not a string', () => {
@@ -227,6 +248,34 @@ describe('parseStreamMessage — DingTalk rich text (issue #221)', () => {
         sessionWebhook: 'https://oapi.dingtalk.com/session',
         messageId: 'msg-9',
       });
+    });
+
+    it('narrows a non-string senderStaffId to an empty id instead of leaking an object', () => {
+      // Same failure mode as the content bug, on a different field: `obj || ''`
+      // keeps the object, which then reaches the repository as a lookup key.
+      const parsed = parseStreamMessage(
+        makeMessage({
+          senderStaffId: { staffId: 'user-123' },
+          text: { content: '还有正文' },
+          sessionWebhook: 'https://oapi.dingtalk.com/session',
+        })
+      );
+
+      expect(parsed?.userId).toBe('');
+      expect(parsed?.content).toBe('还有正文');
+    });
+
+    it('narrows a non-string sessionWebhook to an empty webhook', () => {
+      const parsed = parseStreamMessage(
+        makeMessage({
+          senderStaffId: 'user-123',
+          text: { content: '正文' },
+          sessionWebhook: { url: 'https://oapi.dingtalk.com/session' },
+        })
+      );
+
+      expect(parsed?.sessionWebhook).toBe('');
+      expect(parsed?.content).toBe('正文');
     });
   });
 });
