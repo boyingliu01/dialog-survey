@@ -50,3 +50,62 @@ ignore:
   - '.git/**'
   # One-off spikes, kept for reference rather than maintained.
   - 'tools/spike/**'
+  # --- build/CLI entry points --------------------------------------------
+  # archlint's `dead_code` detector flags a file that nothing imports, which is
+  # the DEFINITION of an entry point — so every one of these is reported as dead
+  # while being executed daily: `npm start` and the Dockerfile CMD both run
+  # src/server-entry.ts, the Dockerfile build runs scripts/migrate-deploy.mjs and
+  # scripts/verify-font-asset.mjs, .release-it.json calls scripts/sync-version.cjs,
+  # and prisma/seed-*.ts are run by hand or by the ops playbook.
+  #
+  # Scoped to exactly these files rather than to `scripts/**` and `prisma/**`,
+  # so a genuinely orphaned module added to either directory is still reported.
+  # (archlint 0.16.0 has an `entry_points` config key that its own explanation
+  # text recommends, but it is silently ignored — verified against a two-file
+  # fixture. `ignore` is the mechanism that actually works.)
+  - 'src/server-entry.ts'
+  - 'vitest.config.mutation.ts'
+  - 'commitlint.config.cjs'
+  - 'scripts/scan-git-history-secrets.mjs'
+  - 'scripts/write-version.cjs'
+  - 'scripts/verify-font-asset.mjs'
+  - 'scripts/sync-version.cjs'
+  - 'scripts/ccn-report.cjs'
+  - 'scripts/verify-xp-gate-patches.cjs'
+  - 'scripts/migrate-deploy.mjs'
+  - 'scripts/prune-runtime-deps.mjs'
+  - 'scripts/fix-max-followups.ts'
+  - 'prisma/seed-test-interview.ts'
+  - 'prisma/seed-satisfaction-survey.ts'
+
+# --- why there is no `detectors:` block here --------------------------------
+# Researched 2026-11-03, because the obvious move — force every detector on with
+# `-A` — produces a worse report rather than a better one:
+#
+#   default run          72 smells, grade 7.13 (Fair)
+#   `-A` (all detectors) 172 smells, including a `PackageCycle` across five
+#                        src/ layers
+#
+# That cycle is a FALSE POSITIVE. Independently walking src/ with a hand-written
+# resolver finds 77 files, 207 import edges and ZERO cycles — a script that
+# reported one was mis-resolving `./x.js` specifiers to their own file. Enabling
+# the real detector (`detectors: { package_cycles: true }`, verified against
+# 0.16.0) reports nothing here, so the `-A` finding comes from archlint treating
+# directories as packages at a granularity this repo does not have.
+#
+# The other ~100 `-A`-only smells are LowCohesion, ScatteredModule,
+# feature_envy, HighCoupling and unstable_interface — all of which fire on
+# healthy dependency-injection code and would have to be suppressed one by one.
+# Turning them on would trade a clean, meaningful report for a large one that
+# has to be explained away.
+#
+# One real gap remains, tracked separately rather than papered over: `layer_violation`
+# is disabled by default and returns 0 even under `-A`, so `architecture.yaml`
+# is not enforced by anything. That is xp-gate #686 and is an upstream fix.
+#
+# Two traps for anyone editing this file:
+#   - `ignore` REPLACES archlint's defaults rather than extending them.
+#   - Unknown keys are accepted and SILENTLY IGNORED. `excludeSymbols` (tried for
+#     the DeadSymbol false positives) parses fine, does nothing, and leaves the
+#     report unchanged — so a config edit is not evidence it took effect. Prove
+#     each one against a two-file fixture before trusting it.

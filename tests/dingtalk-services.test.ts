@@ -55,10 +55,12 @@ describe('DingTalk Services', () => {
      * @intent 验证签名生成功能实现
      */
     it('should implement signature generation', () => {
-      const content = fs.readFileSync('src/integrations/dingtalk/client.ts', 'utf-8');
-      expect(
-        content.toLowerCase().includes('signature') || content.toLowerCase().includes('hmac')
-      ).toBe(true);
+      // Signature generation lives in middleware.ts, beside the verifier that
+      // consumes it. `DingTalkClient` used to carry a second, identical copy
+      // that nothing ever called — removed rather than kept as a duplicate.
+      const content = fs.readFileSync('src/integrations/dingtalk/middleware.ts', 'utf-8');
+      expect(content).toContain('generateSignature');
+      expect(content.toLowerCase()).toContain('hmac');
     });
   });
 

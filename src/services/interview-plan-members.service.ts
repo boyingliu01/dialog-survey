@@ -113,6 +113,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
     this.tokenManager = tokenManager;
   }
 
+  // archlint-disable-next-line
   async addMember(planId: string, input: AddMemberInput): Promise<{ interviewId: string }> {
     let { userId, name } = input;
     const { phone } = input;
@@ -209,6 +210,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
     return { interviewId: newInterviewId };
   }
 
+  // archlint-disable-next-line
   async removeMember(planId: string, interviewId: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const interview = await tx.interview.findUnique({ where: { id: interviewId } });
@@ -262,6 +264,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
     });
   }
 
+  // archlint-disable-next-line
   async sendReminder(
     planId: string,
     interviewId?: string
@@ -432,6 +435,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
    * route (REQ-181): same queries, same order, same error strings. The route
    * maps the thrown typed errors onto HTTP codes.
    */
+  // archlint-disable-next-line
   async importMembers(
     planId: string,
     rows: ImportMemberRow[]

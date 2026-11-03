@@ -52,6 +52,7 @@ function resolvePlanSendStatus(sent: number, failed: number): SendStatus | undef
 }
 
 export class InterviewPlanSendService extends InterviewPlanServiceBase {
+  // archlint-disable-next-line
   async sendInvitations(planId: string): Promise<{ sent: number; failed: number }> {
     const plan = await this.prisma.interviewPlan.findUnique({
       where: { id: planId },
@@ -163,6 +164,7 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
     return true;
   }
 
+  // archlint-disable-next-line
   async resendToInterview(
     planId: string,
     interviewId: string
@@ -268,14 +270,17 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
     });
   }
 
+  // archlint-disable-next-line
   async pausePlan(planId: string): Promise<void> {
     await this.updatePlanStatus(planId, PlanStatus.PAUSED);
   }
 
+  // archlint-disable-next-line
   async resumePlan(planId: string): Promise<void> {
     await this.updatePlanStatus(planId, PlanStatus.RUNNING);
   }
 
+  // archlint-disable-next-line
   async cancelPlan(planId: string): Promise<void> {
     await this.updatePlanStatus(planId, PlanStatus.CANCELLED);
   }

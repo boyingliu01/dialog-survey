@@ -62,19 +62,35 @@ function enforceFollowupLimit(action: string, followupCount: number, maxFollowup
  * that has already moved on: the interviewee answers what they were shown, and
  * on the next turn that answer is filed under the question after it (#200/#203).
  */
-function routeAction(
-  initialAction: string,
-  followupCount: number,
-  maxFollowups: number,
-  currentQ: number,
-  totalQuestions: number,
-  smartResponse: string,
-  opts: {
+interface RouteActionInput {
+  /** Status returned by the LLM for this turn (continue / end / …). */
+  initialAction: string;
+  /** Follow-ups already spent on the current question. */
+  followupCount: number;
+  /** Budget for follow-ups on any one question. */
+  maxFollowups: number;
+  /** Zero-based index of the question being answered. */
+  currentQ: number;
+  /** How many questions the plan has, used to detect the last one. */
+  totalQuestions: number;
+  /** The LLM's reply text for this turn. */
+  smartResponse: string;
+  opts?: {
     closingMessage?: string | undefined;
     shouldEndInterview?: boolean;
     nextQuestion?: string | undefined;
-  } = {}
-): ActionResult {
+  };
+}
+
+function routeAction({
+  initialAction,
+  followupCount,
+  maxFollowups,
+  currentQ,
+  totalQuestions,
+  smartResponse,
+  opts = {},
+}: RouteActionInput): ActionResult {
   const { closingMessage, shouldEndInterview = false, nextQuestion } = opts;
   const isLastQuestion = currentQ >= totalQuestions - 1;
   const closing = closingMessage || DEFAULT_CLOSING_MESSAGE;
@@ -234,19 +250,19 @@ export async function interviewingNode(
       isLastQuestion: currentQ >= content.questions.length - 1,
     });
 
-    const handled = routeAction(
-      smartResult.action,
-      state.followupCount,
-      state.maxFollowups,
+    const handled = routeAction({
+      initialAction: smartResult.action,
+      followupCount: state.followupCount,
+      maxFollowups: state.maxFollowups,
       currentQ,
-      content.questions.length,
-      smartResult.response,
-      {
+      totalQuestions: content.questions.length,
+      smartResponse: smartResult.response,
+      opts: {
         closingMessage: content.closingMessage,
         shouldEndInterview: smartResult.shouldEndInterview,
         nextQuestion,
-      }
-    );
+      },
+    });
 
     info('[DIAG] routeAction result', {
       handledStatus: handled.status,

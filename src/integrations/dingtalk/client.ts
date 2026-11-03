@@ -1,5 +1,3 @@
-import crypto from 'node:crypto';
-
 const API_BASE = 'https://oapi.dingtalk.com';
 
 /**
@@ -115,11 +113,6 @@ export class DingTalkClient {
       }
     }
     return url.toString();
-  }
-
-  generateSignature(timestamp: number): string {
-    const stringToSign = `${timestamp}\n${this.appSecret}`;
-    return crypto.createHmac('sha256', this.appSecret).update(stringToSign).digest('base64');
   }
 
   private async getAccessToken(): Promise<string> {
