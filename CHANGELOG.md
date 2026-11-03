@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.1](https://github.com/boyingliu01/dialog-survey/compare/v1.13.0...v1.13.1) (2026-11-03)
+
+### Bug Fixes
+
+* **stream,admin:** parse rich-text replies and label tree leaves ([08274fe](https://github.com/boyingliu01/dialog-survey/commit/08274fe2082fa0eb19b788ecd7e218e37ba8ffe7)), closes [#221](https://github.com/boyingliu01/dialog-survey/issues/221) [#223](https://github.com/boyingliu01/dialog-survey/issues/223)
+
 ## [1.13.0](https://github.com/boyingliu01/dialog-survey/compare/v1.12.0...v1.13.0) (2026-10-30)
 
 ### Features
