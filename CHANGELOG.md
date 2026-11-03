@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.2](https://github.com/boyingliu01/dialog-survey/compare/v1.13.1...v1.13.2) (2026-11-03)
+
+### Bug Fixes
+
+* **stream:** narrow identity fields and flatten nested richText ([fc1361d](https://github.com/boyingliu01/dialog-survey/commit/fc1361d9db020c4e2842665a778740b7a8bdcc23))
+
 ## [1.13.1](https://github.com/boyingliu01/dialog-survey/compare/v1.13.0...v1.13.1) (2026-11-03)
 
 ### Bug Fixes
