@@ -149,14 +149,27 @@ function makeFixture(options: { version?: string; agentsHeader?: string | null }
   };
 }
 
-/** Run release.sh in RELEASE_VERIFY_ONLY mode, which exercises run_post_release_check. */
-function runVerify(fixture: Fixture): { status: number; output: string } {
+/**
+ * Run release.sh in RELEASE_VERIFY_ONLY mode, which exercises run_post_release_check.
+ *
+ * `headBefore` drives the "was a release commit created?" branch: verify-only otherwise
+ * reads HEAD_BEFORE from the current HEAD, so HEAD_AFTER can never differ and every
+ * call reports "no release commit was created" — correct for the no-release case, but
+ * it leaves the release-commit file assertions unexercisable. Pass the pre-release
+ * commit to exercise them.
+ */
+function runVerify(
+  fixture: Fixture,
+  options: { headBefore?: string } = {}
+): { status: number; output: string } {
+  const env: NodeJS.ProcessEnv = { ...process.env, RELEASE_VERIFY_ONLY: '1' };
+  if (options.headBefore) env['RELEASE_VERIFY_HEAD_BEFORE'] = options.headBefore;
   const result = spawnSync(bashCommand, [releaseSh], {
     cwd: fixture.dir,
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
     timeout: 120_000,
-    env: { ...process.env, RELEASE_VERIFY_ONLY: '1' },
+    env,
   });
   if (result.error) {
     throw new Error(`could not start release.sh verify-only: ${result.error.message}`);
@@ -273,6 +286,84 @@ describe.skipIf(!capable)(
       // header-missing message must be absent.
       expect(status).not.toBe(0);
       expect(output).not.toMatch(/AGENTS\.md carries no \(vX\.Y\.Z\) header version/);
+    });
+
+    /**
+     * @test REQ-153-4
+     * @intent accepts a correct release whose fan-out hooks were legitimately
+     *   idempotent, instead of telling the operator to roll back a good release
+     * @covers AC-153-4-01
+     *
+     * Regression guard for a defect measured on v1.13.3. The post-check required
+     * VERSION, AGENTS.md, package.json and CHANGELOG.md to appear in the release
+     * commit. But `sync-version.cjs` writes AGENTS.md only when the header version
+     * actually changes, so a release whose AGENTS.md already carried the new version
+     * — which is exactly what happens when the doc header is bumped by hand in the
+     * preceding commit — produces a commit without it. Every on-disk value was
+     * correct, the tree was clean and the tag was pushed, yet the check reported
+     * "release commit is missing AGENTS.md" and printed rollback instructions.
+     * Here HEAD advances past the seeded commit (so the HEAD-unchanged check passes)
+     * while AGENTS.md is already at the right version and only CHANGELOG.md is new.
+     */
+    it('accepts a release commit that omits an already-correct AGENTS.md', () => {
+      const fixture = makeFixture();
+      // AGENTS.md already carries the release version; the new commit touches only
+      // CHANGELOG.md, mirroring an idempotent sync-version fan-out.
+      writeFileSync(join(fixture.dir, 'CHANGELOG.md'), '# Changelog\n\n## 1.10.0\n');
+      const before = execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: fixture.dir,
+        encoding: 'utf8',
+      }).trim();
+      execFileSync('git', ['add', '-A'], { cwd: fixture.dir });
+      execFileSync('git', ['commit', '--quiet', '--no-verify', '-m', 'chore(release): v1.10.0'], {
+        cwd: fixture.dir,
+      });
+
+      const { output } = runVerify(fixture, { headBefore: before });
+
+      // No file may be reported missing: CHANGELOG.md is present in this commit, and the
+      // other three are legitimately unchanged. Asserting on the absence of the whole
+      // "missing" family rather than only the AGENTS.md wording is what makes this test
+      // able to fail — a check narrowed too far emits "missing CHANGELOG.md" once per
+      // loop iteration, which an AGENTS.md-only assertion cannot see.
+      expect(output).not.toMatch(/release commit is missing/);
+      // The reasoning must be stated, so a genuinely dead hook is still visible as an
+      // anomaly rather than silently accepted.
+      expect(output).toMatch(/AGENTS\.md unchanged by the release hooks \(already at v1\.10\.0\)/);
+      // CHANGELOG.md IS in this commit, so it must never take the "unchanged" branch.
+      expect(output).not.toMatch(/CHANGELOG\.md unchanged by the release hooks/);
+    });
+
+    /**
+     * @test REQ-153-4
+     * @intent still fails when CHANGELOG.md is missing from the release commit,
+     *   which no version token can catch
+     * @covers AC-153-4-01
+     *
+     * The narrowed check must not degenerate into "presence is optional": CHANGELOG.md
+     * has no on-disk version to compare, so a dead changelog plugin is invisible to
+     * every other assertion and only this one can detect it.
+     */
+    it('still fails when the release commit omits CHANGELOG.md', () => {
+      const fixture = makeFixture();
+      // The seeded commit already contains feature.txt, so commit a file this fixture
+      // has never written. Two consecutive commits with identical trees collapse to the
+      // same object in git, which leaves HEAD unchanged and makes the post-check report
+      // "no release commit was created" instead of the CHANGELOG.md message under test.
+      writeFileSync(join(fixture.dir, 'feature2.txt'), 'another change\n');
+      const before = execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: fixture.dir,
+        encoding: 'utf8',
+      }).trim();
+      execFileSync('git', ['add', '-A'], { cwd: fixture.dir });
+      execFileSync('git', ['commit', '--quiet', '--no-verify', '-m', 'feat: another'], {
+        cwd: fixture.dir,
+      });
+
+      const { status, output } = runVerify(fixture, { headBefore: before });
+
+      expect(status).not.toBe(0);
+      expect(output).toMatch(/release commit is missing CHANGELOG\.md/);
     });
 
     /**
