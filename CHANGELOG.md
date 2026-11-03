@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.4](https://github.com/boyingliu01/dialog-survey/compare/v1.13.3...v1.13.4) (2026-11-03)
+
+### Bug Fixes
+
+* **release:** stop the post-release check from rejecting a correct release ([544f78a](https://github.com/boyingliu01/dialog-survey/commit/544f78ad65e92ff77eebc93550ead33ec6dc5c27))
+
 ## [1.13.3](https://github.com/boyingliu01/dialog-survey/compare/v1.13.2...v1.13.3) (2026-11-03)
 
 ## [1.13.2](https://github.com/boyingliu01/dialog-survey/compare/v1.13.1...v1.13.2) (2026-11-03)

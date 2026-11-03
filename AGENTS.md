@@ -1,6 +1,6 @@
 # AGENTS.md — Dialog Survey Project Knowledge Base
 
-> Updated: 2026-11-03 (v1.13.3). 77 source TS files (src/, excluding generated), 181 test files (169 + 12 e2e), 2116 passing tests. Tests need no PostgreSQL (PGlite).
+> Updated: 2026-11-03 (v1.13.4). 77 source TS files (src/, excluding generated), 181 test files (169 + 12 e2e), 2116 passing tests. Tests need no PostgreSQL (PGlite).
 
 ## Overview
 
