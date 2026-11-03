@@ -25,6 +25,12 @@ env:
   DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
   TEST_DATABASE_URL: postgresql://test:test@localhost:5432/dialog_survey_test
 
+# Least privilege (checkov CKV2_GHA_1). This workflow had no permissions block
+# at all — neither top-level nor per-job — so the token ran at the repository
+# default. It only checks out code and runs a probe, so read is sufficient.
+permissions:
+  contents: read
+
 jobs:
   spike:
     name: Spike criteria #0-#12 (ubuntu)

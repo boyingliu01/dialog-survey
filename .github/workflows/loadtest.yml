@@ -11,6 +11,13 @@ on:
     # Monthly, 1st day 03:00 UTC.
     - cron: '0 3 1 * *'
 
+# Least privilege (checkov CKV2_GHA_1). Without a top-level block the token
+# falls back to the repository default, which for older repos is write-all; this
+# workflow only reads code, so `contents: read` covers it. The `loadtest` job
+# widens to `contents: write` for the baseline commit it makes.
+permissions:
+  contents: read
+
 jobs:
   loadtest:
     name: Loadtest (real PostgreSQL, non-blocking)

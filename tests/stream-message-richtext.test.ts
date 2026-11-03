@@ -278,4 +278,111 @@ describe('parseStreamMessage — DingTalk rich text (issue #221)', () => {
       expect(parsed?.content).toBe('正文');
     });
   });
+
+  /**
+   * The extraction ladder has four branches that each need their own input to be
+   * exercised; mutation testing (Gate M) found the richText branches at
+   * `text.content` and `content` surviving because every existing fixture went
+   * through the plain-string path first. Each case below is chosen so that
+   * removing its branch changes the result.
+   */
+  describe('extraction ladder branches', () => {
+    it('reads richText segments nested under text.content', () => {
+      // Some clients put the segments under `text` rather than top-level
+      // `content`; without the textRich branch this returns '' and the reply is
+      // lost — the exact failure issue #221 is about.
+      const parsed = parseStreamMessage(
+        makeMessage({
+          ...SENDER,
+          msgtype: 'richText',
+          text: { content: { richText: [{ text: '挂在 text 下面的富文本' }] } },
+        })
+      );
+
+      expect(parsed?.content).toBe('挂在 text 下面的富文本');
+    });
+
+    it('prefers a string text.content over anything under content', () => {
+      // Pins the ORDER of the ladder: a plain text body must win over a
+      // richText body if a client ever sends both.
+      const parsed = parseStreamMessage(
+        makeMessage({
+          ...SENDER,
+          text: { content: '纯文本正文' },
+          content: { richText: [{ text: '不应被采用' }] },
+        })
+      );
+
+      expect(parsed?.content).toBe('纯文本正文');
+    });
+
+    it('trims a whitespace-only richText body instead of accepting it', () => {
+      // The `.trim()` on the richText branches is what stops a body of spaces
+      // from counting as an answer; without it the empty-content guard upstream
+      // never fires and a blank reply advances the interview.
+      const parsed = parseStreamMessage(
+        makeMessage({
+          ...SENDER,
+          msgtype: 'richText',
+          content: { richText: [{ text: '   ' }, { text: '\n\t' }] },
+        })
+      );
+
+      expect(parsed?.content).toBe('');
+    });
+
+    it('falls through to markdown when the richText body is empty', () => {
+      const parsed = parseStreamMessage(
+        makeMessage({
+          ...SENDER,
+          content: { richText: [] },
+          markdown: { text: 'markdown 里的正文' },
+        })
+      );
+
+      expect(parsed?.content).toBe('markdown 里的正文');
+    });
+
+    it('returns empty content for a payload with no recognised text field', () => {
+      // readField must not throw on a primitive container and must yield ''.
+      const parsed = parseStreamMessage(makeMessage({ ...SENDER, content: 42 }));
+
+      expect(parsed?.content).toBe('');
+      expect(parsed?.content).not.toContain('object');
+    });
+
+    it('returns empty content when content is an object with no text segments', () => {
+      const parsed = parseStreamMessage(
+        makeMessage({ ...SENDER, content: { downloadCode: 'only-a-picture' } })
+      );
+
+      expect(parsed?.content).toBe('');
+    });
+
+    /**
+     * `readField` guards every untyped JSON level. Its two early-exit conditions
+     * are only observable through inputs that actually reach them, so each shape
+     * below is a distinct case rather than a restatement of the same one.
+     */
+    it.each([
+      ['null text', { text: null }],
+      ['string text', { text: 'not-an-object' }],
+      ['numeric text', { text: 7 }],
+      ['array text', { text: [] }],
+    ])('survives a %s field without stringifying it', (_label, payload) => {
+      const parsed = parseStreamMessage(
+        makeMessage({ ...SENDER, ...payload, markdown: { text: '兜底正文' } })
+      );
+
+      // Every shape must fall through to markdown, never yield "[object Object]".
+      expect(parsed?.content).toBe('兜底正文');
+      expect(parsed?.content).not.toContain('[object');
+    });
+
+    it('survives a null top-level content field', () => {
+      const parsed = parseStreamMessage(makeMessage({ ...SENDER, content: null }));
+
+      expect(parsed?.content).toBe('');
+    });
+  });
 });
