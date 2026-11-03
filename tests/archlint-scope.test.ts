@@ -91,7 +91,12 @@ describe('.archlint.yaml ignore list', () => {
     const srcIgnored = entries.filter(
       (e) => e === 'src' || e === 'src/**' || e === '**/src/**' || e.startsWith('src/')
     );
-    expect(srcIgnored).toEqual([]);
+    // One file is exempt by necessity: `dead_code` flags any file that nothing
+    // imports, which is the definition of a process entry point, and
+    // `src/server-entry.ts` is what `npm start` and the Dockerfile CMD run. It
+    // is named individually — never as a directory prefix — so nothing else in
+    // src/ gains cover. Anything wider than these exact files fails here.
+    expect(srcIgnored).toEqual(['src/server-entry.ts']);
   });
 
   it('has no duplicate entries', () => {

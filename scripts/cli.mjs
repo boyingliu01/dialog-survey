@@ -1038,124 +1038,141 @@ export async function writeEnvFile(installDir, config) {
 }
 
 /**
- * Install command — interactive or non-interactive installation.
- * @param {Record<string, string>} flags
+ * Resolve the install configuration, or return `null` when the run should stop.
+ *
+ * Returning `null` rather than throwing is deliberate: every failure here is an
+ * operator mistake whose actionable message has already been printed, so the
+ * caller's only remaining job is to set the exit code.
+ *
+ * Extracted from `installCommand` so its five input modes (complete flags,
+ * --help, non-interactive merge, partial flags, interactive) read as one table
+ * rather than as the first of four sequential steps inside a 313-line function
+ * whose cognitive complexity had reached 56.
  */
-export async function installCommand(flags) {
-  log('🚀 dialog-survey installer\n');
+const PROVIDED_FLAGS = [
+  'db-url',
+  'llm-api-key',
+  'llm-base-url',
+  'llm-model',
+  'dingtalk-client-id',
+  'dingtalk-client-secret',
+  'dingtalk-agent-id',
+  'admin-username',
+  'admin-password',
+];
 
-  // Step 1: Collect config
-  let config;
+/**
+ * Merge CLI flags, an optional --config file, and DIALOG_SURVEY_* environment
+ * variables. Returns `null` after printing what is missing.
+ *
+ * Secrets travel via the environment or a file, never argv, so they stay out of
+ * `ps` and the npm debug logs (issue #190).
+ */
+async function resolveNonInteractiveConfig(flags, fromFlags) {
+  let fileConfig = {};
+  if (flags.config) {
+    const content = flags.config === '-' ? await readStdin() : readFileSync(flags.config, 'utf-8');
+    fileConfig = parseConfigFile(content);
+  }
+  const config = mergeConfig(fromFlags, fileConfig, generateConfigFromEnv());
+  const validation = validateConfig(config);
+  if (!validation.valid) {
+    logError(`Non-interactive install incomplete. Missing: ${validation.missing.join(', ')}`);
+    log('Provide them via DIALOG_SURVEY_* environment variables, --config <file>, or CLI flags.');
+    process.exitCode = 1;
+    return null;
+  }
+  log('Using configuration from environment / --config / flags (non-interactive).\n');
+  return config;
+}
+
+/**
+ * Walk the operator through interactive prompts. Returns `null` when required
+ * values are still missing at the end.
+ */
+async function resolveInteractiveConfig() {
+  log('No flags provided. Starting interactive mode...\n');
+  const config = await collectConfigInteractive();
+  const validation = validateConfig(config);
+  if (!validation.valid) {
+    logError(`Missing required config: ${validation.missing.join(', ')}`);
+    process.exitCode = 1;
+    return null;
+  }
+  return config;
+}
+
+/**
+ * Print the usage block shown when a partial set of flags cannot be completed.
+ * Returns `null` so the caller can hand it straight back.
+ */
+function rejectPartialFlags(missing) {
+  logError(`Non-interactive install requires all flags. Missing: ${missing.join(', ')}`);
+  log('Usage: npx dialog-survey install \\');
+  log('  --db-url "postgresql://..." \\');
+  log('  --dingtalk-client-id "xxx" \\');
+  log('  --dingtalk-client-secret "xxx" \\');
+  log('  --dingtalk-agent-id "xxx"');
+  log('  [--llm-api-key "xxx"]');
+  log('  [--llm-base-url "http://localhost:11434/v1/chat/completions"]');
+  log('  [--llm-model "qwen2.5"]');
+  log('  [--skip-port-check]');
+  process.exitCode = 1;
+  return null;
+}
+
+/**
+ * Resolve the install configuration, or return `null` when the run should stop.
+ *
+ * Returning `null` rather than throwing is deliberate: every failure here is an
+ * operator mistake whose actionable message has already been printed, so the
+ * caller's only remaining job is to set the exit code.
+ *
+ * The five input modes are dispatched in order of specificity — complete flags,
+ * --help, an explicitly non-interactive run, partial flags, then the interactive
+ * fallback. Only the dispatch lives here; the branches themselves do not, which
+ * is what keeps this function readable as a table.
+ */
+async function resolveInstallConfig(flags) {
   const fromFlags = generateConfigFromFlags(flags);
   const flagValidation = validateConfig(fromFlags);
+  const anyFlagProvided = PROVIDED_FLAGS.some((f) => flags[f] !== undefined);
 
+  if (flags.help) {
+    printInstallHelp();
+    return null;
+  }
+  if (flagValidation.valid && anyFlagProvided) {
+    log('Using configuration from CLI flags.\n');
+    return fromFlags;
+  }
   // Non-interactive when explicitly requested, when stdin is not a TTY (piped /
   // CI / SSH), or when there is nothing to fall back to interactively.
   const nonInteractive =
     flags['non-interactive'] === 'true' ||
     flags['non-interactive'] === true ||
     !process.stdin.isTTY;
+  if (nonInteractive) return resolveNonInteractiveConfig(flags, fromFlags);
+  if (anyFlagProvided) return rejectPartialFlags(flagValidation.missing);
+  return resolveInteractiveConfig();
+}
 
-  const PROVIDED_FLAGS = [
-    'db-url',
-    'llm-api-key',
-    'llm-base-url',
-    'llm-model',
-    'dingtalk-client-id',
-    'dingtalk-client-secret',
-    'dingtalk-agent-id',
-    'admin-username',
-    'admin-password',
-  ];
-  const anyFlagProvided = PROVIDED_FLAGS.some((f) => flags[f] !== undefined);
-
-  if (flagValidation.valid && anyFlagProvided) {
-    config = fromFlags;
-    log('Using configuration from CLI flags.\n');
-  } else if (flags.help) {
-    printInstallHelp();
-    return;
-  } else if (nonInteractive) {
-    // Non-interactive: merge CLI flags, an optional --config file, and
-    // DIALOG_SURVEY_* environment variables. Secrets travel via the environment
-    // or a file, never argv, so they stay out of `ps` and the npm debug logs
-    // (issue #190).
-    let fileConfig = {};
-    if (flags.config) {
-      const content =
-        flags.config === '-' ? await readStdin() : readFileSync(flags.config, 'utf-8');
-      fileConfig = parseConfigFile(content);
-    }
-    const envConfig = generateConfigFromEnv();
-    config = mergeConfig(fromFlags, fileConfig, envConfig);
-    const mergedValidation = validateConfig(config);
-    if (!mergedValidation.valid) {
-      logError(
-        `Non-interactive install incomplete. Missing: ${mergedValidation.missing.join(', ')}`
-      );
-      log('Provide them via DIALOG_SURVEY_* environment variables, --config <file>, or CLI flags.');
-      process.exitCode = 1;
-      return;
-    }
-    log('Using configuration from environment / --config / flags (non-interactive).\n');
-  } else if (anyFlagProvided) {
-    logError(
-      `Non-interactive install requires all flags. Missing: ${flagValidation.missing.join(', ')}`
-    );
-    log('Usage: npx dialog-survey install \\');
-    log('  --db-url "postgresql://..." \\');
-    log('  --dingtalk-client-id "xxx" \\');
-    log('  --dingtalk-client-secret "xxx" \\');
-    log('  --dingtalk-agent-id "xxx"');
-    log('  [--llm-api-key "xxx"]');
-    log('  [--llm-base-url "http://localhost:11434/v1/chat/completions"]');
-    log('  [--llm-model "qwen2.5"]');
-    log('  [--skip-port-check]');
-    process.exitCode = 1;
-    return;
-  } else {
-    log('No flags provided. Starting interactive mode...\n');
-    config = await collectConfigInteractive();
-    const interactiveValidation = validateConfig(config);
-    if (!interactiveValidation.valid) {
-      logError(`Missing required config: ${interactiveValidation.missing.join(', ')}`);
-      process.exitCode = 1;
-      return;
-    }
-  }
-
-  // Step 2: Check prerequisites
-  log('Checking prerequisites...');
-  const credentials = await resolveAdminCredentials(config);
-  config = {
-    ...config,
-    ADMIN_USERNAME: credentials.username,
-    ADMIN_PASSWORD_HASH: credentials.hash,
-  };
-  const prereqs = await checkPrerequisites(config.DATABASE_URL, {
-    skipPortCheck: flags['skip-port-check'] === 'true',
-  });
-  for (const msg of prereqs.messages) {
-    log(`  ${msg}`);
-  }
-  if (!prereqs.ok) {
-    logError('Prerequisites check failed. Fix the issues above and retry.');
-    process.exitCode = 1;
-    return;
-  }
-
-  // Step 3: Check platform-specific deps
-  const platformCheck = checkPlatformDeps();
-  log(`  ${platformCheck.message}`);
-  if (!platformCheck.ok) {
-    logError(platformCheck.message);
-    process.exitCode = 1;
-    return;
-  }
-
-  // Step 4: Create install directory
+/**
+ * Steps 4-5: create the install directory, copy the package into it, and verify
+ * the result is self-consistent before any dependency is installed.
+ *
+ * Returns `false` when the manifest check failed and the caller must stop.
+ *
+ * The cleanup policy on failure is the subtle part, which is why it lives here
+ * with the check that triggers it: a FRESH directory is removed so a failed
+ * install leaves nothing behind, but an EXISTING one is only reported — deleting
+ * an operator's working install to punish a corrupt package would destroy data
+ * the package did not create. A fresh directory that already holds a `.env` is
+ * the one exception in the other direction: that is operator data predating any
+ * package.json, so it is kept and the operator is told to inspect it.
+ */
+async function prepareInstallDirectory(sourceDir) {
   log('\nSetting up installation directory...');
-  const sourceDir = join(__dirname, '..');
   // An existing package.json marks a pre-existing installation (upgrade);
   // a truly fresh install dir may be removed again when a later gate fails.
   const installDirExisted = existsSync(join(INSTALL_DIR, 'package.json'));
@@ -1200,10 +1217,68 @@ export async function installCommand(flags) {
       log('  Existing installation was partially updated — fix the package and re-run install.');
     }
     process.exitCode = 1;
-    return;
+    return null;
   }
   log('  Install manifest verified ✓ (bin target + VERSION present)');
+  return true;
+}
 
+/**
+ * Steps 2-3: fill in the admin credentials, then verify the environment can
+ * actually host the app (prerequisites + platform-specific dependencies).
+ *
+ * Returns the config with the credentials merged in, or `null` when a check
+ * failed and the caller must stop.
+ *
+ * The credential resolution happens BEFORE the prerequisite check on purpose:
+ * `checkPrerequisites` reads DATABASE_URL from the config, and resolving the
+ * credentials also normalises it, so checking first would probe a different
+ * connection string than the one finally written to `.env`.
+ */
+async function checkEnvironment(initialConfig, flags) {
+  log('Checking prerequisites...');
+  const credentials = await resolveAdminCredentials(initialConfig);
+  const config = {
+    ...initialConfig,
+    ADMIN_USERNAME: credentials.username,
+    ADMIN_PASSWORD_HASH: credentials.hash,
+  };
+  const prereqs = await checkPrerequisites(config.DATABASE_URL, {
+    skipPortCheck: flags['skip-port-check'] === 'true',
+  });
+  for (const msg of prereqs.messages) {
+    log(`  ${msg}`);
+  }
+  if (!prereqs.ok) {
+    logError('Prerequisites check failed. Fix the issues above and retry.');
+    process.exitCode = 1;
+    return null;
+  }
+
+  const platformCheck = checkPlatformDeps();
+  log(`  ${platformCheck.message}`);
+  if (!platformCheck.ok) {
+    logError(platformCheck.message);
+    process.exitCode = 1;
+    return null;
+  }
+  return config;
+}
+
+/**
+ * Steps 6-9: write `.env`, install dependencies, fetch the Playwright browser,
+ * and apply database migrations.
+ *
+ * Returns `false` when a FATAL step failed (npm install, migrations) and the
+ * caller must stop. The Playwright browser is deliberately NOT fatal: it only
+ * powers PDF export, so a headless-CI or air-gapped install should still end up
+ * with a working interview bot and a warning rather than a rolled-back install.
+ *
+ * The migration error handler translates the P3005/P3018 shape into the actual
+ * upgrade recipe, because the raw Prisma message names a table collision and not
+ * the `migrate resolve --applied` command that fixes it.
+ */
+async function installDependenciesAndMigrate(config) {
   // Step 6: Generate .env (kept as-is on upgrades — see writeEnvFile)
   log('Generating .env file...');
   const envResult = await writeEnvFile(INSTALL_DIR, config);
@@ -1289,7 +1364,25 @@ export async function installCommand(flags) {
     process.exitCode = 1;
     return;
   }
+  return true;
+}
 
+/**
+ * Steps 10-12: start the service, wait for it to become healthy, and report the
+ * outcome. Returns whether the deployment came up healthy.
+ *
+ * Split out of `installCommand` because the success banner is its single widest
+ * branch: an operator reading only the last screen gets the install dir, the
+ * admin password (shown once, never written to disk) and the platform-correct
+ * lifecycle hints — exactly the block that was hardest to find inside a
+ * 300-line function.
+ *
+ * `credentials` and `platformCheck` are parameters rather than re-derived
+ * values: re-probing the platform could disagree with the check that actually
+ * gated the install, and re-resolving the credentials would generate a NEW
+ * password after the hash had already been written to `.env`.
+ */
+async function startAndReport(credentials, platformCheck) {
   // Step 10: Start service (platform-aware)
   // Note: No build step needed — dist/ is pre-compiled in the npm package.
   await startViaServiceManager();
@@ -1337,6 +1430,40 @@ export async function installCommand(flags) {
       log(`\n⚠ ${warning}`);
     }
   }
+  return healthy;
+}
+
+/**
+ * Install command — interactive or non-interactive installation.
+ * @param {Record<string, string>} flags
+ */
+export async function installCommand(flags) {
+  log('🚀 dialog-survey installer\n');
+
+  // Step 1: Collect config
+  let config = await resolveInstallConfig(flags);
+  if (config === null) return;
+
+  // Steps 2-3: prerequisites + platform deps
+  config = await checkEnvironment(config, flags);
+  if (config === null) return;
+
+  // Steps 4-5: create the install directory, copy files, verify the manifest
+  const sourceDir = join(__dirname, '..');
+  if (!(await prepareInstallDirectory(sourceDir))) {
+    process.exitCode = 1;
+    return;
+  }
+
+  // Steps 6-9: .env, dependencies, Playwright browser, migrations
+  if (!(await installDependenciesAndMigrate(config))) {
+    process.exitCode = 1;
+    return;
+  }
+
+  // Steps 10-12: start the service, wait for health, report the outcome
+  const platformCheck = checkPlatformDeps();
+  await startAndReport(credentials, platformCheck);
 
   // Security notice when secrets were passed on the command line. npm records the
   // full argv (including flag values) in ~/.npm/_logs/*.debug-0.log, so prefer
@@ -1465,57 +1592,75 @@ export async function stopCommand() {
 /**
  * Status command — show service status.
  */
+/**
+ * Report the PM2-managed process. Returns `false` when nothing is installed, so
+ * the caller can stop instead of printing a health line for a service it has no
+ * reason to believe exists.
+ *
+ * `dump.pm2` persists on disk even while the app is stopped, so the dump
+ * security check runs on this path too — a stopped app whose dump is
+ * world-readable is still a leaked-secret finding (issue #193).
+ */
+function reportPm2Status() {
+  try {
+    const processes = JSON.parse(exec('pm2 jlist'));
+    const app = processes.find((p) => p.name === PM2_APP_NAME);
+
+    if (!app) {
+      log('  PM2 process: not found');
+      log('  Status: stopped\n');
+      log("  Run 'npx dialog-survey start' to start the service.");
+      for (const warning of checkPm2DumpSecurity()) {
+        log(`  ⚠️ ${warning}`);
+      }
+      return false;
+    }
+
+    log(`  PM2 process: ${app.pm2_env?.status || 'unknown'}`);
+    log(`  PID: ${app.pid || 'N/A'}`);
+    log(
+      `  Uptime: ${app.pm2_env?.pm_uptime ? new Date(app.pm2_env.pm_uptime).toISOString() : 'N/A'}`
+    );
+    log(`  Restarts: ${app.pm2_env?.restart_time ?? 'N/A'}`);
+    log(
+      `  Memory: ${app.monit?.memory ? `${Math.round(app.monit.memory / 1024 / 1024)}MB` : 'N/A'}`
+    );
+    // Surface PM2 dump security problems on every status check (issue #193).
+    for (const warning of checkPm2DumpSecurity()) {
+      log(`  ⚠️ ${warning}`);
+    }
+    return true;
+  } catch (err) {
+    logError(`PM2 status check failed: ${err.message}`);
+    return false;
+  }
+}
+
+/**
+ * Report the direct (non-PM2) process. Returns `false` when it is not running.
+ *
+ * Kept separate from the PM2 path rather than merged behind one flag: the two
+ * managers expose entirely different state, so a shared function would spend
+ * most of its branches deciding which platform it is on.
+ */
+function reportDirectStatus() {
+  if (isDirectServiceRunning()) {
+    log('  Direct process: running');
+    return true;
+  }
+  log('  Direct process: not found');
+  log('  Status: stopped\n');
+  log("  Run 'npx dialog-survey start' to start the service.");
+  return false;
+}
+
 export async function statusCommand() {
   log('📊 dialog-survey status\n');
 
   const platformCheck = checkPlatformDeps();
-
-  if (platformCheck.serviceManager === 'pm2') {
-    try {
-      const pm2Status = exec('pm2 jlist');
-      const processes = JSON.parse(pm2Status);
-      const app = processes.find((p) => p.name === PM2_APP_NAME);
-
-      if (!app) {
-        log('  PM2 process: not found');
-        log('  Status: stopped\n');
-        log("  Run 'npx dialog-survey start' to start the service.");
-        // dump.pm2 persists on disk even while the app is stopped, so the
-        // security check still matters here (issue #193).
-        for (const warning of checkPm2DumpSecurity()) {
-          log(`  ⚠ ${warning}`);
-        }
-        return;
-      }
-
-      const pm2StatusText = app.pm2_env?.status || 'unknown';
-      log(`  PM2 process: ${pm2StatusText}`);
-      log(`  PID: ${app.pid || 'N/A'}`);
-      log(
-        `  Uptime: ${app.pm2_env?.pm_uptime ? new Date(app.pm2_env.pm_uptime).toISOString() : 'N/A'}`
-      );
-      log(`  Restarts: ${app.pm2_env?.restart_time ?? 'N/A'}`);
-      log(
-        `  Memory: ${app.monit?.memory ? `${Math.round(app.monit.memory / 1024 / 1024)}MB` : 'N/A'}`
-      );
-      // Surface PM2 dump security problems on every status check (issue #193).
-      for (const warning of checkPm2DumpSecurity()) {
-        log(`  ⚠ ${warning}`);
-      }
-    } catch (err) {
-      logError(`PM2 status check failed: ${err.message}`);
-    }
-  } else {
-    const running = isDirectServiceRunning();
-    if (running) {
-      log('  Direct process: running');
-    } else {
-      log('  Direct process: not found');
-      log('  Status: stopped\n');
-      log("  Run 'npx dialog-survey start' to start the service.");
-      return;
-    }
-  }
+  const installed =
+    platformCheck.serviceManager === 'pm2' ? reportPm2Status() : reportDirectStatus();
+  if (!installed) return;
 
   // Check health endpoint (shared by both platforms)
   const healthy = await waitForHealth(HEALTH_URL, 5000, 500);

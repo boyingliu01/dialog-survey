@@ -26,6 +26,21 @@ export class RetryError extends Error {
   }
 }
 
+/**
+ * Decide whether a caught error should be retried at all.
+ *
+ * Only a `RetryError` carrying a status code outside `retryableStatuses` is
+ * fatal; every other error (plain `Error`, network failure, or a `RetryError`
+ * with no status code) is treated as transient. Extracted from `withRetry` so
+ * the retry loop reads as four flat steps instead of three nested branches —
+ * the nesting was what pushed this function's cognitive complexity to 20.
+ */
+function isRetryable(error: unknown, retryableStatuses: number[] | undefined): boolean {
+  if (!(error instanceof RetryError)) return true;
+  if (!error.statusCode) return true;
+  return retryableStatuses?.includes(error.statusCode) ?? false;
+}
+
 export async function withRetry<T>(
   fn: () => Promise<T>,
   options: Partial<RetryOptions> = {}
@@ -40,16 +55,13 @@ export async function withRetry<T>(
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
 
-      if (attempt < opts.maxRetries) {
-        // Only retry on configured status codes
-        if (e instanceof RetryError) {
-          if (!e.statusCode || !opts.retryableStatuses?.includes(e.statusCode)) {
-            throw e; // Non-retryable status code (e.g., 400)
-          }
-        }
-        await sleep(delay);
-        delay = Math.min(delay * opts.backoffMultiplier, opts.maxDelayMs);
-      }
+      if (attempt >= opts.maxRetries) continue;
+      // A non-retryable status code (e.g. 400) fails fast rather than burning
+      // the remaining attempts on a request that cannot succeed.
+      if (!isRetryable(e, opts.retryableStatuses)) throw e;
+
+      await sleep(delay);
+      delay = Math.min(delay * opts.backoffMultiplier, opts.maxDelayMs);
     }
   }
 

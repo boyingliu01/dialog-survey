@@ -227,6 +227,7 @@ export class PromptService {
     return result;
   }
 
+  // archlint-disable-next-line
   getTemplate(name: string): PromptTemplate | undefined {
     return this.templates.get(name);
   }

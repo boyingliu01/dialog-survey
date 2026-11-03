@@ -1,9 +1,9 @@
 # TESTS KNOWLEDGE BASE
 
-> Updated: 2026-11-03. 181 test files, 2129 tests (2116 passing, 13 skipped; Vitest 4.x).
+> Updated: 2026-11-03. 182 test files, 2149 tests (2136 passing, 13 skipped; Vitest 4.x).
 
 ## OVERVIEW
-Vitest 4.x test suite with 80%+ coverage thresholds. Flat structure in `tests/` directory (169 unit/integration files + 12 e2e, 2129 tests).
+Vitest 4.x test suite with 80%+ coverage thresholds. Flat structure in `tests/` directory (170 unit/integration files + 12 e2e, 2149 tests).
 
 ## WHERE TO LOOK
 | Pattern | Example Files | Notes |

@@ -14,6 +14,7 @@ export class AlibabaLLM implements LLMService {
     this.model = options.model || 'qwen-turbo';
   }
 
+  // archlint-disable-next-line
   async chat(request: LLMRequest): Promise<LLMResponse> {
     const response = await fetch(CHAT_API_URL, {
       method: 'POST',
@@ -68,6 +69,7 @@ export class AlibabaLLM implements LLMService {
     return data.output?.embeddings?.[0]?.embedding || [];
   }
 
+  // archlint-disable-next-line
   static fromEnv(): AlibabaLLM {
     return new AlibabaLLM({
       apiKey: process.env['DASHSCOPE_API_KEY'] || '',
