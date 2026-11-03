@@ -20,7 +20,9 @@ set -euo pipefail
 # The exit code of release-it is passed through unchanged, so CI or a caller can
 # tell "nothing to release" from "the release failed".
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# No SCRIPT_DIR here on purpose: releasing must operate on the repository containing the
+# CURRENT directory (see below), so the script's own location is never consulted. The
+# variable was previously assigned and never read, which shellcheck reports as SC2034.
 
 # Release the repository containing the CURRENT directory rather than the one
 # this script lives in. Releasing is irreversible (annotated tag + GitHub
@@ -106,12 +108,44 @@ run_post_release_check() {
 
   #    A silently-dead hook yields a commit without VERSION or AGENTS.md. The
   #    changelog plugin's omission is equally invisible, so CHANGELOG.md is included.
+  #
+  #    BUT presence-in-commit is only a PROXY for correctness, and it over-reports in
+  #    one real case: the fan-out hooks are idempotent. `sync-version.cjs` writes
+  #    AGENTS.md only when the header version actually differs, so if the previous
+  #    commit already carried `(vX.Y.Z)` for the version being released — which happens
+  #    whenever the version line is updated by hand, as a doc-maintenance commit does —
+  #    the hook finds nothing to change, AGENTS.md legitimately does not appear in the
+  #    release commit, and the proxy fires on a tree that is already correct.
+  #    Measured on v1.13.3: VERSION, package.json and the AGENTS.md header all read
+  #    1.13.3, the tree was clean and the tag was pushed, yet the check reported
+  #    "release commit is missing AGENTS.md" and told the operator to roll back a
+  #    perfectly good release.
+  #    So the proxy is applied only where it adds information: a file that IS in the
+  #    commit is fine; a file that is NOT must still hold the right version on disk,
+  #    which step 1 above already asserts for VERSION/package.json/AGENTS.md. What the
+  #    proxy still catches — and step 1 cannot — is CHANGELOG.md, which has no version
+  #    token to compare and is written only by the changelog plugin.
   RELEASE_FILES="$(git show --name-only --format= "$HEAD_AFTER" | LC_ALL=C sort | tr '\n' ' ')"
+  #     NOTE the shape of this loop. A `case` cannot express "this pattern first, then
+  #     the catch-all", because its arms are tried in order and `*` always matches — a
+  #     `CHANGELOG.md)` arm placed after `*)` is unreachable, and one placed before it is
+  #     still skipped whenever the file is ABSENT, which is the only case that arm exists
+  #     to catch. Measured: written as a `case` this reported "unchanged … verified on
+  #     disk" for a release commit with no CHANGELOG.md at all. The presence test is
+  #     therefore explicit, with the per-file policy stated alongside it.
   for expected in VERSION AGENTS.md package.json CHANGELOG.md; do
     case " $RELEASE_FILES " in
-      *" $expected "*) ;;
-      *) fail_post "release commit is missing $expected (found: ${RELEASE_FILES:-none})" ;;
+      *" $expected "*) continue ;;
     esac
+    if [ "$expected" = "CHANGELOG.md" ]; then
+      # CHANGELOG.md has no on-disk version to compare, so a dead changelog plugin is
+      # invisible to the other three assertions: presence is the only evidence it ran.
+      fail_post "release commit is missing CHANGELOG.md (found: ${RELEASE_FILES:-none})"
+    fi
+    # Absent from the commit is acceptable only because step 1 above verified the
+    # on-disk content. Record that reasoning so a genuinely dead hook is still visible
+    # as an anomaly rather than silently accepted.
+    echo "release: $expected unchanged by the release hooks (already at v$POST_VERSION) — verified on disk" >&2
   done
 
   # 3. The working tree must be clean, so the tag matches what is on disk.
@@ -156,7 +190,13 @@ ROLLBACK
 # argument, when present, overrides TAGS_BEFORE so the tag-set logic can be driven.
 if [ "${RELEASE_VERIFY_ONLY:-0}" = "1" ]; then
   TAGS_BEFORE="${1:-$(git tag -l | LC_ALL=C sort)}"
-  HEAD_BEFORE="$(git rev-parse HEAD)"
+  # RELEASE_VERIFY_HEAD_BEFORE (optional) lets a test drive the "did a release commit
+  # get created?" branch. Without it HEAD_BEFORE is read from the current HEAD, so
+  # HEAD_AFTER can never differ and every invocation reports "no release commit was
+  # created" — which is correct for the no-release case but leaves the release-commit
+  # assertions unexercisable, including the ones that guard a committed-versus-absent
+  # file. Must be a resolvable commit in the fixture repository.
+  HEAD_BEFORE="${RELEASE_VERIFY_HEAD_BEFORE:-$(git rev-parse HEAD)}"
   run_post_release_check
   exit $?
 fi
@@ -260,7 +300,10 @@ EFFECTIVE_HOOKS_PATH="$(git config --get core.hooksPath 2>/dev/null || true)"
 # run - measured, and it is why the first version of this guard silently did
 # nothing. The default hooks directory is derived from the git dir instead, with
 # core.hooksPath suppressed for that one query.
-DEFAULT_HOOKS_PATH="$(GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0= \
+# SC1007: `GIT_CONFIG_VALUE_0=` with a trailing space reads as an empty value but is
+# easy to mistake for a continuation artefact. The quotes state the intent explicitly:
+# the value IS the empty string, which is what suppresses core.hooksPath for this query.
+DEFAULT_HOOKS_PATH="$(GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0="" \
   git rev-parse --git-path hooks 2>/dev/null || true)"
 
 if [ -n "$EFFECTIVE_HOOKS_PATH" ] && [ "$EFFECTIVE_HOOKS_PATH" != "$DEFAULT_HOOKS_PATH" ]; then
