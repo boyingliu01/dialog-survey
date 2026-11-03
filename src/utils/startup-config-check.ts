@@ -33,59 +33,126 @@ export interface StartupConfigProblem {
   message: string;
 }
 
+/** First non-empty value among `names`, or `''` when none is set. */
+function firstSet(env: NodeJS.ProcessEnv, names: string[]): string {
+  for (const name of names) {
+    const value = env[name];
+    if (value) return value;
+  }
+  return '';
+}
+
+/**
+ * The LLM key, under any of the names this project has shipped with.
+ *
+ * Checked as three outcomes rather than two so the message can say what is
+ * wrong: a key that is present but still the installer's placeholder is a
+ * different operator mistake from a key that was never filled in.
+ */
+function checkLlmKey(env: NodeJS.ProcessEnv): StartupConfigProblem[] {
+  const key = firstSet(env, ['LLM_API_KEY', 'VOLCENGINE_API_KEY', 'ANTHROPIC_AUTH_TOKEN']);
+  if (!key) {
+    return [
+      {
+        variables: ['LLM_API_KEY'],
+        message: 'no LLM API key configured — every interview turn will fail',
+      },
+    ];
+  }
+  if (looksLikePlaceholder(key)) {
+    return [
+      {
+        variables: ['LLM_API_KEY'],
+        message: 'LLM API key is still a placeholder value — every interview turn will fail',
+      },
+    ];
+  }
+  return [];
+}
+
+/** Which DingTalk Stream variables are required, paired with how to read them. */
+const DINGTALK_REQUIRED: ReadonlyArray<{
+  variable: string;
+  read: (env: NodeJS.ProcessEnv) => string;
+}> = [
+  {
+    variable: 'DINGTALK_CLIENT_ID',
+    read: (env) => dingTalkCredentialsFromEnv(env).appKey,
+  },
+  {
+    variable: 'DINGTALK_CLIENT_SECRET',
+    read: (env) => dingTalkCredentialsFromEnv(env).appSecret,
+  },
+  { variable: 'DINGTALK_AGENT_ID', read: (env) => env['DINGTALK_AGENT_ID'] ?? '' },
+];
+
+/**
+ * DingTalk Stream credentials, in one of two states: incomplete, or complete but
+ * still carrying placeholders.
+ *
+ * Built from `DINGTALK_REQUIRED` rather than three hand-written `if`s, so adding
+ * a required variable is a table row instead of another branch. That is what
+ * brought this module's highest cyclomatic complexity under the threshold.
+ */
+function checkDingTalk(env: NodeJS.ProcessEnv): StartupConfigProblem[] {
+  const missing = DINGTALK_REQUIRED.filter(({ read }) => !read(env)).map(
+    ({ variable }) => variable
+  );
+  if (missing.length > 0) {
+    return [
+      {
+        variables: missing,
+        message: 'DingTalk Stream credentials incomplete — no messages will be received',
+      },
+    ];
+  }
+
+  const { appKey, appSecret } = dingTalkCredentialsFromEnv(env);
+  const hasPlaceholder = looksLikePlaceholder(appKey) || looksLikePlaceholder(appSecret);
+  if (!hasPlaceholder) return [];
+  return [
+    {
+      variables: ['DINGTALK_CLIENT_ID', 'DINGTALK_CLIENT_SECRET'],
+      message: 'DingTalk credentials are still placeholder values — no messages will be received',
+    },
+  ];
+}
+
+/** The admin login. A missing hash makes the whole admin UI unusable. */
+function checkAdminLogin(env: NodeJS.ProcessEnv): StartupConfigProblem[] {
+  if (env['ADMIN_PASSWORD_HASH']) return [];
+  return [
+    {
+      variables: ['ADMIN_USERNAME', 'ADMIN_PASSWORD_HASH'],
+      message: 'admin login is not configured — the admin UI cannot be used',
+    },
+  ];
+}
+
+/**
+ * Every independent area of configuration, in the order an operator should read
+ * them. Each entry reports zero or more problems; the aggregator only flattens.
+ */
+const CHECKS: ReadonlyArray<(env: NodeJS.ProcessEnv) => StartupConfigProblem[]> = [
+  checkLlmKey,
+  checkDingTalk,
+  checkAdminLogin,
+];
+
 /**
  * Everything that would make the running process unable to do its job.
  *
  * Kept pure (env in, findings out) so the checks are unit-testable without
  * booting a server, and so `/health/ready` and the startup log cannot drift
  * apart — they answer the same question.
+ *
+ * The function itself is only the fold: per-area logic lives in the `CHECKS`
+ * above so that no single function carries all of the branching.
  */
 export function collectStartupConfigProblems(
   env: NodeJS.ProcessEnv = process.env
 ): StartupConfigProblem[] {
-  const problems: StartupConfigProblem[] = [];
-
-  const llmKey =
-    env['LLM_API_KEY'] || env['VOLCENGINE_API_KEY'] || env['ANTHROPIC_AUTH_TOKEN'] || '';
-  if (!llmKey) {
-    problems.push({
-      variables: ['LLM_API_KEY'],
-      message: 'no LLM API key configured — every interview turn will fail',
-    });
-  } else if (looksLikePlaceholder(llmKey)) {
-    problems.push({
-      variables: ['LLM_API_KEY'],
-      message: 'LLM API key is still a placeholder value — every interview turn will fail',
-    });
-  }
-
-  const dingTalk = dingTalkCredentialsFromEnv(env);
-  const agentId = env['DINGTALK_AGENT_ID'] || '';
-  const missingDingTalk: string[] = [];
-  if (!dingTalk.appKey) missingDingTalk.push('DINGTALK_CLIENT_ID');
-  if (!dingTalk.appSecret) missingDingTalk.push('DINGTALK_CLIENT_SECRET');
-  if (!agentId) missingDingTalk.push('DINGTALK_AGENT_ID');
-  if (missingDingTalk.length > 0) {
-    problems.push({
-      variables: missingDingTalk,
-      message: 'DingTalk Stream credentials incomplete — no messages will be received',
-    });
-  } else if (looksLikePlaceholder(dingTalk.appKey) || looksLikePlaceholder(dingTalk.appSecret)) {
-    problems.push({
-      variables: ['DINGTALK_CLIENT_ID', 'DINGTALK_CLIENT_SECRET'],
-      message: 'DingTalk credentials are still placeholder values — no messages will be received',
-    });
-  }
-
-  const adminHash = env['ADMIN_PASSWORD_HASH'] || '';
-  if (!adminHash) {
-    problems.push({
-      variables: ['ADMIN_USERNAME', 'ADMIN_PASSWORD_HASH'],
-      message: 'admin login is not configured — the admin UI cannot be used',
-    });
-  }
-
-  return problems;
+  return CHECKS.flatMap((check) => check(env));
 }
 
 /**
