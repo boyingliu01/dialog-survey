@@ -26,10 +26,13 @@ export interface ProcessResult {
 
 /**
  * One segment inside a DingTalk `richText` payload. Text segments carry `text`;
- * picture/voice/file segments carry their own keys and no text at all.
+ * picture/voice/file segments carry their own keys and no text at all. Quoted or
+ * pasted blocks arrive one level deeper, under `richText` or `content`.
  */
 interface RichTextSegment {
   text?: unknown;
+  richText?: unknown;
+  content?: unknown;
   [key: string]: unknown;
 }
 
@@ -51,21 +54,29 @@ function readStringField(container: unknown, key: string): string | undefined {
 }
 
 /**
- * Join the text segments of a `richText` array, dropping every non-text segment.
+ * Flatten DingTalk rich-text segments into plain text.
  *
- * DingTalk sends a pasted/formatting-carrying reply as
- * `{ msgtype: 'richText', content: { richText: [{ text: '...' }, { downloadCode: '...' }] } }`.
- * Only the `text` members are the user's words; picture/voice/file segments are
- * media descriptors whose string form is meaningless to the interview graph.
+ * A segment is either a plain string or an object, and the text lives under one
+ * of three keys depending on how the client encoded it: `text` for the common
+ * case, and a nested `richText`/`content` array for quoted/pasted blocks that
+ * DingTalk wraps one level deeper. Recursing covers both without a special case.
+ *
+ * Picture/voice/file segments carry none of those keys and contribute nothing —
+ * they are media descriptors, not the user's words.
  */
-function extractRichText(segments: unknown): string {
-  if (!Array.isArray(segments)) return '';
-  const parts: string[] = [];
-  for (const segment of segments as RichTextSegment[]) {
-    const text = typeof segment === 'string' ? segment : readStringField(segment, 'text');
-    if (text) parts.push(text);
+function flattenRichText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map(flattenRichText).join('');
+  if (!value || typeof value !== 'object') return '';
+
+  const segment = value as RichTextSegment;
+  if (typeof segment.text === 'string') return segment.text;
+  for (const key of ['richText', 'content'] as const) {
+    const nested = segment[key];
+    if (Array.isArray(nested)) return flattenRichText(nested);
+    if (typeof nested === 'string') return nested;
   }
-  return parts.join('');
+  return '';
 }
 
 /**
@@ -74,20 +85,26 @@ function extractRichText(segments: unknown): string {
  * non-empty string: it slipped past the empty-content guards downstream and was
  * persisted as a real answer (issue #221), silently discarding the user's reply.
  *
- * Precedence follows the message type: plain text, then a raw string body, then
- * the text segments of a rich-text body, then markdown. Returns `''` for any
+ * Precedence follows the message type: plain text, then the text segments of a
+ * rich-text body, then a raw string body, then markdown. Returns `''` for any
  * shape that carries no text, so the caller treats it as "no usable content"
  * instead of writing garbage.
  */
 function extractMessageText(data: Record<string, unknown>): string {
-  const text = readStringField(data['text'], 'content');
-  if (text !== undefined) return text;
+  const text = data['text'];
+  const textContent = readField(text, 'content');
+  if (typeof textContent === 'string') return textContent;
+
+  // Some clients put the richText segments under `text` rather than `content`;
+  // reading both is harmless and keeps a whitespace-only body from winning.
+  const textRich = flattenRichText(textContent).trim();
+  if (textRich) return textRich;
 
   const content = data['content'];
   if (typeof content === 'string') return content;
 
-  const richText = extractRichText(readField(content, 'richText'));
-  if (richText) return richText;
+  const contentRich = flattenRichText(content).trim();
+  if (contentRich) return contentRich;
 
   return readStringField(data['markdown'], 'text') ?? '';
 }
@@ -100,10 +117,13 @@ export function parseStreamMessage(message: StreamMessage): ParsedStreamMessage 
     // Extract text by message type; never fall back to String(object).
     const content = extractMessageText(data);
 
+    // Narrow the identity fields for the same reason as `content`: a
+    // non-string here would reach the repository and the webhook allowlist as
+    // `[object Object]` rather than failing visibly.
     return {
-      userId: data.senderStaffId || '',
+      userId: typeof data.senderStaffId === 'string' ? data.senderStaffId : '',
       content: content,
-      sessionWebhook: data.sessionWebhook || '',
+      sessionWebhook: typeof data.sessionWebhook === 'string' ? data.sessionWebhook : '',
       messageId: message.headers.messageId,
     };
   } catch (e) {
