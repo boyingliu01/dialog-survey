@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/archlinter/archlint/main/resources/archlint.schema.json
+#
+# archlint scope for xp-gate Gate 6.
+#
+# Measured on 2026-11-03 (v1.13.2, archlint 0.16.0): 142 smells with no config
+# file, 72 with this one. The 70 removed were all noise:
+#
+#   public/js/htmx.min.js, alpine.min.js  51 — third-party minified bundles.
+#     A minified bundle is *supposed* to have CCN 116 and depth 8; reporting it
+#     as a smell trains everyone to ignore the report.
+#   .git/delphi/*.cjs                      2 — agent tooling, not shipped.
+#   .sprint-history/**, docs/sprints/**    9 — archived one-shot scripts from
+#     completed sprints. They are historical evidence and must not be edited.
+#   tools/spike/**                         4 — the Prisma 7 + PGlite spike, a
+#     throwaway probe kept for reference.
+#
+# Deliberately NOT ignored: nothing here. This repo's own source is fully in
+# scope, including `tests/` — that is where the real duplication lives.
+#
+# IMPORTANT: `ignore` REPLACES the built-in default list rather than extending
+# it. `archlint init` writes a default that includes `**/tests/**`; the moment
+# this file omits it, every test file becomes analysable. Measured: dropping the
+# default list took the report from 142 to 194 smells, 138 of them with a
+# `tests/` primary file (72 CodeClone + 41 DeadSymbol from test doubles such as
+# FakeWebSocket.send / MockLLMQueue.clear, which only ever have indirect
+# callers). So the entries below are additive to the defaults and MUST keep
+# `**/tests/**` and friends, or the signal is buried again.
+ignore:
+  # --- entries mirroring the archlint default list -------------------------
+  # Kept explicitly because `ignore` is a replacement, not an extension.
+  - '**/*.test.ts'
+  - '**/*.test.js'
+  - '**/*.spec.ts'
+  - '**/*.spec.js'
+  - '**/__tests__/**'
+  - '**/__mocks__/**'
+  - '**/test/**'
+  - '**/tests/**'
+  - '**/__fixtures__/**'
+  - '**/*.mock.ts'
+  - '**/*.mock.js'
+  # --- this repo's additions ----------------------------------------------
+  # Third-party minified bundles. `**/*.min.js` alone would also catch any
+  # future vendored asset, which is the intent.
+  - '**/*.min.js'
+  - 'public/js/**'
+  # Archived sprint artefacts and agent scratch tooling.
+  - '.sprint-history/**'
+  - 'docs/sprints/**'
+  - '.git/**'
+  # One-off spikes, kept for reference rather than maintained.
+  - 'tools/spike/**'

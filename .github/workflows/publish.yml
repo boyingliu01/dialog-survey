@@ -6,6 +6,13 @@ on:
       - "v*"
   workflow_dispatch:
 
+# Least privilege (checkov CKV2_GHA_1). The job below requests the npm-publish
+# scope it actually needs (`id-token: write` for provenance); this block keeps
+# every other permission at read so an unlisted future job cannot inherit
+# write-all from the repository default.
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest

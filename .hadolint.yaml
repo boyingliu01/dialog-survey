@@ -1,0 +1,33 @@
+# hadolint configuration for this Dockerfile.
+#
+# Gate 7 reports these as info/warning; each one below is a deliberate,
+# documented decision rather than something left unfixed for lack of time.
+ignored:
+  # DL3025 — "Use arguments JSON notation for CMD and ENTRYPOINT".
+  #
+  # The HEALTHCHECK is a multi-line `node -e` script with nested single and
+  # double quotes. JSON/exec form (`CMD ["node","-e","..."]`) requires escaping
+  # every internal quote, which makes the probe unreadable and error-prone, and
+  # exec form still runs `node -e` through no shell — the script has no shell
+  # metacharacters that need it, but the escaping cost is real and the current
+  # form is directly asserted by tests/docker-compose-deployment.test.ts
+  # (`/HEALTHCHECK[\s\S]*?CMD node -e "(.*)"/`), which is the behavioural
+  # control that keeps the probe pointed at /health/ready and parsing the body
+  # (issue #218). Changing the form would require rewriting that assertion for
+  # no functional gain.
+  - DL3025
+  # DL3059 — "Multiple consecutive RUN instructions. Consider consolidation."
+  #
+  # These RUNs are separate on purpose: `npx prisma generate`, `npm run build`
+  # and the font/asset verifications each fail for a different reason, and a
+  # consolidated layer reports one opaque failure. They also sit on opposite
+  # sides of the `prune-runtime-deps.mjs` step (issue #210), so merging them
+  # would break the image-size optimisation.
+  - DL3059
+  # DL3066 — "Non-numeric user-id may not be resolvable by host system".
+  #
+  # `USER nodejs` is intentional: the user is created in the image with a fixed
+  # uid/gid of 1001, which is what the reports volume ownership depends on
+  # (issue #216). Switching to `USER 1001` would lose the name in `ps` output
+  # and diverge from docker-compose.yml, which also runs as the named user.
+  - DL3066

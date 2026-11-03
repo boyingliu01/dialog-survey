@@ -3,6 +3,20 @@ name: PR Quality Gates
 on:
   pull_request:
     branches: [master, main]
+  # A direct push to master must run the same gates as a PR. Without this the
+  # workflow's 12 jobs only ever execute for pull requests, so committing
+  # straight to master (which release commits and hotfixes do) produced zero CI
+  # verification while still looking green on the Actions tab — the runs there
+  # were `Publish to npm` and `Spike`, neither of which runs tests or lint.
+  # `tests/ci-workflow-triggers.test.ts` pins this.
+  #
+  # Jobs that cannot run on a push are already guarded: `commit-lint` is
+  # `if: github.event_name == 'pull_request'`, and every consumer of
+  # `github.base_ref` falls back (`|| 'master'`) because it is empty on
+  # workflow_dispatch. A push event sets GITHUB_BASE_REF to the empty string
+  # too, so those fallbacks cover it.
+  push:
+    branches: [master, main]
   workflow_dispatch:
 
 concurrency:
