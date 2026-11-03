@@ -1280,6 +1280,111 @@ describe('StreamMessageService', () => {
       expect(result.success).toBe(false);
     });
   });
+
+  describe('processStreamMessage — rich text (issue #221)', () => {
+    const richState: InterviewState = {
+      userId: 'user-123',
+      interviewId: 'interview-123',
+      templateId: 'test-template',
+      status: 'ACTIVE',
+      messages: [],
+      currentQuestion: 4,
+      followupCount: 0,
+      maxFollowups: 5,
+      nudgeCount: 0,
+      responses: [],
+      reportGenerated: false,
+      version: 1,
+      originalVersion: 1,
+      pendingMessages: [],
+      pendingResponses: [],
+    };
+
+    /**
+     * @test issue-221
+     * @intent 富文本回复必须以纯文本进入图执行，绝不能是 "[object Object]"
+     */
+    it('feeds the joined richText text to the graph, never "[object Object]"', async () => {
+      mockRepo.findActiveInterview.mockResolvedValueOnce(richState);
+      mockRepo.saveFullState.mockResolvedValueOnce({ success: true, newVersion: 2 });
+      vi.mocked(runInterviewGraph).mockResolvedValueOnce({
+        response: '已记录您的回答',
+        nextState: { ...richState, currentQuestion: 5 },
+      });
+      mockFetch.mockResolvedValue({ ok: true });
+
+      const richMessage: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: { topic: 'chat', messageId: 'msg-rich-1', time: '2026-11-02T09:50:03Z' },
+        data: JSON.stringify({
+          senderStaffId: 'user-123',
+          msgtype: 'richText',
+          sessionWebhook: 'https://oapi.dingtalk.com',
+          content: {
+            richText: [{ text: '培训经历：' }, { downloadCode: 'pic' }, { text: '完成了合规认证' }],
+          },
+        }),
+      };
+
+      const result = await service.processStreamMessage(richMessage);
+
+      expect(result.success).toBe(true);
+      const call = vi.mocked(runInterviewGraph).mock.calls[0]?.[0] as { pendingMessages?: unknown };
+      const serialized = JSON.stringify(call);
+      expect(serialized).toContain('培训经历：完成了合规认证');
+      expect(serialized).not.toContain('[object Object]');
+    });
+
+    /**
+     * @test issue-221
+     * @intent 纯图片消息没有任何文本，应按「无有效内容」处理，不写入脏数据、不推进题目
+     */
+    it('rejects a media-only message instead of advancing the question', async () => {
+      const onlyMedia: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: { topic: 'chat', messageId: 'msg-rich-2', time: '2026-11-02T09:50:29Z' },
+        data: JSON.stringify({
+          senderStaffId: 'user-123',
+          msgtype: 'picture',
+          sessionWebhook: 'https://oapi.dingtalk.com',
+          content: { downloadCode: 'pic-only' },
+        }),
+      };
+
+      const result = await service.processStreamMessage(onlyMedia);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Missing userId or content');
+      expect(runInterviewGraph).not.toHaveBeenCalled();
+      expect(mockRepo.saveFullState).not.toHaveBeenCalled();
+    });
+
+    /**
+     * @test issue-221
+     * @intent 全媒体 richText（图片段构成）同样不得产生 "[object Object]"
+     */
+    it('does not persist "[object Object]" for a richText made only of media', async () => {
+      const mediaRichText: StreamMessage = {
+        specVersion: '1.0',
+        type: 'CALLBACK',
+        headers: { topic: 'chat', messageId: 'msg-rich-3', time: '2026-11-02T09:51:00Z' },
+        data: JSON.stringify({
+          senderStaffId: 'user-123',
+          msgtype: 'richText',
+          sessionWebhook: 'https://oapi.dingtalk.com',
+          content: { richText: [{ downloadCode: 'pic-a' }, { downloadCode: 'pic-b' }] },
+        }),
+      };
+
+      const result = await service.processStreamMessage(mediaRichText);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Missing userId or content');
+      expect(runInterviewGraph).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('Exported functions', () => {

@@ -267,6 +267,7 @@ export class TemplateRepository {
             status: true,
             sentCount: true,
             createdAt: true,
+            inviteeData: true,
             _count: { select: { interviews: true } },
             interviews: {
               orderBy: { createdAt: 'desc' },

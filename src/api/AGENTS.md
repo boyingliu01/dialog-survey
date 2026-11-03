@@ -31,3 +31,20 @@ Fastify route handlers organized by resource. No controller classes — standalo
 - **Shell URLs**: `/admin`, `/admin/templates`, `/admin/plans`, `/admin/analytics`
 - **Fragment URLs**: `/admin/content/*` (HTMX swap targets)
 - **Rule**: `hx-get`/`hx-post` to `#main-content` MUST use `/admin/content/*`
+
+## VIEW-MODEL PROJECTIONS (`admin/view-models.ts`)
+Shared projections keep every admin surface agreeing about the same row; assert
+them here rather than through an HTTP round trip.
+
+| Helper | Use |
+|--------|-----|
+| `fmtDate` | Localised date, `-` when empty |
+| `buildInviteeNameMap` | Plan-detail member table (userId → name) |
+| `findInviteeInfo` | Report surfaces + tree label (name/phone for one userId) |
+| `interviewTreeLabel` | Admin-tree leaf: `姓名-电话-UserID` → `姓名-UserID` → `UserID` (issue #223) |
+| `parseTemplateContent` | Template `content` JSON → `{content, questions}` |
+
+`interviewTreeLabel` degrades in two steps, and treats `''`/whitespace as absent —
+the import path stores `''` for a blank CSV cell, and `" -1234"` is worse than the
+bare id. The name is user-supplied (imported CSV), so it must stay inside
+Nunjucks autoescape; `tests/admin-tree-interview-label.test.ts` pins that.
