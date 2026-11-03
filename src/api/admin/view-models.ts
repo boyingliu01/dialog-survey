@@ -60,6 +60,30 @@ export function findInviteeInfo(
 }
 
 /**
+ * Build the leaf label for an interview in the admin tree (issue #223).
+ *
+ * A bare `userId` is unreadable for an administrator looking at a list of
+ * numeric DingTalk ids, so the tree shows the invitee's name and phone from the
+ * plan's imported `inviteeData` when they are known:
+ *
+ * - name + phone  → `姓名-电话-UserID`
+ * - name only     → `姓名-UserID`
+ * - neither       → `UserID` (unchanged behaviour)
+ *
+ * Empty or whitespace-only fields count as absent: the import path stores `''`
+ * for a blank CSV cell, and rendering `" -1234"` would be worse than the id.
+ */
+export function interviewTreeLabel(
+  info: { name?: string; phone?: string },
+  userId: string
+): string {
+  const name = typeof info.name === 'string' ? info.name.trim() : '';
+  const phone = typeof info.phone === 'string' ? info.phone.trim() : '';
+  const parts = name ? (phone ? [name, phone, userId] : [name, userId]) : [userId];
+  return parts.join('-');
+}
+
+/**
  * Parse a template's stored `content` JSON string.
  *
  * A malformed column degrades to `{}` so the page renders with an empty editor

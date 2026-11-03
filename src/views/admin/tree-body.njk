@@ -81,7 +81,7 @@
                    @click="selectedId = '{{ interview.id }}'; htmx.ajax('GET', '/admin/content/reports/{{ interview.id }}', {target: '#main-content', swap: 'innerHTML', pushUrl: true})">
                 <span class="w-4 flex-shrink-0"></span>
                 <span class="w-1.5 h-1.5 rounded-full mr-1.5 flex-shrink-0 status-dot-{{ interview.status }}"></span>
-                <span class="truncate">{{ interview.userId }}</span>
+                <span class="truncate" title="{{ interview._label }}">{{ interview._label }}</span>
               </div>
               {% endfor %}
               {% if plan._interviewCount > 15 %}

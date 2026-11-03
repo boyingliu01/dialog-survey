@@ -4,6 +4,7 @@ import { adminAuth } from '../../middleware/admin-auth.js';
 import { error } from '../../utils/logger.js';
 import { htmlEscape } from './html.js';
 import type { AdminRoutesDeps } from './shared.js';
+import { findInviteeInfo, interviewTreeLabel } from './view-models.js';
 
 const BASE_PATH = '/admin';
 const API_PATH = '/admin/api';
@@ -33,7 +34,13 @@ export async function registerAnalyticsRoutes(
           ...t,
           _plans: t.interviewPlans.map((p) => ({
             ...p,
-            _interviews: p.interviews,
+            _interviews: p.interviews.map((i) => ({
+              ...i,
+              // The tree used to render a bare userId, which told an
+              // administrator nothing (issue #223). The label carries the
+              // invitee's name/phone from the plan's imported list when known.
+              _label: interviewTreeLabel(findInviteeInfo(p.inviteeData, i.userId), i.userId),
+            })),
             _interviewCount: p._count.interviews,
             _completedCount: p.interviews.filter((i) => i.status === 'COMPLETED').length,
           })),

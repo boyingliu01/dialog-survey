@@ -13,7 +13,7 @@ Application services layer: business logic orchestration for interview flow, rep
 | Member management | `interview-plan-members.service.ts` | Name + phone member add/remove, $transaction |
 | Send + status | `interview-plan-send.service.ts` | Send tracking with SendStatus |
 | DingTalk Stream processing | `stream-message.service.ts` | Message parsing + dedup + graph execution |
-| Stream helpers | `stream-message-utils.ts` | Shared msg parsing utilities |
+| Stream helpers | `stream-message-utils.ts` | Shared msg parsing utilities; `extractMessageText`/`extractRichText` extract plain text per msgtype and NEVER `String()` an object (issue #221 — `"[object Object]"` used to be persisted as a real answer) |
 | Conversation orchestration | `conversation-engine.ts` | Wraps runInterviewGraph(), loads/saves state |
 | Report generation | `analysis.service.ts` + `report.service.ts` | LLM-powered analysis → Markdown |
 | Analytics | `analytics.service.ts` | KPI aggregation + distribution stats |
