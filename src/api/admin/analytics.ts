@@ -3,8 +3,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { adminAuth } from '../../middleware/admin-auth.js';
 import { error } from '../../utils/logger.js';
 import { htmlEscape } from './html.js';
-import { findInviteeInfo, interviewTreeLabel } from './view-models.js';
 import type { AdminRoutesDeps } from './shared.js';
+import { findInviteeInfo, interviewTreeLabel } from './view-models.js';
 
 const BASE_PATH = '/admin';
 const API_PATH = '/admin/api';
