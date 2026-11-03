@@ -67,6 +67,52 @@ describe('Admin Tree Routes', () => {
       expect(response.statusCode).toBe(200);
       expect(response.body).toContain('访谈管理后台');
     });
+
+    it('should render invitee name and phone in tree leaf labels', async () => {
+      const template = await prisma.template.create({
+        data: {
+          name: 'Tree Label Test Template',
+          content: '[]',
+          status: 'DRAFT',
+        },
+      });
+      const plan = await prisma.interviewPlan.create({
+        data: {
+          name: 'Tree Label Test Plan',
+          templateId: template.id,
+          inviteeData: [
+            { userId: '9001', name: '张三', phone: '13800000000' },
+            { userId: '9002', name: '李四' },
+          ],
+        },
+      });
+      await prisma.interview.createMany({
+        data: [
+          { userId: '9001', templateId: template.id, planId: plan.id },
+          { userId: '9002', templateId: template.id, planId: plan.id },
+          { userId: '9003', templateId: template.id, planId: plan.id },
+        ],
+      });
+
+      try {
+        const response = await app.inject({
+          method: 'GET',
+          url: '/admin',
+          headers: {
+            'x-admin-key': ADMIN_KEY,
+          },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.body).toContain('张三-13800000000-9001');
+        expect(response.body).toContain('李四-9002');
+        expect(response.body).toContain('title="9003"');
+      } finally {
+        await prisma.interview.deleteMany({ where: { planId: plan.id } });
+        await prisma.interviewPlan.delete({ where: { id: plan.id } });
+        await prisma.template.delete({ where: { id: template.id } });
+      }
+    });
   });
 
   describe('GET /admin/content/templates/:id', () => {

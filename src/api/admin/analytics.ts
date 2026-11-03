@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { adminAuth } from '../../middleware/admin-auth.js';
 import { error } from '../../utils/logger.js';
 import { htmlEscape } from './html.js';
+import { findInviteeInfo, interviewTreeLabel } from './view-models.js';
 import type { AdminRoutesDeps } from './shared.js';
 
 const BASE_PATH = '/admin';
@@ -33,7 +34,11 @@ export async function registerAnalyticsRoutes(
           ...t,
           _plans: t.interviewPlans.map((p) => ({
             ...p,
-            _interviews: p.interviews,
+            inviteeData: undefined,
+            _interviews: p.interviews.map((i) => ({
+              ...i,
+              _label: interviewTreeLabel(findInviteeInfo(p.inviteeData, i.userId), i.userId),
+            })),
             _interviewCount: p._count.interviews,
             _completedCount: p.interviews.filter((i) => i.status === 'COMPLETED').length,
           })),

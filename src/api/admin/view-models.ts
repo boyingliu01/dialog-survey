@@ -60,6 +60,19 @@ export function findInviteeInfo(
 }
 
 /**
+ * Tree leaf label for one interview: `name-phone-userId`, or `name-userId`
+ * when the plan has no phone for this invitee. Falls back to the bare
+ * `userId` when no name is known (pre-existing display behaviour).
+ */
+export function interviewTreeLabel(
+  info: { name?: string; phone?: string },
+  userId: string
+): string {
+  if (!info.name) return userId;
+  return info.phone ? `${info.name}-${info.phone}-${userId}` : `${info.name}-${userId}`;
+}
+
+/**
  * Parse a template's stored `content` JSON string.
  *
  * A malformed column degrades to `{}` so the page renders with an empty editor
