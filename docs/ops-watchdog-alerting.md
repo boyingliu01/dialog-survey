@@ -115,5 +115,7 @@ bash /usr/local/bin/ds-restore-drill.sh                                  # 期�
 - `/health` 内含真实 LLM 调用，任何监控该端口的系统都要按「可容忍几十秒」设计（本套用 40s 超时 + 连续 2 次阈值）。
   探针本身缺并发去重与失败缓存，是 [#227](https://github.com/boyingliu01/dialog-survey/issues/227) 跟踪的上游缺陷。
   端口语义见 AGENTS.md：`/health` 是 liveness（仅 DB 不可用才 503），`/health/ready` 是 readiness。
-  看门狗默认探 liveness 以少误报；若要让「LLM/钉钉不可用」也算故障，把 `DS_HEALTH_URL` 指向 `/health/ready`。
+  看门狗默认探 liveness 以少误报；若要让「LLM/钉钉不可用」也算故障，把 `DS_HEALTH_URL` 指向 `/health/ready`——
+  但先确认镜像里有这条路由：它由 `058e442`（2026-10-29）引入，2026-11-04 在 1.11.21（10-28 构建）的现网镜像上实测返回
+  404 `Route GET:/health/ready not found`，指向它会让看门狗把一切判定为中断。升级镜像后再切换。
 - 备份文件含访谈正文与用户标识，属 PII：备份目录保持 0700/0600，异地副本目录不要共享给他人；日志只记录文件名与大小。
