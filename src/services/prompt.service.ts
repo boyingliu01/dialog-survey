@@ -217,14 +217,24 @@ export class PromptService {
       throw new Error(`Template not found: ${templateName}`);
     }
 
-    let result = template.template;
-    for (const [key, value] of Object.entries(variables)) {
-      result = result.replace(
-        new RegExp(`{{${key}}}`, 'g'),
-        value.replace(/\{\{/g, '\\{\\{').replace(/\}\}/g, '\\}\\}')
-      );
-    }
-    return result;
+    // One pass over the source text, replacing placeholders via a callback.
+    //
+    // The previous implementation looped over the variables and called
+    // `String.replace` on the ALREADY-SUBSTITUTED result. That made substitution
+    // quadratic, but worse, it made it RE-ENTRANT: a value containing "{{b}}" was
+    // itself substituted when the loop reached `b`. A user's answer could
+    // therefore pull another prompt variable into its own slot -- an interview
+    // answer containing "{{topic}}" rendered the topic inside the answer, and a
+    // value could inject the whole question. The old guard against this
+    // (`value.replace(/\{\{/g, '\\{\\{')`) was a no-op: '\\{' in a JS string is
+    // just '{', so it re-inserted the braces it meant to defuse.
+    //
+    // A single pass with a callback is immune by construction: text produced by
+    // the callback is never scanned again for placeholders.
+    return template.template.replace(
+      /{{(\w+)}}/g,
+      (whole: string, name: string) => variables[name] ?? whole
+    );
   }
 
   // archlint-disable-next-line

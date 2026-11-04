@@ -71,7 +71,12 @@ export async function generateReport(
 
     if (!content || content.trim().length === 0) {
       error('LLM returned empty content, using fallback', { interviewId });
-      return createFallbackReport(interviewId, topic, qaPairs);
+      // `usedLLM` must be stamped here too, exactly as on the throw path. This
+      // returned the bare fallback, so a model that answered with an empty body
+      // produced a report whose `usedLLM` was `undefined` while a model that
+      // threw produced `false` -- two spellings of "degraded" for the same
+      // outcome, and the caller checking `=== false` missed half the outages.
+      return { ...createFallbackReport(interviewId, topic, qaPairs), usedLLM: false };
     }
 
     const parsed = parseReportContent(content);
@@ -126,9 +131,19 @@ function parseReportContent(content: string): {
   // Each section accepts both "### 1. 关键发现" (Markdown header) and "关键发现:"
   // forms, and the bullet extraction is shared, so the only per-section facts
   // are the two patterns and how the captured text becomes the stored value.
+  //
+  // The lookahead must stop at ANY Markdown heading, not just one containing
+  // "建议". With `### .*建议` alone, a document whose sections render as
+  // "### 2. 情感分析" was not a stop point, so the findings capture ran past it
+  // and swallowed the next header -- "### 2." itself became a bullet item.
+  //
+  // End-of-section is `(?![\s\S])`, not `$`: these patterns carry the `m` flag
+  // (needed for `^#{1,6}`), and under `m` a bare `$` means "end of ANY line", so
+  // it fired after the first bullet and truncated every multi-line section to a
+  // single item. `(?![\s\S])` is the only spelling that means "end of input".
   const findings = captureAfter(content, [
-    /[##\s]*关键发现[:：]?\s*\n?([\s\S]*?)(?=情感分析|行动建议|### .*建议|$)/i,
-    /关键发现[\s:：]*([\s\S]*?)(?=情感分析|行动建议|$)/i,
+    /[##\s]*关键发现[:：]?\s*\n?([\s\S]*?)(?=情感分析|行动建议|^#{1,6}\s|(?![\s\S]))/im,
+    /关键发现[\s:：]*([\s\S]*?)(?=情感分析|行动建议|^#{1,6}\s|(?![\s\S]))/im,
   ]);
   const sentiment = captureAfter(content, [
     /情感分析[:：]\s*([\u4e00-\u9fa5]+)/i,
