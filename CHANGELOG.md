@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.14.0](https://github.com/boyingliu01/dialog-survey/compare/v1.13.5...v1.14.0) (2026-11-04)
+
+### Features
+
+* **ops:** add deployment watchdog, alerting and restore-drill scripts ([08ffd20](https://github.com/boyingliu01/dialog-survey/commit/08ffd20703707a2c1d3218d6ce1f095a770c59bd))
+
+### Bug Fixes
+
+* **ccn-report:** make --root actually measure the other tree, and fail on a typo ([547c4c2](https://github.com/boyingliu01/dialog-survey/commit/547c4c2b80e0dc9286324d3a9b8397d72769c926))
+* **services:** raise five Gate M files above the 60% mutation threshold ([bfe3b6f](https://github.com/boyingliu01/dialog-survey/commit/bfe3b6f480bbe653e75f663cf07d6c0a6b94f189))
+
 ## [1.13.5](https://github.com/boyingliu01/dialog-survey/compare/v1.13.4...v1.13.5) (2026-11-03)
 
 ## [1.13.4](https://github.com/boyingliu01/dialog-survey/compare/v1.13.3...v1.13.4) (2026-11-03)
