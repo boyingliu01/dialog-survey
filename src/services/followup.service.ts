@@ -102,19 +102,23 @@ export function buildForcedNextTransition(nextQuestion?: string): string {
  */
 export function addContinuityLeadIn(response: string, nextQuestion?: string): string {
   const text = response.trim();
-  if (!text) return response;
+  if (needsLeadIn(text, nextQuestion)) return `${FORCED_NEXT_LEAD_IN}${text}`;
+  return response;
+}
 
+/**
+ * True when `text` is a question that opens without an acknowledgement.
+ *
+ * Three ways to be out of scope, each stated once: an empty reply, a reply with
+ * no question mark (a wrap-up or a statement), and a reply that already carries a
+ * real lead-in. The verbatim-next-question case is the exception -- no
+ * acknowledgement could be credible there, so it always gets the neutral opener.
+ */
+function needsLeadIn(text: string, nextQuestion: string | undefined): boolean {
   const questionMark = text.search(/[?？]/);
-  // No question (a wrap-up or a statement) — outside this rule's scope.
-  if (questionMark === -1) return response;
-
-  const isNextQuestionVerbatim = nextQuestion != null && text === nextQuestion.trim();
-  if (!isNextQuestionVerbatim) {
-    const beforeQuestion = text.slice(0, questionMark);
-    if (!hasNoLeadIn(beforeQuestion)) return response;
-  }
-
-  return `${FORCED_NEXT_LEAD_IN}${text}`;
+  if (!text || questionMark === -1) return false;
+  if (nextQuestion != null && text === nextQuestion.trim()) return true;
+  return hasNoLeadIn(text.slice(0, questionMark));
 }
 
 export interface StructuredResponse {
@@ -195,29 +199,66 @@ ${rawText}
   }
 }
 
+/**
+ * Model action wordings mapped onto the three actions the graph understands.
+ *
+ * END/FINISH/COMPLETE are three spellings of the same outcome; NEXT and FOLLOWUP
+ * are their own. Anything else falls back to NEXT, so an unrecognised word
+ * advances the interview rather than stalling it.
+ */
+const ACTION_ALIASES: Readonly<Record<string, 'NEXT' | 'FOLLOWUP' | 'END'>> = {
+  NEXT: 'NEXT',
+  FOLLOWUP: 'FOLLOWUP',
+  END: 'END',
+  FINISH: 'END',
+  COMPLETE: 'END',
+};
+
+/** Strip the Markdown fence an LLM likes to wrap JSON in, then trim. */
+function stripCodeFence(raw: string): string {
+  const fenced = raw.trim().match(/```(?:json)?\s*([\s\S]*?)```/);
+  return fenced ? fenced[1].trim() : raw.trim();
+}
+
+/** Read `strategy`, defaulting to 1 when the model omitted or zeroed it. */
+function strategyOf(parsed: Record<string, unknown>): number {
+  const strategy = parsed['strategy'];
+  return typeof strategy === 'number' && strategy !== 0 ? strategy : 1;
+}
+
+/** True when `value` is a non-null object, i.e. an object we may read fields off. */
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * True when the payload carries what the graph needs.
+ *
+ * A bare `null` parses fine but is not an object, and reading a field off it
+ * throws -- so it is rejected here rather than left to the field access. LLMs
+ * really do answer with `null`, and this used to crash the turn. Both fields are
+ * load-bearing: a missing action cannot drive the graph and a missing response
+ * has nothing to say.
+ */
+function isUsablePayload(value: unknown): value is Record<string, unknown> {
+  if (!isObject(value)) return false;
+  return Boolean(value['action']) && Boolean(value['response']);
+}
+
+/** Assemble the structured response, or null when the payload is unusable. */
+function structuredFrom(parsed: unknown): StructuredResponse | null {
+  if (!isUsablePayload(parsed)) return null;
+  return {
+    thinking: (parsed['thinking'] as string | undefined) ?? '',
+    strategy: strategyOf(parsed),
+    action: ACTION_ALIASES[String(parsed['action'])] ?? 'NEXT',
+    response: parsed['response'] as string,
+  };
+}
+
 export function parseLLMResponse(rawContent: string): StructuredResponse | null {
-  let content = rawContent.trim();
-  const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (jsonMatch) {
-    content = jsonMatch[1].trim();
-  }
   try {
-    const parsed = JSON.parse(content);
-    if (!parsed.action || !parsed.response) return null;
-    const endActions = ['END', 'FINISH', 'COMPLETE'];
-    const validActions = ['NEXT', 'FOLLOWUP', 'END', 'FINISH', 'COMPLETE'];
-    let action: 'NEXT' | 'FOLLOWUP' | 'END';
-    if (validActions.includes(parsed.action)) {
-      action = endActions.includes(parsed.action) ? 'END' : parsed.action;
-    } else {
-      action = 'NEXT';
-    }
-    return {
-      thinking: parsed.thinking || '',
-      strategy: parsed.strategy || 1,
-      action,
-      response: parsed.response,
-    };
+    return structuredFrom(JSON.parse(stripCodeFence(rawContent)));
   } catch {
     return null;
   }
@@ -352,6 +393,55 @@ function renderCustomPrompt(template: string, vars: PromptVars): string {
   return prompt;
 }
 
+/**
+ * Call the LLM once and return both the raw text and the parsed payload.
+ *
+ * The raw text comes back even when parsing fails because the custom-prompt path
+ * falls back to it: that template asked for the model's own words, so an answer
+ * that is not JSON is still an answer.
+ */
+async function callAndParse(
+  llm: OpenAICompatibleLLM,
+  prompt: string
+): Promise<{ raw: string; parsed: StructuredResponse | null }> {
+  const response = await withRetry(() =>
+    llm.chat({ messages: [{ role: 'user', content: prompt }] })
+  );
+  return { raw: response.content, parsed: parseLLMResponse(response.content) };
+}
+
+/**
+ * Run one prompt through the LLM and turn the answer into a result.
+ *
+ * Both prompt paths (custom template and the default one) differ only in the
+ * prompt text and in what gets logged when the answer is unusable, so the call,
+ * the parse and the fallback live here once. `fallbackResponse` is a FUNCTION
+ * because the two paths disagree about what an unparseable answer means: the
+ * custom path hands the raw model text back, while the default path substitutes
+ * a canned apology -- returning raw text there would send whatever the model
+ * happened to say, unfiltered, straight to the interviewee.
+ */
+async function chatAndInterpret(
+  llm: OpenAICompatibleLLM,
+  prompt: string,
+  fallbackResponse: (raw: string) => string,
+  state: InterviewState,
+  nextQuestion: string | undefined,
+  onUnparseable: () => void
+): Promise<SmartResponseResult> {
+  const { raw, parsed } = await callAndParse(llm, prompt);
+  if (!parsed) {
+    onUnparseable();
+    return nextResult(fallbackResponse(raw));
+  }
+  // Logged here rather than inside resultFromParsed so the diagnostic names the
+  // cap explicitly; the cap itself is still applied in one place, for both paths.
+  if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups) {
+    info('Followup limit exceeded, forcing NEXT');
+  }
+  return resultFromParsed(parsed, state.followupCount, state.maxFollowups, nextQuestion);
+}
+
 export async function generateSmartResponse(
   state: InterviewState,
   userAnswer: string,
@@ -372,17 +462,17 @@ export async function generateSmartResponse(
   );
 
   if (customPrompt) {
-    const prompt = renderCustomPrompt(customPrompt, vars);
     try {
-      const response = await withRetry(() =>
-        llm.chat({ messages: [{ role: 'user', content: prompt }] })
+      return await chatAndInterpret(
+        llm,
+        renderCustomPrompt(customPrompt, vars),
+        // The custom template asked for this model's own words, so an
+        // unparseable answer is still an answer -- pass it through.
+        (raw) => raw,
+        state,
+        nextQuestion,
+        () => warn('Failed to parse custom prompt result as JSON, using raw text')
       );
-      const parsed = parseLLMResponse(response.content);
-      if (!parsed) {
-        warn('Failed to parse custom prompt result as JSON, using raw text');
-        return nextResult(response.content);
-      }
-      return resultFromParsed(parsed, state.followupCount, state.maxFollowups, nextQuestion);
     } catch {
       warn('Custom prompt LLM call failed');
       return nextResult(FALLBACK_RESPONSE);
@@ -393,18 +483,14 @@ export async function generateSmartResponse(
   const prompt = promptService.render('generateSmartResponse', { ...vars });
 
   try {
-    const response = await withRetry(() =>
-      llm.chat({ messages: [{ role: 'user', content: prompt }] })
+    return await chatAndInterpret(
+      llm,
+      prompt,
+      () => FALLBACK_RESPONSE,
+      state,
+      nextQuestion,
+      () => info('Failed to parse LLM response, using fallback')
     );
-    const parsed = parseLLMResponse(response.content);
-    if (!parsed) {
-      info('Failed to parse LLM response, using fallback');
-      return nextResult(FALLBACK_RESPONSE);
-    }
-    if (parsed.action === 'FOLLOWUP' && state.followupCount >= state.maxFollowups) {
-      info('Followup limit exceeded, forcing NEXT');
-    }
-    return resultFromParsed(parsed, state.followupCount, state.maxFollowups, nextQuestion);
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';
     info('Smart response generation failed', { error: errMsg });
