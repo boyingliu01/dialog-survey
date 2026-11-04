@@ -134,6 +134,30 @@ describe('scripts/prune-runtime-deps.mjs (issue #210)', () => {
     expect(result.stdout).toContain('verified');
   });
 
+  it('finds a sibling dependency of a nested package, not only a top-level one', () => {
+    // npm hoists what it can and nests only the conflicts. So a nested package
+    // routinely depends on something sitting BESIDE it, one or more directories
+    // above its own -- resolution has to walk up to find it. A lookup that only
+    // checks `<pkg>/node_modules/<dep>` reports a perfectly valid install as
+    // dangling and fails the run.
+    //
+    // Layout: the app imports `top`; `top` carries nested `mid`, which depends
+    // on `low` -- and `low` lives beside `mid`, NOT at the top level. (A test
+    // where the dependency sits at the top level proves nothing here: the final
+    // top-level fallback finds it even with the upward walk removed.)
+    writeDist('top');
+    writePkg(nodeModules, 'top', { dependencies: { mid: '^1' } });
+    writePkg(join(nodeModules, 'top', 'node_modules'), 'mid', { dependencies: { low: '^1' } });
+    writePkg(join(nodeModules, 'top', 'node_modules'), 'low', {});
+
+    const result = runPrune(dir);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('verified');
+    // `low` is reached through `mid`, so the tree must be reported intact.
+    expect(result.stderr).not.toContain('mid -> low');
+  });
+
   it('refuses to guess when dist/ is missing', () => {
     writePkg(nodeModules, 'fastify', {});
 
