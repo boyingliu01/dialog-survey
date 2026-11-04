@@ -48,6 +48,87 @@ export interface PlanStats {
   statusDistribution: StatusDistribution;
 }
 
+/** Every interview status, so a status with zero rows still appears in output. */
+const ALL_STATUSES = ['PENDING', 'ACTIVE', 'WAITING', 'COMPLETED', 'CANCELLED'] as const;
+
+/** Minutes between two instants, or null when either is missing. */
+function minutesBetween(startedAt: Date | null, completedAt: Date | null): number | null {
+  if (!startedAt || !completedAt) return null;
+  return (completedAt.getTime() - startedAt.getTime()) / (1000 * 60);
+}
+
+/**
+ * Mean duration in whole minutes, rounded.
+ *
+ * Rows missing either timestamp are skipped rather than counted as 0, which would
+ * silently drag the average down — the same reason the query filters for non-null
+ * but the cast still has to be narrowed here.
+ */
+function averageMinutes(
+  rows: readonly { startedAt: Date | null; completedAt: Date | null }[]
+): number {
+  let total = 0;
+  let counted = 0;
+  for (const row of rows) {
+    const minutes = minutesBetween(row.startedAt, row.completedAt);
+    if (minutes === null) continue;
+    total += minutes;
+    counted += 1;
+  }
+  return counted > 0 ? Math.round(total / counted) : 0;
+}
+
+/** Percentage of `part` in `whole`, rounded; 0 when `whole` is empty. */
+function percentage(part: number, whole: number): number {
+  return whole > 0 ? Math.round((part / whole) * 100) : 0;
+}
+
+/** Fill in any status the database did not return with an explicit zero. */
+function withAllStatuses(counts: StatusDistribution): StatusDistribution {
+  const result = { ...counts };
+  for (const status of ALL_STATUSES) {
+    if (!(status in result)) result[status] = 0;
+  }
+  return result;
+}
+
+/** ISO-ish week label, `YYYY-Www`, from a date. */
+function weekKeyOf(date: Date): string {
+  const startOfYear = new Date(date.getFullYear(), 0, 1);
+  const pastDays = Math.floor((date.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
+  const weekNum = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7);
+  return `${date.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+/**
+ * Seed the trend with the last 8 weeks at zero, oldest first.
+ *
+ * Pre-seeding is what makes the chart continuous: a week with no interviews must
+ * appear as 0 rather than be missing from the series, otherwise the x-axis jumps
+ * and a drop in volume looks like a flat line.
+ */
+function emptyWeekBuckets(now: Date, weeks: number): Map<string, number> {
+  const buckets = new Map<string, number>();
+  for (let i = weeks - 1; i >= 0; i--) {
+    const weekStart = new Date(now);
+    weekStart.setDate(weekStart.getDate() - i * 7);
+    buckets.set(weekKeyOf(weekStart), 0);
+  }
+  return buckets;
+}
+
+/** Count each interview into its week bucket, ignoring undated rows. */
+function countByWeek(
+  rows: readonly { completedAt: Date | null }[],
+  buckets: Map<string, number>
+): void {
+  for (const row of rows) {
+    if (!row.completedAt) continue;
+    const key = weekKeyOf(row.completedAt);
+    buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+}
+
 export class AnalyticsService {
   constructor(private prisma: PrismaClient) {}
 
@@ -65,34 +146,12 @@ export class AnalyticsService {
         select: { startedAt: true, completedAt: true },
       });
 
-      let totalMinutes = 0;
-      let durationCount = 0;
-      for (const interview of completedInterviews) {
-        if (interview.startedAt && interview.completedAt) {
-          const diffMs = interview.completedAt.getTime() - interview.startedAt.getTime();
-          totalMinutes += diffMs / (1000 * 60);
-          durationCount++;
-        }
-      }
+      const averageDurationMinutes = averageMinutes(completedInterviews);
+      const completionRate = percentage(completedCount, totalInterviews);
 
-      const averageDurationMinutes =
-        durationCount > 0 ? Math.round(totalMinutes / durationCount) : 0;
-      const completionRate =
-        totalInterviews > 0 ? Math.round((completedCount / totalInterviews) * 100) : 0;
-
-      info('KPIs computed', {
-        totalInterviews,
-        completionRate,
-        averageDurationMinutes,
-        totalReports,
-      });
-
-      return {
-        totalInterviews,
-        completionRate,
-        averageDurationMinutes,
-        totalReports,
-      };
+      const kpis = { totalInterviews, completionRate, averageDurationMinutes, totalReports };
+      info('KPIs computed', kpis);
+      return kpis;
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : 'Failed to compute KPIs';
       error('Failed to compute analytics KPIs', { error: errMsg });
@@ -107,18 +166,13 @@ export class AnalyticsService {
         _count: true,
       });
 
-      const result: StatusDistribution = {};
+      const counts: StatusDistribution = {};
       for (const group of groups) {
-        result[group.status] = group._count as number;
+        counts[group.status] = group._count as number;
       }
 
       // Ensure all statuses are present (even with 0 count)
-      const allStatuses = ['PENDING', 'ACTIVE', 'WAITING', 'COMPLETED', 'CANCELLED'];
-      for (const status of allStatuses) {
-        if (!(status in result)) {
-          result[status] = 0;
-        }
-      }
+      const result = withAllStatuses(counts);
 
       return result;
     } catch (e) {
@@ -227,23 +281,9 @@ export class AnalyticsService {
         orderBy: { completedAt: 'asc' },
       });
 
-      // Group by week
-      const weekMap = new Map<string, number>();
-
-      // Initialize all 8 weeks
-      for (let i = 7; i >= 0; i--) {
-        const weekStart = new Date(now);
-        weekStart.setDate(weekStart.getDate() - i * 7);
-        const weekKey = this.getWeekKey(weekStart);
-        weekMap.set(weekKey, 0);
-      }
-
-      for (const interview of completedInterviews) {
-        if (interview.completedAt) {
-          const weekKey = this.getWeekKey(interview.completedAt);
-          weekMap.set(weekKey, (weekMap.get(weekKey) ?? 0) + 1);
-        }
-      }
+      // Group by week, seeding all 8 buckets so empty weeks still appear as 0.
+      const weekMap = emptyWeekBuckets(now, 8);
+      countByWeek(completedInterviews, weekMap);
 
       const result: WeeklyTrendEntry[] = [];
       for (const [week, count] of weekMap.entries()) {
@@ -258,42 +298,25 @@ export class AnalyticsService {
     }
   }
 
-  private getWeekKey(date: Date): string {
-    const startOfYear = new Date(date.getFullYear(), 0, 1);
-    const pastDays = Math.floor((date.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
-    const weekNum = Math.ceil((pastDays + startOfYear.getDay() + 1) / 7);
-    return `${date.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
-  }
-
   private computeStatusDistribution(interviews: Array<{ status: string }>): StatusDistribution {
-    const allStatuses = ['PENDING', 'ACTIVE', 'WAITING', 'COMPLETED', 'CANCELLED'] as const;
-    const statusDistribution: StatusDistribution = {};
-    for (const status of allStatuses) {
-      statusDistribution[status] = 0;
-    }
+    const counts: StatusDistribution = {};
     for (const interview of interviews) {
-      statusDistribution[interview.status] = (statusDistribution[interview.status] ?? 0) + 1;
+      counts[interview.status] = (counts[interview.status] ?? 0) + 1;
     }
-    return statusDistribution;
+    return withAllStatuses(counts);
   }
 
   private computeAverageDuration(
     interviews: Array<{ status: string; startedAt: Date | null; completedAt: Date | null }>
   ): number {
-    let totalMinutes = 0;
-    let durationCount = 0;
-    for (const interview of interviews) {
-      if (interview.status === 'COMPLETED' && interview.startedAt && interview.completedAt) {
-        const diffMs = interview.completedAt.getTime() - interview.startedAt.getTime();
-        totalMinutes += diffMs / (1000 * 60);
-        durationCount++;
-      }
-    }
-    return durationCount > 0 ? Math.round(totalMinutes / durationCount) : 0;
+    // Only COMPLETED rows count. `averageMinutes` already skips rows missing a
+    // timestamp, so the status filter is the only extra condition here.
+    const completed = interviews.filter((i) => i.status === 'COMPLETED');
+    return averageMinutes(completed);
   }
 
   private computeCompletionRate(total: number, completed: number): number {
-    return total > 0 ? Math.round((completed / total) * 100) : 0;
+    return percentage(completed, total);
   }
 
   async getPlanStats(planId: string): Promise<PlanStats | null> {

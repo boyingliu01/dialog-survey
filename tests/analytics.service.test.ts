@@ -119,6 +119,32 @@ describe('AnalyticsService', () => {
 
       expect(result.totalInterviews).toBe(5);
       expect(result.completionRate).toBe(40);
+      // Only the third row has both timestamps, so it is the only one that may
+      // contribute. Counting a blank-timestamp row as an instantaneous interview
+      // would pull the mean toward 0; aborting the whole average on the first
+      // blank row would also read 0 here, so the next test separates the two.
+      expect(result.averageDurationMinutes).toBe(0);
+    });
+
+    it('averages only the rows that have both timestamps', async () => {
+      mockPrisma.interview.count.mockImplementation(
+        async (args?: { where?: { status?: string } }) =>
+          args?.where?.status === 'COMPLETED' ? 3 : 3
+      );
+      mockPrisma.analysisReport.count.mockResolvedValue(0);
+      const base = new Date('2026-05-24T10:00:00Z');
+      const plus = (mins: number): Date => new Date(base.getTime() + mins * 60_000);
+      mockPrisma.interview.findMany.mockResolvedValue([
+        { startedAt: null, completedAt: plus(10) },
+        { startedAt: base, completedAt: plus(60) },
+        { startedAt: base, completedAt: plus(120) },
+      ]);
+
+      const result = await service.getKPIs();
+
+      // 60 and 120 minutes: the first row is SKIPPED, not counted as 0 (which
+      // would give 60) and not fatal (which would also give 0).
+      expect(result.averageDurationMinutes).toBe(90);
     });
   });
 
@@ -282,9 +308,11 @@ describe('AnalyticsService', () => {
     });
 
     it('should handle interviews with null completedAt', async () => {
+      // The undated row comes FIRST on purpose: with it last, a `return` instead
+      // of a `continue` would still report the earlier rows' count and survive.
       mockPrisma.interview.findMany.mockResolvedValue([
-        { completedAt: new Date() },
         { completedAt: null },
+        { completedAt: new Date() },
       ]);
 
       const result = await service.getWeeklyTrend();
