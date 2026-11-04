@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { DingTalkClient } from '../integrations/dingtalk/client.js';
 import { createAdminMutationGuard } from '../middleware/admin-csrf.js';
 import type { InterviewPlanRepository } from '../repositories/interview-plan.repository.js';
+import type { AddMemberInput } from '../services/interview-plan-members.service.js';
 import {
   InterviewNotFoundError,
   type InterviewPlanService,
@@ -66,27 +67,305 @@ export function isAdministrativePlanMutation(method: string, url: string): boole
   return matches.some((rule) => rule.pattern.test(url));
 }
 
+/**
+ * Error class -> HTTP status, plus whether the class's own message is safe to show.
+ *
+ * The rows carry a fixed message where the class name must not leak internals (a
+ * missing plan says "not found" rather than echoing back the id), and `null` where
+ * the thrown message IS the useful thing to say (a validation conflict reads
+ * differently from a state conflict).
+ */
+const PLAN_ERROR_STATUS: ReadonlyArray<{
+  errorClass: new (...args: never[]) => Error;
+  status: number;
+  message: string | null;
+}> = [
+  { errorClass: PlanNotFoundError, status: 404, message: '访谈计划不存在或已被删除' },
+  { errorClass: InterviewNotFoundError, status: 404, message: '访谈记录不存在或已被删除' },
+  { errorClass: MemberNotFoundError, status: 404, message: '成员不存在或已被删除' },
+  { errorClass: MemberConflictError, status: 409, message: null },
+  { errorClass: InvalidStateError, status: 400, message: null },
+  { errorClass: InvalidMemberInputError, status: 400, message: null },
+];
+
+/**
+ * How to answer a service-layer error.
+ *
+ * Anything unrecognised becomes 502 rather than 500: these errors come from a
+ * service boundary, so an unclassified throw almost always means a dependency
+ * failed, and "bad gateway" tells the operator where to look.
+ */
 function mapServiceErrorToStatus(err: unknown): { status: number; message: string } {
-  if (err instanceof PlanNotFoundError) {
-    return { status: 404, message: '访谈计划不存在或已被删除' };
+  const row = PLAN_ERROR_STATUS.find(({ errorClass }) => err instanceof errorClass);
+  if (row) return { status: row.status, message: row.message ?? ownMessage(err) };
+  return { status: 502, message: ownMessage(err) };
+}
+
+/** The thrown error's message, or a generic fallback for a non-Error throw. */
+function ownMessage(err: unknown): string {
+  return err instanceof Error ? err.message : '服务异常，请稍后重试';
+}
+
+/** True when the caller authenticated with an admin API key. */
+function isAdminApiKey(request: { user?: { apiKeyId?: string; role?: string } }): boolean {
+  return Boolean(request.user?.apiKeyId) && request.user?.role === 'admin';
+}
+
+const commitRowsSchema = z.object({
+  rows: z.array(
+    z.object({
+      rowIndex: z.number().int().min(1),
+      // Optional since #219: a userId-only row has no phone number.
+      phone: z.string().min(1).optional(),
+      // Mirrors IMPORTABLE_STATUSES -- a non-importable status is rejected here
+      // rather than trusted from the client.
+      status: z.enum(['ok', 'name_differs']),
+      userId: z.string().min(1),
+      inputName: z.string().optional(),
+      dingtalkName: z.string().optional(),
+      message: z.string(),
+    })
+  ),
+});
+
+/** The optional plan fields shared by the create and update endpoints. */
+interface EditablePlanFields {
+  description?: string | undefined;
+  targetDate?: string | undefined;
+  schedule?: string | undefined;
+}
+
+/**
+ * An EMPTY targetDate means the field was cleared, not set to the epoch.
+ *
+ * A browser serialises an empty date input as `''`; passing that on would either
+ * become an Invalid Date or overwrite the column with garbage, so it is dropped and
+ * the existing value survives.
+ */
+function hasTargetDate(input: EditablePlanFields): input is EditablePlanFields & {
+  targetDate: string;
+} {
+  return input.targetDate != null && input.targetDate !== '';
+}
+
+/**
+ * The optional fields for `createPlan`, which takes a real Date.
+ *
+ * Separate from `planUpdateFields` because the two services disagree on the type --
+ * create takes a Date, update takes the raw string and converts it itself.
+ */
+function createPlanFields(input: EditablePlanFields): {
+  description?: string;
+  targetDate?: Date;
+  schedule?: string;
+} {
+  return {
+    ...(input.description != null ? { description: input.description } : {}),
+    ...(hasTargetDate(input) ? { targetDate: new Date(input.targetDate) } : {}),
+    ...(input.schedule != null ? { schedule: input.schedule } : {}),
+  };
+}
+
+/** The optional fields for `updatePlan`, which accepts the raw date string. */
+function planUpdateFields(input: EditablePlanFields): {
+  description?: string;
+  targetDate?: string;
+  schedule?: string;
+} {
+  return {
+    ...(input.description != null ? { description: input.description } : {}),
+    ...(hasTargetDate(input) ? { targetDate: input.targetDate } : {}),
+    ...(input.schedule != null ? { schedule: input.schedule } : {}),
+  };
+}
+
+/**
+ * The uploaded CSV's bytes and declared MIME type.
+ *
+ * Both rejections are 400 with their own message: no file at all is a different
+ * mistake from an empty one, and an operator chasing "file empty" for a request that
+ * never attached anything wastes the same twenty minutes either way.
+ */
+async function readUploadedCsv(
+  request: FastifyRequest
+): Promise<{ buffer: Buffer; mimetype: string } | { errorCode: number; error: string }> {
+  const data = await request.file();
+  if (!data) return { errorCode: 400, error: '请上传 CSV 文件' };
+  const buffer = await data.toBuffer();
+  if (buffer.length === 0) return { errorCode: 400, error: 'CSV 文件为空' };
+  return { buffer, mimetype: data.mimetype };
+}
+
+/**
+ * The optional member fields for `addMember`.
+ *
+ * Built key-by-key so an ABSENT field stays absent. Passing `undefined` explicitly
+ * would make "no phone given" indistinguishable from "phone cleared", and the
+ * service treats those differently.
+ */
+function memberInput(input: {
+  userId?: string | null | undefined;
+  phone?: string | null | undefined;
+  name?: string | null | undefined;
+}): AddMemberInput {
+  return {
+    ...(input.userId != null ? { userId: input.userId } : {}),
+    ...(input.phone != null ? { phone: input.phone } : {}),
+    ...(input.name != null ? { name: input.name } : {}),
+  };
+}
+
+/**
+ * How a failed userId-mode name lookup degrades.
+ *
+ * DingTalk answers 60121/60111 for "user not found"; only that is fatal, because it
+ * means the userId itself is wrong. Quota, permission and network failures downgrade
+ * the row to "unverified" instead of blocking the import (DR-002).
+ *
+ * The warning is the ONLY signal that name validation is broken -- without it a
+ * quota exhaustion would silently stop every name check on the deployment.
+ */
+function userNameLookupFailure(userId: string, err: unknown): UserNameCheck {
+  const msg = err instanceof Error ? err.message : 'unknown';
+  if (isNotFoundMessage(msg)) return { kind: 'not_found' };
+  warn('DingTalk name check failed; importing on userId without name validation', {
+    userId,
+    reason: msg,
+  });
+  return { kind: 'unverified', reason: msg };
+}
+
+/** Every verdict a member-import row can carry. */
+type ImportStatus =
+  | 'ok'
+  | 'name_mismatch'
+  | 'name_differs'
+  | 'phone_not_found'
+  | 'user_not_found'
+  | 'dingtalk_error'
+  | 'duplicate_phone'
+  | 'duplicate_member'
+  | 'phone_invalid'
+  | 'missing_identifier';
+
+/** One row's classification result, as the preview endpoint returns it. */
+interface ImportRowResult {
+  rowIndex: number;
+  phone: string | undefined;
+  inputName: string | undefined;
+  status: ImportStatus;
+  userId: string | undefined;
+  dingtalkName: string | undefined;
+  message: string;
+}
+
+/**
+ * The verdict for a phone-mode row that DingTalk confirmed.
+ *
+ * A mismatch is a HARD failure here, unlike userId mode: the lookup returned the
+ * authoritative name, so there is something concrete to disagree with. Only a row
+ * that carried no name at all is accepted without a comparison.
+ */
+function phoneRowVerdict(
+  base: Omit<ImportRowResult, 'status' | 'userId' | 'dingtalkName' | 'message'>,
+  inputName: string | undefined,
+  verified: { userId: string; dingtalkName: string }
+): ImportRowResult {
+  const { userId, dingtalkName } = verified;
+  if (inputName && dingtalkName && inputName !== dingtalkName) {
+    return {
+      ...base,
+      status: 'name_mismatch',
+      userId,
+      dingtalkName,
+      message: `姓名不匹配：输入 "${inputName}"，钉钉返回 "${dingtalkName}"`,
+    };
   }
-  if (err instanceof InterviewNotFoundError) {
-    return { status: 404, message: '访谈记录不存在或已被删除' };
-  }
-  if (err instanceof MemberNotFoundError) {
-    return { status: 404, message: '成员不存在或已被删除' };
-  }
-  if (err instanceof MemberConflictError) {
-    return { status: 409, message: err.message };
-  }
-  if (err instanceof InvalidStateError) {
-    return { status: 400, message: err.message };
-  }
-  if (err instanceof InvalidMemberInputError) {
-    return { status: 400, message: err.message };
-  }
-  const message = err instanceof Error ? err.message : '服务异常，请稍后重试';
-  return { status: 502, message };
+  return { ...base, status: 'ok', userId, dingtalkName, message: '验证通过' };
+}
+
+/** A commit row exactly as the import endpoint's schema accepts it. */
+type CommitRow = z.infer<typeof commitRowsSchema>['rows'][number];
+
+/**
+ * The validated rows, or the message to answer with.
+ *
+ * Both rejections are 400 but they mean different things, so they get different
+ * text: a malformed body is the caller's request being wrong, while an EMPTY row
+ * list is a well-formed request with nothing in it. Collapsing them to one message
+ * sends the caller looking for a syntax error that is not there.
+ */
+function commitRowsFrom(body: unknown): CommitRow[] | { problem: string } {
+  const parsed = commitRowsSchema.safeParse(body);
+  if (!parsed.success) return { problem: '请求格式错误：rows 数组格式不正确' };
+  if (parsed.data.rows.length === 0) return { problem: 'no rows to import' };
+  return parsed.data.rows;
+}
+
+/**
+ * One import row.
+ *
+ * Optional fields are spread conditionally rather than passed as `undefined` so the
+ * downstream "was a name supplied?" checks see an ABSENT key, not a present-but-
+ * empty one -- which is the difference between "validate the name" and "no name
+ * given, skip validation".
+ */
+function toImportMember(row: CommitRow): {
+  userId: string;
+  inputName?: string;
+  dingtalkName?: string;
+} {
+  return {
+    userId: row.userId,
+    ...(row.inputName !== undefined ? { inputName: row.inputName } : {}),
+    ...(row.dingtalkName !== undefined ? { dingtalkName: row.dingtalkName } : {}),
+  };
+}
+
+/**
+ * How to answer a failed member import.
+ *
+ * An unclassified throw is reported as 500 with the dependency's own message: this
+ * write is the step that actually persists the import, so "database write failed"
+ * is the accurate description and the message is what the operator needs.
+ */
+function importFailure(err: unknown): { status: number; error: string } {
+  if (err instanceof PlanNotFoundError) return { status: 404, error: 'Plan not found' };
+  if (err instanceof InvalidStateError) return { status: 400, error: err.message };
+  if (err instanceof MemberConflictError) return { status: 409, error: err.message };
+  const message = err instanceof Error ? err.message : '未知错误';
+  return { status: 500, error: `数据库写入失败：${message}` };
+}
+
+/** The outcome of validating a supplied name against DingTalk's. */
+type UserNameCheck =
+  | { kind: 'verified'; dingtalkName: string }
+  | { kind: 'differs'; dingtalkName: string }
+  | { kind: 'unverified'; reason: string }
+  | { kind: 'not_found' };
+
+/**
+ * The API's "user not found" signal.
+ *
+ * DingTalk answers 60121/60111 for a missing user. Only this class of failure is
+ * fatal for a userId-mode row; quota, permission and network failures downgrade the
+ * row instead, so the two must not be conflated.
+ */
+function isNotFoundMessage(msg: string): boolean {
+  return /60121|60111|user not found|no such user/i.test(msg);
+}
+
+/**
+ * Compare a supplied name against the one DingTalk returned.
+ *
+ * A successful lookup that carries NO name must not be reported as verified --
+ * that would claim a comparison that never happened. It degrades to "unverified",
+ * which is a warning the operator can act on rather than a silent pass.
+ */
+function compareUserName(inputName: string, dingtalkName: string): UserNameCheck {
+  if (!dingtalkName) return { kind: 'unverified', reason: '钉钉未返回姓名，无法校验' };
+  if (inputName !== dingtalkName) return { kind: 'differs', dingtalkName };
+  return { kind: 'verified', dingtalkName };
 }
 
 export async function interviewPlanRoutes(
@@ -99,7 +378,7 @@ export async function interviewPlanRoutes(
   const planService = opts.interviewPlanService;
   const adminMutationGuard = createAdminMutationGuard(fastify.csrfProtection);
   const browserPlanMutationGuard: preHandlerAsyncHookHandler = async function (request, reply) {
-    if (request.user?.apiKeyId && request.user.role === 'admin') return;
+    if (isAdminApiKey(request)) return;
     if (request.user?.apiKeyId) {
       await reply.code(401).send({ error: 'Admin API key required' });
       return;
@@ -108,27 +387,16 @@ export async function interviewPlanRoutes(
   };
 
   fastify.post('/api/plans', { preHandler: browserPlanMutationGuard }, async (request, reply) => {
-    let input: z.infer<typeof createPlanSchema>;
-    try {
-      input = createPlanSchema.parse(request.body);
-    } catch (e) {
-      if (e instanceof z.ZodError) {
-        return reply.status(400).send({ error: 'Invalid input', details: e.issues });
-      }
-      throw e;
+    const parsed = createPlanSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid input', details: parsed.error.issues });
     }
 
     const planId = await planService.createPlan({
-      name: input.name,
-      ...(input.description != null ? { description: input.description } : {}),
-      templateId: input.templateId,
-      // An empty date input serializes as targetDate="" — treat it as unset.
-      ...(input.targetDate != null && input.targetDate !== ''
-        ? { targetDate: new Date(input.targetDate) }
-        : {}),
-      ...(input.schedule != null ? { schedule: input.schedule } : {}),
+      name: parsed.data.name,
+      templateId: parsed.data.templateId,
+      ...createPlanFields(parsed.data),
     });
-
     return { id: planId };
   });
 
@@ -159,15 +427,13 @@ export async function interviewPlanRoutes(
     { preHandler: browserPlanMutationGuard },
     async (request, _reply) => {
       const { id } = request.params as { id: string };
-      const input = createPlanSchema.parse(request.body);
+      const parsed = createPlanSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return { error: 'Invalid input', details: parsed.error.issues };
+      }
       await planService.updatePlan(id, {
-        name: input.name,
-        ...(input.description != null ? { description: input.description } : {}),
-        // An empty date input serializes as targetDate="" — treat it as unset.
-        ...(input.targetDate != null && input.targetDate !== ''
-          ? { targetDate: input.targetDate }
-          : {}),
-        ...(input.schedule != null ? { schedule: input.schedule } : {}),
+        name: parsed.data.name,
+        ...planUpdateFields(parsed.data),
       });
       return { id };
     }
@@ -225,19 +491,14 @@ export async function interviewPlanRoutes(
     { preHandler: browserPlanMutationGuard },
     async (request, reply) => {
       const { id } = request.params as { id: string };
+      const parsed = addMemberSchema.safeParse(request.body);
+      if (!parsed.success) {
+        const messages = parsed.error.issues.map((issue) => issue.message).join('；');
+        return reply.status(400).send({ error: `输入格式错误：${messages}` });
+      }
       try {
-        const input = addMemberSchema.parse(request.body);
-        const result = await planService.addMember(id, {
-          ...(input.userId != null ? { userId: input.userId } : {}),
-          ...(input.phone != null ? { phone: input.phone } : {}),
-          ...(input.name != null ? { name: input.name } : {}),
-        });
-        return result;
+        return await planService.addMember(id, memberInput(parsed.data));
       } catch (e) {
-        if (e instanceof z.ZodError) {
-          const messages = e.issues.map((issue) => issue.message).join('；');
-          return reply.status(400).send({ error: `输入格式错误：${messages}` });
-        }
         const { status, message } = mapServiceErrorToStatus(e);
         return reply.status(status).send({ error: message });
       }
@@ -297,18 +558,6 @@ export async function interviewPlanRoutes(
     isDuplicate: boolean;
   }
 
-  type ImportStatus =
-    | 'ok'
-    | 'name_mismatch'
-    | 'name_differs'
-    | 'phone_not_found'
-    | 'user_not_found'
-    | 'dingtalk_error'
-    | 'duplicate_phone'
-    | 'duplicate_member'
-    | 'phone_invalid'
-    | 'missing_identifier';
-
   /**
    * The single source of truth for "may this row be written to the plan".
    * Preview counts and the commit schema both derive from it, so a client
@@ -321,16 +570,6 @@ export async function interviewPlanRoutes(
 
   function isImportableStatus(status: ImportStatus): boolean {
     return IMPORTABLE_STATUSES.has(status);
-  }
-
-  interface ImportRowResult {
-    rowIndex: number;
-    phone: string | undefined;
-    inputName: string | undefined;
-    status: ImportStatus;
-    userId: string | undefined;
-    dingtalkName: string | undefined;
-    message: string;
   }
 
   /** Lower-cased header cells, so alias matching is case-insensitive. */
@@ -511,12 +750,6 @@ export async function interviewPlanRoutes(
   }
 
   /** Outcome of the userId-mode name check — never throws, by design. */
-  type UserNameCheck =
-    | { kind: 'verified'; dingtalkName: string }
-    | { kind: 'differs'; dingtalkName: string }
-    | { kind: 'unverified'; reason: string }
-    | { kind: 'not_found' };
-
   /**
    * Look the supplied userId up so the name can be *validated*. The userId is
    * already authoritative (issue #219 / DR-001, DR-002), so a lookup failure
@@ -531,33 +764,10 @@ export async function interviewPlanRoutes(
   ): Promise<UserNameCheck> {
     if (!inputName) return { kind: 'unverified', reason: '未填写姓名，跳过校验' };
     try {
-      const info = await client.getUserByUserId(userId);
-      const dingtalkName = (info.name ?? '').trim();
-      // DingTalk can answer successfully with no name at all. Reporting
-      // `verified` there would claim a comparison that never happened, so the
-      // row degrades to "unverified" instead (a warning, still importable).
-      if (!dingtalkName) {
-        return { kind: 'unverified', reason: '钉钉未返回姓名，无法校验' };
-      }
-      if (inputName !== dingtalkName) {
-        return { kind: 'differs', dingtalkName };
-      }
-      return { kind: 'verified', dingtalkName };
+      const dingtalkName = (await client.getUserByUserId(userId)).name?.trim() ?? '';
+      return compareUserName(inputName, dingtalkName);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'unknown';
-      // DingTalk answers 60121/60111 for "user not found"; only that is fatal
-      // for a userId-mode row. Quota, permission and network failures downgrade.
-      if (/60121|60111|user not found|no such user/i.test(msg)) {
-        return { kind: 'not_found' };
-      }
-      // DR-002 degrades the row rather than failing it, so this log is the only
-      // signal that name validation is broken — without it a quota exhaustion
-      // would silently stop every name check on the deployment.
-      warn('DingTalk name check failed; importing on userId without name validation', {
-        userId,
-        reason: msg,
-      });
-      return { kind: 'unverified', reason: msg };
+      return userNameLookupFailure(userId, e);
     }
   }
 
@@ -642,18 +852,9 @@ export async function interviewPlanRoutes(
   ): Promise<ImportRowResult> {
     const phone = row.phone as string;
     try {
-      const { userId, dingtalkName } = await verifyRow(client, { ...row, phone });
-      cache.set(phone, { userId, dingtalkName });
-      if (row.name && dingtalkName && row.name !== dingtalkName) {
-        return {
-          ...base,
-          status: 'name_mismatch',
-          userId,
-          dingtalkName,
-          message: `姓名不匹配：输入 "${row.name}"，钉钉返回 "${dingtalkName}"`,
-        };
-      }
-      return { ...base, status: 'ok', userId, dingtalkName, message: '验证通过' };
+      const verified = await verifyRow(client, { ...row, phone });
+      cache.set(phone, verified);
+      return phoneRowVerdict(base, row.name, verified);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'unknown';
       if (msg === 'phone_not_found') return phoneNotFound(base);
@@ -746,15 +947,12 @@ export async function interviewPlanRoutes(
   async function readImportRows(
     request: FastifyRequest
   ): Promise<{ rows: CsvRow[] } | ImportRowsError> {
-    const data = await request.file();
-    if (!data) return { errorCode: 400, error: '请上传 CSV 文件' };
-
-    const buffer = await data.toBuffer();
-    if (buffer.length === 0) return { errorCode: 400, error: 'CSV 文件为空' };
+    const upload = await readUploadedCsv(request);
+    if ('errorCode' in upload) return upload;
 
     let rows: CsvRow[];
     try {
-      rows = parseCsv(buffer, data.mimetype);
+      rows = parseCsv(upload.buffer, upload.mimetype);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : '未知错误';
       return { errorCode: 400, error: `CSV 解析失败：${message}` };
@@ -830,61 +1028,24 @@ export async function interviewPlanRoutes(
     }
   );
 
-  const commitRowsSchema = z.object({
-    rows: z.array(
-      z.object({
-        rowIndex: z.number().int().min(1),
-        // Optional since #219: a userId-only row has no phone number.
-        phone: z.string().min(1).optional(),
-        // Mirrors IMPORTABLE_STATUSES — a non-importable status is rejected
-        // here rather than trusted from the client.
-        status: z.enum(['ok', 'name_differs']),
-        userId: z.string().min(1),
-        inputName: z.string().optional(),
-        dingtalkName: z.string().optional(),
-        message: z.string(),
-      })
-    ),
-  });
-
   fastify.post(
     '/api/plans/:id/import-commit',
     { preHandler: browserPlanMutationGuard },
     async (request, reply) => {
       const { id } = request.params as { id: string };
 
-      const parsed = commitRowsSchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.code(400).send({ error: '请求格式错误：rows 数组格式不正确' });
+      const rows = commitRowsFrom(request.body);
+      if (typeof rows === 'object' && 'problem' in rows) {
+        return reply.code(400).send({ error: rows.problem });
       }
-      const { rows } = parsed.data;
-
-      if (rows.length === 0) return reply.code(400).send({ error: 'no rows to import' });
 
       const planService = opts.interviewPlanService;
-
       let importResult: { imported: number; skipped: number; interviewIds: string[] };
       try {
-        importResult = await planService.importMembers(
-          id,
-          rows.map((r) => ({
-            userId: r.userId,
-            ...(r.inputName !== undefined ? { inputName: r.inputName } : {}),
-            ...(r.dingtalkName !== undefined ? { dingtalkName: r.dingtalkName } : {}),
-          }))
-        );
+        importResult = await planService.importMembers(id, rows.map(toImportMember));
       } catch (e) {
-        if (e instanceof PlanNotFoundError) {
-          return reply.code(404).send({ error: 'Plan not found' });
-        }
-        if (e instanceof InvalidStateError) {
-          return reply.code(400).send({ error: e.message });
-        }
-        if (e instanceof MemberConflictError) {
-          return reply.code(409).send({ error: e.message });
-        }
-        const message = e instanceof Error ? e.message : '未知错误';
-        return reply.code(500).send({ error: `数据库写入失败：${message}` });
+        const failure = importFailure(e);
+        return reply.code(failure.status).send({ error: failure.error });
       }
 
       return {

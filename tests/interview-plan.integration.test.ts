@@ -98,6 +98,31 @@ describe('InterviewPlan API (Integration)', () => {
       expect(response.statusCode).toBe(400);
     });
 
+    /**
+     * An EMPTY targetDate from a browser date input must not create a plan dated
+     * to the epoch.
+     *
+     * HTML serialises a cleared date input as `''`, and `new Date('')` is an
+     * Invalid Date that Prisma rejects -- so passing it through would 500 on the
+     * create form's "leave the date blank" path. Dropping the check passed every
+     * other test here because none of them sends an empty date.
+     */
+    it('should treat an empty targetDate as unset rather than the epoch', async () => {
+      const response = await ctx.app.inject({
+        method: 'POST',
+        url: '/api/plans',
+        headers: { 'x-api-key': TEST_API_KEY },
+        payload: { name: '空日期计划', templateId, targetDate: '' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      createdIds.interviewPlans.push(body.id);
+
+      const plan = await ctx.prisma.interviewPlan.findUnique({ where: { id: body.id } });
+      expect(plan?.targetDate).toBeNull();
+    });
+
     it('should reject plan with non-existent templateId (FK violation)', async () => {
       const response = await ctx.app.inject({
         method: 'POST',
