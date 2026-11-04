@@ -195,6 +195,38 @@ describe('GET /health', () => {
     );
   });
 
+  /**
+   * Each required credential on its own.
+   *
+   * The existing "no credentials" case omits all three at once, so it passes even
+   * if two of the three checks are deleted -- verified by mutation: dropping the
+   * DINGTALK_AGENT_ID requirement left the whole health suite green. An agent id
+   * matters because it is the sender identity: without it Stream connects fine and
+   * then every outbound reply fails.
+   */
+  it.each(['DINGTALK_CLIENT_ID', 'DINGTALK_CLIENT_SECRET', 'DINGTALK_AGENT_ID'])(
+    'should report degraded when only %s is missing',
+    async (missing) => {
+      mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
+      vi.stubEnv('VOLCENGINE_API_KEY', 'valid-key');
+      vi.stubEnv('LLM_MODEL', 'test-model');
+      for (const name of ['DINGTALK_CLIENT_ID', 'DINGTALK_CLIENT_SECRET', 'DINGTALK_AGENT_ID']) {
+        vi.stubEnv(name, name === missing ? '' : `valid-${name.toLowerCase()}`);
+      }
+
+      await app.close();
+      app = await rebuildApp();
+
+      const response = await app.inject({ method: 'GET', url: '/health' });
+      const body = JSON.parse(response.body);
+
+      expect(body.status).toBe('degraded');
+      expect(body.checks.dingtalk.status).toBe('degraded');
+      expect(body.checks.dingtalk.error).toContain('not configured');
+    }
+  );
+
   it('should return degraded when DingTalk credentials contain placeholder', async () => {
     mockPrismaClient.mockResolvedValueOnce([{ '1': 1 }]);
     mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });

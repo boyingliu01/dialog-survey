@@ -23,16 +23,45 @@ export function buildInviteeNameMap(inviteeData: unknown): Record<string, string
   const map: Record<string, string> = {};
   if (!Array.isArray(inviteeData)) return map;
   for (const entry of inviteeData) {
-    if (entry && typeof entry === 'object') {
-      const obj = entry as Record<string, unknown>;
-      const userId = typeof obj['userId'] === 'string' ? obj['userId'] : undefined;
-      const name = typeof obj['name'] === 'string' ? obj['name'] : undefined;
-      if (userId && name) {
-        map[userId] = name;
-      }
-    }
+    const pair = inviteeNamePair(entry);
+    if (pair) map[pair[0]] = pair[1];
   }
   return map;
+}
+
+/**
+ * The `[userId, name]` pair an invitee entry provides, or null.
+ *
+ * Both fields must be non-empty STRINGS. This map is used to replace a raw id
+ * with a human name in the admin tree, so a half-populated entry is worse than no
+ * entry: an empty name would render a blank label where the id at least identifies
+ * the row.
+ */
+function inviteeNamePair(entry: unknown): [string, string] | null {
+  const obj = asRecord(entry);
+  if (!obj) return null;
+  const userId = nonEmptyString(obj['userId']);
+  const name = nonEmptyString(obj['name']);
+  if (userId === undefined || name === undefined) return null;
+  return [userId, name];
+}
+
+/**
+ * The value as an object, or null when it is not object-like.
+ *
+ * Arrays are NOT excluded, matching `export.service.ts#isRecord`: `inviteeData`
+ * is untyped JSON that has historically been hand-edited, and an array carrying
+ * `userId`/`name` properties is still a usable entry. Rejecting it here would be a
+ * behaviour change nothing asked for.
+ */
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') return null;
+  return value as Record<string, unknown>;
+}
+
+/** The value when it is a non-empty string, else undefined. */
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined;
 }
 
 /** Pull name/phone out of one invitee entry, if it is shaped like an object. */

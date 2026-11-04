@@ -62,6 +62,9 @@ export function resetHealthProbeCacheForTests(): void {
 
 type LlmCheckResult = HealthResponse['checks']['llm'];
 
+/** How long a successful LLM probe stays authoritative. */
+const LLM_CACHE_MS = 60000;
+
 const DEFAULT_LLM_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions';
 
 interface LlmConfig {
@@ -72,20 +75,25 @@ interface LlmConfig {
 
 /** Read LLM settings from the environment, or explain why they are unusable. */
 function resolveLlmConfig(): LlmConfig | LlmCheckResult {
-  const apiKey = process.env['LLM_API_KEY'] || process.env['VOLCENGINE_API_KEY'];
-  if (!apiKey) {
-    return { status: 'degraded', error: 'API key not configured' };
-  }
+  const apiKey = firstEnv(['LLM_API_KEY', 'VOLCENGINE_API_KEY']);
+  if (!apiKey) return { status: 'degraded', error: 'API key not configured' };
 
-  const rawBaseUrl =
-    process.env['LLM_BASE_URL'] || process.env['VOLCENGINE_BASE_URL'] || DEFAULT_LLM_ENDPOINT;
-  const baseUrl = normalizeLlmBaseUrl(rawBaseUrl);
-  const model = process.env['LLM_MODEL'] || process.env['VOLCENGINE_MODEL'];
+  const baseUrl =
+    normalizeLlmBaseUrl(firstEnv(['LLM_BASE_URL', 'VOLCENGINE_BASE_URL'])) || DEFAULT_LLM_ENDPOINT;
+  const model = firstEnv(['LLM_MODEL', 'VOLCENGINE_MODEL']);
   if (!model) {
     return { status: 'degraded', error: 'LLM model not configured', endpoint: baseUrl };
   }
-
   return { apiKey, baseUrl, model };
+}
+
+/** The first non-empty environment value among `names`, or `''`. */
+function firstEnv(names: readonly string[]): string {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value) return value;
+  }
+  return '';
 }
 
 function isLlmConfig(value: LlmConfig | LlmCheckResult): value is LlmConfig {
@@ -121,46 +129,66 @@ async function degradeFromResponse(
 }
 
 async function checkLLM(): Promise<LlmCheckResult> {
-  if (llmCacheTime && Date.now() - llmCacheTime < 60000) {
-    return { status: 'ok' };
-  }
+  if (isLlmCacheFresh()) return { status: 'ok' };
 
   const config = resolveLlmConfig();
-  if (!isLlmConfig(config)) {
-    return config;
-  }
+  if (!isLlmConfig(config)) return config;
 
   try {
-    const start = Date.now();
-    const response = await fetch(config.baseUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [{ role: 'user', content: 'health check' }],
-        max_tokens: 10,
-      }),
-      signal: AbortSignal.timeout(30000),
-    });
-
-    const latencyMs = Date.now() - start;
-
-    if (response.ok) {
-      llmCacheTime = Date.now();
-      return { status: 'ok', latencyMs, endpoint: config.baseUrl };
-    }
-    return degradeFromResponse(response, latencyMs, config.baseUrl);
+    const { response, latencyMs } = await probeLlm(config);
+    if (!response.ok) return degradeFromResponse(response, latencyMs, config.baseUrl);
+    llmCacheTime = Date.now();
+    return { status: 'ok', latencyMs, endpoint: config.baseUrl };
   } catch (e) {
-    const errMsg = e instanceof Error ? e.message : 'Unknown error';
-    if (errMsg.includes('timeout') || errMsg.includes('abort')) {
-      return { status: 'degraded', error: 'timeout' };
-    }
-    error('LLM health check failed', { error: errMsg });
-    return { status: 'error', error: errMsg };
+    return classifyLlmError(e);
   }
+}
+
+/**
+ * Whether the last successful probe is still authoritative.
+ *
+ * Cached because /health is polled by the container healthcheck every few
+ * seconds: without this, a 30s LLM timeout per probe would exhaust the provider
+ * quota on health checks alone.
+ */
+function isLlmCacheFresh(): boolean {
+  if (!llmCacheTime) return false;
+  return Date.now() - llmCacheTime < LLM_CACHE_MS;
+}
+
+/** Issue the probe request and time it. */
+async function probeLlm(config: LlmConfig): Promise<{ response: Response; latencyMs: number }> {
+  const start = Date.now();
+  const response = await fetch(config.baseUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages: [{ role: 'user', content: 'health check' }],
+      max_tokens: 10,
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+  return { response, latencyMs: Date.now() - start };
+}
+
+/**
+ * Classify a thrown probe failure.
+ *
+ * A timeout is `degraded`, not `error`: the endpoint is reachable and correctly
+ * configured, it is merely slow. Anything else is a hard `error` and is logged,
+ * because a DNS failure or a revoked key needs an operator rather than patience.
+ */
+function classifyLlmError(e: unknown): LlmCheckResult {
+  const errMsg = e instanceof Error ? e.message : 'Unknown error';
+  if (errMsg.includes('timeout') || errMsg.includes('abort')) {
+    return { status: 'degraded', error: 'timeout' };
+  }
+  error('LLM health check failed', { error: errMsg });
+  return { status: 'error', error: errMsg };
 }
 
 async function checkDingTalk(): Promise<{
@@ -168,11 +196,13 @@ async function checkDingTalk(): Promise<{
   error?: string;
 }> {
   // Check Stream mode configuration (Stream client uses WebSocket, not webhook URL)
-  const clientId = process.env['DINGTALK_CLIENT_ID'];
-  const clientSecret = process.env['DINGTALK_CLIENT_SECRET'];
-  const agentId = process.env['DINGTALK_AGENT_ID'];
+  const credentials = {
+    clientId: process.env['DINGTALK_CLIENT_ID'],
+    clientSecret: process.env['DINGTALK_CLIENT_SECRET'],
+    agentId: process.env['DINGTALK_AGENT_ID'],
+  };
 
-  if (!clientId || !clientSecret || !agentId) {
+  if (hasMissingCredential(credentials)) {
     return {
       status: 'degraded',
       error:
@@ -180,14 +210,32 @@ async function checkDingTalk(): Promise<{
     };
   }
 
-  if (clientId.includes('xxx') || clientSecret.includes('xxx')) {
-    return {
-      status: 'degraded',
-      error: 'DingTalk Stream credentials contain placeholder values',
-    };
+  // A placeholder is worse than an empty value: the deployment LOOKS configured,
+  // so it is reported as degraded rather than silently treated as absent.
+  if (hasPlaceholder(credentials)) {
+    return { status: 'degraded', error: 'DingTalk Stream credentials contain placeholder values' };
   }
 
   return { status: 'ok' };
+}
+
+/** True when any required DingTalk credential is absent. */
+function hasMissingCredential(creds: Record<string, string | undefined>): boolean {
+  return Object.values(creds).some((value) => !value);
+}
+
+/**
+ * True when a credential still carries the `xxx` placeholder from a sample file.
+ *
+ * Only the two secrets are checked; the agent id is an opaque number and an `xxx`
+ * in it would be a typo rather than a copied template.
+ */
+function hasPlaceholder(creds: {
+  clientId?: string | undefined;
+  clientSecret?: string | undefined;
+}): boolean {
+  const values = [creds.clientId, creds.clientSecret];
+  return values.some((value) => value?.includes('xxx'));
 }
 
 /**
