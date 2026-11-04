@@ -75,6 +75,32 @@ describe('InterviewPlanService - Additional Coverage', () => {
     });
 
     /**
+     * A plan that already started keeps its original start time.
+     *
+     * Re-running a send (an admin retrying failures) must not move `startedAt`
+     * forward, or the plan's elapsed time resets on every retry. Replacing
+     * `startedAt || new Date()` with an unconditional `new Date()` passed every
+     * other test here, because they all load a plan whose `startedAt` is null.
+     */
+    it('should preserve an existing startedAt instead of resetting it', async () => {
+      const startedAt = new Date('2026-01-15T09:00:00Z');
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue({
+        id: 'plan-1',
+        name: 'Test Plan',
+        startedAt,
+        interviews: [{ userId: 'user-1' }],
+      });
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+
+      await service.sendInvitations('plan-1');
+
+      expect(mockPrisma.interviewPlan.update).toHaveBeenCalledWith({
+        where: { id: 'plan-1' },
+        data: expect.objectContaining({ startedAt }),
+      });
+    });
+
+    /**
      * @test REQ-007-4-01
      * @intent 测试在发送邀请出现故障时的处理逻辑
      */

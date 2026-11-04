@@ -297,6 +297,26 @@ describe('ExportService', () => {
       const wb = XLSX.readFile(xlsxPath);
       expect(wb.SheetNames).toContain('访谈回答');
       expect(wb.SheetNames.length).toBeGreaterThanOrEqual(1);
+
+      /**
+       * Every finding and recommendation gets its OWN row.
+       *
+       * Asserting only the sheet NAMES passed even when the rows were truncated
+       * to the first of each -- verified by mutation. The distinction is what the
+       * sheet is for: an analyst filters it, so a joined or truncated cell loses
+       * the rows they came to read.
+       */
+      expect(wb.SheetNames).toContain('报告摘要');
+      const summarySheet = wb.Sheets['报告摘要'];
+      expect(summarySheet).toBeDefined();
+      const summary = XLSX.utils.sheet_to_json<{ 字段: string; 值: string }>(
+        summarySheet as XLSX.WorkSheet
+      );
+      const findings = summary.filter((row) => row.字段 === '关键发现');
+      const recommendations = summary.filter((row) => row.字段 === '建议');
+      expect(findings.map((row) => row.值)).toEqual(['发现A', '发现B']);
+      expect(recommendations.map((row) => row.值)).toEqual(['建议X']);
+      expect(summary.find((row) => row.字段 === '情感分析')?.值).toBe('positive');
     });
 
     it('should throw when interview not found', async () => {

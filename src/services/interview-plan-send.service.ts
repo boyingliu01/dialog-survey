@@ -3,6 +3,53 @@ import { error, info, warn } from '../utils/logger.js';
 import { PlanStatus, SendStatus } from '../utils/prisma-client.js';
 import { InterviewPlanServiceBase } from './interview-plan-base.service.js';
 
+/** How many invitations went out and how many did not. */
+interface SendTally {
+  sent: number;
+  failed: number;
+}
+
+/**
+ * The plan-level write that records a batch send.
+ *
+ * `startedAt` is only stamped on the FIRST send: re-running a send for a plan that
+ * already started must not move its start time forward, or the plan's elapsed time
+ * (and any duration metric built on it) would reset on every retry.
+ */
+function planSendUpdate(tally: SendTally, startedAt: Date | null): Record<string, unknown> {
+  const data: Record<string, unknown> = {
+    status: PlanStatus.RUNNING,
+    sentCount: { increment: tally.sent },
+    failedCount: { increment: tally.failed },
+    startedAt: startedAt || new Date(),
+    updatedBy: 'admin',
+  };
+  const sendStatus = resolvePlanSendStatus(tally.sent, tally.failed);
+  if (sendStatus !== undefined) data['sendStatus'] = sendStatus;
+  return data;
+}
+
+/** The interview a resend is aimed at, plus the invitation text to send. */
+interface ResendTarget {
+  interview: {
+    id: string;
+    userId: string;
+    sendStatus: SendStatus;
+    plan: { id: string; name: string; templateId: string };
+  };
+  invitationPrompt: string;
+}
+
+/**
+ * Whether this interview has already been counted against the plan's totals.
+ *
+ * A FAILED send was counted too, so retrying it must not increment again --
+ * otherwise a flaky network inflates failedCount far past the number of interviews.
+ */
+function countsAsSent(sendStatus: SendStatus): boolean {
+  return sendStatus === SendStatus.SENT || sendStatus === SendStatus.FAILED;
+}
+
 /**
  * Name of the DingTalk bot to tell invitees to reply to.
  *
@@ -54,54 +101,46 @@ function resolvePlanSendStatus(sent: number, failed: number): SendStatus | undef
 export class InterviewPlanSendService extends InterviewPlanServiceBase {
   // archlint-disable-next-line
   async sendInvitations(planId: string): Promise<{ sent: number; failed: number }> {
+    const plan = await this.loadSendablePlan(planId);
+    const tally = await this.deliverAll(plan, planId);
+
+    await this.prisma.interviewPlan.update({
+      where: { id: planId },
+      data: planSendUpdate(tally, plan.startedAt),
+    });
+
+    info('Invitations sent', { planId, ...tally });
+    return tally;
+  }
+
+  /** The plan plus its PENDING interviews, or a throw when it does not exist. */
+  private async loadSendablePlan(planId: string) {
     const plan = await this.prisma.interviewPlan.findUnique({
       where: { id: planId },
       include: {
         template: { select: { content: true } },
-        interviews: {
-          where: { status: 'PENDING' },
-        },
+        interviews: { where: { status: 'PENDING' } },
       },
     });
+    if (!plan) throw new Error(`Plan not found: ${planId}`);
+    return plan;
+  }
 
-    if (!plan) {
-      throw new Error(`Plan not found: ${planId}`);
-    }
-
+  /** Send every invitation for the plan, tallying the outcomes. */
+  private async deliverAll(
+    plan: Awaited<ReturnType<InterviewPlanSendService['loadSendablePlan']>>,
+    planId: string
+  ): Promise<SendTally> {
     const invitationPrompt = parseInvitationPrompt(plan.template?.content, plan.templateId);
-
     let sent = 0;
     let failed = 0;
 
     for (const interview of plan.interviews) {
       // Skip if user already has an active interview in another plan
       if (await this.hasActiveInterviewElsewhere(interview.userId, planId)) continue;
-
-      if (await this.deliverInvitation(interview, plan.name, invitationPrompt, planId)) {
-        sent++;
-      } else {
-        failed++;
-      }
+      if (await this.deliverInvitation(interview, plan.name, invitationPrompt, planId)) sent++;
+      else failed++;
     }
-
-    const planUpdateData: Record<string, unknown> = {
-      status: PlanStatus.RUNNING,
-      sentCount: { increment: sent },
-      failedCount: { increment: failed },
-      startedAt: plan.startedAt || new Date(),
-      updatedBy: 'admin',
-    };
-    const planSendStatus = resolvePlanSendStatus(sent, failed);
-    if (planSendStatus !== undefined) {
-      planUpdateData['sendStatus'] = planSendStatus;
-    }
-
-    await this.prisma.interviewPlan.update({
-      where: { id: planId },
-      data: planUpdateData,
-    });
-
-    info('Invitations sent', { planId, sent, failed });
     return { sent, failed };
   }
 
@@ -169,6 +208,35 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
     planId: string,
     interviewId: string
   ): Promise<{ success: boolean; error?: string }> {
+    const found = await this.findResendTarget(planId, interviewId);
+    if ('error' in found) return { success: false, error: found.error };
+
+    const { interview, invitationPrompt } = found;
+    const wasAlreadyCounted = countsAsSent(interview.sendStatus);
+
+    try {
+      await this.sendInvitation(interview.userId, interview.plan.name, invitationPrompt);
+      await this.recordResendSuccess(planId, interviewId, wasAlreadyCounted);
+      info('Resent invitation', { planId, interviewId, userId: interview.userId });
+      return { success: true };
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      await this.recordResendFailure(planId, interviewId, errorMsg, wasAlreadyCounted);
+      error('Failed to resend invitation', {
+        planId,
+        interviewId,
+        userId: interview.userId,
+        error: errorMsg,
+      });
+      return { success: false, error: errorMsg };
+    }
+  }
+
+  /** The interview to resend to and its invitation text, or an error message. */
+  private async findResendTarget(
+    planId: string,
+    interviewId: string
+  ): Promise<ResendTarget | { error: string }> {
     const interview = await this.prisma.interview.findUnique({
       where: { id: interviewId },
       select: {
@@ -179,61 +247,61 @@ export class InterviewPlanSendService extends InterviewPlanServiceBase {
       },
     });
 
-    if (!interview) {
-      return { success: false, error: `Interview not found: ${interviewId}` };
-    }
-
+    if (!interview) return { error: `Interview not found: ${interviewId}` };
+    // The plan id comes from the URL, so this is a real authorization check: it
+    // stops a resend addressed to one plan from reaching another plan's interview.
     if (interview.plan?.id !== planId) {
-      return {
-        success: false,
-        error: `Interview ${interviewId} does not belong to plan ${planId}`,
-      };
+      return { error: `Interview ${interviewId} does not belong to plan ${planId}` };
     }
 
     const template = await this.prisma.template.findUnique({
       where: { id: interview.plan.templateId },
       select: { content: true },
     });
-
     const invitationPrompt = parseInvitationPrompt(template?.content, interview.plan.templateId);
+    // Safe: the guard above returned early unless `plan` was present and matched.
+    return { interview: { ...interview, plan: interview.plan }, invitationPrompt };
+  }
 
-    const wasAlreadyCounted =
-      interview.sendStatus === SendStatus.SENT || interview.sendStatus === SendStatus.FAILED;
+  /** Mark the interview sent and bump the plan counter only on a first send. */
+  private async recordResendSuccess(
+    planId: string,
+    interviewId: string,
+    wasAlreadyCounted: boolean
+  ): Promise<void> {
+    await this.prisma.interview.update({
+      where: { id: interviewId },
+      data: { sendStatus: SendStatus.SENT, sentAt: new Date(), sendError: null },
+    });
+    if (!wasAlreadyCounted) await this.bumpPlanCounter(planId, 'sentCount');
+  }
 
-    try {
-      await this.sendInvitation(interview.userId, interview.plan.name, invitationPrompt);
-      await this.prisma.interview.update({
-        where: { id: interviewId },
-        data: { sendStatus: SendStatus.SENT, sentAt: new Date(), sendError: null },
-      });
-      if (!wasAlreadyCounted) {
-        await this.prisma.interviewPlan.update({
-          where: { id: planId },
-          data: { sentCount: { increment: 1 } },
-        });
-      }
-      info('Resent invitation', { planId, interviewId, userId: interview.userId });
-      return { success: true };
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      await this.prisma.interview.update({
-        where: { id: interviewId },
-        data: { sendStatus: SendStatus.FAILED, sendError: errorMsg },
-      });
-      if (!wasAlreadyCounted) {
-        await this.prisma.interviewPlan.update({
-          where: { id: planId },
-          data: { failedCount: { increment: 1 } },
-        });
-      }
-      error('Failed to resend invitation', {
-        planId,
-        interviewId,
-        userId: interview.userId,
-        error: errorMsg,
-      });
-      return { success: false, error: errorMsg };
-    }
+  /** Mark the interview failed and bump the failure counter only on a first send. */
+  private async recordResendFailure(
+    planId: string,
+    interviewId: string,
+    errorMsg: string,
+    wasAlreadyCounted: boolean
+  ): Promise<void> {
+    await this.prisma.interview.update({
+      where: { id: interviewId },
+      data: { sendStatus: SendStatus.FAILED, sendError: errorMsg },
+    });
+    if (!wasAlreadyCounted) await this.bumpPlanCounter(planId, 'failedCount');
+  }
+
+  /**
+   * Increment one of the plan's send counters.
+   *
+   * Called only when the interview was NOT already SENT or FAILED -- otherwise a
+   * resend would inflate the plan's totals every time an admin retried, and the
+   * dashboard's success rate would drift away from the real one.
+   */
+  private async bumpPlanCounter(planId: string, field: 'sentCount' | 'failedCount'): Promise<void> {
+    await this.prisma.interviewPlan.update({
+      where: { id: planId },
+      data: { [field]: { increment: 1 } },
+    });
   }
 
   protected async sendInvitation(

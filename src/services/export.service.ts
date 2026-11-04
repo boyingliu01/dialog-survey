@@ -115,6 +115,62 @@ const EXPORT_INTERVIEW_SELECT = {
   },
 };
 
+/**
+ * One response as an Excel row.
+ *
+ * The question TEXT is preferred over the id, falling back to the id: a template
+ * edit can leave an old response pointing at a question that no longer exists, and
+ * showing the raw id at least identifies it instead of leaving the cell blank.
+ */
+function responseRows(
+  responses: Array<{
+    questionId: string;
+    content: string;
+    isFollowup: boolean;
+    followupDepth: number;
+  }>,
+  questionMap: Record<string, string>
+): Record<string, unknown>[] {
+  return responses.map((r) => ({
+    question: questionMap[r.questionId] || r.questionId,
+    answer: r.content,
+    isFollowup: r.isFollowup ? '是' : '否',
+    followupDepth: r.followupDepth,
+  }));
+}
+
+/**
+ * The report as `字段 / 值` rows.
+ *
+ * Findings and recommendations get one row EACH rather than a joined cell, so the
+ * sheet stays filterable and a long list does not overflow a single cell.
+ */
+function summaryRows(report: ExportReportSummary): Record<string, string>[] {
+  const rows: Record<string, string>[] = [{ 字段: '情感分析', 值: report.sentiment ?? '' }];
+  for (const [field, values] of [
+    ['关键发现', report.keyFindings],
+    ['建议', report.recommendations],
+  ] as const) {
+    for (const value of values ?? []) rows.push({ 字段: field, 值: value });
+  }
+  return rows;
+}
+
+/** The report fields the summary sheet renders. */
+interface ExportReportSummary {
+  sentiment?: string | null;
+  keyFindings?: string[] | null;
+  recommendations?: string[] | null;
+}
+
+/** Add one sheet built from `rows` to the workbook, keeping the insertion order. */
+function appendSheet(XLSX: XlsxModule, wb: ExportWorkbook, name: string, rows: unknown[]): void {
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), name);
+}
+
+/** The subset of the xlsx workbook interface these helpers touch. */
+type ExportWorkbook = Parameters<XlsxModule['utils']['book_append_sheet']>[0];
+
 export class ExportService {
   private readonly reportsDir: string;
 
@@ -219,32 +275,11 @@ export class ExportService {
     const XLSX = await loadXlsx();
     const wb = XLSX.utils.book_new();
 
-    // Map question IDs to question text from template content
     const questionMap = this.buildQuestionMap(interview.template?.content);
-
-    // Sheet 1: Responses
-    const rows = interview.responses.map((r) => ({
-      question: questionMap[r.questionId] || r.questionId,
-      answer: r.content,
-      isFollowup: r.isFollowup ? '是' : '否',
-      followupDepth: r.followupDepth,
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, '访谈回答');
-
-    // Sheet 2: Report summary (if exists)
-    if (report) {
-      const summaryRows: Record<string, string>[] = [];
-      summaryRows.push({ 字段: '情感分析', 值: report.sentiment ?? '' });
-      for (const f of report.keyFindings ?? []) {
-        summaryRows.push({ 字段: '关键发现', 值: f });
-      }
-      for (const r of report.recommendations ?? []) {
-        summaryRows.push({ 字段: '建议', 值: r });
-      }
-      const ws2 = XLSX.utils.json_to_sheet(summaryRows);
-      XLSX.utils.book_append_sheet(wb, ws2, '报告摘要');
-    }
+    appendSheet(XLSX, wb, '访谈回答', responseRows(interview.responses, questionMap));
+    // The summary sheet only exists when a report does — an empty sheet would
+    // read as "analysis produced nothing", which is different from "not analysed".
+    if (report) appendSheet(XLSX, wb, '报告摘要', summaryRows(report));
 
     const xlsxPath = join(this.reportsDir, `interview-${interviewId}.xlsx`);
     XLSX.writeFile(wb, xlsxPath);
