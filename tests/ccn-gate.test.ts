@@ -372,6 +372,56 @@ describe('ccn-report gate measurement', () => {
       const result = run(['--threshold', '10', '--report-only'], fixture);
       expect(result.code).toBe(1);
     });
+
+    it('exits 2 when an explicitly named scan root does not exist', () => {
+      // This was a REAL false negative. `resolveFiles` used to `continue` past a
+      // missing root, so a typo produced "No functions exceed the threshold" and
+      // exit 0 for a directory nothing had read -- a clean bill of health for an
+      // unread tree, which is the one verdict this script must never give. Exit 2
+      // ("no evidence") is deliberately distinct from 1 ("debt found") so the two
+      // cannot be confused.
+      //
+      // Only an EXPLICIT root is fatal: a default root is "where debt usually
+      // lives", and a project without a `prisma/` directory must still measure.
+      const result = run(
+        ['--threshold', '10', join(fixture, 'no-such-directory'), '--report-only'],
+        fixture
+      );
+      expect(result.code).toBe(2);
+    });
+
+    it('measures another checkout when --root points at one', () => {
+      // `--root` only re-based the RELATIVE paths in the report; the scan still
+      // ran against the current working directory. So pointing it at another
+      // checkout silently measured THIS tree -- the same false clean verdict, by
+      // a different route. Relative roots must follow the flag.
+      //
+      // The cwd and --root are deliberately DIFFERENT trees: running with
+      // `--root other` while cwd is `other` cannot distinguish the two, which is
+      // exactly how the first version of this test passed against the bug.
+      const other = mkdtempSync(join(tmpdir(), 'ccn-other-'));
+      try {
+        mkdirSync(join(other, 'src'), { recursive: true });
+        writeFileSync(
+          join(other, 'src', 'deep.ts'),
+          [
+            'export function deepFunction(a: number): number {',
+            '  if (a > 1) return 1;',
+            '  if (a > 2) return 2;',
+            '  return 0;',
+            '}',
+            '',
+          ].join('\n'),
+          'utf8'
+        );
+        // `fixture` (the cwd) has no such function, so the name can only appear
+        // if the scan followed --root.
+        const result = run(['--threshold', '1', '--root', other], fixture);
+        expect(result.stdout).toContain('deepFunction');
+      } finally {
+        rmSync(other, { recursive: true, force: true });
+      }
+    });
   });
 
   describe('--csv-verified (what xp-gate Gate 3 pipes through)', () => {
