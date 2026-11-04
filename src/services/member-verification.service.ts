@@ -91,10 +91,35 @@ export async function verifyPhoneToName(
   providedName?: string
 ): Promise<PhoneVerificationResult> {
   const normalizedPhone = normalizePhone(phone);
+  const lookup = await lookupPhone(client, normalizedPhone);
+  if (!lookup.found) return { verified: false, ...lookup.refusal, name: '' };
 
-  let lookupResult: Awaited<ReturnType<DingTalkClient['getUserIdByMobile']>>;
+  const dtName = lookup.name.trim();
+  const inputName = providedName?.trim();
+  // No name supplied by the caller: DingTalk's own name is the answer, and there
+  // is nothing to compare it against.
+  if (!inputName) return { verified: true, userId: lookup.userId, name: dtName };
+
+  return compareNames(lookup.userId, dtName, inputName);
+}
+
+/** A resolved phone lookup, or the refusal that stopped it. */
+type PhoneLookup =
+  | { found: true; userId: string; name: string }
+  | { found: false; refusal: { reason: string; failure: PhoneVerificationFailure } };
+
+/**
+ * Resolve a phone to a DingTalk identity, converting every failure to data.
+ *
+ * The API throw is NOT propagated: a credential error, a missing permission and an
+ * outage are all things the caller reports to the user as "could not verify", and
+ * letting the exception escape would turn a recoverable verification failure into
+ * an unhandled rejection in the import flow.
+ */
+async function lookupPhone(client: DingTalkClient, normalizedPhone: string): Promise<PhoneLookup> {
+  let result: Awaited<ReturnType<DingTalkClient['getUserIdByMobile']>>;
   try {
-    lookupResult = await client.getUserIdByMobile(normalizedPhone);
+    result = await client.getUserIdByMobile(normalizedPhone);
   } catch (err) {
     const failure = classifyLookupError(err);
     // The phone is PII: log the masked form plus the underlying cause, which is
@@ -104,62 +129,46 @@ export async function verifyPhoneToName(
       failure,
       error: err instanceof Error ? err.message : String(err),
     });
-    return {
-      verified: false,
-      reason: FAILURE_REASON[failure],
-      failure,
-      name: '',
-    };
+    return { found: false, refusal: { reason: FAILURE_REASON[failure], failure } };
   }
 
-  if (!lookupResult.found) {
+  if (!result.found) {
     return {
-      verified: false,
-      reason: FAILURE_REASON.phone_not_found,
-      failure: 'phone_not_found',
-      name: '',
+      found: false,
+      refusal: {
+        reason: FAILURE_REASON.phone_not_found,
+        failure: 'phone_not_found',
+      },
     };
   }
+  return { found: true, userId: result.userId, name: result.name };
+}
 
-  const dtName = lookupResult.name.trim();
-  const inputName = providedName?.trim();
-
-  // If caller didn't provide a name, trust DingTalk's name
-  if (!inputName) {
-    return {
-      verified: true,
-      userId: lookupResult.userId,
-      name: dtName,
-    };
-  }
-
-  // The name is authoritative only if DingTalk actually returned one. A missing
-  // name means the lookup could not confirm the person, so the mismatch check
-  // must not be skipped — that is exactly how the comparison became a no-op
-  // before `/topapi/v2/user/getbymobile` started resolving names (issue #199).
+/**
+ * Compare a supplied name against DingTalk's, and report the outcome.
+ *
+ * The name is authoritative only if DingTalk actually returned one. A missing name
+ * means the lookup could not confirm the person, so the mismatch check must not be
+ * skipped -- that is exactly how the comparison became a no-op before
+ * `/topapi/v2/user/getbymobile` started resolving names (issue #199).
+ */
+function compareNames(userId: string, dtName: string, inputName: string): PhoneVerificationResult {
   if (!dtName) {
     return {
       verified: false,
-      userId: lookupResult.userId,
+      userId,
       name: inputName,
       reason: FAILURE_REASON.name_unverifiable,
       failure: 'name_unverifiable',
     };
   }
 
-  // Strict comparison after trimming
-  if (inputName === dtName) {
-    return {
-      verified: true,
-      userId: lookupResult.userId,
-      name: dtName,
-    };
-  }
+  // Strict comparison after trimming on both sides.
+  if (inputName === dtName) return { verified: true, userId, name: dtName };
 
-  // Name mismatch
   return {
     verified: false,
-    userId: lookupResult.userId,
+    userId,
     name: dtName,
     reason: `输入的姓名与钉钉注册的姓名（${dtName}）不一致`,
     failure: 'name_mismatch',

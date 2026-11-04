@@ -84,6 +84,31 @@ describe('Batch Aggregation: Dimension Statistics', () => {
     expect(stats.dimensions.find((d) => d.dimensionId === 'stability')?.mentionRate).toBe(1);
     expect(stats.dimensions.find((d) => d.dimensionId === 'performance')?.mentionRate).toBe(1);
   });
+
+  /**
+   * One interview can tag the same dimension twice (two questions both probing
+   * "工作强度"), and that must count as ONE mention.
+   *
+   * Dropping the per-interview dedup passed every other test in this file,
+   * because none of them repeat a dimensionId within one interview. The result
+   * would be a mention rate above 1.0 -- a statistic that cannot exist.
+   */
+  it('counts a dimension once even when one interview tags it twice', () => {
+    const dimensionTags = [
+      [
+        { dimensionId: 'workload', label: '工作强度', sentiment: 'negative', quotes: ['累'] },
+        { dimensionId: 'workload', label: '工作强度', sentiment: 'positive', quotes: ['充实'] },
+      ],
+    ];
+
+    const stats = computeDimensionStats(dimensionTags, 1);
+    expect(stats.dimensions).toHaveLength(1);
+    expect(stats.dimensions[0]?.mentionRate).toBe(1);
+    // The first tag wins, so the retained sentiment is the earlier one.
+    expect(stats.dimensions[0]?.sentimentBreakdown.negative).toBe(1);
+    expect(stats.dimensions[0]?.sentimentBreakdown.positive).toBe(0);
+    expect(stats.dimensions[0]?.totalMentions).toBe(1);
+  });
 });
 
 /** @test REQ-BATCH-006 @intent verify checkpoint tracks completed step @covers AC-BATCH-006-01 */

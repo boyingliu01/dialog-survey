@@ -50,25 +50,33 @@ function collectDimensionSentiments(
   const dimensionMap = new Map<string, { label: string; sentiments: string[] }>();
 
   for (const tags of dimensionTags) {
-    const seenDimensions = new Set<string>();
-    for (const tag of tags) {
-      if (!seenDimensions.has(tag.dimensionId)) {
-        seenDimensions.add(tag.dimensionId);
-        if (!dimensionMap.has(tag.dimensionId)) {
-          dimensionMap.set(tag.dimensionId, {
-            label: tag.label,
-            sentiments: [],
-          });
-        }
-        const entry = dimensionMap.get(tag.dimensionId);
-        if (entry) {
-          entry.sentiments.push(tag.sentiment);
-        }
-      }
+    for (const tag of firstTagPerDimension(tags)) {
+      const entry = dimensionMap.get(tag.dimensionId) ?? { label: tag.label, sentiments: [] };
+      entry.sentiments.push(tag.sentiment);
+      dimensionMap.set(tag.dimensionId, entry);
     }
   }
 
   return dimensionMap;
+}
+
+/**
+ * One tag per dimensionId, in first-seen order.
+ *
+ * A single interview can tag the same dimension more than once (two questions both
+ * probing "工作强度"), and each tag becoming its own mention would count that
+ * interview twice in the mention rate. The FIRST tag wins, so the retained
+ * sentiment is the one from the earlier question.
+ */
+function firstTagPerDimension(tags: DimensionEntry[]): DimensionEntry[] {
+  const seen = new Set<string>();
+  const unique: DimensionEntry[] = [];
+  for (const tag of tags) {
+    if (seen.has(tag.dimensionId)) continue;
+    seen.add(tag.dimensionId);
+    unique.push(tag);
+  }
+  return unique;
 }
 
 function countSentiments(sentiments: string[], target: string): number {

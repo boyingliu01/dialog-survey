@@ -238,4 +238,60 @@ describe('InterviewPlanService - Additional Coverage', () => {
       });
     });
   });
+
+  /**
+   * The update payload's field semantics.
+   *
+   * Two mutants survived the whole suite before these tests existed: clearing an
+   * omitted description to null, and turning an empty targetDate into
+   * `new Date('')` (an Invalid Date). Neither is observable through the HTTP
+   * route, because the route drops an empty targetDate before the service ever
+   * sees it -- so these assert at the layer where the rule actually lives.
+   */
+  describe('updatePlan', () => {
+    it('should include only the fields the caller supplied', async () => {
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+
+      await service.updatePlan('plan-1', { name: '新名称' });
+
+      expect(mockPrisma.interviewPlan.update).toHaveBeenCalledWith({
+        where: { id: 'plan-1' },
+        data: { name: '新名称', updatedBy: 'admin' },
+      });
+    });
+
+    it('should convert a targetDate string into a Date', async () => {
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+
+      await service.updatePlan('plan-1', { targetDate: '2026-06-01' });
+
+      const call = mockPrisma.interviewPlan.update.mock.calls[0][0] as {
+        data: { targetDate: Date };
+      };
+      expect(call.data.targetDate).toBeInstanceOf(Date);
+      expect(call.data.targetDate.toISOString().startsWith('2026-06-01')).toBe(true);
+    });
+
+    it('should clear targetDate when it is empty rather than build an Invalid Date', async () => {
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+
+      await service.updatePlan('plan-1', { targetDate: '' });
+
+      expect(mockPrisma.interviewPlan.update).toHaveBeenCalledWith({
+        where: { id: 'plan-1' },
+        data: { targetDate: null, updatedBy: 'admin' },
+      });
+    });
+
+    it('should keep an empty description as empty rather than dropping it', async () => {
+      mockPrisma.interviewPlan.update.mockResolvedValue({});
+
+      await service.updatePlan('plan-1', { description: '' });
+
+      expect(mockPrisma.interviewPlan.update).toHaveBeenCalledWith({
+        where: { id: 'plan-1' },
+        data: { description: '', updatedBy: 'admin' },
+      });
+    });
+  });
 });
