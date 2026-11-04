@@ -1,0 +1,16 @@
+{
+  "$comment": "Pinned versions of the Python-installed xp-gate tools. These live outside the repo (~/.local/bin, ~/bin and the Windows Python Scripts dir), so package.json cannot pin them. scripts/verify-gate-tools.cjs compares this file against what is actually on PATH and fails on a mismatch. Bump deliberately.",
+  "lizard": {
+    "pinned": "1.25.0",
+    "why": "1.24.1 added cognitive complexity (-Ecognitive, --CogC default 15). 1.24.2 and 1.25.0 changed CCN for ??, ??=, default parameters and callback boundaries; the upstream CHANGELOG says existing scores may rise OR fall, so raw lizard CCN is not comparable across versions. 1.21.3 additionally inflated nested functions by charging inner branches to the outer one (collectAppRoots measured 53 there, 7 on 1.25.0, and 1 by TypeScript AST).",
+    "minimum": "1.24.1"
+  },
+  "semgrep": {
+    "pinned": "1.183.0",
+    "why": "Gate 10 scanner. Findings are not persisted as a ratchet, so a bump is low risk, but a silent version change makes a gate verdict unreproducible."
+  },
+  "detect-secrets": {
+    "pinned": "1.5.52",
+    "why": "Gate 8 writes .secrets.baseline as line-addressed JSON. A bump that changes detection can invalidate every recorded line number, which is what Gate 8's 'please git add .secrets.baseline' message actually means."
+  }
+}
