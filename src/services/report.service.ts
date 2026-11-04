@@ -104,32 +104,45 @@ export async function generateReport(
   }
 }
 
+/** First regex that matches, so a stricter pattern can be tried before a looser one. */
+function firstMatch(text: string, patterns: readonly RegExp[]): RegExpMatchArray | null {
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return match;
+  }
+  return null;
+}
+
+/** Capture group 1 of the first matching pattern, or undefined. */
+function captureAfter(text: string, patterns: readonly RegExp[]): string | undefined {
+  return firstMatch(text, patterns)?.[1];
+}
+
 function parseReportContent(content: string): {
   keyFindings: string[];
   sentiment: string;
   recommendations: string[];
 } {
-  // Support both "### 1. 关键发现" (Markdown header) and "关键发现:" formats
-  const findingMatch =
-    content.match(/[##\s]*关键发现[:：]?\s*\n?([\s\S]*?)(?=情感分析|行动建议|### .*建议|$)/i) ||
-    content.match(/关键发现[\s:：]*([\s\S]*?)(?=情感分析|行动建议|$)/i);
-
-  // Support both "### 2. 情感分析" and "情感分析:" formats
-  const sentimentMatch =
-    content.match(/情感分析[:：]\s*([\u4e00-\u9fa5]+)/i) ||
-    content.match(
-      /情感分析[\s\S]*?(积极|正面|negative|positive|消极|负面|negative|neutral|中立|neutral)/i
-    );
-
-  // Support both "### 3. 行动建议" and "行动建议:" formats
-  const recMatch =
-    content.match(/行动建议[:：]?\s*\n?([\s\S]*?)(?=总结|$)/i) ||
-    content.match(/行动建议[\s\S]*?([\s\S]*)/i);
+  // Each section accepts both "### 1. 关键发现" (Markdown header) and "关键发现:"
+  // forms, and the bullet extraction is shared, so the only per-section facts
+  // are the two patterns and how the captured text becomes the stored value.
+  const findings = captureAfter(content, [
+    /[##\s]*关键发现[:：]?\s*\n?([\s\S]*?)(?=情感分析|行动建议|### .*建议|$)/i,
+    /关键发现[\s:：]*([\s\S]*?)(?=情感分析|行动建议|$)/i,
+  ]);
+  const sentiment = captureAfter(content, [
+    /情感分析[:：]\s*([\u4e00-\u9fa5]+)/i,
+    /情感分析[\s\S]*?(积极|正面|negative|positive|消极|负面|negative|neutral|中立|neutral)/i,
+  ]);
+  const recommendations = captureAfter(content, [
+    /行动建议[:：]?\s*\n?([\s\S]*?)(?=总结|$)/i,
+    /行动建议[\s\S]*?([\s\S]*)/i,
+  ]);
 
   return {
-    keyFindings: findingMatch ? extractBulletLines(findingMatch[1]) : [],
-    sentiment: sentimentMatch ? normaliseSentiment(sentimentMatch[1]) : 'neutral',
-    recommendations: recMatch ? extractBulletLines(recMatch[1]) : [],
+    keyFindings: findings === undefined ? [] : extractBulletLines(findings),
+    sentiment: sentiment === undefined ? 'neutral' : normaliseSentiment(sentiment),
+    recommendations: recommendations === undefined ? [] : extractBulletLines(recommendations),
   };
 }
 
@@ -178,6 +191,18 @@ function extractBulletLines(block: string): string[] {
 }
 
 /**
+ * Wordings an LLM has used for each sentiment, checked in order.
+ *
+ * A table rather than a chain of `||`: the order is the precedence (a phrase
+ * carrying both positive and negative wording resolves positive, as before), and
+ * a new synonym becomes a row instead of another `||`.
+ */
+const SENTIMENT_SYNONYMS: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ['positive', ['积极', '正面', 'positive']],
+  ['negative', ['消极', '负面', 'negative']],
+];
+
+/**
  * Map the wording an LLM used for sentiment onto the three stored values.
  *
  * Anything unrecognised is neutral rather than a guess, so a novel phrasing does
@@ -185,9 +210,8 @@ function extractBulletLines(block: string): string[] {
  */
 function normaliseSentiment(raw: string): string {
   const value = raw.trim().toLowerCase();
-  if (value.includes('积极') || value.includes('正面') || value === 'positive') return 'positive';
-  if (value.includes('消极') || value.includes('负面') || value === 'negative') return 'negative';
-  return 'neutral';
+  const match = SENTIMENT_SYNONYMS.find(([, words]) => words.some((w) => value.includes(w)));
+  return match ? match[0] : 'neutral';
 }
 
 function createFallbackReport(
@@ -260,27 +284,46 @@ export async function generateReportWithDimensions(
   }
 }
 
+/** One dimension the analysis attached to the interview. */
+type DimensionTag = NonNullable<ReportWithDimensions['dimensionTags']>[number];
+
+/** The empty dimension report, shared by every bail-out path. */
+const EMPTY_DIMENSION_TAGS = { dimensionTags: [] as DimensionTag[], emergentTags: [] as string[] };
+
+/** Parse the model's JSON, tolerating the fences it likes to wrap it in. */
+function parseJsonBlock(content: string): unknown {
+  return JSON.parse(
+    content
+      .replace(/```json\n?/g, '')
+      .replace(/```\n?/g, '')
+      .trim()
+  );
+}
+
+/** Read an array field, defaulting to empty when the model omitted or mistyped it. */
+function arrayField<T>(source: Record<string, unknown>, key: string): T[] {
+  const value = source[key];
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
 function parseDimensionAnalysis(
   content: string
 ): Pick<ReportWithDimensions, 'dimensionTags' | 'emergentTags' | 'interviewerRating'> {
+  let parsed: unknown;
   try {
-    const cleaned = content
-      .replace(/```json\n?/g, '')
-      .replace(/```\n?/g, '')
-      .trim();
-    const jsonRaw = JSON.parse(cleaned);
-    if (typeof jsonRaw !== 'object' || jsonRaw === null) {
-      return { dimensionTags: [], emergentTags: [] };
-    }
-    const jsonStr = jsonRaw as Record<string, unknown>;
-    const rating =
-      typeof jsonStr['interviewerRating'] === 'number' ? jsonStr['interviewerRating'] : undefined;
-    return {
-      dimensionTags: Array.isArray(jsonStr['dimensionTags']) ? jsonStr['dimensionTags'] : [],
-      emergentTags: Array.isArray(jsonStr['emergentTags']) ? jsonStr['emergentTags'] : [],
-      ...(rating != null ? { interviewerRating: rating } : {}),
-    };
+    parsed = parseJsonBlock(content);
   } catch {
-    return { dimensionTags: [], emergentTags: [] };
+    return { ...EMPTY_DIMENSION_TAGS };
   }
+  if (typeof parsed !== 'object' || parsed === null) return { ...EMPTY_DIMENSION_TAGS };
+
+  const source = parsed as Record<string, unknown>;
+  const rating = source['interviewerRating'];
+  return {
+    dimensionTags: arrayField<DimensionTag>(source, 'dimensionTags'),
+    emergentTags: arrayField<string>(source, 'emergentTags'),
+    // Omitted rather than set to undefined: the field is optional and an
+    // explicit `undefined` would survive a spread into the stored report.
+    ...(typeof rating === 'number' ? { interviewerRating: rating } : {}),
+  };
 }
