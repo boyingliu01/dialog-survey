@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseStreamMessage } from '../src/services/stream-message-utils.js';
+import {
+  ALLOWED_WEBHOOK_HOSTS,
+  isAllowedWebhookUrl,
+  parseStreamMessage,
+} from '../src/services/stream-message-utils.js';
 import type { StreamMessage } from '../src/services/stream-message-utils.js';
 
 /**
@@ -384,5 +388,52 @@ describe('parseStreamMessage — DingTalk rich text (issue #221)', () => {
 
       expect(parsed?.content).toBe('');
     });
+  });
+});
+
+/**
+ * SSRF guard on the reply webhook.
+ *
+ * `sessionWebhook` arrives inside the message payload, so it is attacker-
+ * controlled: without this allowlist the bot would POST the reply — including
+ * the user's own conversation text — to any URL a crafted message named,
+ * including link-local metadata endpoints. Every host has its own test because a
+ * mutant that blanks ONE entry survived when only the first was exercised.
+ */
+describe('isAllowedWebhookUrl (SSRF allowlist)', () => {
+  it.each([
+    ['oapi.dingtalk.com', 'https://oapi.dingtalk.com/robot/send?access_token=x'],
+    ['api.dingtalk.com', 'https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend'],
+    ['router.dingtalk.com', 'https://router.dingtalk.com/robot/sendBySession?session=x'],
+  ])('allows %s over https', (_host, url) => {
+    expect(isAllowedWebhookUrl(url)).toBe(true);
+  });
+
+  it.each([
+    ['link-local metadata', 'http://169.254.169.254/latest/meta-data/'],
+    ['localhost', 'http://localhost:3001/admin'],
+    ['file scheme', 'file:///etc/passwd'],
+    ['a dingtalk-lookalike', 'https://oapi.dingtalk.com.evil.example/robot/send'],
+    ['a subdomain of a lookalike', 'https://evil.oapi.dingtalk.com/robot/send'],
+    ['the bare parent domain', 'https://dingtalk.com/robot/send'],
+    ['plain http to a lookalike', 'http://127.0.0.1:8080/x'],
+  ])('rejects %s', (_label, url) => {
+    expect(isAllowedWebhookUrl(url)).toBe(false);
+  });
+
+  it('does not throw on a malformed URL', () => {
+    expect(() => isAllowedWebhookUrl('not a url at all')).not.toThrow();
+    expect(isAllowedWebhookUrl('not a url at all')).toBe(false);
+    expect(isAllowedWebhookUrl('')).toBe(false);
+  });
+
+  it('allows exactly the three real DingTalk hosts', () => {
+    // Pins the list itself: adding a host is a security decision, so it should
+    // be a deliberate edit here too, not a silent widening.
+    expect([...ALLOWED_WEBHOOK_HOSTS].sort()).toEqual([
+      'api.dingtalk.com',
+      'oapi.dingtalk.com',
+      'router.dingtalk.com',
+    ]);
   });
 });
