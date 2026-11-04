@@ -121,6 +121,20 @@ function readAndRemoveReport(reportPath) {
  * `GITLEAKS_BIN` overrides the executable so the tests can exercise the
  * missing-tool path without uninstalling anything.
  */
+/** The outcome when gitleaks itself could not be executed. */
+function missingToolOutcome(result) {
+  return { status: 'missing', findings: [], raw: result.error?.message ?? result.stdout ?? '' };
+}
+
+/** The outcome of a run that happened: clean or leaking, with its findings. */
+function scanOutcome(result, reportPath) {
+  return {
+    status: result.status === 0 ? 'clean' : 'leaks',
+    findings: readAndRemoveReport(reportPath),
+    raw: result.stdout ?? '',
+  };
+}
+
 function runGitleaks(reportPath) {
   const bin = process.env['GITLEAKS_BIN'] || 'gitleaks';
   const result = spawnSync(
@@ -128,20 +142,10 @@ function runGitleaks(reportPath) {
     ['git', '--no-banner', '--redact', '-f', 'json', '-r', reportPath],
     { encoding: 'utf8', shell: process.platform === 'win32' }
   );
-
-  if (gitleaksFailedToRun(result)) {
-    return {
-      status: 'missing',
-      findings: [],
-      raw: result.error?.message ?? result.stdout ?? '',
-    };
-  }
-
-  return {
-    status: result.status === 0 ? 'clean' : 'leaks',
-    findings: readAndRemoveReport(reportPath),
-    raw: result.stdout ?? '',
-  };
+  // A tool that never ran must not be described as a clean scan: "no findings"
+  // and "no scan" are the same empty list, and only one of them is good news.
+  if (gitleaksFailedToRun(result)) return missingToolOutcome(result);
+  return scanOutcome(result, reportPath);
 }
 
 function rmQuiet(path) {
@@ -354,35 +358,76 @@ function refuseWithoutGitleaks(status) {
   return 2;
 }
 
-function main() {
-  const flags = parseFlags(process.argv.slice(2));
-  if (flags.help) {
-    usage();
+/**
+ * Preconditions that can be answered without running the scanner.
+ *
+ * Only the allowlist check: a missing config makes every finding a documentation
+ * example. The other two preconditions are ordered after the scan runs -- see
+ * `main` -- because the ORDER is observable to the tests and to a reader working
+ * out which one refused.
+ */
+const PRE_SCAN_GUARDS = [refuseWithoutConfig];
+
+/** Run each guard in order and return the first exit code, or undefined. */
+function firstRefusal(guards) {
+  for (const guard of guards) {
+    const refusal = guard();
+    if (refusal !== undefined) return refusal;
+  }
+  return undefined;
+}
+
+/**
+ * The verdict for a completed scan that passed every precondition.
+ *
+ * Kept apart from `main` because it answers a different question: `main` asks
+ * "can this scan be trusted?", this asks "what do its findings mean?".
+ */
+function verdictForFindings(findings, flags) {
+  if (flags.writeBaseline) {
+    writeBaseline(findings);
     return 0;
   }
+  if (findings.length > 0) return judgeAgainstBaseline(findings, flags.verbose);
+  process.stdout.write('[secrets] history is clean — no committed secrets found\n');
+  return 0;
+}
 
-  const configRefusal = refuseWithoutConfig();
-  if (configRefusal !== undefined) return configRefusal;
+/** Print usage and return 0 when `--help` was asked for; undefined otherwise. */
+function helpVerdict(flags) {
+  if (!flags.help) return undefined;
+  usage();
+  return 0;
+}
+
+function main() {
+  const flags = parseFlags(process.argv.slice(2));
+  const help = helpVerdict(flags);
+  if (help !== undefined) return help;
+
+  // Each guard returns undefined to continue, or the exit code that stops the
+  // scan. A table rather than consecutive ifs: every one of them answers the
+  // same question ("can this scan be trusted?"), so a new precondition belongs
+  // next to the others instead of wedged between two of them.
+  //
+  // These two run BEFORE the scan because neither depends on it: without the
+  // allowlist config the report would be noise, and without commits there is
+  // nothing to report on. The gitleaks-installed check can only run after.
+  const earlyRefusal = firstRefusal(PRE_SCAN_GUARDS);
+  if (earlyRefusal !== undefined) return earlyRefusal;
 
   const { status, findings } = runGitleaks(resolve(REPORT));
 
+  // Order matters: a missing gitleaks is reported before a missing history,
+  // because without the tool the commit count is moot and "install gitleaks" is
+  // the actionable message.
   const gitleaksRefusal = refuseWithoutGitleaks(status);
   if (gitleaksRefusal !== undefined) return gitleaksRefusal;
 
   const commitRefusal = refuseWithoutCommits();
   if (commitRefusal !== undefined) return commitRefusal;
 
-  if (flags.writeBaseline) {
-    writeBaseline(findings);
-    return 0;
-  }
-
-  if (findings.length === 0) {
-    process.stdout.write('[secrets] history is clean — no committed secrets found\n');
-    return 0;
-  }
-
-  return judgeAgainstBaseline(findings, flags.verbose);
+  return verdictForFindings(findings, flags);
 }
 
 /**

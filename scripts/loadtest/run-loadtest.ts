@@ -89,6 +89,44 @@ type AutocannonFn = (
 
 const WARMUP_SEC = 5;
 
+/** One autocannon pass, promisified. */
+function runAutocannonPass(
+  autocannon: AutocannonFn,
+  options: AutocannonOptions
+): Promise<AutocannonResult> {
+  return new Promise((resolve, reject) => {
+    autocannon(options, (err, result) => {
+      if (err) reject(err);
+      else resolve(result);
+    });
+  });
+}
+
+/** Round a latency to two decimals, defaulting a missing sample to 0. */
+function ms(value: number | undefined): number {
+  return Number((value ?? 0).toFixed(2));
+}
+
+/** Shape raw autocannon output into a reported scenario row. */
+function toScenarioResult(
+  measured: AutocannonResult,
+  scenario: string,
+  tier: number,
+  durationSec: number
+): ScenarioResult {
+  return {
+    scenario,
+    tier,
+    rps: Math.round(measured.requests?.average ?? 0),
+    p50Ms: ms(measured.latency?.p50),
+    p95Ms: ms(interpolateP95(measured.latency)),
+    p99Ms: ms(measured.latency?.p99),
+    errors: measured.errors ?? 0,
+    non2xx: measured.non2xx ?? 0,
+    seconds: durationSec,
+  };
+}
+
 async function runAutocannonScenario(
   autocannon: AutocannonFn,
   scenario: string,
@@ -96,28 +134,14 @@ async function runAutocannonScenario(
   durationSec: number,
   baseOpts: Omit<AutocannonOptions, 'connections' | 'duration'>
 ): Promise<ScenarioResult> {
-  const run = (tierConnections: number, duration: number): Promise<AutocannonResult> =>
-    new Promise((resolve, reject) => {
-      autocannon({ ...baseOpts, connections: tierConnections, duration }, (err, result) => {
-        if (err) reject(err);
-        else resolve(result);
-      });
-    });
-
   // Warmup pass (5s) — discarded by design (skips JIT/socket/DB cold paths).
-  await run(tier, WARMUP_SEC);
-  const measured = await run(tier, durationSec);
-  return {
-    scenario,
-    tier,
-    rps: Math.round(measured.requests?.average ?? 0),
-    p50Ms: Number((measured.latency?.p50 ?? 0).toFixed(2)),
-    p95Ms: Number(interpolateP95(measured.latency).toFixed(2)),
-    p99Ms: Number((measured.latency?.p99 ?? 0).toFixed(2)),
-    errors: measured.errors ?? 0,
-    non2xx: measured.non2xx ?? 0,
-    seconds: durationSec,
-  };
+  await runAutocannonPass(autocannon, { ...baseOpts, connections: tier, duration: WARMUP_SEC });
+  const measured = await runAutocannonPass(autocannon, {
+    ...baseOpts,
+    connections: tier,
+    duration: durationSec,
+  });
+  return toScenarioResult(measured, scenario, tier, durationSec);
 }
 
 type ProcessMessageFn = (message: {
@@ -287,6 +311,47 @@ async function runAllScenarios(
   };
 }
 
+/** One aligned report line; the columns are read side by side across rows. */
+function scenarioLine(
+  label: string,
+  row: {
+    tier: number;
+    rps: number;
+    p50Ms: number;
+    p95Ms: number;
+    p99Ms: number;
+  }
+): string {
+  return (
+    `${label.padEnd(18)} tier=${String(row.tier).padEnd(4)} rps=${String(row.rps).padEnd(7)} ` +
+    `p50=${String(row.p50Ms).padEnd(8)} p95=${String(row.p95Ms).padEnd(8)} ` +
+    `p99=${String(row.p99Ms).padEnd(8)}`
+  );
+}
+
+/** Write the JSON report and print every row as a table. Returns the file path. */
+async function writeReport(report: LoadtestReport): Promise<string> {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  const { resolve } = await import('node:path');
+  const outDir = resolve(process.cwd(), 'docs/reports');
+  mkdirSync(outDir, { recursive: true });
+  const outFile = resolve(
+    outDir,
+    `loadtest-results-${report.meta.timestamp.replaceAll(':', '-')}.json`
+  );
+  writeFileSync(outFile, JSON.stringify(report, null, 2));
+
+  writeOut('\n=== Loadtest results ===\n');
+  for (const r of report.results) {
+    writeOut(`${scenarioLine(r.scenario, r)} err=${r.errors} non2xx=${r.non2xx}\n`);
+  }
+  for (const t of report.s6?.tiers ?? []) {
+    writeOut(`${scenarioLine('S6-handler', t)} ok=${t.successRate}%\n`);
+  }
+  writeOut(`\nJSON report: ${outFile}\n`);
+  return outFile;
+}
+
 async function main(): Promise<void> {
   const { quick } = parseArgs();
   const tiers = quick ? QUICK_TIERS : FULL_TIERS;
@@ -304,28 +369,7 @@ async function main(): Promise<void> {
     await app.close();
   }
 
-  const { mkdirSync, writeFileSync } = await import('node:fs');
-  const { resolve } = await import('node:path');
-  const outDir = resolve(process.cwd(), 'docs/reports');
-  mkdirSync(outDir, { recursive: true });
-  const outFile = resolve(
-    outDir,
-    `loadtest-results-${report.meta.timestamp.replaceAll(':', '-')}.json`
-  );
-  writeFileSync(outFile, JSON.stringify(report, null, 2));
-
-  writeOut('\n=== Loadtest results ===\n');
-  for (const r of report.results) {
-    writeOut(
-      `${r.scenario.padEnd(18)} tier=${String(r.tier).padEnd(4)} rps=${String(r.rps).padEnd(7)} p50=${String(r.p50Ms).padEnd(8)} p95=${String(r.p95Ms).padEnd(8)} p99=${String(r.p99Ms).padEnd(8)} err=${r.errors} non2xx=${r.non2xx}\n`
-    );
-  }
-  for (const t of report.s6?.tiers ?? []) {
-    writeOut(
-      `S6-handler         tier=${String(t.tier).padEnd(4)} rps=${String(t.rps).padEnd(7)} p50=${String(t.p50Ms).padEnd(8)} p95=${String(t.p95Ms).padEnd(8)} p99=${String(t.p99Ms).padEnd(8)} ok=${t.successRate}%\n`
-    );
-  }
-  writeOut(`\nJSON report: ${outFile}\n`);
+  await writeReport(report);
 }
 
 main().catch((err: unknown) => {
