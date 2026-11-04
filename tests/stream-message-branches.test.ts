@@ -219,6 +219,32 @@ describe('StreamMessageService branch coverage', () => {
       expect(mockRunInterviewGraph).toHaveBeenCalledTimes(1);
     });
 
+    /**
+     * A message with NO messageId must still be processed.
+     *
+     * Returns false for "no id" is the guard; treating a missing id as "already
+     * seen" passed the whole suite, because every other case here uses the
+     * `envelope` helper, whose messageId defaults to a real value. In production an
+     * empty messageId would then silently drop every such message -- the user
+     * answers and the bot never responds.
+     */
+    it('processes a message that carries no messageId at all', async () => {
+      const first = await service.processStreamMessage(
+        envelope({ senderStaffId: 'u1', text: { content: 'hi' } }, ''),
+        0
+      );
+      expect(first.success).toBe(true);
+      expect(mockRunInterviewGraph).toHaveBeenCalledTimes(1);
+
+      // A second id-less message is a genuinely new turn, not a duplicate.
+      const second = await service.processStreamMessage(
+        envelope({ senderStaffId: 'u1', text: { content: 'again' } }, ''),
+        0
+      );
+      expect(second.success).toBe(true);
+      expect(mockRunInterviewGraph).toHaveBeenCalledTimes(2);
+    });
+
     it('lets distinct messageIds through', async () => {
       await service.processStreamMessage(
         envelope({ senderStaffId: 'u1', text: { content: 'a' } }, 'dup-a'),
