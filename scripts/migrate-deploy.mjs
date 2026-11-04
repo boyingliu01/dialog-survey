@@ -33,24 +33,42 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import pg from 'pg';
 
+const USAGE = 'Usage: node scripts/migrate-deploy.mjs [--dir <projectDir>] [--dry-run]\n';
+
+/** Read the value following `--dir`, rejecting a missing one. */
+function readDirValue(argv, index) {
+  const value = argv[index + 1];
+  if (!value) throw new Error('--dir requires a value');
+  return value;
+}
+
+/**
+ * Handle a flag that takes no value; return false when `arg` is something else.
+ *
+ * `--help` exits the process, so this cannot be a pure predicate: printing the
+ * usage line IS the flag's effect.
+ */
+function applySimpleFlag(arg, flags) {
+  if (arg === '--dry-run') {
+    flags.dryRun = true;
+    return true;
+  }
+  if (arg !== '-h' && arg !== '--help') return false;
+  process.stdout.write(USAGE);
+  process.exit(0);
+}
+
 /** Resolve the project root and migration directory from argv. */
 function parseArgs(argv) {
   const flags = { dir: process.cwd(), dryRun: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--dry-run') flags.dryRun = true;
-    else if (arg === '--dir') {
-      flags.dir = argv[i + 1];
+    if (arg === '--dir') {
+      flags.dir = readDirValue(argv, i);
       i += 1;
-      if (!flags.dir) throw new Error('--dir requires a value');
-    } else if (arg === '-h' || arg === '--help') {
-      process.stdout.write(
-        'Usage: node scripts/migrate-deploy.mjs [--dir <projectDir>] [--dry-run]\n'
-      );
-      process.exit(0);
-    } else {
-      throw new Error(`unknown argument: ${arg}`);
+      continue;
     }
+    if (!applySimpleFlag(arg, flags)) throw new Error(`unknown argument: ${arg}`);
   }
   return flags;
 }
@@ -167,6 +185,40 @@ function assertChecksums(applied, migrations) {
   }
 }
 
+/** The outline of what would run, without creating the history table. */
+async function reportPlan(client, migrations) {
+  const { rows } = await client.query(
+    `SELECT to_regclass('_prisma_migrations') IS NOT NULL AS present`
+  );
+  const applied = rows[0]?.present ? await loadApplied(client) : new Map();
+  assertChecksums(applied, migrations);
+  const pending = migrations.filter((m) => !applied.has(m.name));
+  const pendingNames = pending.length ? `: ${pending.map((m) => m.name).join(', ')}` : '';
+  process.stdout.write(
+    `[migrate] ${applied.size} applied, ${pending.length} pending${pendingNames}\n`
+  );
+}
+
+/** Apply every unapplied migration in order. */
+async function applyPending(client, migrations) {
+  await ensureMigrationsTable(client);
+  const applied = await loadApplied(client);
+  assertChecksums(applied, migrations);
+
+  const pending = migrations.filter((m) => !applied.has(m.name));
+  if (pending.length === 0) {
+    process.stdout.write(`[migrate] up to date (${applied.size} migration(s))\n`);
+    return;
+  }
+
+  for (const migration of pending) {
+    process.stdout.write(`[migrate] applying ${migration.name} ... `);
+    await applyMigration(client, migration);
+    process.stdout.write('ok\n');
+  }
+  process.stdout.write(`[migrate] applied ${pending.length} migration(s)\n`);
+}
+
 async function main() {
   const flags = parseArgs(process.argv.slice(2));
   const databaseUrl = process.env['DATABASE_URL'];
@@ -181,37 +233,9 @@ async function main() {
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
   try {
-    if (flags.dryRun) {
-      // Read-only: report the plan without creating the history table.
-      const { rows } = await client.query(
-        `SELECT to_regclass('_prisma_migrations') IS NOT NULL AS present`
-      );
-      const applied = rows[0]?.present ? await loadApplied(client) : new Map();
-      assertChecksums(applied, migrations);
-      const pending = migrations.filter((m) => !applied.has(m.name));
-      const pendingNames = pending.length ? `: ${pending.map((m) => m.name).join(', ')}` : '';
-      process.stdout.write(
-        `[migrate] ${applied.size} applied, ${pending.length} pending${pendingNames}\n`
-      );
-      return;
-    }
-
-    await ensureMigrationsTable(client);
-    const applied = await loadApplied(client);
-    assertChecksums(applied, migrations);
-
-    const pending = migrations.filter((m) => !applied.has(m.name));
-    if (pending.length === 0) {
-      process.stdout.write(`[migrate] up to date (${applied.size} migration(s))\n`);
-      return;
-    }
-
-    for (const migration of pending) {
-      process.stdout.write(`[migrate] applying ${migration.name} ... `);
-      await applyMigration(client, migration);
-      process.stdout.write('ok\n');
-    }
-    process.stdout.write(`[migrate] applied ${pending.length} migration(s)\n`);
+    // Dry run is READ-ONLY on purpose: it must not create the history table,
+    // otherwise merely previewing a deploy would mutate the target database.
+    await (flags.dryRun ? reportPlan(client, migrations) : applyPending(client, migrations));
   } finally {
     await client.end();
   }

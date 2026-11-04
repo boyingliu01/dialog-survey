@@ -88,6 +88,69 @@ interface SeedData {
   planId: string;
 }
 
+/**
+ * The id of the row matching `find`, creating it with `create` when absent.
+ *
+ * The loadtest harness may be booted repeatedly against the same database, so
+ * every seeded row is "find it or make it" rather than an insert. Doing that
+ * inline for each entity made `seedLoadtestData` read as one long list of near
+ * identical `??` expressions with the interesting parts (what a template and a
+ * plan each need) buried between them.
+ */
+async function findOrCreateId(
+  find: () => Promise<{ id: string } | null>,
+  create: () => Promise<{ id: string }>
+): Promise<string> {
+  const existing = await find();
+  if (existing) return existing.id;
+  return (await create()).id;
+}
+
+/** Six seeded messages (3 exchanges) so the plan-detail read has real payload. */
+async function seedInterviewMessages(prisma: PrismaClient, interviewId: string): Promise<void> {
+  for (let m = 0; m < 3; m++) {
+    await prisma.message.create({
+      data: { interviewId, role: 'user', content: `回答 ${m}: 工作经历描述。` },
+    });
+    await prisma.message.create({
+      data: { interviewId, role: 'assistant', content: `追问 ${m}: 能展开说说吗？` },
+    });
+  }
+}
+
+/**
+ * 20 completed interviews with 6 messages each -- realistic payload for the
+ * S4 plan-detail read.
+ *
+ * Only seeded once per database: the rows are stable COMPLETED interviews, so
+ * re-seeding would duplicate identical load and change what the benchmark
+ * measures between runs.
+ */
+async function seedInterviews(
+  prisma: PrismaClient,
+  planId: string,
+  templateId: string
+): Promise<void> {
+  const existing = await prisma.interview.count({ where: { planId } });
+  if (existing > 0) return;
+  for (let i = 0; i < 20; i++) {
+    const interview = await prisma.interview.create({
+      data: {
+        userId: `loadtest-user-${String(i).padStart(3, '0')}`,
+        templateId,
+        planId,
+        status: 'COMPLETED',
+        currentQuestion: 4,
+        maxFollowups: 5,
+        version: 1,
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+    await seedInterviewMessages(prisma, interview.id);
+  }
+}
+
 async function seedLoadtestData(prisma: PrismaClient): Promise<SeedData> {
   const apiKeyValue = 'loadtest-api-key';
   const { hashApiKey } = await import('../../src/utils/security.js');
@@ -100,13 +163,10 @@ async function seedLoadtestData(prisma: PrismaClient): Promise<SeedData> {
 
   // Template content reuses the production default (single source of truth).
   const { DEFAULT_TEMPLATE_CONTENT } = await import('../../src/core/types/index.js');
-  const template = await prisma.template.findFirst({
-    where: { name: 'loadtest-template' },
-  });
-  const templateId =
-    template?.id ??
-    (
-      await prisma.template.create({
+  const templateId = await findOrCreateId(
+    () => prisma.template.findFirst({ where: { name: 'loadtest-template' } }),
+    () =>
+      prisma.template.create({
         data: {
           name: 'loadtest-template',
           description: 'Seeded by the loadtest harness (REQ-180)',
@@ -114,13 +174,12 @@ async function seedLoadtestData(prisma: PrismaClient): Promise<SeedData> {
           status: 'PUBLISHED',
         },
       })
-    ).id;
+  );
 
-  const plan = await prisma.interviewPlan.findFirst({ where: { name: 'loadtest-plan' } });
-  const planId =
-    plan?.id ??
-    (
-      await prisma.interviewPlan.create({
+  const planId = await findOrCreateId(
+    () => prisma.interviewPlan.findFirst({ where: { name: 'loadtest-plan' } }),
+    () =>
+      prisma.interviewPlan.create({
         data: {
           name: 'loadtest-plan',
           description: 'Seeded plan for S4 plan-read load',
@@ -128,41 +187,9 @@ async function seedLoadtestData(prisma: PrismaClient): Promise<SeedData> {
           status: 'RUNNING',
         },
       })
-    ).id;
+  );
 
-  // 20 completed interviews with 6 messages each — realistic payload for the
-  // S4 plan-detail read. Only seeded once per database (interviews are stable
-  // COMPLETED rows; re-seeding would just duplicate identical load).
-  const existingInterviews = await prisma.interview.count({ where: { planId } });
-  if (existingInterviews === 0) {
-    for (let i = 0; i < 20; i++) {
-      const interview = await prisma.interview.create({
-        data: {
-          userId: `loadtest-user-${String(i).padStart(3, '0')}`,
-          templateId,
-          planId,
-          status: 'COMPLETED',
-          currentQuestion: 4,
-          maxFollowups: 5,
-          version: 1,
-          startedAt: new Date(),
-          completedAt: new Date(),
-        },
-      });
-      for (let m = 0; m < 3; m++) {
-        await prisma.message.create({
-          data: { interviewId: interview.id, role: 'user', content: `回答 ${m}: 工作经历描述。` },
-        });
-        await prisma.message.create({
-          data: {
-            interviewId: interview.id,
-            role: 'assistant',
-            content: `追问 ${m}: 能展开说说吗？`,
-          },
-        });
-      }
-    }
-  }
+  await seedInterviews(prisma, planId, templateId);
 
   return { apiKey: apiKeyValue, templateId, planId };
 }

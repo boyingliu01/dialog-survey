@@ -51,29 +51,42 @@ function fail(message) {
   process.exit(1);
 }
 
-function main() {
-  const version = process.argv[2];
-
+/** The validated version argument, or a failure exit. */
+function requireVersionArg(argv) {
+  const version = argv[2];
   if (version === undefined || version === '') {
     fail('missing version argument (usage: node scripts/write-version.cjs <semver>)');
   }
   if (!VERSION_PATTERN.test(version)) {
     fail(`refusing non-semver version: '${version}'`);
   }
+  return version;
+}
 
-  // Write atomically: write a sibling temp file, fsync it, then rename over the
-  // target. `rename` is atomic within a filesystem, so a reader (or a crash) never
-  // observes a truncated or empty VERSION. A plain writeFileSync truncates first,
-  // and a crash between the truncate and the write would leave VERSION empty - which
-  // the release post-check reads as a version mismatch and the CI job reads as a
-  // hard failure, in both cases for a file that was never actually corrupted by
-  // anyone's edit.
-  const target = path.join(root, 'VERSION');
+/** Remove the scratch file, ignoring a failure: it may already be renamed away. */
+function removeQuietly(file) {
+  try {
+    fs.unlinkSync(file);
+  } catch {
+    // best effort
+  }
+}
+
+/**
+ * Write `content` to `target` via fsync + rename so no reader sees a partial file.
+ *
+ * `rename` is atomic within a filesystem, so a reader (or a crash) never observes a
+ * truncated or empty VERSION. A plain writeFileSync truncates first, and a crash
+ * between the truncate and the write would leave VERSION empty - which the release
+ * post-check reads as a version mismatch and the CI job reads as a hard failure, in
+ * both cases for a file nobody actually edited.
+ */
+function writeAtomically(target, content) {
   const temp = path.join(root, `.VERSION.tmp-${process.pid}`);
   try {
     const fd = fs.openSync(temp, 'w');
     try {
-      fs.writeFileSync(fd, `${version}\n`);
+      fs.writeFileSync(fd, content);
       fs.fsyncSync(fd);
     } finally {
       fs.closeSync(fd);
@@ -81,13 +94,14 @@ function main() {
     fs.renameSync(temp, target);
   } catch (error) {
     // Never leave the scratch file behind for a later glob or commit to pick up.
-    try {
-      fs.unlinkSync(temp);
-    } catch {
-      // best effort
-    }
+    removeQuietly(temp);
     fail(`could not write VERSION atomically: ${error.message}`);
   }
+}
+
+function main() {
+  const version = requireVersionArg(process.argv);
+  writeAtomically(path.join(root, 'VERSION'), `${version}\n`);
   process.stdout.write(`write-version: VERSION set to ${version}\n`);
 }
 

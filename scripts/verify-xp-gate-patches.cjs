@@ -156,11 +156,16 @@ if (restoredCount > 0) {
  * bash. On a plain Linux/macOS bash the driver is already POSIX and comes back
  * unchanged, and `wslpath` is absent — both cases are handled by the fallback.
  */
+/** Ask `wslpath` for the POSIX spelling of a Windows path; undefined if it cannot. */
+function wslPosixPath(winPath) {
+  const result = spawnSync('wsl', ['-e', 'wslpath', '-u', winPath], { encoding: 'utf-8' });
+  if (result.error || result.status !== 0) return undefined;
+  return (result.stdout || '').trim() || undefined;
+}
+
 function toPosixPath(winPath) {
   if (process.platform !== 'win32') return winPath;
-  const result = spawnSync('wsl', ['-e', 'wslpath', '-u', winPath], { encoding: 'utf-8' });
-  if (result.error || result.status !== 0) return winPath;
-  return (result.stdout || '').trim() || winPath;
+  return wslPosixPath(winPath) ?? winPath;
 }
 
 /**
@@ -182,35 +187,52 @@ function bashBinary() {
   return null;
 }
 
+/**
+ * Report the first few stderr lines from a failed `bash -n`.
+ *
+ * Capped because bash repeats the whole offending line plus a caret marker, and
+ * a wrapped hook line would otherwise flood the report with what looks like
+ * unrelated output.
+ */
+function reportSyntaxDetail(detail) {
+  for (const line of (detail || '').trim().split('\n').slice(0, 3)) say(`         ${line}`);
+}
+
+/**
+ * Check one hook; returns 1 when it is broken, 0 when it parses or is absent.
+ *
+ * "Not found" counts as neither: xp-gate may simply not be installed on this
+ * machine, and calling that a syntax failure would make `npm run smoke` fail on
+ * every checkout that has no gates.
+ */
+function checkOneHook(hook, path, bash) {
+  if (readOrNull(path) === null) {
+    say(`SYNTAX?? ${hook} not found — is xp-gate installed?`);
+    return 0;
+  }
+  const result = spawnSync(bash[0], [...bash[1], '-n', toPosixPath(path)], {
+    encoding: 'utf-8',
+  });
+  if (result.status === 0) {
+    say(`OK       ${hook} parses`);
+    return 0;
+  }
+  say(`SYNTAX   ${hook} has a syntax error — every gate after the failure point will NOT run`);
+  reportSyntaxDetail(result.stderr);
+  say(`         inspect with: bash -n "${toPosixPath(path)}"`);
+  return 1;
+}
+
 function checkHookSyntax() {
   const bash = bashBinary();
   if (bash === null) {
     say('SYNTAX?? no bash found — cannot verify that the xp-gate hooks parse');
     return 0;
   }
-  let broken = 0;
-  for (const [hook, path] of [
+  return [
     ['pre-commit', PRE_COMMIT],
     ['pre-push', HOOK],
-  ]) {
-    if (readOrNull(path) === null) {
-      say(`SYNTAX?? ${hook} not found — is xp-gate installed?`);
-      continue;
-    }
-    const result = spawnSync(bash[0], [...bash[1], '-n', toPosixPath(path)], {
-      encoding: 'utf-8',
-    });
-    if (result.status === 0) {
-      say(`OK       ${hook} parses`);
-      continue;
-    }
-    broken += 1;
-    say(`SYNTAX   ${hook} has a syntax error — every gate after the failure point will NOT run`);
-    const detail = (result.stderr || '').trim().split('\n').slice(0, 3);
-    for (const line of detail) say(`         ${line}`);
-    say(`         inspect with: bash -n "${toPosixPath(path)}"`);
-  }
-  return broken;
+  ].reduce((broken, [hook, path]) => broken + checkOneHook(hook, path, bash), 0);
 }
 
 say('');
