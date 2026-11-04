@@ -46,26 +46,76 @@ export async function withRetry<T>(
   options: Partial<RetryOptions> = {}
 ): Promise<T> {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  let lastError: Error | undefined;
+  const outcome = await runAttempts(fn, opts);
+  if (outcome.value !== undefined || outcome.error === undefined) {
+    return outcome.value as T;
+  }
+  throw outcome.error;
+}
+
+/** How a retry loop ended: either a value, or the last error it collected. */
+interface AttemptOutcome<T> {
+  value?: T;
+  error?: Error;
+}
+
+/**
+ * Run `fn` until it succeeds or must stop.
+ *
+ * The loop only advances the backoff; the decision to stop is `isFinished`'s, so
+ * the two policies live apart. `error` is always set when `value` is not, which
+ * is what lets the caller tell "returned undefined" from "never succeeded".
+ */
+async function runAttempts<T>(
+  fn: () => Promise<T>,
+  opts: RetryOptions
+): Promise<AttemptOutcome<T>> {
+  let error: Error | undefined;
   let delay = opts.initialDelayMs;
 
   for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
     try {
-      return await fn();
+      return { value: await fn() };
     } catch (e) {
-      lastError = e instanceof Error ? e : new Error(String(e));
-
-      if (attempt >= opts.maxRetries) continue;
-      // A non-retryable status code (e.g. 400) fails fast rather than burning
-      // the remaining attempts on a request that cannot succeed.
-      if (!isRetryable(e, opts.retryableStatuses)) throw e;
-
+      error = asError(e);
+      // Stop retrying when the budget is spent or the error says it can never
+      // succeed -- a 400 does not become a 200 on the next attempt, so retrying
+      // it only delays the failure and spends the delay budget.
+      if (isFinished(attempt, opts.maxRetries, e, opts.retryableStatuses)) break;
       await sleep(delay);
-      delay = Math.min(delay * opts.backoffMultiplier, opts.maxDelayMs);
+      delay = nextDelay(delay, opts);
     }
   }
 
-  throw lastError || new Error('Retry failed');
+  return { error: error ?? new Error('Retry failed') };
+}
+
+/** Coerce a thrown value into an Error, so callers never handle a bare `unknown`. */
+function asError(e: unknown): Error {
+  return e instanceof Error ? e : new Error(String(e));
+}
+
+/** The next backoff delay, capped so a long run cannot stall for minutes. */
+function nextDelay(delay: number, opts: RetryOptions): number {
+  return Math.min(delay * opts.backoffMultiplier, opts.maxDelayMs);
+}
+
+/**
+ * Whether this attempt ends the loop.
+ *
+ * Two independent reasons, both meaning "do not sleep and try again": the retry
+ * budget is exhausted, or the error is one that cannot be retried at all. The
+ * distinction matters only to the caller, which receives `lastError` in both
+ * cases.
+ */
+function isFinished(
+  attempt: number,
+  maxRetries: number,
+  error: unknown,
+  retryableStatuses: number[] | undefined
+): boolean {
+  if (attempt >= maxRetries) return true;
+  return !isRetryable(error, retryableStatuses);
 }
 
 function sleep(ms: number): Promise<void> {

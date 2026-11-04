@@ -125,41 +125,70 @@ function matchesAdminKey(request: FastifyRequest): boolean {
 
 export function createVerifyApiKey(prisma: PrismaClient) {
   return async function verifyApiKey(request: FastifyRequest, reply: FastifyReply) {
-    // Only exempt public health endpoint from API key auth
-    if (isPublicHealthRequest(request)) {
-      return;
-    }
-
-    // Allow admin UI requests authenticated via X-Admin-Key header
+    // Two ways to be let in BEFORE a key is looked up: a public health probe, and
+    // an admin UI request already authenticated by its own header. Both must run
+    // before the rate limiter, or a healthy deployment's probes would consume the
+    // admin's failed-attempt budget.
+    if (isPublicHealthRequest(request)) return;
     if (matchesAdminKey(request)) {
       request.user = { userId: 'admin', role: 'admin' };
       return;
     }
 
     const apiKey = request.headers['x-api-key'] as string | undefined;
-    if (!apiKey) {
-      return reply.status(401).send({ error: 'API key required' });
-    }
+    const earlyRefusal = apiKeyRefusal(apiKey, request.ip);
+    if (earlyRefusal) return deny(reply, earlyRefusal.status, earlyRefusal.error);
 
-    const ip = request.ip || 'unknown';
-    if (!checkRateLimit(ip)) {
-      return reply.status(429).send({ error: 'Too many failed attempts' });
-    }
-
-    const keyHash = hashApiKey(apiKey);
+    // `apiKey` is non-null once apiKeyRefusal returned undefined; the assertion
+    // restates a fact the guard just established.
     const keyRecord = await prisma.apiKey.findFirst({
-      where: { keyHash, revoked: false },
+      where: { keyHash: hashApiKey(apiKey as string), revoked: false },
     });
+    if (!keyRecord) return deny(reply, 401, 'Invalid API key');
 
-    if (!keyRecord) {
-      return reply.status(401).send({ error: 'Invalid API key' });
-    }
+    grantAccess(request, keyRecord);
+  };
+}
 
-    request.user = {
-      userId: keyRecord.userId || 'unknown',
-      role: keyRecord.role as 'admin' | 'user',
-      apiKeyId: keyRecord.id,
-    };
+/**
+ * The refusal reason for a request that cannot even be looked up, if any.
+ *
+ * Missing key first, then the rate limit: an unauthenticated request must not
+ * consume the budget reserved for a caller that HAS a key and is being throttled.
+ * Returning the reason instead of sending keeps this pure and testable.
+ */
+function apiKeyRefusal(
+  apiKey: string | undefined,
+  ip: string | undefined
+): { status: number; error: string } | undefined {
+  if (!apiKey) return { status: 401, error: 'API key required' };
+  if (!checkRateLimit(ip || 'unknown')) {
+    return { status: 429, error: 'Too many failed attempts' };
+  }
+  return undefined;
+}
+
+/** Refuse the request with a JSON error body. */
+function deny(reply: FastifyReply, status: number, error: string): FastifyReply {
+  return reply.status(status).send({ error });
+}
+
+/**
+ * Attach the identity implied by a matched key.
+ *
+ * `userId` falls back to `'unknown'` rather than refusing: the key row IS
+ * authentic, so a null userId means the row was created oddly, not that the
+ * caller is untrusted. `apiKeyId` is recorded so an audit trail can point at the
+ * exact key that made the call.
+ */
+function grantAccess(
+  request: FastifyRequest,
+  keyRecord: { userId: string | null; role: string; id: string }
+): void {
+  request.user = {
+    userId: keyRecord.userId || 'unknown',
+    role: keyRecord.role as 'admin' | 'user',
+    apiKeyId: keyRecord.id,
   };
 }
 
@@ -174,17 +203,38 @@ export async function logSecurityEvent(
     ipAddress?: string;
   }
 ) {
-  const detailsStr = params.details ? JSON.stringify(params.details) : undefined;
   await prisma.auditLog.create({
     data: {
       action: params.action,
       entityType: params.entityType,
-      ...(params.entityId != null ? { entityId: params.entityId } : {}),
-      ...(params.userId != null ? { userId: params.userId } : {}),
-      ...(detailsStr != null ? { details: detailsStr } : {}),
-      ...(params.ipAddress != null ? { ipAddress: params.ipAddress } : {}),
+      ...optionalAuditFields(params),
     },
   });
+}
+
+/** Audit columns that are only written when the caller supplied them. */
+const OPTIONAL_AUDIT_FIELDS = ['entityId', 'userId', 'ipAddress'] as const;
+
+/**
+ * The optional half of an audit row.
+ *
+ * Omitted rather than sent as `null`: a null would overwrite a column an earlier
+ * entry had set, and these fields are absent far more often than present, so the
+ * entries stay small. `details` is stringified because the column is text.
+ */
+function optionalAuditFields(params: {
+  entityId?: string;
+  userId?: string;
+  ipAddress?: string;
+  details?: Record<string, unknown>;
+}): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+  for (const key of OPTIONAL_AUDIT_FIELDS) {
+    const value = params[key];
+    if (value != null) fields[key] = value;
+  }
+  if (params.details) fields['details'] = JSON.stringify(params.details);
+  return fields;
 }
 
 export function anonymizeData(data: string): string {
@@ -210,29 +260,29 @@ export function generateApiKey(): string {
 
 export async function securityMiddleware(fastify: FastifyInstance, prisma: PrismaClient) {
   fastify.addHook('onRequest', async (request, _reply) => {
-    const path = request.url;
-
-    // Skip logging for health checks and static assets
-    if (path.startsWith('/health') || path.startsWith('/public/')) {
-      return;
-    }
-
-    // Only log mutations (POST/PUT/DELETE) and admin paths
-    // GET/HEAD/OPTIONS requests are not logged to reduce audit log volume
-    const isMutation =
-      request.method === 'POST' || request.method === 'PUT' || request.method === 'DELETE';
-    const isAdmin = path.startsWith('/admin/');
-    if (!isMutation && !isAdmin) {
-      return;
-    }
-
-    const ipAddress = request.ip;
+    if (!shouldAuditRequest(request.method, request.url)) return;
 
     await logSecurityEvent(prisma, {
       action: 'REQUEST',
       entityType: 'api',
-      details: { method: request.method, path },
-      ipAddress,
+      details: { method: request.method, path: request.url },
+      ipAddress: request.ip,
     });
   });
+}
+
+/** Methods whose requests are audited regardless of path. */
+const AUDITED_METHODS = new Set(['POST', 'PUT', 'DELETE']);
+
+/**
+ * Whether this request belongs in the audit log.
+ *
+ * Read requests are SKIPPED everywhere except /admin/, because the audit table is
+ * written on every insert and a page of admin GETs would otherwise bury the
+ * mutations it exists to record. Health probes and static assets are skipped
+ * entirely -- they are neither interesting nor rare.
+ */
+function shouldAuditRequest(method: string, path: string): boolean {
+  if (path.startsWith('/health') || path.startsWith('/public/')) return false;
+  return AUDITED_METHODS.has(method) || path.startsWith('/admin/');
 }
