@@ -178,6 +178,24 @@ describe('adminAuthRoutes', () => {
     expect(response.body).toContain('用户名或密码错误');
   });
 
+  /**
+   * The username must be compared even when the password is CORRECT.
+   *
+   * Every existing failure case submits a wrong password, so it is rejected by
+   * `bcrypt.compare` regardless -- deleting the username check entirely leaves
+   * this whole file green, which was verified by mutation. That gap is a real
+   * authentication hole: any username would then authenticate with the admin's
+   * password.
+   */
+  it('rejects a correct password submitted under the wrong username', async () => {
+    const response = await login(await getCsrfState(), 'not-the-admin', testPassword);
+
+    expect(response.statusCode).toBe(401);
+    expect(response.body).toContain('用户名或密码错误');
+    // No session may be opened for the wrong identity.
+    expect(response.headers.location).toBeUndefined();
+  });
+
   it('does not log the submitted username on a failed login', async () => {
     const warnSpy = vi.spyOn(app.log, 'warn');
     const submittedUsername = 'attacker-probe-username';
