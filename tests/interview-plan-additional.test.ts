@@ -320,4 +320,159 @@ describe('InterviewPlanService - Additional Coverage', () => {
       });
     });
   });
+
+  /**
+   * @test REQ-PLAN-LIST
+   * @intent `listPlans` had no direct test: the admin CSRF suite spies on it and
+   *   the route tests mock the whole service, so its own query construction --
+   *   the `where` filter, the pagination defaults and the row ordering -- was
+   *   never observed. Mutation testing flagged it, and a wrong default here is
+   *   the kind of bug that shows up as "the plan list is always 20 rows" rather
+   *   than as a visible failure.
+   * @covers src/services/interview-plan-base.service.ts#listPlans
+   */
+  describe('listPlans', () => {
+    /** The `findMany`/`count` argument pair from the most recent call. */
+    function lastListArgs(): {
+      findMany: { where: unknown; take: number; skip: number; orderBy: unknown };
+      count: { where: unknown };
+    } {
+      return {
+        findMany: mockPrisma.interviewPlan.findMany.mock.calls.at(-1)?.[0] as {
+          where: unknown;
+          take: number;
+          skip: number;
+          orderBy: unknown;
+        },
+        count: mockPrisma.interviewPlan.count.mock.calls.at(-1)?.[0] as { where: unknown },
+      };
+    }
+
+    beforeEach(() => {
+      mockPrisma.interviewPlan.findMany.mockResolvedValue([]);
+      mockPrisma.interviewPlan.count.mockResolvedValue(0);
+    });
+
+    it('returns the rows and the total from the two queries', async () => {
+      mockPrisma.interviewPlan.findMany.mockResolvedValue([{ id: 'p1' }]);
+      mockPrisma.interviewPlan.count.mockResolvedValue(7);
+
+      const result = await service.listPlans();
+
+      expect(result.plans).toEqual([{ id: 'p1' }]);
+      expect(result.total).toBe(7);
+    });
+
+    it('applies DEFAULT pagination when called with no options', async () => {
+      // take 20 / skip 0 is what the admin list page relies on; both `||`
+      // fallbacks are mutated here.
+      await service.listPlans();
+      const args = lastListArgs();
+      expect(args.findMany.take).toBe(20);
+      expect(args.findMany.skip).toBe(0);
+    });
+
+    it('uses an empty where clause when no status is filtered', async () => {
+      await service.listPlans();
+      const args = lastListArgs();
+      expect(args.findMany.where).toEqual({});
+      expect(args.count.where).toEqual({});
+    });
+
+    it('filters BOTH queries by status when one is given', async () => {
+      // The count must receive the same predicate as the rows, or the total
+      // describes a different set than the page does.
+      await service.listPlans({ status: PlanStatus.COMPLETED });
+      const args = lastListArgs();
+      expect(args.findMany.where).toEqual({ status: PlanStatus.COMPLETED });
+      expect(args.count.where).toEqual({ status: PlanStatus.COMPLETED });
+    });
+
+    it('honours an explicit limit and offset', async () => {
+      await service.listPlans({ limit: 5, offset: 10 });
+      const args = lastListArgs();
+      expect(args.findMany.take).toBe(5);
+      expect(args.findMany.skip).toBe(10);
+    });
+
+    it('falls back to the defaults for a zero limit or offset', async () => {
+      // `||` rather than `??`: 0 is treated as "unset". This pins that choice --
+      // passing 0 cannot be used to request an empty page.
+      await service.listPlans({ limit: 0, offset: 0 });
+      const args = lastListArgs();
+      expect(args.findMany.take).toBe(20);
+      expect(args.findMany.skip).toBe(0);
+    });
+
+    it('orders by createdAt descending', async () => {
+      await service.listPlans();
+      expect(lastListArgs().findMany.orderBy).toEqual({ createdAt: 'desc' });
+    });
+
+    it('selects only the template id and name for the list rows', async () => {
+      // The list page renders plan name + template name. Widening the select is
+      // a payload regression that no assertion on the returned rows catches,
+      // because the Prisma mock returns whatever the fixture says.
+      await service.listPlans();
+      const args = mockPrisma.interviewPlan.findMany.mock.calls.at(-1)?.[0] as {
+        include: unknown;
+      };
+      expect(args.include).toEqual({ template: { select: { id: true, name: true } } });
+    });
+  });
+
+  /**
+   * @test REQ-PLAN-DETAIL-SHAPE
+   * @intent The plan detail queries hand their `include` straight to Prisma, so
+   *   the shape IS the contract with the admin templates. Mutation testing found
+   *   every one of those shapes unasserted: the mocks answer with fixtures and
+   *   never look at the query, so changing which fields are loaded was invisible.
+   * @covers src/services/interview-plan-base.service.ts#findByIdWithTemplate
+   * @covers src/services/interview-plan-base.service.ts#findByIdWithInterviewsAndCounts
+   */
+  describe('detail query shapes', () => {
+    it('findByIdWithTemplate selects the template id and name only', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue(null);
+
+      await service.findByIdWithTemplate('plan-1');
+
+      expect(mockPrisma.interviewPlan.findUnique).toHaveBeenCalledWith({
+        where: { id: 'plan-1' },
+        include: { template: { select: { id: true, name: true } } },
+      });
+    });
+
+    it('findByIdWithInterviewsAndCounts loads interviews ordered by status', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue(null);
+
+      await service.findByIdWithInterviewsAndCounts('plan-1');
+
+      const args = mockPrisma.interviewPlan.findUnique.mock.calls.at(-1)?.[0] as {
+        include: { interviews: { orderBy: unknown; select: Record<string, true> } };
+      };
+      expect(args.include.interviews.orderBy).toEqual({ status: 'asc' });
+    });
+
+    it('findByIdWithInterviewsAndCounts selects every field the detail page renders', async () => {
+      mockPrisma.interviewPlan.findUnique.mockResolvedValue(null);
+
+      await service.findByIdWithInterviewsAndCounts('plan-1');
+
+      const args = mockPrisma.interviewPlan.findUnique.mock.calls.at(-1)?.[0] as {
+        include: { interviews: { select: Record<string, true> } };
+      };
+      // Each of these is read by the template; dropping one leaves the column
+      // blank rather than failing, which is why it needs pinning.
+      expect(args.include.interviews.select).toEqual({
+        id: true,
+        userId: true,
+        status: true,
+        createdAt: true,
+        completedAt: true,
+        sendStatus: true,
+        sentAt: true,
+        sendError: true,
+      });
+    });
+  });
 });
