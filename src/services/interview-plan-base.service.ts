@@ -18,6 +18,43 @@ export interface InviteeData {
   customFields?: Record<string, unknown>;
 }
 
+/** The editable fields of a plan, as the update endpoint accepts them. */
+interface PlanUpdateInput {
+  name?: string;
+  description?: string;
+  targetDate?: string;
+  schedule?: string;
+}
+
+/**
+ * The Prisma update payload for a plan edit.
+ *
+ * Only the keys the caller actually sent are included -- `undefined` means "leave
+ * this alone", not "clear it", so an edit form that submits one field cannot blank
+ * the rest. Clearing is expressed by sending an empty value, which is why
+ * `targetDate` maps `''` to null instead of being dropped.
+ */
+function planUpdateData(input: PlanUpdateInput): Record<string, unknown> {
+  const data: Record<string, unknown> = { updatedBy: 'admin' };
+  if (input.name !== undefined) data['name'] = input.name;
+  if (input.description !== undefined) data['description'] = input.description;
+  if (input.targetDate !== undefined) data['targetDate'] = parseTargetDate(input.targetDate);
+  if (input.schedule !== undefined) data['schedule'] = input.schedule;
+  return data;
+}
+
+/**
+ * A target date as a Date, or null to clear it.
+ *
+ * `''` means the admin emptied the field, and null is how a nullable column is
+ * cleared. A non-empty but unparseable value still produces an Invalid Date here;
+ * validation happens at the route, so this stays a straight conversion rather than
+ * silently substituting today.
+ */
+function parseTargetDate(value: string): Date | null {
+  return value ? new Date(value) : null;
+}
+
 export class InterviewPlanServiceBase {
   protected prisma: PrismaClient;
 
@@ -86,21 +123,8 @@ export class InterviewPlanServiceBase {
     return { plans, total };
   }
 
-  async updatePlan(
-    planId: string,
-    input: {
-      name?: string;
-      description?: string;
-      targetDate?: string;
-      schedule?: string;
-    }
-  ): Promise<void> {
-    const updateData: Record<string, unknown> = { updatedBy: 'admin' };
-    if (input.name !== undefined) updateData['name'] = input.name;
-    if (input.description !== undefined) updateData['description'] = input.description;
-    if (input.targetDate !== undefined)
-      updateData['targetDate'] = input.targetDate ? new Date(input.targetDate) : null;
-    if (input.schedule !== undefined) updateData['schedule'] = input.schedule;
+  async updatePlan(planId: string, input: PlanUpdateInput): Promise<void> {
+    const updateData = planUpdateData(input);
 
     await this.prisma.interviewPlan.update({
       where: { id: planId },

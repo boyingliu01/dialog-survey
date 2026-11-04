@@ -38,6 +38,25 @@ export type PlanCompletionOutcome = 'completed' | 'running' | 'ignored';
  * `completedCount` column was removed (bffaf4a) precisely because two sources
  * of truth drifted apart.
  */
+/** Interview tallies for one plan, used to decide whether it is finished. */
+interface PlanInterviewCounts {
+  total: number;
+  stillRunning: number;
+  completed: number;
+}
+
+/**
+ * Whether the plan has actually finished.
+ *
+ * Both halves matter: zero still-running is not enough on its own, because a plan
+ * whose interviews were all cancelled has finished NOTHING -- completing it would
+ * report a successful survey that never happened. At least one COMPLETED interview
+ * is what makes the plan's own completion meaningful.
+ */
+function isFinishing(counts: PlanInterviewCounts): boolean {
+  return counts.stillRunning === 0 && counts.completed > 0;
+}
+
 export class PlanCompletionService {
   constructor(private prisma: PrismaClient) {}
 
@@ -65,19 +84,42 @@ export class PlanCompletionService {
     const planId = await this.findPlanId(interviewId);
     if (!planId) return 'ignored';
 
+    const refusal = await this.planStateRefusal(interviewId, planId);
+    if (refusal) return refusal;
+
+    const counts = await this.countPlanInterviews(planId);
+    // Guarded update, not a plain write: a concurrent turn may have changed the
+    // plan (cancel/pause) between the read above and this write. Matching on
+    // status makes the transition atomic -- a stale RUNNING read cannot clobber a
+    // CANCELLED plan.
+    if (!isFinishing(counts)) {
+      info('Plan still running', { interviewId, planId, ...counts });
+      return 'running';
+    }
+    return this.markCompleted(interviewId, planId, counts.total, counts.completed);
+  }
+
+  /** 'ignored' when the plan is missing or not in a completable state, else null. */
+  private async planStateRefusal(
+    interviewId: string,
+    planId: string
+  ): Promise<PlanCompletionOutcome | null> {
     const plan = await this.prisma.interviewPlan.findUnique({
       where: { id: planId },
       select: { status: true },
     });
-    if (!plan || plan.status !== COMPLETABLE_PLAN_STATUS) {
-      info('Plan completion skipped', {
-        interviewId,
-        planId,
-        planStatus: plan?.status ?? 'MISSING',
-      });
-      return 'ignored';
-    }
+    if (plan?.status === COMPLETABLE_PLAN_STATUS) return null;
 
+    info('Plan completion skipped', {
+      interviewId,
+      planId,
+      planStatus: plan?.status ?? 'MISSING',
+    });
+    return 'ignored';
+  }
+
+  /** How many interviews the plan has, and how far along they are. */
+  private async countPlanInterviews(planId: string): Promise<PlanInterviewCounts> {
     const [total, stillRunning, completed] = await Promise.all([
       this.prisma.interview.count({ where: { planId } }),
       this.prisma.interview.count({
@@ -85,23 +127,7 @@ export class PlanCompletionService {
       }),
       this.prisma.interview.count({ where: { planId, status: 'COMPLETED' } }),
     ]);
-
-    // Guarded update, not a plain write: a concurrent turn may have changed the
-    // plan (cancel/pause) between the read above and this write. Matching on
-    // status makes the transition atomic — a stale RUNNING read cannot clobber
-    // a CANCELLED plan.
-    if (stillRunning === 0 && completed > 0) {
-      return this.markCompleted(interviewId, planId, total, completed);
-    }
-
-    info('Plan still running', {
-      interviewId,
-      planId,
-      total,
-      stillRunning,
-      completed,
-    });
-    return 'running';
+    return { total, stillRunning, completed };
   }
 
   private async findPlanId(interviewId: string): Promise<string | null> {

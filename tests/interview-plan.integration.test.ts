@@ -263,6 +263,41 @@ describe('InterviewPlan API (Integration)', () => {
       });
       expect(updated?.name).toBe('更新后名称');
     });
+
+    /**
+     * An omitted field means "leave it alone", not "clear it".
+     *
+     * A form that submits one changed field must not blank the rest, and the
+     * payload builder distinguishes `undefined` (drop the key) from `''` (clear
+     * it) on exactly that basis. Mapping an omitted description to null passed
+     * every other test here, because none of them edits a plan that HAS a
+     * description.
+     */
+    it('should preserve fields the request did not mention', async () => {
+      const plan = await ctx.prisma.interviewPlan.create({
+        data: {
+          name: '原始名称',
+          description: '原始描述',
+          templateId,
+          status: 'PENDING',
+          createdBy: 'admin',
+          updatedBy: 'admin',
+        },
+      });
+      createdIds.interviewPlans.push(plan.id);
+
+      const response = await ctx.app.inject({
+        method: 'PUT',
+        url: `/api/plans/${plan.id}`,
+        headers: { 'x-api-key': TEST_API_KEY },
+        payload: { name: '新名称', templateId },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const updated = await ctx.prisma.interviewPlan.findUnique({ where: { id: plan.id } });
+      expect(updated?.name).toBe('新名称');
+      expect(updated?.description).toBe('原始描述');
+    });
   });
 
   describe('POST /api/plans/:id/pause and resume', () => {
