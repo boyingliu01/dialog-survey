@@ -301,6 +301,155 @@ async function registerApiRoutes(
   });
 }
 
+/**
+ * Accept XML and CSV bodies as opaque strings.
+ *
+ * The parser discards the body on purpose: these content types are only ever
+ * ANNOUNCED by integrations that also send the payload elsewhere (a callback probe,
+ * an upload's metadata), and Fastify refuses an unknown content type outright.
+ * Accepting them costs nothing and keeps those callers from 415ing.
+ */
+function registerBodyParsers(fastify: FastifyInstance): void {
+  fastify.addContentTypeParser(
+    ['application/xml', 'text/xml', 'text/csv'],
+    { parseAs: 'string' },
+    (_req, _body, done) => {
+      done(null, '');
+    }
+  );
+}
+
+/** Static files, CORS, form/multipart parsing and the Nunjucks view engine. */
+async function registerViewPlugins(fastify: FastifyInstance): Promise<void> {
+  const { viewsDir, staticRoot } = resolveAssetRoots(__dirname);
+  await fastify.register(fastifyStatic, { root: staticRoot, prefix: '/' });
+  await fastify.register(cors, { origin: true });
+  await fastify.register(fastifyFormbody);
+  await fastify.register(fastifyMultipart, {
+    limits: { fileSize: 1 * 1024 * 1024, parts: 1 },
+  });
+
+  await fastify.register(fastifyView, {
+    engine: { nunjucks: createNunjucksEngine() as unknown as typeof nunjucks },
+    templates: viewsDir,
+    options: { autoescape: true, noCache: true },
+  });
+}
+
+/** Wire every service the API routes need onto one Prisma client. */
+function buildRouteDeps(prisma: PrismaClient): ApiRouteDeps {
+  return {
+    templateRepo: new TemplateRepository(prisma),
+    interviewRepo: new InterviewRepository(prisma),
+    interviewPlanRepo: new InterviewPlanRepository(prisma),
+    interviewPlanService: new InterviewPlanService(
+      prisma,
+      undefined,
+      createDingTalkStreamClientOrWarn(),
+      tokenManager
+    ),
+    analysisService: new AnalysisService(prisma),
+    analyticsService: new AnalyticsService(prisma),
+    exportService: new ExportService(prisma),
+    databaseHealth: new DatabaseHealthRepository(prisma),
+    templateDimensionService: new TemplateDimensionService(prisma),
+  };
+}
+
+/**
+ * Security middleware, the encrypted session, CSRF and security headers.
+ *
+ * The CSRF secret must live in the encrypted session rather than a JS-readable
+ * cookie: the plugin's default puts it in a cookie any script on the page can read,
+ * which defeats the point of a CSRF token.
+ */
+async function registerSecurityPlugins(
+  fastify: FastifyInstance,
+  prisma: PrismaClient
+): Promise<void> {
+  await securityMiddleware(fastify, prisma);
+
+  const { secret: sessionSecret, salt: sessionSalt } = assertSessionEnv();
+  await fastify.register(secureSession, {
+    secret: sessionSecret,
+    salt: Buffer.from(sessionSalt, 'hex'),
+    cookie: {
+      path: '/',
+      httpOnly: true,
+      secure: NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: Number(process.env['SESSION_MAX_AGE']) || DEFAULT_SESSION_MAX_AGE,
+    },
+  });
+
+  await fastify.register(csrfProtection, {
+    sessionPlugin: '@fastify/secure-session',
+  });
+  addSecurityHeadersHook(fastify);
+}
+
+/**
+ * HTTP metrics hooks plus the /metrics endpoint (issue #178).
+ *
+ * Registered at the ROOT context so every child context inherits them on ready();
+ * the placement here is for readability, not for hook scoping.
+ */
+async function registerObservability(fastify: FastifyInstance): Promise<void> {
+  await fastify.register(metricsRoutes);
+  fastify.addHook('onRequest', metricsOnRequest);
+  fastify.addHook('onResponse', metricsOnResponse);
+}
+
+/**
+ * Admin auth routes and the global rate limit.
+ *
+ * Rate limiting is skipped under NODE_ENV=test because `fastify.inject()` bypasses
+ * the hook entirely, so it would only add cost to every test without exercising
+ * anything.
+ */
+async function registerAdminAndRateLimit(fastify: FastifyInstance): Promise<void> {
+  await fastify.register(adminAuthRoutes);
+  if (NODE_ENV === 'test') return;
+
+  await fastify.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
+    errorResponseBuilder: (_request, context) => ({
+      statusCode: 429,
+      error: 'Too Many Requests',
+      message: `Rate limit exceeded, retry in ${Math.ceil(context.ttl / 1000)} seconds`,
+    }),
+  });
+}
+
+/**
+ * Schedule the daily 2:00 AM audit-log cleanup.
+ *
+ * Every run is tracked in `activeTasks` for its whole duration -- including while it
+ * is being awaited -- so shutdown can wait for a cleanup that is mid-flight instead
+ * of disconnecting Prisma underneath it.
+ */
+function scheduleAuditCleanup(
+  auditCleanup: AuditCleanupService,
+  activeTasks: Set<Promise<unknown>>
+): ReturnType<typeof cron.schedule> {
+  const task = cron.schedule('0 2 * * *', async () => {
+    const cleanupRun = auditCleanup.cleanupOldLogs(90).catch((err: unknown) => {
+      error('Audit cleanup cron job failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+    activeTasks.add(cleanupRun);
+    try {
+      await cleanupRun;
+    } finally {
+      activeTasks.delete(cleanupRun);
+    }
+  });
+  info('Audit cleanup cron scheduled (daily at 2:00 AM)');
+  return task;
+}
+
 export async function buildApp(options: BuildAppOptions = {}) {
   const fastify = (options.fastifyFactory ?? createFastify)({
     logger: createLoggerConfig(NODE_ENV === 'production'),
@@ -322,110 +471,19 @@ export async function buildApp(options: BuildAppOptions = {}) {
   fastify.addHook('onClose', cleanup);
 
   try {
-    fastify.addContentTypeParser(
-      ['application/xml', 'text/xml', 'text/csv'],
-      { parseAs: 'string' },
-      (_req, _body, done) => {
-        done(null, '');
-      }
-    );
-
-    const { viewsDir, staticRoot } = resolveAssetRoots(__dirname);
-    await fastify.register(fastifyStatic, { root: staticRoot, prefix: '/' });
-    await fastify.register(cors, { origin: true });
-    await fastify.register(fastifyFormbody);
-    await fastify.register(fastifyMultipart, {
-      limits: { fileSize: 1 * 1024 * 1024, parts: 1 },
-    });
-
-    await fastify.register(fastifyView, {
-      engine: { nunjucks: createNunjucksEngine() as unknown as typeof nunjucks },
-      templates: viewsDir,
-      options: { autoescape: true, noCache: true },
-    });
+    registerBodyParsers(fastify);
+    await registerViewPlugins(fastify);
 
     const applicationPrisma = (options.prismaFactory ?? createPrismaClient)();
     prisma = applicationPrisma;
-    const templateRepo = new TemplateRepository(applicationPrisma);
-    const streamClient = createDingTalkStreamClientOrWarn();
-    const interviewPlanService = new InterviewPlanService(
-      applicationPrisma,
-      undefined,
-      streamClient,
-      tokenManager
-    );
-    const deps: ApiRouteDeps = {
-      templateRepo,
-      interviewRepo: new InterviewRepository(applicationPrisma),
-      interviewPlanRepo: new InterviewPlanRepository(applicationPrisma),
-      interviewPlanService,
-      analysisService: new AnalysisService(applicationPrisma),
-      analyticsService: new AnalyticsService(applicationPrisma),
-      exportService: new ExportService(applicationPrisma),
-      databaseHealth: new DatabaseHealthRepository(applicationPrisma),
-      templateDimensionService: new TemplateDimensionService(applicationPrisma),
-    };
+    const deps = buildRouteDeps(applicationPrisma);
 
-    await securityMiddleware(fastify, applicationPrisma);
+    await registerSecurityPlugins(fastify, applicationPrisma);
+    await registerObservability(fastify);
+    await registerAdminAndRateLimit(fastify);
 
-    const { secret: sessionSecret, salt: sessionSalt } = assertSessionEnv();
-    await fastify.register(secureSession, {
-      secret: sessionSecret,
-      salt: Buffer.from(sessionSalt, 'hex'),
-      cookie: {
-        path: '/',
-        httpOnly: true,
-        secure: NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: Number(process.env['SESSION_MAX_AGE']) || DEFAULT_SESSION_MAX_AGE,
-      },
-    });
-
-    // Security: CSRF secret must live in the encrypted session, never in a JS-readable cookie (plugin default).
-    await fastify.register(csrfProtection, {
-      sessionPlugin: '@fastify/secure-session',
-    });
-
-    // Observability (issue #178): root-level HTTP metric hooks + /metrics endpoint.
-    // Root-context hooks are inherited by every child context on ready(); the
-    // placement here is for readability, not for hook scoping.
-    await fastify.register(metricsRoutes);
-    fastify.addHook('onRequest', metricsOnRequest);
-    fastify.addHook('onResponse', metricsOnResponse);
-
-    await fastify.register(adminAuthRoutes);
-
-    // Rate limiting — skip in test environment since fastify.inject() bypasses the hook
-    if (NODE_ENV !== 'test') {
-      await fastify.register(rateLimit, {
-        max: 100,
-        timeWindow: '1 minute',
-        errorResponseBuilder: (_request, context) => ({
-          statusCode: 429,
-          error: 'Too Many Requests',
-          message: `Rate limit exceeded, retry in ${Math.ceil(context.ttl / 1000)} seconds`,
-        }),
-      });
-    }
-
-    addSecurityHeadersHook(fastify);
-
-    // Schedule daily audit log cleanup at 2:00 AM
     const auditCleanup = new AuditCleanupService(applicationPrisma);
-    auditCleanupTask = cron.schedule('0 2 * * *', async () => {
-      const cleanupRun = auditCleanup.cleanupOldLogs(90).catch((err: unknown) => {
-        error('Audit cleanup cron job failed', {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-      activeAuditCleanups.add(cleanupRun);
-      try {
-        await cleanupRun;
-      } finally {
-        activeAuditCleanups.delete(cleanupRun);
-      }
-    });
-    info('Audit cleanup cron scheduled (daily at 2:00 AM)');
+    auditCleanupTask = scheduleAuditCleanup(auditCleanup, activeAuditCleanups);
 
     await registerApiRoutes(fastify, deps, createVerifyApiKey(applicationPrisma));
 

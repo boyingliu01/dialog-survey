@@ -16,6 +16,89 @@ const API_PATH = '/admin/api';
  * template select is loaded here too because a plan form cannot render without
  * one — that dependency is what ties these routes together.
  */
+/** A ready-to-send reply: status code plus HTML body. */
+interface AdminReply {
+  status: number;
+  body: string;
+}
+
+/**
+ * What deleting a plan from the admin UI should answer.
+ *
+ * Returns the reply rather than sending it, so the handler keeps one call to
+ * `reply.status(...).send(...)` and the four outcomes (missing, forced, blocked,
+ * plain) stay readable as a list. `force` is checked BEFORE the blocker on purpose:
+ * `?force=true` is the operator having already accepted the cascade in the dialog.
+ */
+async function deletePlanOutcome(
+  service: {
+    findByIdWithDeleteChecks(id: string): Promise<{ _count: PlanDeleteCounts } | null>;
+    deletePlan(id: string): Promise<unknown>;
+    deletePlanWithInterviews(id: string): Promise<{
+      planName: string;
+      interviewCount: number;
+      batchReportCount: number;
+    }>;
+  },
+  id: string,
+  force: boolean
+): Promise<AdminReply> {
+  const plan = await service.findByIdWithDeleteChecks(id);
+  if (!plan) return { status: 404, body: '计划不存在' };
+
+  if (force) return { status: 200, body: await forceDeleteMessage(service, id) };
+
+  const blocker = deleteBlocker(plan._count);
+  if (blocker) return { status: 409, body: blocker };
+
+  await service.deletePlan(id);
+  info('Admin plan deleted', { planId: id });
+  return { status: 200, body: '<div class="text-green-600">计划已删除</div>' };
+}
+
+/** The row counts that decide whether a delete cascades. */
+interface PlanDeleteCounts {
+  interviews: number;
+  batchReports: number;
+}
+
+/**
+ * Delete the plan together with everything hanging off it, and say what went.
+ *
+ * The counts come from the delete call's own result rather than a preceding read:
+ * reporting "3 interviews deleted" from a read that raced another turn could
+ * describe more than was actually removed.
+ */
+async function forceDeleteMessage(
+  service: {
+    deletePlanWithInterviews(id: string): Promise<{
+      planName: string;
+      interviewCount: number;
+      batchReportCount: number;
+    }>;
+  },
+  id: string
+): Promise<string> {
+  const result = await service.deletePlanWithInterviews(id);
+  return `<div class="text-green-600">计划「${result.planName}」已删除，同时删除 ${result.interviewCount} 条访谈记录和 ${result.batchReportCount} 个批量报告</div>`;
+}
+
+/**
+ * The 409 warning page for a plan that still has data attached, or null.
+ *
+ * The counts are exposed as data attributes so the confirm dialog can quote them
+ * without a second request. Reporting them as a plain sentence would leave the
+ * front end parsing prose to build its message.
+ */
+function deleteBlocker(counts: PlanDeleteCounts): string | null {
+  const parts: string[] = [];
+  if (counts.interviews > 0) parts.push(`${counts.interviews} 个访谈记录`);
+  if (counts.batchReports > 0) parts.push(`${counts.batchReports} 个批量报告`);
+  if (parts.length === 0) return null;
+
+  return `<div class="text-red-600" data-delete-warning="true" data-count-interviews="${counts.interviews}" data-count-reports="${counts.batchReports}">该计划关联了 ${parts.join('、')}，删除将一并删除这些数据</div>`;
+}
+
 export async function registerPlanPageRoutes(
   fastify: FastifyInstance,
   opts: AdminRoutesDeps
@@ -140,34 +223,11 @@ export async function registerPlanPageRoutes(
       const { id } = request.params as { id: string };
       const query = request.query as { force?: string };
       try {
-        const plan = await interviewPlanService.findByIdWithDeleteChecks(id);
-
-        if (!plan) return reply.status(404).type('text/html').send('计划不存在');
-
-        const hasInterviews = plan._count.interviews > 0;
-        const hasBatchReports = plan._count.batchReports > 0;
-
-        if (query.force === 'true') {
-          const result = await interviewPlanService.deletePlanWithInterviews(id);
-          return reply.send(
-            `<div class="text-green-600">计划「${result.planName}」已删除，同时删除 ${result.interviewCount} 条访谈记录和 ${result.batchReportCount} 个批量报告</div>`
-          );
-        }
-
-        if (hasInterviews || hasBatchReports) {
-          const parts = [];
-          if (hasInterviews) parts.push(`${plan._count.interviews} 个访谈记录`);
-          if (hasBatchReports) parts.push(`${plan._count.batchReports} 个批量报告`);
-          return reply
-            .status(409)
-            .send(
-              `<div class="text-red-600" data-delete-warning="true" data-count-interviews="${plan._count.interviews}" data-count-reports="${plan._count.batchReports}">该计划关联了 ${parts.join('、')}，删除将一并删除这些数据</div>`
-            );
-        }
-
-        await interviewPlanService.deletePlan(id);
-        info('Admin plan deleted', { planId: id });
-        return reply.send('<div class="text-green-600">计划已删除</div>');
+        const outcome = await deletePlanOutcome(interviewPlanService, id, query.force === 'true');
+        return reply
+          .status(outcome.status)
+          .type(outcome.status === 404 ? 'text/html' : 'text/html; charset=utf-8')
+          .send(outcome.body);
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : 'Failed to delete plan';
         error('Failed to delete admin plan', { error: errMsg, planId: id });

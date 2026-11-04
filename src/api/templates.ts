@@ -4,6 +4,30 @@ import type { TemplateRepository } from '../repositories/template.repository.js'
 import type { TemplateDimensionService } from '../services/template-dimension.service.js';
 import { TemplateStatus } from '../utils/prisma-client.js';
 
+/** The fields `PUT /api/templates/:id` accepts. */
+interface TemplateUpdateInput {
+  name?: string | null | undefined;
+  description?: string | null | undefined;
+  content?: unknown;
+  status?: string | null | undefined;
+}
+
+/**
+ * The update payload, containing only the keys the caller actually sent.
+ *
+ * `null` is treated as "leave alone" rather than "clear": this endpoint is also
+ * driven by a partial-update client, and a status toggle that omits the description
+ * must not erase it. Clearing goes through the dedicated form, not a null here.
+ */
+function templateUpdateData(input: TemplateUpdateInput): Record<string, unknown> {
+  return {
+    ...(input.name != null ? { name: input.name } : {}),
+    ...(input.description != null ? { description: input.description } : {}),
+    ...(input.content != null ? { content: input.content as Record<string, unknown> } : {}),
+    ...(input.status != null ? { status: input.status as TemplateStatus } : {}),
+  };
+}
+
 export interface TemplateRoutesOptions {
   templateRepo: TemplateRepository;
   templateDimensionService: TemplateDimensionService;
@@ -81,12 +105,7 @@ export async function templateRoutes(fastify: FastifyInstance, opts: TemplateRou
       return reply.status(404).send({ error: 'Template not found' });
     }
 
-    const template = await templateRepo.update(id, {
-      ...(input.name != null ? { name: input.name } : {}),
-      ...(input.description != null ? { description: input.description } : {}),
-      ...(input.content != null ? { content: input.content as Record<string, unknown> } : {}),
-      ...(input.status != null ? { status: input.status as TemplateStatus } : {}),
-    });
+    const template = await templateRepo.update(id, templateUpdateData(input));
 
     return reply.send(formatTemplateResponse(template));
   });
