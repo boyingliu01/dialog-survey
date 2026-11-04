@@ -81,6 +81,41 @@ function fingerprint(finding) {
 }
 
 /**
+ * Did gitleaks fail to run at all, rather than run and find something?
+ *
+ * Two shapes reach here. Without a shell, a missing binary sets `error`. With
+ * `shell: true` (Windows) the shell itself reports the miss on stdout with
+ * status 127 and no `error`, so both are checked — otherwise a run without
+ * gitleaks installed fell through and was classified as leaks.
+ */
+function gitleaksFailedToRun(result) {
+  const shellSaysMissing =
+    /not recognized|command not found|No such file or directory/i.test(
+      `${result.stdout ?? ''}${result.stderr ?? ''}`
+    ) || result.status === 127;
+  return Boolean(result.error || shellSaysMissing);
+}
+
+/**
+ * Read the JSON report and delete it.
+ *
+ * A report we cannot parse yields no findings rather than a failure: gitleaks
+ * writes no file when the scan is clean, and a truncated file is not evidence
+ * of a leak.
+ */
+function readAndRemoveReport(reportPath) {
+  if (!existsSync(reportPath)) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(reportPath, 'utf8'));
+  } catch {
+    parsed = [];
+  }
+  rmQuiet(reportPath);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+/**
  * Run gitleaks and return { status, findings, raw }.
  *
  * `GITLEAKS_BIN` overrides the executable so the tests can exercise the
@@ -94,16 +129,7 @@ function runGitleaks(reportPath) {
     { encoding: 'utf8', shell: process.platform === 'win32' }
   );
 
-  // Two failure shapes reach here. Without a shell, a missing binary sets
-  // `error`. With `shell: true` (Windows) the shell itself reports the miss on
-  // stdout with status 127 and no `error`, so both are checked — otherwise a
-  // run without gitleaks installed fell through and was classified as leaks.
-  const shellSaysMissing =
-    /not recognized|command not found|No such file or directory/i.test(
-      `${result.stdout ?? ''}${result.stderr ?? ''}`
-    ) || result.status === 127;
-
-  if (result.error || shellSaysMissing) {
+  if (gitleaksFailedToRun(result)) {
     return {
       status: 'missing',
       findings: [],
@@ -111,19 +137,9 @@ function runGitleaks(reportPath) {
     };
   }
 
-  let findings = [];
-  if (existsSync(reportPath)) {
-    try {
-      findings = JSON.parse(readFileSync(reportPath, 'utf8'));
-    } catch {
-      findings = [];
-    }
-    rmQuiet(reportPath);
-  }
-
   return {
     status: result.status === 0 ? 'clean' : 'leaks',
-    findings: Array.isArray(findings) ? findings : [],
+    findings: readAndRemoveReport(reportPath),
     raw: result.stdout ?? '',
   };
 }
@@ -276,49 +292,87 @@ baseline at all. See issue #211.
   );
 }
 
-function main() {
-  const args = process.argv.slice(2);
-  if (args.includes('--help') || args.includes('-h')) {
-    usage();
-    return 0;
-  }
-  const verbose = args.includes('--verbose');
-  const writeBaselineMode = args.includes('--write-baseline');
+/**
+ * The two preconditions that make a scan meaningful.
+ *
+ * Both return an exit code when the scan must not be trusted, and `undefined`
+ * when it may proceed. Keeping them separate matters because they fail for
+ * different reasons and a future edit must not collapse one into the other:
+ * a missing config means the run cannot start, while zero commits means it ran
+ * and read nothing.
+ */
+function refuseWithoutConfig() {
+  if (existsSync(resolve(CONFIG))) return undefined;
+  process.stderr.write(
+    `[secrets] ${CONFIG} not found — refusing to scan without the placeholder allowlist,\n          which would flood the report with documentation examples.\n`
+  );
+  return 2;
+}
 
-  if (!existsSync(resolve(CONFIG))) {
-    process.stderr.write(
-      `[secrets] ${CONFIG} not found — refusing to scan without the placeholder allowlist,\n          which would flood the report with documentation examples.\n`
-    );
-    return 2;
-  }
-
-  const { status, findings } = runGitleaks(resolve(REPORT));
-
-  if (status === 'missing') {
-    process.stderr.write(
-      '[secrets] gitleaks is not installed — cannot scan history.\n' +
-        '          Install: https://github.com/gitleaks/gitleaks#installing\n' +
-        '          (CI installs it; a local run without it is a no-op by design so the\n' +
-        '           guard cannot silently pass as green.)\n'
-    );
-    return 2;
-  }
-
+function refuseWithoutCommits() {
   // A scan that covered no commits says nothing about history. This is not
   // hypothetical: `gitleaks git` in a directory that is not a repository exits 0
   // with an empty report, so without this check the guard would report "clean"
   // for a tree it never read — the same class of mistake as a "clean" from a
   // missing gitleaks binary.
-  const commits = countCommits();
-  if (commits === 0) {
-    process.stderr.write(
-      '[secrets] no commits found — this is not a git repository, so history was\n' +
-        '          never scanned. Refusing to report a clean history that does not exist.\n'
-    );
-    return 2;
+  if (countCommits() !== 0) return undefined;
+  process.stderr.write(
+    '[secrets] no commits found — this is not a git repository, so history was\n' +
+      '          never scanned. Refusing to report a clean history that does not exist.\n'
+  );
+  return 2;
+}
+
+/** Split findings into accepted / fresh / stale against the baseline. */
+function classifyFindings(findings, accepted) {
+  const acceptedIds = new Set(accepted.map((entry) => entry.id));
+  const known = findings.filter((finding) => acceptedIds.has(fingerprint(finding)));
+  const fresh = findings.filter((finding) => !acceptedIds.has(fingerprint(finding)));
+  const matchedIds = new Set(known.map((finding) => fingerprint(finding)));
+  const stale = accepted.filter((entry) => !matchedIds.has(entry.id));
+  return { known, fresh, stale };
+}
+
+/** Parse argv into the flags this script recognises. */
+function parseFlags(args) {
+  return {
+    help: args.includes('--help') || args.includes('-h'),
+    verbose: args.includes('--verbose'),
+    writeBaseline: args.includes('--write-baseline'),
+  };
+}
+
+/** Refuse to run when gitleaks is absent — a no-op scan is not a pass. */
+function refuseWithoutGitleaks(status) {
+  if (status !== 'missing') return undefined;
+  process.stderr.write(
+    '[secrets] gitleaks is not installed — cannot scan history.\n' +
+      '          Install: https://github.com/gitleaks/gitleaks#installing\n' +
+      '          (CI installs it; a local run without it is a no-op by design so the\n' +
+      '           guard cannot silently pass as green.)\n'
+  );
+  return 2;
+}
+
+function main() {
+  const flags = parseFlags(process.argv.slice(2));
+  if (flags.help) {
+    usage();
+    return 0;
   }
 
-  if (writeBaselineMode) {
+  const configRefusal = refuseWithoutConfig();
+  if (configRefusal !== undefined) return configRefusal;
+
+  const { status, findings } = runGitleaks(resolve(REPORT));
+
+  const gitleaksRefusal = refuseWithoutGitleaks(status);
+  if (gitleaksRefusal !== undefined) return gitleaksRefusal;
+
+  const commitRefusal = refuseWithoutCommits();
+  if (commitRefusal !== undefined) return commitRefusal;
+
+  if (flags.writeBaseline) {
     writeBaseline(findings);
     return 0;
   }
@@ -328,16 +382,23 @@ function main() {
     return 0;
   }
 
+  return judgeAgainstBaseline(findings, flags.verbose);
+}
+
+/**
+ * The verdict once a scan actually produced findings.
+ *
+ * Split out of `main` so the "did the scan run?" preconditions and the "what do
+ * the findings mean?" judgement stay separable — they fail for different
+ * reasons and are read by different people.
+ */
+function judgeAgainstBaseline(findings, verbose) {
   const { accepted, invalid } = readBaseline();
   if (invalid) {
     return 2;
   }
 
-  const acceptedIds = new Set(accepted.map((entry) => entry.id));
-  const known = findings.filter((finding) => acceptedIds.has(fingerprint(finding)));
-  const fresh = findings.filter((finding) => !acceptedIds.has(fingerprint(finding)));
-  const matchedIds = new Set(known.map((finding) => fingerprint(finding)));
-  const stale = accepted.filter((entry) => !matchedIds.has(entry.id));
+  const { known, fresh, stale } = classifyFindings(findings, accepted);
 
   reportKnown(known, verbose);
 

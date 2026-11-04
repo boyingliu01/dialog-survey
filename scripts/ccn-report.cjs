@@ -20,7 +20,24 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-/** Recursively collect .ts files, skipping build output and generated code. */
+/**
+ * Extensions worth grading.
+ *
+ * `.ts` alone was the original filter, which meant `scripts/*.mjs` were never
+ * measured even though Gate 3 grades them: `adapters/gate-3.sh` selects files
+ * with `/\.(ts|tsx|js|jsx|py|go|java|swift|cpp|c|hpp|h|m|mm|kt)$/`, so `.js` is
+ * in the gate's population. The ratchet key, however, comes from this script,
+ * so a function in a `.mjs` file could never have a baseline entry — and a
+ * function with no baseline entry is not "clean", it is ungraded. That is how
+ * `installCommand` (cognitive 56 / cyclomatic 36) stayed green.
+ *
+ * `.jsx`/`.tsx` are included for the same reason: the gate grades them, so the
+ * baseline must too. `.d.ts` stays excluded — a declaration is not executable
+ * code.
+ */
+const GRADED_EXTENSIONS = /\.(?:ts|tsx|js|jsx|mjs|cjs)$/;
+
+/** Recursively collect gradable files, skipping build output and generated code. */
 function collectFiles(root, acc = []) {
   const skip = new Set(['node_modules', 'dist', 'coverage', 'generated', '.stryker-tmp']);
   let entries;
@@ -34,7 +51,7 @@ function collectFiles(root, acc = []) {
     const full = path.join(root, entry.name);
     if (entry.isDirectory()) {
       collectFiles(full, acc);
-    } else if (/\.ts$/.test(entry.name) && !/\.d\.ts$/.test(entry.name)) {
+    } else if (GRADED_EXTENSIONS.test(entry.name) && !/\.d\.ts$/.test(entry.name)) {
       acc.push(full);
     }
   }
@@ -86,25 +103,37 @@ function decisionKinds(ts) {
  * act on, so nested function bodies are skipped. Short-circuit and nullish
  * operators count, because they are real branch points.
  */
+/** The logical operators that are real branch points. */
+function isLogicalOperator(ts, op) {
+  return (
+    op === ts.SyntaxKind.AmpersandAmpersandToken ||
+    op === ts.SyntaxKind.BarBarToken ||
+    op === ts.SyntaxKind.QuestionQuestionToken
+  );
+}
+
+/** Does this node carry a decision that belongs to the function being measured? */
+function countsAsDecision(ts, kinds, node) {
+  if (kinds.has(node.kind)) return true;
+  if (!ts.isBinaryExpression(node)) return false;
+  return isLogicalOperator(ts, node.operatorToken.kind);
+}
+
+/**
+ * Is this node a nested function whose decisions belong to a child rather than
+ * to the function being measured? The body of the measured function is reached
+ * through its children, so comparing against `body` keeps its own decisions.
+ */
+function startsNestedFunction(ts, node, body) {
+  return ts.isFunctionLike(node) && Boolean(node.body) && node.body !== body && node !== body;
+}
+
 function countOwnedCcn(ts, kinds, body) {
   let ccn = 1;
   const visit = (node) => {
     if (!node) return;
-    // Stop at a nested function: its decisions belong to the child. The body of
-    // the function being measured is reached through its children, so comparing
-    // against `body` keeps that function's own decisions.
-    if (ts.isFunctionLike(node) && node.body && node.body !== body && node !== body) return;
-    if (kinds.has(node.kind)) ccn++;
-    if (ts.isBinaryExpression(node)) {
-      const op = node.operatorToken.kind;
-      if (
-        op === ts.SyntaxKind.AmpersandAmpersandToken ||
-        op === ts.SyntaxKind.BarBarToken ||
-        op === ts.SyntaxKind.QuestionQuestionToken
-      ) {
-        ccn++;
-      }
-    }
+    if (startsNestedFunction(ts, node, body)) return;
+    if (countsAsDecision(ts, kinds, node)) ccn++;
     ts.forEachChild(node, visit);
   };
   // A concise arrow body (`x => a && b ? c : d`) is an expression, not a block.
@@ -118,20 +147,34 @@ function countOwnedCcn(ts, kinds, body) {
   return ccn;
 }
 
-/** The name a function is known by: declaration, variable, or property key. */
+/**
+ * Read a name out of a node when it carries an identifier or string literal.
+ * Anything else (a computed key, a numeric name) has no stable name.
+ */
+function nameFromKey(ts, nameNode) {
+  if (!nameNode) return null;
+  if (ts.isIdentifier(nameNode) || ts.isStringLiteral(nameNode)) return nameNode.text;
+  return null;
+}
+
+/**
+ * The name a function is known by: declaration, variable, or property key.
+ *
+ * Written as a lookup rather than a chain of guards. Each row answers one shape
+ * and returns `null` when it does not apply, so adding a shape is a row instead
+ * of another nested `if` — the previous version reached CCN 13 for four probes.
+ */
 function nameOfFunction(ts, node) {
-  if (node.name && ts.isIdentifier(node.name)) return node.name.text;
   const parent = node.parent;
-  if (parent && ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
-    return parent.name.text;
-  }
-  if (parent && ts.isPropertyAssignment(parent)) {
-    const n = parent.name;
-    if (ts.isIdentifier(n)) return n.text;
-    if (ts.isStringLiteral(n)) return n.text;
-  }
-  if (parent && ts.isPropertyDeclaration(parent) && ts.isIdentifier(parent.name)) {
-    return parent.name.text;
+  const candidates = [
+    () => nameFromKey(ts, node.name),
+    () => (ts.isVariableDeclaration(parent) ? nameFromKey(ts, parent.name) : null),
+    () => (ts.isPropertyAssignment(parent) ? nameFromKey(ts, parent.name) : null),
+    () => (ts.isPropertyDeclaration(parent) ? nameFromKey(ts, parent.name) : null),
+  ];
+  for (const candidate of candidates) {
+    const found = candidate();
+    if (found !== null) return found;
   }
   return '(anonymous)';
 }
@@ -359,21 +402,41 @@ function lizardRowIsRealFunction(ts, absPath, startLine, name) {
   }
   const sf = ts.createSourceFile(absPath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const want = Number.parseInt(startLine, 10);
+  return hasFunctionStartingAtLine(ts, sf, want);
+}
+
+/**
+ * Does this node declare a function that actually has an implementation?
+ *
+ * A `FunctionTypeNode` or `CallSignatureDeclaration` is a type and has no body,
+ * so it must not be mistaken for the function a lizard row names. The kinds are
+ * a set because writing them as one `||` chain cost this predicate CCN 11 for
+ * what is a membership question.
+ */
+function implementsBody(ts, node) {
+  const kinds = [
+    ts.isFunctionDeclaration,
+    ts.isMethodDeclaration,
+    ts.isConstructorDeclaration,
+    ts.isGetAccessorDeclaration,
+    ts.isSetAccessorDeclaration,
+    ts.isArrowFunction,
+    ts.isFunctionExpression,
+  ];
+  return kinds.some((is) => is(node)) && node.body !== undefined;
+}
+
+/**
+ * Find whether a function with a body starts on a given line.
+ *
+ * `visit` stops as soon as it finds one: the row only asks whether the name is
+ * attributable, not where every function is.
+ */
+function hasFunctionStartingAtLine(ts, sf, want) {
   let found = false;
   const visit = (node) => {
     if (found) return;
-    // Only nodes that carry an implementation count; a FunctionTypeNode or a
-    // CallSignatureDeclaration is a type, and has no body.
-    const implementsBody =
-      (ts.isFunctionDeclaration(node) ||
-        ts.isMethodDeclaration(node) ||
-        ts.isConstructorDeclaration(node) ||
-        ts.isGetAccessorDeclaration(node) ||
-        ts.isSetAccessorDeclaration(node) ||
-        ts.isArrowFunction(node) ||
-        ts.isFunctionExpression(node)) &&
-      node.body !== undefined;
-    if (implementsBody) {
+    if (implementsBody(ts, node)) {
       const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
       if (line === want) {
         found = true;
@@ -660,7 +723,21 @@ function main() {
     return;
   }
 
-  const roots = options.paths.length > 0 ? options.paths : ['src'];
+  // Grade every hand-written source tree, not just `src`.
+  //
+  // Gate 3's file selection (`CC_FILES` in adapters/gate-3.sh) admits
+  // `.ts/tsx/js/jsx` anywhere in the repository, so `scripts/`, `prisma/` and
+  // `tests/` are all in its population. This script supplies the ratchet keys,
+  // so scoping it to `src` meant the gate had no baseline entry to compare
+  // against for any other directory and silently treated those functions as
+  // clean. They were not clean; they were never recorded.
+  //
+  // `tests/` is included because bucketFor() only ever lets `production` rows
+  // into the baseline, and test files are classified as `test` there. Scanning
+  // them keeps `--json`/threshold reporting complete without widening the
+  // ratchet.
+  const DEFAULT_ROOTS = ['src', 'scripts', 'prisma', 'tests'];
+  const roots = options.paths.length > 0 ? options.paths : DEFAULT_ROOTS;
   // Collect every function; `--write-baseline` and the threshold filter both
   // apply afterwards. Passing a huge threshold here would keep nothing.
   const { rows: allRows, failures } = measureFilesAst(ts, resolveFiles(roots), options.rootDir);

@@ -331,25 +331,40 @@ export function generateConfigFromEnv() {
  * mapped to the canonical config key. Comments (#) and blank lines are ignored;
  * surrounding quotes are stripped.
  */
+/**
+ * Strip one layer of matching quotes from a config value.
+ *
+ * `.env` files commonly quote values containing spaces; leaving the quotes on
+ * makes a credential subtly wrong in a way nothing reports.
+ */
+function unquote(value) {
+  const quote = value[0];
+  const quoted = quote === '"' || quote === "'";
+  return quoted && value.length >= 2 && value.endsWith(quote) ? value.slice(1, -1) : value;
+}
+
+/** Map a `DIALOG_SURVEY_FOO` key to `FOO`, leaving any other key alone. */
+function canonicalKey(key) {
+  const prefix = 'DIALOG_SURVEY_';
+  return key.startsWith(prefix) ? key.slice(prefix.length) : key;
+}
+
+/** Parse one `KEY=value` line, or null when it assigns no config key. */
+function parseConfigLine(rawLine) {
+  const line = rawLine.trim();
+  if (!line || line.startsWith('#')) return null;
+  const eq = line.indexOf('=');
+  if (eq === -1) return null;
+  const key = canonicalKey(line.slice(0, eq).trim());
+  if (!CONFIG_KEYS.includes(key)) return null;
+  return { key, value: unquote(line.slice(eq + 1).trim()) };
+}
+
 export function parseConfigFile(content) {
   const config = {};
   for (const rawLine of content.split('\n')) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const eq = line.indexOf('=');
-    if (eq === -1) continue;
-    const key = line.slice(0, eq).trim();
-    let value = line.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    const canonical = key.startsWith('DIALOG_SURVEY_') ? key.slice('DIALOG_SURVEY_'.length) : key;
-    if (CONFIG_KEYS.includes(canonical)) {
-      config[canonical] = value;
-    }
+    const entry = parseConfigLine(rawLine);
+    if (entry) config[entry.key] = entry.value;
   }
   return config;
 }

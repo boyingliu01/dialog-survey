@@ -430,4 +430,75 @@ describe('ccn-report gate measurement', () => {
       expect(stdout.split(',')[1]).toBe('1');
     });
   });
+
+  /**
+   * Which files the script *scans* decides which functions can ever have a
+   * baseline entry, and Gate 3's ratchet verdict is "worse than recorded" — a
+   * function with no record is not clean, it is ungraded and silently skipped.
+   *
+   * The default root list used to be `['src']` and the file filter was `.ts`,
+   * while adapters/gate-3.sh selects `.ts/tsx/js/jsx` across the whole tree.
+   * Every function in `scripts/*.mjs` was therefore in the gate's population
+   * but could never be recorded: 250 of them, including `installCommand` at
+   * cognitive 56. The gate reported PASS throughout.
+   *
+   * These tests pin the scan population, because the failure mode is a silent
+   * pass rather than an error.
+   */
+  describe('scan population', () => {
+    it('grades .mjs files, which Gate 3 selects but `.ts` alone skipped', () => {
+      mkdirSync(join(fixture, 'scripts'), { recursive: true });
+      writeFileSync(
+        join(fixture, 'scripts', 'tool.mjs'),
+        [
+          'export function fromMjs(a) {',
+          '  if (a) return 1;',
+          '  if (!a) return 2;',
+          '  return 3;',
+          '}',
+        ].join('\n'),
+        'utf8'
+      );
+      const stdout = run(['--threshold', '1', '--report-only'], fixture).stdout;
+      // Two `if`s make CCN 3, so it is only reported if the file was read at all.
+      expect(ccnOf(stdout, 'fromMjs')).toBe(3);
+    });
+
+    it('scans scripts/ and prisma/ by default, not just src/', () => {
+      for (const [dir, name] of [
+        ['scripts', 'fromScripts'],
+        ['prisma', 'fromPrisma'],
+        ['src', 'fromSrc'],
+      ] as const) {
+        mkdirSync(join(fixture, dir), { recursive: true });
+        writeFileSync(
+          join(fixture, dir, `${name}.mjs`),
+          [`export function ${name}(a) {`, '  return a ? 1 : 2;', '}'].join('\n'),
+          'utf8'
+        );
+      }
+      // No positional path: the default root list is what is under test.
+      const stdout = run(['--threshold', '1', '--report-only'], fixture).stdout;
+      expect(ccnOf(stdout, 'fromScripts')).toBe(2);
+      expect(ccnOf(stdout, 'fromPrisma')).toBe(2);
+      expect(ccnOf(stdout, 'fromSrc')).toBe(2);
+    });
+
+    it('still honours an explicit path over the default root list', () => {
+      mkdirSync(join(fixture, 'scripts'), { recursive: true });
+      writeFileSync(
+        join(fixture, 'scripts', 'only.mjs'),
+        ['export function excluded(a) {', '  return a ? 1 : 2;', '}'].join('\n'),
+        'utf8'
+      );
+      writeFileSync(
+        join(fixture, 'src', 'probe.ts'),
+        ['export function included(a) {', '  return a ? 1 : 2;', '}'].join('\n'),
+        'utf8'
+      );
+      const stdout = run(['--threshold', '1', '--report-only', 'src'], fixture).stdout;
+      expect(ccnOf(stdout, 'included')).toBe(2);
+      expect(ccnOf(stdout, 'excluded')).toBeNull();
+    });
+  });
 });
