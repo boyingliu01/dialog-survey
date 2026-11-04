@@ -1,7 +1,7 @@
 import { error, info } from '../utils/logger.js';
 import { anonymizePII } from '../utils/pii-anonymizer.js';
 import type { BatchAnalysisReport } from '../utils/prisma-client.js';
-import type { PrismaClient } from '../utils/prisma-client.js';
+import type { Prisma, PrismaClient } from '../utils/prisma-client.js';
 import { buildQuestionMap as buildQuestionMapShared } from '../utils/template-content.js';
 import { recordAnalysisFailure } from './dead-letter.service.js';
 import {
@@ -41,6 +41,71 @@ export type CreateBatchReportResult =
   | { kind: 'conflict'; existingId: string }
   | { kind: 'no-completed' }
   | { kind: 'plan-not-found' };
+
+/**
+ * The `analysisReport.create` payload.
+ *
+ * Dimension fields are added CONDITIONALLY on purpose: an empty tag list or a
+ * missing rating must be absent from the row, not stored as `[]`. Writing an
+ * empty array would make an un-enriched report look like one whose tagging pass
+ * ran and found nothing.
+ */
+function reportRowData(
+  interviewId: string,
+  report: Report,
+  dimensions: ReportWithDimensions
+): Prisma.AnalysisReportUncheckedCreateInput {
+  const optional: Partial<Prisma.AnalysisReportUncheckedCreateInput> = {};
+  if (dimensions.dimensionTags?.length) optional.dimensionTags = dimensions.dimensionTags;
+  if (dimensions.emergentTags?.length) optional.emergentTags = dimensions.emergentTags;
+  if (dimensions.interviewerRating != null)
+    optional.interviewerRating = dimensions.interviewerRating;
+  return {
+    interviewId,
+    content: report.content,
+    keyFindings: report.keyFindings,
+    sentiment: report.sentiment,
+    recommendations: report.recommendations,
+    ...optional,
+  };
+}
+
+/**
+ * Sentiment word lists.
+ *
+ * Deliberately small and literal: this is a keyword tally, not a classifier, and
+ * its output only feeds a coarse positive/neutral/negative field. Each word
+ * scores once no matter how often it appears, so a long answer cannot dominate
+ * merely by being long.
+ */
+const POSITIVE_WORDS = ['好', '喜欢', '优秀', '满意', '棒', '感谢', 'great', 'good', 'excellent'];
+const NEGATIVE_WORDS = ['差', '不好', '失望', '糟糕', 'bad', 'poor', 'terrible'];
+
+/** How many distinct words from `words` appear anywhere in `text`. */
+function wordScore(text: string, words: readonly string[]): number {
+  let hits = 0;
+  for (const word of words) {
+    if (text.includes(word)) hits += 1;
+  }
+  return hits;
+}
+
+/**
+ * Scrub PII out of the quotes the model lifted from the interview.
+ *
+ * Only the quotes are scrubbed: they are verbatim interview text, while label and
+ * dimensionId are the model's own summarised words.
+ */
+function anonymiseQuotes(dimResult: ReportWithDimensions): ReportWithDimensions {
+  if (!dimResult.dimensionTags) return dimResult;
+  return {
+    ...dimResult,
+    dimensionTags: dimResult.dimensionTags.map((tag) => ({
+      ...tag,
+      quotes: tag.quotes.map((quote: string) => anonymizePII(quote)),
+    })),
+  };
+}
 
 export class AnalysisService {
   private readonly _prisma: PrismaClient;
@@ -88,18 +153,7 @@ export class AnalysisService {
     info('Deleted old analysis reports', { interviewId, count: deleted.count });
 
     await this._prisma.analysisReport.create({
-      data: {
-        interviewId,
-        content: report.content,
-        keyFindings: report.keyFindings,
-        sentiment: report.sentiment,
-        recommendations: report.recommendations,
-        ...(dimResult.dimensionTags?.length ? { dimensionTags: dimResult.dimensionTags } : {}),
-        ...(dimResult.emergentTags?.length ? { emergentTags: dimResult.emergentTags } : {}),
-        ...(dimResult.interviewerRating != null
-          ? { interviewerRating: dimResult.interviewerRating }
-          : {}),
-      },
+      data: reportRowData(interviewId, report, dimResult),
     });
 
     info('Analysis completed successfully', {
@@ -142,14 +196,7 @@ export class AnalysisService {
         JSON.stringify(template.dimensions),
         llm
       );
-      if (!dimResult.dimensionTags) return dimResult;
-      return {
-        ...dimResult,
-        dimensionTags: dimResult.dimensionTags.map((tag) => ({
-          ...tag,
-          quotes: tag.quotes.map((q: string) => anonymizePII(q)),
-        })),
-      };
+      return anonymiseQuotes(dimResult);
     } catch (e) {
       error('Dimension analysis failed', {
         interviewId,
@@ -212,29 +259,8 @@ export class AnalysisService {
   }
 
   private analyzeSentiment(contents: string[]): string {
-    const positiveWords = [
-      '好',
-      '喜欢',
-      '优秀',
-      '满意',
-      '棒',
-      '感谢',
-      'great',
-      'good',
-      'excellent',
-    ];
-    const negativeWords = ['差', '不好', '失望', '糟糕', 'bad', 'poor', 'terrible'];
-
-    let score = 0;
     const text = contents.join('').toLowerCase();
-
-    for (const word of positiveWords) {
-      if (text.includes(word)) score++;
-    }
-    for (const word of negativeWords) {
-      if (text.includes(word)) score--;
-    }
-
+    const score = wordScore(text, POSITIVE_WORDS) - wordScore(text, NEGATIVE_WORDS);
     if (score > 0) return 'positive';
     if (score < 0) return 'negative';
     return 'neutral';

@@ -12,6 +12,15 @@ vi.mock('../src/services/report.service.js', async (importOriginal) => ({
     recommendations: ['rec1'],
     generatedAt: new Date(),
   }),
+  generateReportWithDimensions: vi.fn(),
+}));
+
+// The dimension pass constructs its LLM through `fromEnv()`, which throws without
+// credentials. Mock the factory so the dimension path is reachable in tests; the
+// call itself is stubbed, so the instance is never used.
+vi.mock('../src/integrations/llm/openai-compatible.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/integrations/llm/openai-compatible.js')>()),
+  OpenAICompatibleLLM: { fromEnv: vi.fn(() => ({ chat: vi.fn() })) },
 }));
 
 describe('AnalysisService', () => {
@@ -102,6 +111,58 @@ describe('AnalysisService', () => {
       await service.analyzeInterview('interview-1');
 
       expect(mockPrisma.analysisReport.create).toHaveBeenCalled();
+    });
+
+    /**
+     * @test REQ-009-10-03
+     * @intent quotes lifted from the interview must be PII-scrubbed before storage
+     */
+    it('scrubs PII from dimension quotes but keeps the tags themselves', async () => {
+      // The quotes are verbatim interview text, so they are the one part of the
+      // dimension payload that can carry a phone number or an email. Removing the
+      // anonymisePII call leaves every other assertion in this file identical,
+      // which is exactly why this test exists.
+      mockPrisma.interview.findUnique.mockResolvedValue({
+        id: 'interview-pii',
+        templateId: 'template-1',
+        responses: [{ questionId: 'q1', content: '联系我 13812345678 或 a@b.com' }],
+        messages: [],
+      });
+      mockPrisma.template.findUnique.mockResolvedValue({
+        id: 'template-1',
+        dimensions: [{ id: 'contact', label: '联系方式' }],
+      });
+      mockPrisma.analysisReport.create.mockResolvedValue({ id: 'report-pii' });
+
+      const reportService = await import('../src/services/report.service.js');
+      vi.mocked(reportService.generateReportWithDimensions).mockResolvedValue({
+        interviewId: 'interview-pii',
+        content: 'report',
+        keyFindings: [],
+        sentiment: 'neutral',
+        recommendations: [],
+        generatedAt: new Date(),
+        dimensionTags: [
+          {
+            dimensionId: 'contact',
+            label: '联系方式',
+            sentiment: 'neutral',
+            quotes: ['联系我 13812345678 或 a@b.com'],
+          },
+        ],
+      });
+
+      await service.analyzeInterview('interview-pii');
+
+      const stored = mockPrisma.analysisReport.create.mock.calls[0]?.[0]?.data as {
+        dimensionTags?: Array<{ dimensionId: string; quotes: string[] }>;
+      };
+      expect(stored.dimensionTags).toHaveLength(1);
+      expect(stored.dimensionTags?.[0].dimensionId).toBe('contact');
+      const quote = stored.dimensionTags?.[0].quotes[0] ?? '';
+      expect(quote).not.toContain('13812345678');
+      expect(quote).not.toContain('a@b.com');
+      expect(quote).toContain('****');
     });
   });
 
