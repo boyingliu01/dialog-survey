@@ -157,9 +157,28 @@ describe('DingTalkStreamClient lifecycle', () => {
       }
       const attemptsAtOpen = internals(client).reconnectAttempts;
 
-      vi.advanceTimersByTime(60_000);
+      // Let every reconnect already scheduled BEFORE the threshold fired drain
+      // first -- those are legitimate, the circuit was still closed when they
+      // were armed. Only what happens after the circuit is OPEN matters here.
+      await vi.advanceTimersByTimeAsync(CIRCUIT_COOLDOWN_MS - 1);
+      const fetchesWhileOpen = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+      // A reconnect attempt fetches a fresh connection token, so counting fetches
+      // is what actually proves no attempt was scheduled. Asserting only on
+      // `reconnectAttempts` does NOT: `reconnect()` early-returns while the
+      // circuit is OPEN, so the counter stays flat even if a timer was armed.
+      expect(fetchesWhileOpen).toBeGreaterThan(1);
+
+      await vi.advanceTimersByTimeAsync(1000);
 
       expect(internals(client).reconnectAttempts).toBe(attemptsAtOpen);
+      expect((global.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(fetchesWhileOpen);
+      // NOTE: the `return` after `tripCircuitIfNeeded()` in onSocketClose is
+      // belt-and-braces, not the load-bearing guard. `reconnect()` already
+      // early-returns while the circuit is OPEN and cooling down, so mutating
+      // that `return` away changes no observable behaviour (verified: the suite
+      // still passes). The assertions above pin the BEHAVIOUR; they cannot
+      // distinguish the two implementations, and no test could.
     });
 
     it('reaches HALF_OPEN after the cooldown and reopens on the next failure', async () => {

@@ -111,6 +111,39 @@ describe('DingTalk Signature Verification', () => {
    * @test REQ-002-1-01
    * @intent 验证当所有参数都缺失时签名验证返回false
    */
+  /**
+   * Replay protection has to live INSIDE verifySignature, not just in
+   * verifyTimestamp.
+   *
+   * verifyTimestamp is exported and tested on its own, so a correct timestamp
+   * check proves nothing about the webhook path: deleting the `verifyTimestamp`
+   * call from verifySignature left every existing test green, because each one
+   * paired verifySignature with a fresh timestamp. A captured request replayed an
+   * hour later would then be accepted, since its signature is genuinely valid.
+   */
+  it('should reject a validly-signed but stale timestamp (replay)', () => {
+    const staleTimestamp = Date.now() - 600_000;
+    const signature = generateSignature(staleTimestamp, secret);
+
+    // The signature itself is correct for that timestamp...
+    expect(signature).toBe(generateSignature(staleTimestamp, secret));
+    // ...but the call must still be refused.
+    expect(verifySignature(staleTimestamp, secret, signature)).toBe(false);
+  });
+
+  it('should reject a future timestamp outside the window', () => {
+    // Clock skew is symmetric: a timestamp far ahead is as untrustworthy as one
+    // far behind, and `Math.abs` is what makes both directions work.
+    const futureTimestamp = Date.now() + 600_000;
+    const signature = generateSignature(futureTimestamp, secret);
+    expect(verifySignature(futureTimestamp, secret, signature)).toBe(false);
+  });
+
+  it('should accept a timestamp just inside the window', () => {
+    const recent = Date.now() - 240_000;
+    expect(verifySignature(recent, secret, generateSignature(recent, secret))).toBe(true);
+  });
+
   it('should reject when all parameters missing', () => {
     expect(verifySignature(0, '', '')).toBe(false);
   });
