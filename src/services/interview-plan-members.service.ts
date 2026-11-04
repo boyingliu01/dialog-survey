@@ -29,6 +29,23 @@ function findByPhone(invitees: InviteeData[], normalizedPhone: string): InviteeD
   );
 }
 
+/**
+ * Append one invitee, storing the phone ONLY in phone mode.
+ *
+ * A userId-only add deliberately records no phone: the caller never proved that
+ * number belongs to this person, and storing it would make the phone-conflict
+ * check below reject a later, properly verified add of the same person.
+ */
+function withInvitee(
+  invitees: InviteeData[],
+  userId: string,
+  name: string | undefined,
+  phone: string | undefined
+): InviteeData[] {
+  const invitee = phone ? { userId, name, phone: normalizePhone(phone) } : { userId, name };
+  return [...invitees, invitee as InviteeData];
+}
+
 export class PlanNotFoundError extends Error {
   readonly code = 'PLAN_NOT_FOUND' as const;
   constructor(planId: string) {
@@ -96,6 +113,153 @@ export interface AddMemberInput {
   name?: string;
 }
 
+/**
+ * Resolve who is being added, verifying a phone through DingTalk when that is
+ * all the caller supplied.
+ *
+ * A userId is trusted as-is and the phone is then ignored entirely -- that is
+ * the "I already know who this is" path, and it must not be turned into a
+ * DingTalk lookup. A phone has to be verified before it becomes an identity;
+ * an unverifiable one is a user-facing input error, not a silent skip.
+ */
+/**
+ * Verify a phone through DingTalk and return the identity it resolves to.
+ *
+ * Every failure is a distinct user-facing input error, which is why they are
+ * separate throws rather than one generic rejection: the admin needs to know
+ * whether the number is unknown, unverifiable, or verified-but-identityless.
+ */
+async function verifyPhoneIdentity(
+  client: DingTalkClient,
+  phone: string,
+  name: string | undefined
+): Promise<{ userId: string; name: string | undefined }> {
+  const result = await verifyPhoneToName(client, phone, name);
+  if (!result.verified) {
+    throw new InvalidMemberInputError(
+      result.reason || `Failed to verify phone ${maskPhone(phone)}`,
+      result.failure
+    );
+  }
+  if (!result.userId) {
+    throw new InvalidMemberInputError('手机号验证失败，未获取到用户身份');
+  }
+  // The verified name wins over the caller's spelling, which is only a fallback
+  // for the case where DingTalk has no name on file.
+  return { userId: result.userId, name: result.name || name };
+}
+
+/**
+ * Resolve who is being added, verifying a phone through DingTalk when that is
+ * all the caller supplied.
+ *
+ * A userId is trusted as-is and the phone is then ignored entirely -- that is
+ * the "I already know who this is" path, and it must not be turned into a
+ * DingTalk lookup.
+ */
+async function resolveMemberIdentity(
+  client: DingTalkClient,
+  input: AddMemberInput
+): Promise<{ userId: string; name: string | undefined }> {
+  if (input.userId) return { userId: input.userId, name: input.name };
+  if (!input.phone) throw new InvalidMemberInputError('请填写钉钉 ID 或手机号');
+  return verifyPhoneIdentity(client, input.phone, input.name);
+}
+
+/** The transaction handle type, derived from the client so it cannot drift. */
+type Tx = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0];
+
+/**
+ * Reject a member who would collide with an existing interview.
+ *
+ * Three separate rules, all error conditions: the same user already in THIS plan,
+ * the same user with an unfinished interview in another plan (adding them would
+ * split one person's responses across two plans), and the same phone already in
+ * this plan's invitee list. The phone rule only applies when the caller supplied
+ * a phone, because a userId-only add has no phone to compare.
+ */
+async function assertNoMemberConflict(
+  tx: Tx,
+  planId: string,
+  userId: string,
+  phone: string | undefined,
+  plan: { inviteeData: unknown }
+): Promise<void> {
+  const existing = await tx.interview.findFirst({ where: { planId, userId } });
+  if (existing) throw new MemberConflictError('该成员已在访谈计划中');
+
+  const activeElsewhere = await tx.interview.findFirst({
+    where: {
+      userId,
+      planId: { not: planId },
+      status: { notIn: ['COMPLETED', 'CANCELLED'] },
+    },
+    select: { planId: true },
+  });
+  if (activeElsewhere) throw new MemberConflictError('该成员已有尚未完成的访谈');
+
+  if (!phone) return;
+  if (findByPhone(inviteesOf(plan), normalizePhone(phone))) {
+    throw new MemberConflictError(`Member with phone ${maskPhone(phone)} already exists in plan`);
+  }
+}
+
+/**
+ * Load the interview and reject it unless it is removable.
+ *
+ * Three ways to refuse, each its own error: unknown id, an interview belonging to
+ * a different plan (the route pair is inconsistent), and a COMPLETED one (the
+ * conversation happened; deleting it would lose recorded answers while the
+ * report and its counters stayed behind).
+ */
+async function assertRemovable(tx: Tx, planId: string, interviewId: string) {
+  const interview = await tx.interview.findUnique({ where: { id: interviewId } });
+  if (!interview) throw new InterviewNotFoundError(interviewId);
+  if (interview.planId !== planId) throw new InvalidStateError('该访谈记录不属于此计划');
+  if (interview.status === 'COMPLETED') throw new InvalidStateError('无法删除已完成的访谈');
+  return interview;
+}
+
+/** True when `status` has already been counted as a send attempt. */
+function isCounted(status: SendStatus | undefined): boolean {
+  return status === SendStatus.SENT || status === SendStatus.FAILED;
+}
+
+/**
+ * The plan update for a removal: drop the invitee and un-count the send.
+ *
+ * The counters are decremented only for the states they were incremented for,
+ * because a PENDING member was never counted and decrementing anyway would drift
+ * the plan's sent/failed totals below zero over repeated add/remove cycles.
+ */
+function removalUpdate(
+  invitees: InviteeData[],
+  interview: { userId: string; sendStatus?: SendStatus | null }
+): Prisma.InterviewPlanUpdateInput {
+  const update: Prisma.InterviewPlanUpdateInput = {
+    inviteeData: invitees.filter(
+      (inv) => inv.userId !== interview.userId
+    ) as unknown as Prisma.InputJsonValue,
+    updatedBy: 'admin',
+  };
+  const status = interview.sendStatus ?? undefined;
+  if (isCounted(status)) update.sentCount = { decrement: 1 };
+  if (status === SendStatus.FAILED) update.failedCount = { decrement: 1 };
+  return update;
+}
+
+/**
+ * The invitation text for a 1:1 chat.
+ *
+ * A plan can supply its own wording; the generic text is the fallback, and it has
+ * to tell the invitee what to DO (reply anything to begin), not just that they
+ * were invited — an invitation with no next step gets ignored.
+ */
+function invitationBody(planName: string, invitationPrompt: string): string {
+  if (invitationPrompt) return `${invitationPrompt}\n\n> 来自「${planName}」访谈`;
+  return `您被邀请参与 **"${planName}"** 访谈。请在聊天中回复任意消息即可开始访谈。`;
+}
+
 export class InterviewPlanService extends InterviewPlanSendService {
   private dingTalkClient: DingTalkClient;
   private streamClient?: DingTalkStreamClient | undefined;
@@ -115,68 +279,14 @@ export class InterviewPlanService extends InterviewPlanSendService {
 
   // archlint-disable-next-line
   async addMember(planId: string, input: AddMemberInput): Promise<{ interviewId: string }> {
-    let { userId, name } = input;
+    const { userId, name } = await resolveMemberIdentity(this.dingTalkClient, input);
     const { phone } = input;
 
-    // Validate: at least one of userId or phone must be provided
-    if (!userId && !phone) {
-      throw new InvalidMemberInputError('请填写钉钉 ID 或手机号');
-    }
-
-    // If userId provided, ignore phone entirely - skip DingTalk call
-    if (!userId && phone) {
-      const result = await verifyPhoneToName(this.dingTalkClient, phone, name);
-
-      if (!result.verified) {
-        throw new InvalidMemberInputError(
-          result.reason || `Failed to verify phone ${maskPhone(phone)}`,
-          result.failure
-        );
-      }
-
-      userId = result.userId;
-      name = result.name || name;
-    }
-
-    if (!userId) {
-      throw new InvalidMemberInputError('手机号验证失败，未获取到用户身份');
-    }
-
-    const newInterviewId = await this.prisma.$transaction(async (tx) => {
+    const interviewId = await this.prisma.$transaction(async (tx) => {
       const plan = await tx.interviewPlan.findUnique({ where: { id: planId } });
-      if (!plan) {
-        throw new PlanNotFoundError(planId);
-      }
+      if (!plan) throw new PlanNotFoundError(planId);
 
-      // Check userId conflict: same user in same plan OR has active interview in another plan
-      const existingByUserId = await tx.interview.findFirst({
-        where: { planId, userId },
-      });
-      if (existingByUserId) {
-        throw new MemberConflictError('该成员已在访谈计划中');
-      }
-
-      const activeInOtherPlan = await tx.interview.findFirst({
-        where: {
-          userId,
-          planId: { not: planId },
-          status: { notIn: ['COMPLETED', 'CANCELLED'] },
-        },
-        select: { planId: true },
-      });
-      if (activeInOtherPlan) {
-        throw new MemberConflictError('该成员已有尚未完成的访谈');
-      }
-
-      // Phone mode: check phone conflict in inviteeData JSON
-      if (phone) {
-        const normalizedPhone = normalizePhone(phone);
-        if (findByPhone(inviteesOf(plan), normalizedPhone)) {
-          throw new MemberConflictError(
-            `Member with phone ${maskPhone(phone)} already exists in plan`
-          );
-        }
-      }
+      await assertNoMemberConflict(tx, planId, userId, phone, plan);
 
       const interview = await tx.interview.create({
         data: {
@@ -188,17 +298,15 @@ export class InterviewPlanService extends InterviewPlanSendService {
         },
       });
 
-      const existingInvitees = inviteesOf(plan);
-
-      // Only save phone to inviteeData if we're in phone mode (not userId-only mode)
-      const updatedInvitees = phone
-        ? [...existingInvitees, { userId, name, phone: normalizePhone(phone) }]
-        : [...existingInvitees, { userId, name }];
-
       await tx.interviewPlan.update({
         where: { id: planId },
         data: {
-          inviteeData: updatedInvitees as unknown as Prisma.InputJsonValue,
+          inviteeData: withInvitee(
+            inviteesOf(plan),
+            userId,
+            name,
+            phone
+          ) as unknown as Prisma.InputJsonValue,
           updatedBy: 'admin',
         },
       });
@@ -206,60 +314,29 @@ export class InterviewPlanService extends InterviewPlanSendService {
       return interview.id;
     });
 
-    info('Member added to plan', { planId, userId, interviewId: newInterviewId });
-    return { interviewId: newInterviewId };
+    info('Member added to plan', { planId, userId, interviewId });
+    return { interviewId };
   }
 
   // archlint-disable-next-line
   async removeMember(planId: string, interviewId: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
-      const interview = await tx.interview.findUnique({ where: { id: interviewId } });
-      if (!interview) {
-        throw new InterviewNotFoundError(interviewId);
-      }
-      if (interview.planId !== planId) {
-        throw new InvalidStateError('该访谈记录不属于此计划');
-      }
-      if (interview.status === 'COMPLETED') {
-        throw new InvalidStateError('无法删除已完成的访谈');
-      }
-
+      const interview = await assertRemovable(tx, planId, interviewId);
       const plan = await tx.interviewPlan.findUnique({ where: { id: planId } });
-      if (!plan) {
-        throw new PlanNotFoundError(planId);
-      }
-
-      const wasCounted =
-        interview.sendStatus === SendStatus.SENT || interview.sendStatus === SendStatus.FAILED;
-      const wasFailed = interview.sendStatus === SendStatus.FAILED;
+      if (!plan) throw new PlanNotFoundError(planId);
 
       await tx.interview.delete({ where: { id: interviewId } });
-
-      const existingInvitees = inviteesOf(plan);
-      const updatedInvitees = existingInvitees.filter((inv) => inv.userId !== interview.userId);
-
-      const planUpdate: Prisma.InterviewPlanUpdateInput = {
-        inviteeData: updatedInvitees as unknown as Prisma.InputJsonValue,
-        updatedBy: 'admin',
-      };
-      if (wasCounted) {
-        planUpdate.sentCount = { decrement: 1 };
-      }
-      if (wasFailed) {
-        planUpdate.failedCount = { decrement: 1 };
-      }
-
       await tx.interviewPlan.update({
         where: { id: planId },
-        data: planUpdate,
+        data: removalUpdate(inviteesOf(plan), interview),
       });
 
       info('Member removed from plan', {
         planId,
         interviewId,
         userId: interview.userId,
-        wasCounted,
-        wasFailed,
+        wasCounted: isCounted(interview.sendStatus ?? undefined),
+        wasFailed: interview.sendStatus === SendStatus.FAILED,
       });
     });
   }
@@ -270,19 +347,13 @@ export class InterviewPlanService extends InterviewPlanSendService {
     interviewId?: string
   ): Promise<{ reminded: number; failed: number }> {
     const plan = await this.prisma.interviewPlan.findUnique({ where: { id: planId } });
-    if (!plan) {
-      throw new PlanNotFoundError(planId);
-    }
+    if (!plan) throw new PlanNotFoundError(planId);
 
     const targets = await this.resolveReminderTargets(planId, interviewId);
-    if (targets.length === 0) {
-      return { reminded: 0, failed: 0 };
-    }
+    if (targets.length === 0) return { reminded: 0, failed: 0 };
 
-    const useSingleChat = !!(this.streamClient && this.tokenManager);
-    const tally = useSingleChat
-      ? await this.remindViaSingleChat(targets, plan.name, planId)
-      : await this.remindViaWorkNotification(targets, plan.name, planId);
+    const useSingleChat = Boolean(this.streamClient && this.tokenManager);
+    const tally = await this.dispatchReminders(targets, plan.name, planId, useSingleChat);
 
     info('Reminders sent', {
       planId,
@@ -290,6 +361,23 @@ export class InterviewPlanService extends InterviewPlanSendService {
       channel: useSingleChat ? 'single-chat' : 'work-notification',
     });
     return tally;
+  }
+
+  /**
+   * Send the reminders over the chosen channel.
+   *
+   * Kept separate from `sendReminder` so the channel decision is one boolean and
+   * the two branches differ only in which sender runs — not in the surrounding
+   * logging and target resolution, which are identical for both.
+   */
+  private async dispatchReminders(
+    targets: Array<{ id: string; userId: string }>,
+    planName: string,
+    planId: string,
+    useSingleChat: boolean
+  ): Promise<{ reminded: number; failed: number }> {
+    if (useSingleChat) return this.remindViaSingleChat(targets, planName, planId);
+    return this.remindViaWorkNotification(targets, planName, planId);
   }
 
   /**
@@ -302,20 +390,30 @@ export class InterviewPlanService extends InterviewPlanSendService {
     planId: string,
     interviewId?: string
   ): Promise<Array<{ id: string; userId: string }>> {
-    if (!interviewId) {
-      return this.prisma.interview.findMany({
-        where: {
-          planId,
-          status: { notIn: ['COMPLETED', 'CANCELLED'] },
-        },
-        select: { id: true, userId: true },
-      });
-    }
+    if (!interviewId) return this.unfinishedTargets(planId);
+    return this.singleTarget(planId, interviewId);
+  }
 
+  /** Every still-open interview in the plan — the "remind everyone" mode. */
+  private async unfinishedTargets(planId: string): Promise<Array<{ id: string; userId: string }>> {
+    return this.prisma.interview.findMany({
+      where: { planId, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+      select: { id: true, userId: true },
+    });
+  }
+
+  /**
+   * The one interview to remind, or none when it is already over.
+   *
+   * An interview in another plan is an error rather than an empty result: the
+   * caller named a specific id, so silently skipping it would look like success.
+   */
+  private async singleTarget(
+    planId: string,
+    interviewId: string
+  ): Promise<Array<{ id: string; userId: string }>> {
     const interview = await this.prisma.interview.findUnique({ where: { id: interviewId } });
-    if (!interview || interview.planId !== planId) {
-      throw new InterviewNotFoundError(interviewId);
-    }
+    if (!interview || interview.planId !== planId) throw new InterviewNotFoundError(interviewId);
     if (interview.status === 'COMPLETED' || interview.status === 'CANCELLED') return [];
     return [{ id: interview.id, userId: interview.userId }];
   }
@@ -402,20 +500,20 @@ export class InterviewPlanService extends InterviewPlanSendService {
   ): Promise<void> {
     const client = this.streamClient;
     const tokenMgr = this.tokenManager;
-    if (client && tokenMgr) {
-      const token = await tokenMgr.getAccessToken();
-      const title = '访谈邀请';
-      const body = invitationPrompt
-        ? `${invitationPrompt}\n\n> 来自「${planName}」访谈`
-        : `您被邀请参与 **"${planName}"** 访谈。请在聊天中回复任意消息即可开始访谈。`;
-      const result = await client.sendSingleChatMarkdown(userId, title, body, token);
-      if (!result.success) {
-        throw new Error(`DingTalk single chat failed: ${result.error || 'unknown'}`);
-      }
-      return;
-    }
+    // Without the Stream client and its token manager there is no 1:1 chat to
+    // write into, so the parent's channel is the only option.
+    if (!client || !tokenMgr) return super.sendInvitation(userId, planName, invitationPrompt);
 
-    return super.sendInvitation(userId, planName, invitationPrompt);
+    const token = await tokenMgr.getAccessToken();
+    const result = await client.sendSingleChatMarkdown(
+      userId,
+      '访谈邀请',
+      invitationBody(planName, invitationPrompt),
+      token
+    );
+    if (!result.success) {
+      throw new Error(`DingTalk single chat failed: ${result.error || 'unknown'}`);
+    }
   }
 
   async updatePlan(
@@ -440,51 +538,30 @@ export class InterviewPlanService extends InterviewPlanSendService {
     planId: string,
     rows: ImportMemberRow[]
   ): Promise<{ imported: number; skipped: number; interviewIds: string[] }> {
-    const plan = await this.prisma.interviewPlan.findUnique({ where: { id: planId } });
-    if (!plan) {
-      throw new PlanNotFoundError(planId);
-    }
-    if (plan.status !== 'PENDING' && plan.status !== 'READY') {
-      throw new InvalidStateError('计划当前状态不允许导入成员');
-    }
+    const plan = await this.assertImportable(planId);
+    await this.assertNoCrossPlanDuplicates(
+      planId,
+      rows.map((r) => r.userId)
+    );
 
-    const userIds = rows.map((r) => r.userId);
-
-    const crossPlanDups = await this.prisma.interview.findMany({
-      where: {
-        userId: { in: userIds },
-        planId: { not: planId },
-        status: { notIn: ['COMPLETED', 'CANCELLED'] },
-      },
-      select: { userId: true, planId: true },
-    });
-    if (crossPlanDups.length > 0) {
-      const conflicts = crossPlanDups.map(
-        (d) => `userId=${d.userId} 在计划 ${d.planId} 中有未完成的访谈`
-      );
-      throw new MemberConflictError(`以下成员已有尚未完成的访谈：${conflicts.join('；')}`);
-    }
-
-    const existingInPlan = await this.prisma.interview.findMany({
-      where: { planId, userId: { in: userIds } },
-      select: { userId: true },
-    });
-    const existingUserIdSet = new Set(existingInPlan.map((e) => e.userId));
+    const existingUserIdSet = await this.userIdsAlreadyInPlan(
+      planId,
+      rows.map((r) => r.userId)
+    );
     const newRows = rows.filter((r) => !existingUserIdSet.has(r.userId));
     const skipped = rows.length - newRows.length;
 
-    if (newRows.length === 0 && skipped > 0) {
-      return { imported: 0, skipped, interviewIds: [] };
-    }
+    // Every row was already a member: nothing to create, and no audit entry
+    // either, because no state changed.
+    if (newRows.length === 0) return { imported: 0, skipped, interviewIds: [] };
 
-    const templateId = plan.templateId;
     const interviewIds = await this.prisma.$transaction(async (tx) => {
       const ids: string[] = [];
       for (const row of newRows) {
         const interview = await tx.interview.create({
           data: {
             userId: row.userId,
-            templateId,
+            templateId: plan.templateId,
             planId,
             status: 'PENDING',
             maxFollowups: DEFAULT_MAX_FOLLOWUPS,
@@ -493,16 +570,13 @@ export class InterviewPlanService extends InterviewPlanSendService {
         ids.push(interview.id);
       }
 
-      const existingInvitees = Array.isArray(plan.inviteeData)
-        ? (plan.inviteeData as unknown as Array<{ userId: string; name: string }>)
-        : [];
-      const newInvitees = newRows.map((r) => ({
-        userId: r.userId,
-        name: r.dingtalkName || r.inputName || '',
-      }));
+      const existingInvitees = inviteesOf(plan);
+      const newInvitees = newRows.map(inviteeRowOf);
       await tx.interviewPlan.update({
         where: { id: planId },
-        data: { inviteeData: [...existingInvitees, ...newInvitees] },
+        data: {
+          inviteeData: [...existingInvitees, ...newInvitees] as unknown as Prisma.InputJsonValue,
+        },
       });
 
       await tx.auditLog.create({
@@ -523,10 +597,61 @@ export class InterviewPlanService extends InterviewPlanSendService {
 
     return { imported: newRows.length, skipped, interviewIds };
   }
+
+  /**
+   * Load the plan and reject it unless members may be imported into it.
+   *
+   * Import is only meaningful before the plan starts running: once it is
+   * in progress or closed, the invitee list and the interview set are expected
+   * to match what was already sent out.
+   */
+  private async assertImportable(planId: string) {
+    const plan = await this.prisma.interviewPlan.findUnique({ where: { id: planId } });
+    if (!plan) throw new PlanNotFoundError(planId);
+    if (plan.status !== 'PENDING' && plan.status !== 'READY') {
+      throw new InvalidStateError('计划当前状态不允许导入成员');
+    }
+    return plan;
+  }
+
+  /**
+   * Reject the whole import when any user is mid-interview elsewhere.
+   *
+   * This is all-or-nothing on purpose: a partial import would leave the admin
+   * with a half-applied CSV and no record of which rows landed, so the message
+   * names every conflicting user and plan instead.
+   */
+  private async assertNoCrossPlanDuplicates(planId: string, userIds: string[]): Promise<void> {
+    const dups = await this.prisma.interview.findMany({
+      where: {
+        userId: { in: userIds },
+        planId: { not: planId },
+        status: { notIn: ['COMPLETED', 'CANCELLED'] },
+      },
+      select: { userId: true, planId: true },
+    });
+    if (dups.length === 0) return;
+    const conflicts = dups.map((d) => `userId=${d.userId} 在计划 ${d.planId} 中有未完成的访谈`);
+    throw new MemberConflictError(`以下成员已有尚未完成的访谈：${conflicts.join('；')}`);
+  }
+
+  /** The subset of `userIds` that is already a member of this plan. */
+  private async userIdsAlreadyInPlan(planId: string, userIds: string[]): Promise<Set<string>> {
+    const existing = await this.prisma.interview.findMany({
+      where: { planId, userId: { in: userIds } },
+      select: { userId: true },
+    });
+    return new Set(existing.map((e) => e.userId));
+  }
 }
 
 export interface ImportMemberRow {
   userId: string;
   inputName?: string;
   dingtalkName?: string;
+}
+
+/** The invitee record for an imported row, preferring DingTalk's own name. */
+function inviteeRowOf(row: ImportMemberRow): InviteeData {
+  return { userId: row.userId, name: row.dingtalkName || row.inputName || '' };
 }

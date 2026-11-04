@@ -25,18 +25,6 @@ export interface ProcessResult {
 }
 
 /**
- * One segment inside a DingTalk `richText` payload. Text segments carry `text`;
- * picture/voice/file segments carry their own keys and no text at all. Quoted or
- * pasted blocks arrive one level deeper, under `richText` or `content`.
- */
-interface RichTextSegment {
-  text?: unknown;
-  richText?: unknown;
-  content?: unknown;
-  [key: string]: unknown;
-}
-
-/**
  * Read `container[key]` when `container` is an object, `undefined` otherwise.
  *
  * DingTalk's payload is untyped JSON: every level may be missing, a string, or
@@ -54,12 +42,41 @@ function readStringField(container: unknown, key: string): string | undefined {
 }
 
 /**
+ * Keys a rich-text segment may nest its content under, in precedence order.
+ *
+ * `text` is the common case; `richText` and `content` appear when DingTalk wraps
+ * a quoted or pasted block one level deeper.
+ */
+const SEGMENT_CONTENT_KEYS = ['text', 'richText', 'content'] as const;
+
+/** True when `value` is a non-null object (arrays included; they are handled separately). */
+function isContainer(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * Read one segment's text out of `keys` in order.
+ *
+ * The FIRST key that is a string or an array wins outright, even when it
+ * flattens to nothing: that is the key the client chose to put content in, and
+ * an empty result there is the answer. Only a key of another type falls through
+ * to the next one.
+ */
+function segmentText(segment: Record<string, unknown>): string {
+  for (const key of SEGMENT_CONTENT_KEYS) {
+    const nested = segment[key];
+    if (typeof nested === 'string') return nested;
+    if (Array.isArray(nested)) return flattenRichText(nested);
+  }
+  return '';
+}
+
+/**
  * Flatten DingTalk rich-text segments into plain text.
  *
  * A segment is either a plain string or an object, and the text lives under one
- * of three keys depending on how the client encoded it: `text` for the common
- * case, and a nested `richText`/`content` array for quoted/pasted blocks that
- * DingTalk wraps one level deeper. Recursing covers both without a special case.
+ * of three keys depending on how the client encoded it. Recursing covers nested
+ * blocks without a special case.
  *
  * Picture/voice/file segments carry none of those keys and contribute nothing —
  * they are media descriptors, not the user's words.
@@ -67,16 +84,39 @@ function readStringField(container: unknown, key: string): string | undefined {
 function flattenRichText(value: unknown): string {
   if (typeof value === 'string') return value;
   if (Array.isArray(value)) return value.map(flattenRichText).join('');
-  if (!value || typeof value !== 'object') return '';
+  if (!isContainer(value)) return '';
+  return segmentText(value);
+}
 
-  const segment = value as RichTextSegment;
-  if (typeof segment.text === 'string') return segment.text;
-  for (const key of ['richText', 'content'] as const) {
-    const nested = segment[key];
-    if (Array.isArray(nested)) return flattenRichText(nested);
-    if (typeof nested === 'string') return nested;
-  }
-  return '';
+/**
+ * Where a message body may carry its text, in precedence order.
+ *
+ * A row reads one candidate and returns it, or undefined when that shape is
+ * absent. The array is the precedence, so the order is visible in one place
+ * instead of being implied by a chain of early returns.
+ */
+const TEXT_SOURCES: ReadonlyArray<(data: Record<string, unknown>) => string | undefined> = [
+  // Plain text: `text.content`.
+  (data) => readStringField(data['text'], 'content'),
+  // Rich text under `text` when the client did not use `text.content`.
+  (data) => nonBlank(flattenRichText(readField(data['text'], 'content'))),
+  // A raw string body.
+  (data) => stringOrUndefined(data['content']),
+  // The rich-text segments of a `content` body.
+  (data) => nonBlank(flattenRichText(data['content'])),
+  // Markdown.
+  (data) => readStringField(data['markdown'], 'text'),
+];
+
+/** The trimmed text, or undefined when it is blank. */
+function nonBlank(text: string): string | undefined {
+  const trimmed = text.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+/** `value` when it is a string, undefined otherwise. */
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }
 
 /**
@@ -89,24 +129,17 @@ function flattenRichText(value: unknown): string {
  * rich-text body, then a raw string body, then markdown. Returns `''` for any
  * shape that carries no text, so the caller treats it as "no usable content"
  * instead of writing garbage.
+ *
+ * Note the plain-text rows return their value even when blank: an explicit
+ * `text.content` of `""` is a decision the client made, and letting a later row
+ * win there would substitute unrelated fields for it.
  */
 function extractMessageText(data: Record<string, unknown>): string {
-  const text = data['text'];
-  const textContent = readField(text, 'content');
-  if (typeof textContent === 'string') return textContent;
-
-  // Some clients put the richText segments under `text` rather than `content`;
-  // reading both is harmless and keeps a whitespace-only body from winning.
-  const textRich = flattenRichText(textContent).trim();
-  if (textRich) return textRich;
-
-  const content = data['content'];
-  if (typeof content === 'string') return content;
-
-  const contentRich = flattenRichText(content).trim();
-  if (contentRich) return contentRich;
-
-  return readStringField(data['markdown'], 'text') ?? '';
+  for (const source of TEXT_SOURCES) {
+    const text = source(data);
+    if (text !== undefined) return text;
+  }
+  return '';
 }
 
 export function parseStreamMessage(message: StreamMessage): ParsedStreamMessage | null {
