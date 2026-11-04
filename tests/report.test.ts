@@ -94,6 +94,28 @@ describe('Report Service', () => {
     });
 
     /**
+     * @test REQ-006-2-02
+     * @intent a reply with none of the three sections yields defaults, not a crash
+     */
+    it('should default every section when the reply has none of them', async () => {
+      // No 关键发现, no 情感分析, no 行动建议: all three captures are absent, so
+      // each section has to fall back on its default. A crash here would surface
+      // to the caller as a generic report failure and lose the whole report.
+      const chatMock = vi.fn().mockResolvedValue({ content: '这是一段自由格式的回答。' });
+      vi.mocked(
+        await import('../src/integrations/llm/openai-compatible.js')
+      ).OpenAICompatibleLLM.fromEnv = () => ({ chat: chatMock }) as unknown as OpenAICompatibleLLM;
+
+      const result = await generateReport('interview-456', 'test', [
+        { question: 'Q1', answer: 'A1' },
+      ]);
+
+      expect(result.keyFindings).toEqual([]);
+      expect(result.recommendations).toEqual([]);
+      expect(result.sentiment).toBe('neutral');
+    });
+
+    /**
      * @test REQ-006-2-01
      * @intent 测试报告生成服务能否处理空问答对参数
      */
