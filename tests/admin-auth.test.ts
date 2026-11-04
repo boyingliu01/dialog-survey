@@ -16,7 +16,7 @@ function createMockReply(): Partial<FastifyReply> {
 
 function createMockRequest(
   sessionData: Record<string, unknown> | null,
-  headers: Record<string, string | undefined> = {},
+  headers: Record<string, string | string[] | undefined> = {},
   method = 'POST'
 ): Partial<FastifyRequest> {
   return {
@@ -107,6 +107,27 @@ describe('adminAuth middleware', () => {
 
     await adminAuth(request as FastifyRequest, reply as FastifyReply);
 
+    expect(reply.code).toHaveBeenCalledWith(401);
+  });
+
+  /**
+   * A repeated `x-admin-key` header arrives as an array.
+   *
+   * It is JOINED, not truncated to its first value, so the comparison covers
+   * everything the client sent -- keeping only `raw[0]` and answering 401 passes
+   * the rest of this suite, because no other case sends a repeated header.
+   */
+  it('should reject a repeated x-admin-key header rather than reading only the first', async () => {
+    const request = createMockRequest(null, {
+      'x-admin-key': ['test-api-key', 'extra-value'],
+    });
+    const reply = createMockReply();
+    vi.stubEnv('ADMIN_API_KEY', 'test-api-key');
+
+    await adminAuth(request as FastifyRequest, reply as FastifyReply);
+
+    // The joined value is 'test-api-key,extra-value', which is not the configured
+    // key -- so this must be rejected, not accepted on the strength of part 1.
     expect(reply.code).toHaveBeenCalledWith(401);
   });
 
