@@ -9,6 +9,78 @@ export const DEFAULT_MODEL = 'deepseek-v3.2';
 const CHAT_COMPLETIONS_SUFFIX = '/chat/completions';
 
 /**
+ * Environment variables that may hold the API key, in precedence order.
+ *
+ * Several names because this client is deployed against a Volcengine gateway and
+ * against plain OpenAI-compatible endpoints, and an operator should not have to
+ * rename the variable they already have set. The first non-empty value wins; an
+ * empty string counts as unset, which is how a compose file with `KEY=` behaves.
+ */
+const API_KEY_VARS = ['LLM_API_KEY', 'VOLCENGINE_API_KEY', 'ANTHROPIC_AUTH_TOKEN'] as const;
+
+/** Base-URL variables, in precedence order. */
+const BASE_URL_VARS = ['LLM_BASE_URL', 'VOLCENGINE_BASE_URL'] as const;
+
+/** Model variables, in precedence order; `DEFAULT_MODEL` is the fallback. */
+const MODEL_VARS = ['LLM_MODEL', 'VOLCENGINE_MODEL'] as const;
+
+/** The first non-empty value among `names`, or `fallback` when none is set. */
+function firstEnv(names: readonly string[], fallback: string): string {
+  for (const name of names) {
+    const value = process.env[name];
+    if (value) return value;
+  }
+  return fallback;
+}
+
+/** The JSON body sent to the completions endpoint. */
+function payloadOf(request: LLMRequest, defaultModel: string): Record<string, unknown> {
+  return {
+    model: request.model || defaultModel,
+    messages: request.messages,
+    temperature: request.temperature ?? 0.7,
+    max_tokens: request.max_tokens ?? 2000,
+  };
+}
+
+/**
+ * Turn a non-2xx response into the error the retry layer decides on.
+ *
+ * The third argument is `RetryError`'s "worth retrying" flag, and it is the whole
+ * point of this function: a 5xx or a 429 is the gateway being busy and WILL be
+ * retried, while a 400/401/403 is the request being wrong, and retrying that just
+ * burns the budget and hides the misconfiguration. `error()` is called first so
+ * the full body is on record -- the thrown message carries it too, but the log is
+ * what an operator actually reads.
+ */
+async function apiError(response: Response): Promise<RetryError> {
+  const errText = await response.text();
+  error('LLM API error', { status: response.status, body: errText });
+  const retryable = response.status >= 500 || response.status === 429;
+  return new RetryError(
+    `LLM API error: ${response.status} - ${errText}`,
+    response.status,
+    retryable
+  );
+}
+
+/**
+ * Translate an abort into the timeout error the caller expects, passing anything
+ * else through untouched.
+ *
+ * A timeout is NOT retryable: the request already had its full window, so a retry
+ * only doubles how long the user waits. Every other error keeps its own retry
+ * classification.
+ */
+function asTimeoutOrRethrow(e: unknown, timeoutMs: number, model: string): unknown {
+  if (e instanceof DOMException && e.name === 'AbortError') {
+    error('LLM request timeout', { timeoutMs, model });
+    return new RetryError(`LLM request timeout after ${timeoutMs}ms`, 408, false);
+  }
+  return e;
+}
+
+/**
  * Normalize an LLM base URL into a COMPLETE chat completions endpoint.
  *
  * Both the client (chat()) and the /health probe fetch() the URL directly as
@@ -62,24 +134,11 @@ export class OpenAICompatibleLLM implements LLMService {
         Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: request.model || this.model,
-        messages: request.messages,
-        temperature: request.temperature ?? 0.7,
-        max_tokens: request.max_tokens ?? 2000,
-      }),
+      body: JSON.stringify(payloadOf(request, this.model)),
       signal,
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      error('LLM API error', { status: response.status, body: errText });
-      throw new RetryError(
-        `LLM API error: ${response.status} - ${errText}`,
-        response.status,
-        response.status >= 500 || response.status === 429
-      );
-    }
+    if (!response.ok) throw await apiError(response);
 
     return (await response.json()) as {
       choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
@@ -106,11 +165,7 @@ export class OpenAICompatibleLLM implements LLMService {
       return this.toResponse(data);
     } catch (e) {
       clearTimeout(timeoutId);
-      if (e instanceof DOMException && e.name === 'AbortError') {
-        error('LLM request timeout', { timeoutMs, model });
-        throw new RetryError(`LLM request timeout after ${timeoutMs}ms`, 408, false);
-      }
-      throw e;
+      throw asTimeoutOrRethrow(e, timeoutMs, model);
     }
   }
 
@@ -145,21 +200,15 @@ export class OpenAICompatibleLLM implements LLMService {
   }
 
   static fromEnv(): OpenAICompatibleLLM {
-    const apiKey =
-      process.env['LLM_API_KEY'] ||
-      process.env['VOLCENGINE_API_KEY'] ||
-      process.env['ANTHROPIC_AUTH_TOKEN'] ||
-      '';
-    const rawBaseUrl =
-      process.env['LLM_BASE_URL'] ||
-      process.env['VOLCENGINE_BASE_URL'] ||
-      'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions';
-    const model = process.env['LLM_MODEL'] || process.env['VOLCENGINE_MODEL'] || DEFAULT_MODEL;
-
+    const apiKey = firstEnv(API_KEY_VARS, '');
     if (!apiKey) {
-      throw new Error('LLM_API_KEY or VOLCENGINE_API_KEY or ANTHROPIC_AUTH_TOKEN not configured');
+      throw new Error(`${API_KEY_VARS.join(' or ')} not configured`);
     }
 
+    const rawBaseUrl = firstEnv(
+      BASE_URL_VARS,
+      'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions'
+    );
     const baseUrl = normalizeLlmBaseUrl(rawBaseUrl);
     if (baseUrl !== rawBaseUrl) {
       info('LLM_BASE_URL normalized', { from: rawBaseUrl, to: baseUrl });
@@ -168,7 +217,7 @@ export class OpenAICompatibleLLM implements LLMService {
     return new OpenAICompatibleLLM({
       apiKey,
       baseUrl,
-      model,
+      model: firstEnv(MODEL_VARS, DEFAULT_MODEL),
     });
   }
 }

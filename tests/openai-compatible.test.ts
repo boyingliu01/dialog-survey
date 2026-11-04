@@ -342,3 +342,81 @@ describe('OpenAICompatibleLLM', () => {
     });
   });
 });
+
+/**
+ * Error classification the retry layer consumes.
+ *
+ * `withRetry` decides from `statusCode`; the repository retry paths read
+ * `retryable` directly. Both are part of the error's contract, and a wrong
+ * classification is not a cosmetic bug: retrying a 401 burns the whole budget on
+ * a request that can never succeed, while marking a timeout retryable makes the
+ * user wait through the full window twice.
+ */
+/** The error `promise` rejects with, so tests can inspect it without a union type. */
+async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  try {
+    await promise;
+  } catch (e) {
+    return e;
+  }
+  throw new Error('expected the promise to reject');
+}
+
+describe('LLM error classification', () => {
+  const client = () =>
+    new OpenAICompatibleLLM({ apiKey: 'k', baseUrl: 'https://x/v1/chat/completions' });
+  const respondWith = (status: number, body = 'boom') =>
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      status,
+      text: async () => body,
+      json: async () => ({}),
+    } as unknown as Response);
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    [500, true],
+    [503, true],
+    [429, true],
+    [400, false],
+    [401, false],
+    [403, false],
+    [404, false],
+  ])('status %i is retryable=%s', async (status, retryable) => {
+    respondWith(status);
+    const err = await rejectionOf(client().chat({ messages: [{ role: 'user', content: 'hi' }] }));
+    expect((err as { statusCode?: number }).statusCode).toBe(status);
+    expect((err as { retryable?: boolean }).retryable).toBe(retryable);
+  });
+
+  it('carries the response body into the message', async () => {
+    respondWith(400, 'model not found');
+    const err = await rejectionOf(client().chat({ messages: [{ role: 'user', content: 'hi' }] }));
+    expect((err as Error).message).toContain('model not found');
+  });
+
+  it('treats a timeout as fatal, with status 408', async () => {
+    // Not retryable: the request already consumed its whole window.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = (init as RequestInit | undefined)?.signal;
+          signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError'))
+          );
+        })
+    );
+    vi.stubEnv('LLM_TIMEOUT', '5');
+    try {
+      const err = await rejectionOf(client().chat({ messages: [{ role: 'user', content: 'hi' }] }));
+      expect((err as { statusCode?: number }).statusCode).toBe(408);
+      expect((err as { retryable?: boolean }).retryable).toBe(false);
+      expect((err as Error).message).toContain('timeout');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
