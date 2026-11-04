@@ -201,6 +201,194 @@ describe('StreamMessageService branch coverage', () => {
     });
   });
 
+  /**
+   * `checkTimeoutNudge` had NO test at all before this block, which is why Gate M
+   * reported every guard in it as a surviving mutant: the status gate, the elapsed
+   * threshold, the nudge cap and the webhook check could each be inverted or deleted
+   * with the whole suite still green.
+   *
+   * All four are driven through `processStreamMessage` rather than by calling the
+   * private method, so the assertions are on what the USER observes: whether a
+   * second HTTP call went out, what it said, and whether the counter moved.
+   */
+  describe('timeout nudge', () => {
+    /** An ACTIVE interview whose last bot prompt is `minutesAgo` old. */
+    const activeState = (minutesAgo: number, overrides: Record<string, unknown> = {}) => ({
+      interviewId: 'iv-1',
+      userId: 'u1',
+      templateId: 'tpl-1',
+      status: 'ACTIVE',
+      messages: [
+        {
+          role: 'assistant',
+          content: 'q1',
+          timestamp: new Date(Date.now() - minutesAgo * 60000).toISOString(),
+        },
+      ],
+      currentQuestion: 1,
+      followupCount: 0,
+      maxFollowups: 2,
+      nudgeCount: 0,
+      responses: [],
+      reportGenerated: false,
+      version: 1,
+      originalVersion: 1,
+      pendingMessages: [],
+      pendingResponses: [],
+      ...overrides,
+    });
+
+    it('nudges an ACTIVE interview that has been idle past the timeout', async () => {
+      vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '1');
+      repo.findActiveInterview.mockResolvedValue(activeState(120));
+
+      const result = await service.processStreamMessage(
+        envelope({
+          senderStaffId: 'u1',
+          text: { content: 'hi' },
+          sessionWebhook: 'https://oapi.dingtalk.com/hook',
+        }),
+        0
+      );
+
+      expect(result.success).toBe(true);
+      // Two sends: the nudge, then the graph's own reply. Asserting the COUNT is
+      // what makes "the nudge was skipped" detectable -- a single call would sink
+      // this, and so would three.
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      const nudgeBody = JSON.parse(String(mockFetch.mock.calls[0][1].body)) as {
+        text: { content: string };
+      };
+      expect(nudgeBody.text.content).toContain('访谈还在进行中');
+    });
+
+    it('does not nudge before the timeout elapses', async () => {
+      vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '1');
+      // 59 minutes against a 1-hour timeout: just short.
+      repo.findActiveInterview.mockResolvedValue(activeState(59));
+
+      await service.processStreamMessage(
+        envelope({
+          senderStaffId: 'u1',
+          text: { content: 'hi' },
+          sessionWebhook: 'https://oapi.dingtalk.com/hook',
+        }),
+        0
+      );
+
+      // Only the graph's reply.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('respects INTERVIEW_TIMEOUT_HOURS instead of the one-hour default', async () => {
+      vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '3');
+      // 2 hours idle: past the default, short of a 3-hour window.
+      repo.findActiveInterview.mockResolvedValue(activeState(120));
+
+      await service.processStreamMessage(
+        envelope({
+          senderStaffId: 'u1',
+          text: { content: 'hi' },
+          sessionWebhook: 'https://oapi.dingtalk.com/hook',
+        }),
+        0
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops nudging once the cap is reached, and says so', async () => {
+      vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '1');
+      vi.stubEnv('INTERVIEW_TIMEOUT_MAX_NUDGES', '2');
+      repo.findActiveInterview.mockResolvedValue(activeState(120, { nudgeCount: 2 }));
+
+      await service.processStreamMessage(
+        envelope({
+          senderStaffId: 'u1',
+          text: { content: 'hi' },
+          sessionWebhook: 'https://oapi.dingtalk.com/hook',
+        }),
+        0
+      );
+
+      // Only the graph reply -- no third nudge.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      // The cap branch must announce the skip-to-next-question decision, otherwise
+      // an operator cannot tell a capped interview from a broken one.
+      const messages = mockInfo.mock.calls.map((call) => String(call[0]));
+      expect(messages.some((m) => m.includes('Max nudges exceeded'))).toBe(true);
+    });
+
+    it('counts a nudge against the cap even when it cannot be delivered', async () => {
+      vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '1');
+      const state = activeState(120);
+      repo.findActiveInterview.mockResolvedValue(state);
+
+      // NO sessionWebhook: the nudge cannot go out, but the counter must still move,
+      // or a webhook-less conversation would re-check the same nudge forever.
+      await service.processStreamMessage(
+        envelope({ senderStaffId: 'u1', text: { content: 'hi' } }),
+        0
+      );
+
+      const saved = repo.saveFullState.mock.calls.at(-1)?.[1] as { nudgeCount: number };
+      expect(saved.nudgeCount).toBe(1);
+    });
+
+    it('does not nudge an interview that is not ACTIVE or WAITING', async () => {
+      vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '1');
+      // PENDING: the user has already been asked something in a state where no reply
+      // is owed yet, so a nudge would be noise.
+      repo.findActiveInterview.mockResolvedValue(activeState(120, { status: 'PENDING' }));
+
+      await service.processStreamMessage(
+        envelope({
+          senderStaffId: 'u1',
+          text: { content: 'hi' },
+          sessionWebhook: 'https://oapi.dingtalk.com/hook',
+        }),
+        0
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not nudge when the last prompt carries no timestamp', async () => {
+      vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '1');
+      repo.findActiveInterview.mockResolvedValue(
+        activeState(120, { messages: [{ role: 'assistant', content: 'q1' }] })
+      );
+
+      await service.processStreamMessage(
+        envelope({
+          senderStaffId: 'u1',
+          text: { content: 'hi' },
+          sessionWebhook: 'https://oapi.dingtalk.com/hook',
+        }),
+        0
+      );
+
+      // Nothing to measure elapsed time from, so no nudge.
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('nudges a WAITING interview too', async () => {
+      vi.stubEnv('INTERVIEW_TIMEOUT_HOURS', '1');
+      repo.findActiveInterview.mockResolvedValue(activeState(120, { status: 'WAITING' }));
+
+      await service.processStreamMessage(
+        envelope({
+          senderStaffId: 'u1',
+          text: { content: 'hi' },
+          sessionWebhook: 'https://oapi.dingtalk.com/hook',
+        }),
+        0
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('dedup cache', () => {
     it('rejects a second message with the same messageId', async () => {
       const first = await service.processStreamMessage(
