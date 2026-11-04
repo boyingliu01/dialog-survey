@@ -41,6 +41,102 @@ export type EventHandler = (data: unknown) => void;
 const CIRCUIT_COOLDOWN_MS = 30000;
 const FAILURE_THRESHOLD = 3;
 
+/** The batch-send endpoint for a 1:1 robot chat. */
+const BATCH_SEND_URL = 'https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend';
+
+/** The 1:1 send response body. */
+interface BatchSendResponse {
+  code?: string;
+  message?: string;
+  processQueryKey?: string;
+  result?: { processQueryKey?: string };
+}
+
+/** POST one message to a user's 1:1 chat with the robot. */
+async function postBatchSend(
+  robotCode: string,
+  userId: string,
+  msgKey: string,
+  msgParam: string,
+  accessToken: string
+): Promise<{ ok: boolean; status: number; data: BatchSendResponse }> {
+  const response = await fetch(BATCH_SEND_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-acs-dingtalk-access-token': accessToken,
+    },
+    body: JSON.stringify({ robotCode, userIds: [userId], msgKey, msgParam }),
+  });
+  return {
+    ok: response.ok,
+    status: response.status,
+    data: (await response.json()) as BatchSendResponse,
+  };
+}
+
+/**
+ * True when the response reports a business-level error.
+ *
+ * The empty string counts as success because some responses send `code: ''`
+ * rather than omitting the field.
+ */
+function isBusinessError(code: string | undefined): boolean {
+  return code !== undefined && code !== '0' && code !== '';
+}
+
+/**
+ * Why the send failed, or undefined when it succeeded.
+ *
+ * Both signals count: an HTTP failure, AND a 2xx carrying a non-zero `code`.
+ * DingTalk answers 200 with a business error code often enough that checking
+ * `response.ok` alone reports success for messages that were never delivered.
+ */
+function failureReason(ok: boolean, status: number, data: BatchSendResponse): string | undefined {
+  if (ok && !isBusinessError(data.code)) return undefined;
+  return data.message || `HTTP ${status}`;
+}
+
+/**
+ * Call one event handler, containing any error it throws.
+ *
+ * One bad subscriber must not stop the others or unwind the socket callback that
+ * dispatched the event, so the throw is logged and swallowed here rather than
+ * left to the caller.
+ */
+function invokeHandler(event: string, handler: EventHandler, data: unknown): void {
+  try {
+    handler(data);
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : 'Unknown error';
+    error('Event handler error', { event, error: errMsg });
+  }
+}
+
+/**
+ * Open a Stream connection slot and return its endpoint and ticket.
+ *
+ * A non-2xx is turned into an error here rather than returned: the caller has no
+ * meaningful fallback without an endpoint, and the status line is the only
+ * diagnostic DingTalk gives for a bad app key.
+ */
+async function requestConnectionToken(config: DingTalkStreamConfig): Promise<ConnectionToken> {
+  const response = await fetch('https://api.dingtalk.com/v1.0/gateway/connections/open', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
+      subscriptions: [{ topic: '/v1.0/im/bot/messages/get', type: 'CALLBACK' }],
+      ua: 'bot',
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to get connection token: ${response.status} ${response.statusText}`);
+  }
+  return (await response.json()) as ConnectionToken;
+}
+
 export class DingTalkStreamClient {
   private config: DingTalkStreamConfig;
   private options: StreamClientOptions;
@@ -94,40 +190,11 @@ export class DingTalkStreamClient {
    * Get connection token from DingTalk API
    */
   async getConnectionToken(): Promise<ConnectionToken> {
-    const url = 'https://api.dingtalk.com/v1.0/gateway/connections/open';
-    const body = {
-      clientId: this.config.clientId,
-      clientSecret: this.config.clientSecret,
-      subscriptions: [
-        {
-          topic: '/v1.0/im/bot/messages/get',
-          type: 'CALLBACK',
-        },
-      ],
-      ua: 'bot',
-    };
-
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Failed to get connection token: ${response.status} ${response.statusText}`
-        );
-      }
-
-      const data = (await response.json()) as ConnectionToken;
-
+      const data = await requestConnectionToken(this.config);
       if (!data.endpoint || !data.ticket) {
         throw new Error('endpoint or ticket missing in response');
       }
-
       debug('Got connection token', { endpoint: data.endpoint });
       return data;
     } catch (err) {
@@ -147,17 +214,29 @@ export class DingTalkStreamClient {
   /**
    * Connect to DingTalk Stream
    */
-  async connect(): Promise<void> {
-    if (this.shuttingDown) return;
+  /**
+   * True when a connect attempt must not start, logging why.
+   *
+   * Three separate reasons, and conflating them would hide a real bug: a shutdown
+   * must not reconnect at all, an existing healthy socket makes a second attempt
+   * a no-op, and a concurrent attempt would open a second socket whose close
+   * handler fights the first one's circuit-breaker accounting.
+   */
+  private shouldSkipConnect(): boolean {
+    if (this.shuttingDown) return true;
     if (this.connected && this.ws) {
       info('Already connected');
-      return;
+      return true;
     }
-
     if (this.isConnecting) {
       info('Connection already in progress, skipping');
-      return;
+      return true;
     }
+    return false;
+  }
+
+  async connect(): Promise<void> {
+    if (this.shouldSkipConnect()) return;
     this.isConnecting = true;
     const token = await this.getConnectionToken();
     if (this.shuttingDown) return;
@@ -171,56 +250,81 @@ export class DingTalkStreamClient {
     });
 
     this.ws.on('open', () => {
-      this.connected = true;
-      this.isConnecting = false;
-      this.reconnectAttempts = 0;
-      this.failureCount = 0;
-      info('Connected to DingTalk Stream');
-      this.emit('connected', {});
+      this.onSocketOpen();
     });
-
     this.ws.on('message', (data: Buffer) => {
       this.handleMessage(data);
     });
-
     this.ws.on('error', (err: Error) => {
       error('WebSocket error', { error: err.message });
       this.emit('error', err);
     });
-
     this.ws.on('close', (code: number, reason: Buffer) => {
-      this.resolveSocketClosed?.();
-      this.resolveSocketClosed = undefined;
-      this.connected = false;
-      this.isConnecting = false;
-      this.failureCount++;
-      info('WebSocket connection closed', {
-        code,
-        reason: reason.toString(),
-        failureCount: this.failureCount,
-      });
-      this.emit('disconnected', { code, reason: reason.toString() });
-
-      if (this.shuttingDown) return;
-
-      if (this.circuitState === 'CLOSED' && this.failureCount >= FAILURE_THRESHOLD) {
-        this.circuitState = 'OPEN';
-        this.circuitOpenedAt = Date.now();
-        info('Circuit breaker OPEN', { cooldownMs: CIRCUIT_COOLDOWN_MS });
-        return;
-      }
-
-      if (this.circuitState === 'HALF_OPEN') {
-        this.circuitState = 'OPEN';
-        this.circuitOpenedAt = Date.now();
-        return;
-      }
-
-      const maxAttempts = this.options.maxReconnectAttempts ?? 3;
-      if (this.reconnectAttempts < maxAttempts) {
-        this.reconnect();
-      }
+      this.onSocketClose(code, reason);
     });
+  }
+
+  /** A socket that opened: the connection is healthy and the backoff resets. */
+  private onSocketOpen(): void {
+    this.connected = true;
+    this.isConnecting = false;
+    this.reconnectAttempts = 0;
+    this.failureCount = 0;
+    info('Connected to DingTalk Stream');
+    this.emit('connected', {});
+  }
+
+  /**
+   * A socket closed: release the waiter, then decide whether to reconnect.
+   *
+   * Every close increments `failureCount`, including a clean one, because the
+   * circuit breaker is about how often the link drops, not why. That ordering
+   * makes two of the transitions below mutually exclusive: a trip to OPEN returns
+   * immediately, so a socket that just opened the circuit does not ALSO schedule a
+   * reconnect -- that would defeat the breaker entirely.
+   */
+  private onSocketClose(code: number, reason: Buffer): void {
+    this.resolveSocketClosed?.();
+    this.resolveSocketClosed = undefined;
+    this.connected = false;
+    this.isConnecting = false;
+    this.failureCount++;
+
+    const reasonText = reason.toString();
+    info('WebSocket connection closed', {
+      code,
+      reason: reasonText,
+      failureCount: this.failureCount,
+    });
+    this.emit('disconnected', { code, reason: reasonText });
+
+    if (this.shuttingDown) return;
+    if (this.tripCircuitIfNeeded()) return;
+
+    const maxAttempts = this.options.maxReconnectAttempts ?? 3;
+    if (this.reconnectAttempts < maxAttempts) this.reconnect();
+  }
+
+  /**
+   * Open the circuit if the failure policy says so; returns whether it did.
+   *
+   * Two independent triggers. A CLOSED circuit trips once `failureCount` reaches
+   * the threshold. A HALF_OPEN probe that fails trips immediately -- it exists to
+   * test the water, so one failure is the answer, and the cooldown restarts.
+   */
+  private tripCircuitIfNeeded(): boolean {
+    if (this.circuitState === 'CLOSED' && this.failureCount >= FAILURE_THRESHOLD) {
+      this.circuitState = 'OPEN';
+      this.circuitOpenedAt = Date.now();
+      info('Circuit breaker OPEN', { cooldownMs: CIRCUIT_COOLDOWN_MS });
+      return true;
+    }
+    if (this.circuitState === 'HALF_OPEN') {
+      this.circuitState = 'OPEN';
+      this.circuitOpenedAt = Date.now();
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -360,45 +464,24 @@ export class DingTalkStreamClient {
     error?: string | undefined;
   }> {
     const robotCode = this.config.robotCode;
-    if (!robotCode) {
-      return { success: false, error: 'robotCode not configured' };
-    }
+    if (!robotCode) return { success: false, error: 'robotCode not configured' };
 
-    const url = 'https://api.dingtalk.com/v1.0/robot/oToMessages/batchSend';
-    const body = {
+    const { ok, status, data } = await postBatchSend(
       robotCode,
-      userIds: [userId],
+      userId,
       msgKey,
       msgParam,
-    };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-acs-dingtalk-access-token': accessToken,
-      },
-      body: JSON.stringify(body),
-    });
-
-    const data = (await response.json()) as {
-      code?: string;
-      message?: string;
-      processQueryKey?: string;
-      result?: { processQueryKey?: string };
-    };
-
-    if (!response.ok || (data.code && data.code !== '0' && data.code !== '')) {
-      error('Single chat send failed', {
-        userId,
-        code: data.code,
-        message: data.message,
-      });
-      return { success: false, error: data.message || `HTTP ${response.status}` };
+      accessToken
+    );
+    const failure = failureReason(ok, status, data);
+    if (failure) {
+      error('Single chat send failed', { userId, code: data.code, message: data.message });
+      return { success: false, error: failure };
     }
 
-    const processQueryKey: string | undefined =
-      data.processQueryKey || data.result?.processQueryKey || undefined;
+    // The key arrives at the top level in most responses and nested under
+    // `result` in others; either is the same handle for polling the send.
+    const processQueryKey = data.processQueryKey || data.result?.processQueryKey || undefined;
     debug('Single chat message sent', { userId, processQueryKey });
     return { success: true, processQueryKey };
   }
@@ -441,17 +524,28 @@ export class DingTalkStreamClient {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
+    if (!this.ws) return;
+    this.connected = false;
+    this.reconnectAttempts = 0;
+    await this.closeSocket();
+    this.ws = null;
+    info('Disconnected from DingTalk Stream');
+  }
+
+  /**
+   * Close the socket and wait for the close to land.
+   *
+   * A socket still CONNECTING cannot be closed before the handshake finishes, so
+   * it is left to finish and then awaited: dropping the reference early would let
+   * the caller start a new connection while this one was still open.
+   */
+  private async closeSocket(): Promise<void> {
     const socket = this.ws;
-    if (socket) {
-      this.connected = false;
-      this.reconnectAttempts = 0;
-      if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
-        socket.close();
-      }
-      if (socket.readyState !== WebSocket.CLOSED) await this.socketClosed;
-      this.ws = null;
-      info('Disconnected from DingTalk Stream');
+    if (!socket) return;
+    if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
+      socket.close();
     }
+    if (socket.readyState !== WebSocket.CLOSED) await this.socketClosed;
   }
 
   /**
@@ -506,16 +600,8 @@ export class DingTalkStreamClient {
    */
   private emit(event: string, data: unknown): void {
     if (this.shuttingDown) return;
-    const handlers = this.eventHandlers.get(event);
-    if (handlers) {
-      for (const handler of handlers) {
-        try {
-          handler(data);
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : 'Unknown error';
-          error('Event handler error', { event, error: errMsg });
-        }
-      }
+    for (const handler of this.eventHandlers.get(event) ?? []) {
+      invokeHandler(event, handler, data);
     }
   }
 }

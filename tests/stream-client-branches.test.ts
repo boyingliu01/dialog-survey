@@ -246,4 +246,74 @@ describe('DingTalkStreamClient — Single Chat', () => {
     expect(result.success).toBe(false);
     expect(result.error).toBe('invalidParameter.userIds.empty');
   });
+
+  /**
+   * DingTalk commonly answers 200 with a business error code rather than a 4xx.
+   * Checking only `response.ok` therefore reports success for messages that were
+   * never delivered -- and the caller has no other signal, so the invitation is
+   * silently lost.
+   */
+  it('should treat a 200 carrying a business error code as a failure', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ code: 'invalidParameter', message: 'robotCode is invalid' }),
+      })
+    ) as unknown as typeof fetch;
+
+    const client = new DingTalkStreamClient(mockConfig);
+    const result = await client.sendSingleChatText('user-123', 'Hello', 'test-token');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('robotCode is invalid');
+  });
+
+  it.each([
+    ['an absent code', {}],
+    ['code "0"', { code: '0' }],
+    ['an empty code', { code: '' }],
+  ])('should treat a 200 with %s as success', async (_label, extra) => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ ...extra, processQueryKey: 'key-1' }),
+      })
+    ) as unknown as typeof fetch;
+
+    const client = new DingTalkStreamClient(mockConfig);
+    const result = await client.sendSingleChatText('user-123', 'Hello', 'test-token');
+
+    expect(result.success).toBe(true);
+    expect(result.processQueryKey).toBe('key-1');
+  });
+
+  it('should fall back to the HTTP status when a failure has no message', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({ ok: false, status: 503, json: () => Promise.resolve({}) })
+    ) as unknown as typeof fetch;
+
+    const client = new DingTalkStreamClient(mockConfig);
+    const result = await client.sendSingleChatText('user-123', 'Hello', 'test-token');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('HTTP 503');
+  });
+
+  it('should read the processQueryKey from a nested result object', async () => {
+    global.fetch = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ result: { processQueryKey: 'nested-key' } }),
+      })
+    ) as unknown as typeof fetch;
+
+    const client = new DingTalkStreamClient(mockConfig);
+    const result = await client.sendSingleChatText('user-123', 'Hello', 'test-token');
+
+    expect(result.success).toBe(true);
+    expect(result.processQueryKey).toBe('nested-key');
+  });
 });
