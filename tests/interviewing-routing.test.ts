@@ -152,6 +152,43 @@ describe('interviewing routing', () => {
         expect.objectContaining({ remainingQuestions: 1 })
       );
     });
+
+    /**
+     * Whether the model's text survives into the closing reply.
+     *
+     * It must survive for a genuine END and be DROPPED when `shouldEndInterview`
+     * overrode a NEXT. The distinction is invisible to every assertion above (they
+     * check the pointer, the status and the warning, none of which change), so
+     * forcing `isGenuineEnd` to true passed the whole suite -- verified.
+     *
+     * The reason it matters: a NEXT reply is a transition ("好的，我们进入下一个
+     * 问题"), and pairing that with an ending promises a next question that is
+     * never asked.
+     */
+    it('keeps the model text when the model itself chose END', async () => {
+      mockSmart.mockResolvedValue(
+        smart({ action: 'END', response: '明白了，感谢您的分享。', shouldEndInterview: false })
+      );
+
+      const result = await run(state({ currentQuestion: 0 }));
+
+      expect(result.response).toContain('明白了，感谢您的分享。');
+      expect(result.response).toContain('访谈结束，感谢参与！');
+    });
+
+    it('drops the model text when shouldEndInterview overrode a NEXT', async () => {
+      mockSmart.mockResolvedValue(
+        smart({ action: 'NEXT', response: '好的，我们进入下一个问题。', shouldEndInterview: true })
+      );
+
+      const result = await run(state({ currentQuestion: 0 }));
+
+      expect(result.status).toBe('COMPLETED');
+      // The transition text must NOT appear: it announces a question that will
+      // never be asked.
+      expect(result.response).not.toContain('我们进入下一个问题');
+      expect(result.response).toBe('访谈结束，感谢参与！');
+    });
   });
 
   describe('advancing', () => {
@@ -169,6 +206,37 @@ describe('interviewing routing', () => {
       expect(result.status).toBe('COMPLETED');
       expect(result.shouldContinue).toBe(false);
       expect(result.currentQuestion).toBe(3);
+    });
+
+    /**
+     * The model was told this is the last question, so its text is already a
+     * wrap-up and stays. A coerced follow-up is NOT a wrap-up -- its wording is
+     * about re-asking the question it wanted to repeat -- so it must be replaced.
+     * Forcing `isGenuineEnd` to true here also passed the full suite before this
+     * test existed.
+     */
+    it('keeps the model text on the final question when it was a real NEXT', async () => {
+      mockSmart.mockResolvedValue(
+        smart({ action: 'NEXT', response: '谢谢您的回答，本次访谈到此结束。' })
+      );
+
+      const result = await run(state({ currentQuestion: 2 }));
+
+      expect(result.response).toContain('谢谢您的回答，本次访谈到此结束。');
+    });
+
+    it('replaces a coerced follow-up with the closing copy on the final question', async () => {
+      // At the cap, FOLLOWUP is rewritten into NEXT; that text still talks about
+      // re-asking, so it cannot stand as a wrap-up.
+      mockSmart.mockResolvedValue(
+        smart({ action: 'FOLLOWUP', response: '我再补充问一下刚才那个。' })
+      );
+
+      const result = await run(state({ currentQuestion: 2, followupCount: 2 }));
+
+      expect(result.status).toBe('COMPLETED');
+      expect(result.response).not.toContain('我再补充问一下刚才那个');
+      expect(result.response).toBe('访谈结束，感谢参与！');
     });
   });
 

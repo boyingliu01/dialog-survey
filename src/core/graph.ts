@@ -88,34 +88,55 @@ export async function runInterviewGraph(
   // authoritative signal; the status check stays as a fallback for callers that
   // hand over a genuinely PENDING state.
   const isFirstTurn = options.firstTurn ?? initialState.status === 'PENDING';
-  if (isFirstTurn) {
-    const result = await planningNode(initialState, prisma);
-    return {
-      response: result.response || DEFAULT_CLOSING_MESSAGE,
-      nextState: mergeState(initialState, result),
-    };
-  }
+  if (isFirstTurn) return runPlanningTurn(initialState, prisma);
 
   // Guard: skip non-active states
-  if (!PROCESSABLE_STATUSES.has(initialState.status)) {
-    return {
-      response: DEFAULT_CLOSING_MESSAGE,
-      nextState: initialState,
-    };
-  }
+  if (!PROCESSABLE_STATUSES.has(initialState.status)) return noOpTurn(initialState);
 
   // Phase 2: Process user input
-  if (!input.content?.trim()) {
-    // Empty message guard
-    return { response: '请发送消息开始访谈。', nextState: initialState };
-  }
+  const content = input.content?.trim();
+  if (!content) return emptyMessageTurn(initialState);
 
-  const result = await interviewingNode(initialState, {
-    content: input.content,
+  return runInterviewingTurn(initialState, content, prisma);
+}
+
+/** A turn that returns `state` unchanged with a canned reply. */
+function noOpTurn(state: InterviewState, response = DEFAULT_CLOSING_MESSAGE): GraphResult {
+  return { response, nextState: state };
+}
+
+/** The greeting turn: `planningNode` asks the first question. */
+async function runPlanningTurn(state: InterviewState, prisma?: PrismaClient): Promise<GraphResult> {
+  const result = await planningNode(state, prisma);
+  return {
+    response: result.response || DEFAULT_CLOSING_MESSAGE,
+    nextState: mergeState(state, result),
+  };
+}
+
+/**
+ * A message-less turn, answered with an explicit prompt.
+ *
+ * Not a no-op: returning the state unchanged would leave the caller believing a
+ * turn was processed, while the user saw nothing. The prompt is a fixed string
+ * because this path has no state to personalise from -- it is reached when the
+ * content was blank, so there is nothing to respond TO.
+ */
+function emptyMessageTurn(state: InterviewState): GraphResult {
+  return noOpTurn(state, '请发送消息开始访谈。');
+}
+
+/** The answering turn: `interviewingNode` scores the input and asks the next question. */
+async function runInterviewingTurn(
+  state: InterviewState,
+  content: string,
+  prisma?: PrismaClient
+): Promise<GraphResult> {
+  const result = await interviewingNode(state, {
+    content,
     ...(prisma != null ? { prisma } : {}),
   });
-
-  const nextState = mergeState(initialState, result);
+  const nextState = mergeState(state, result);
 
   info('[DIAG] interviewingNode result', {
     status: nextState.status,
@@ -124,10 +145,9 @@ export async function runInterviewGraph(
     responsePreview: (result.response || '').substring(0, 50),
   });
 
-  // If interview completed, trigger async analysis (fire-and-forget)
   if (result.shouldContinue === false) {
-    scheduleAnalysis(initialState.interviewId, prisma);
-    schedulePlanCompletion(initialState.interviewId, prisma);
+    scheduleAnalysis(state.interviewId, prisma);
+    schedulePlanCompletion(state.interviewId, prisma);
   }
 
   return {
