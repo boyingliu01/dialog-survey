@@ -82,94 +82,138 @@ interface RouteActionInput {
   };
 }
 
-function routeAction({
-  initialAction,
-  followupCount,
-  maxFollowups,
-  currentQ,
-  totalQuestions,
-  smartResponse,
-  opts = {},
-}: RouteActionInput): ActionResult {
-  const { closingMessage, shouldEndInterview = false, nextQuestion } = opts;
-  const isLastQuestion = currentQ >= totalQuestions - 1;
-  const closing = closingMessage || DEFAULT_CLOSING_MESSAGE;
+function routeAction(input: RouteActionInput): ActionResult {
+  const ctx = routeContextOf(input);
 
-  // Two ways to finish: an explicit END keeps the pointer where it was, while a
-  // NEXT that runs off the end advances past the final question.
-  //
-  // `smartResponse` is only reused as a lead-in when the model actually chose to
-  // end. When `shouldEndInterview` overrode a NEXT action, that text is a
-  // transition ("let's move on to...") and pairing it with an ending reads as a
-  // promise never kept — the next question it announces is never asked.
-  const completeAt = (nextQuestionIndex: number, isGenuineEnd: boolean): ActionResult => ({
-    followupCount: 0,
-    currentQuestion: nextQuestionIndex,
-    shouldContinue: false,
-    status: 'COMPLETED',
-    response: isGenuineEnd ? `${smartResponse}\n\n${closing}` : closing,
-  });
+  // Ordered dispatch, not a table: the rules are exclusive but the ORDER carries
+  // meaning (an explicit END outranks a NEXT that ran off the end), and guards make
+  // that precedence readable in one screen.
+  if (TERMINAL_ACTIONS.has(ctx.action) || ctx.shouldEndInterview) return completeEarly(ctx);
+  if (REASK_ACTIONS.has(ctx.action)) return reaskSameQuestion(ctx);
+  if (ctx.isLastQuestion) return completeAfterFinalAnswer(ctx);
+  return advanceToNextQuestion(ctx);
+}
 
-  const action = enforceFollowupLimit(initialAction, followupCount, maxFollowups);
-  // A FOLLOWUP the cap just rewrote into NEXT carries wording about the question
-  // it wanted to re-ask, so it cannot be shown alongside the advanced pointer.
-  const coercedFromFollowup = action !== initialAction;
+/**
+ * Resolve the inputs and the flags the rules share.
+ *
+ * The follow-up cap is applied HERE rather than in each rule, so no rule can
+ * forget it and an uncooperative model cannot loop on one question forever.
+ */
+function routeContextOf(input: RouteActionInput): RouteContext {
+  const opts = input.opts ?? {};
+  const action = enforceFollowupLimit(input.initialAction, input.followupCount, input.maxFollowups);
+  return {
+    ...input,
+    opts,
+    action,
+    isLastQuestion: input.currentQ >= input.totalQuestions - 1,
+    // A FOLLOWUP the cap just rewrote into NEXT carries wording about the question
+    // it wanted to re-ask, so it cannot be shown alongside the advanced pointer.
+    coercedFromFollowup: action !== input.initialAction,
+    closing: opts.closingMessage || DEFAULT_CLOSING_MESSAGE,
+    shouldEndInterview: opts.shouldEndInterview ?? false,
+  };
+}
 
-  // Rule 2: END / shouldEndInterview — always complete the interview
-  if (TERMINAL_ACTIONS.has(action) || shouldEndInterview) {
-    if (!isLastQuestion) {
-      warn('User requested to end interview early (current question not last)', {
-        currentQ,
-        totalQuestions,
-        remainingQuestions: totalQuestions - currentQ - 1,
-      });
-    }
-    // The lead-in survives only when the model itself said END; an override from
-    // `shouldEndInterview` leaves text written for a different action.
-    return completeAt(currentQ, action === 'END');
+/** The resolved inputs a rule needs, plus the derived flags they share. */
+type RouteContext = Omit<RouteActionInput, 'opts'> & {
+  /** Always present here: `routeAction` defaults it before building the context. */
+  opts: NonNullable<RouteActionInput['opts']>;
+  action: string;
+  isLastQuestion: boolean;
+  coercedFromFollowup: boolean;
+  closing: string;
+  shouldEndInterview: boolean;
+};
+
+/**
+ * Rule 2: end the interview where it stands.
+ *
+ * `smartResponse` is reused as a lead-in only when the model itself chose END. When
+ * `shouldEndInterview` overrode a NEXT action, that text is a transition ("let's
+ * move on to...") and pairing it with an ending reads as a promise never kept --
+ * the next question it announces is never asked.
+ */
+function completeEarly(ctx: RouteContext): ActionResult {
+  if (!ctx.isLastQuestion) {
+    warn('User requested to end interview early (current question not last)', {
+      currentQ: ctx.currentQ,
+      totalQuestions: ctx.totalQuestions,
+      remainingQuestions: ctx.totalQuestions - ctx.currentQ - 1,
+    });
   }
+  return completionResult(ctx, ctx.currentQ, ctx.action === 'END');
+}
 
-  // Rules 3-4: FOLLOWUP and STAY both re-ask, incrementing the followup counter
-  // so an uncooperative model cannot loop forever on the same question.
-  if (REASK_ACTIONS.has(action)) {
-    return {
-      followupCount: followupCount + 1,
-      currentQuestion: currentQ,
-      shouldContinue: true,
-      response: smartResponse,
-    };
-  }
+/** Rules 3-4: FOLLOWUP and STAY re-ask, so the turn continues without advancing. */
+function reaskSameQuestion(ctx: RouteContext): ActionResult {
+  return {
+    followupCount: ctx.followupCount + 1,
+    currentQuestion: ctx.currentQ,
+    shouldContinue: true,
+    response: ctx.smartResponse,
+  };
+}
 
-  // Rule 5: NEXT — advance, or complete when this was the last question.
-  // On the final question the model was told this is the last one, so its text is
-  // already a wrap-up; keep it as the lead-in. A coerced follow-up is not a
-  // wrap-up, so it still has to be replaced by the closing copy.
-  if (isLastQuestion) return completeAt(currentQ + 1, !coercedFromFollowup);
+/**
+ * Rule 5a: this was the answer to the final question, so the interview completes.
+ *
+ * The model was told this is the last question, so its text is already a wrap-up
+ * and stays as the lead-in. A coerced follow-up is not a wrap-up, so it is
+ * replaced by the closing copy instead.
+ */
+function completeAfterFinalAnswer(ctx: RouteContext): ActionResult {
+  return completionResult(ctx, ctx.currentQ + 1, !ctx.coercedFromFollowup);
+}
 
-  if (coercedFromFollowup) {
+/**
+ * Rule 5b: advance to the next question.
+ *
+ * A coerced follow-up gets `buildForcedNextTransition` rather than being shown
+ * beside the advanced pointer, because its wording is about the question it wanted
+ * to re-ask.
+ */
+function advanceToNextQuestion(ctx: RouteContext): ActionResult {
+  if (ctx.coercedFromFollowup) {
     warn('Follow-up cap reached, replacing follow-up reply with the next question transition', {
-      currentQ,
-      nextQ: currentQ + 1,
-      followupCount,
-      maxFollowups,
+      currentQ: ctx.currentQ,
+      nextQ: ctx.currentQ + 1,
+      followupCount: ctx.followupCount,
+      maxFollowups: ctx.maxFollowups,
     });
     return {
       followupCount: 0,
-      currentQuestion: currentQ + 1,
+      currentQuestion: ctx.currentQ + 1,
       shouldContinue: true,
-      response: buildForcedNextTransition(nextQuestion),
+      response: buildForcedNextTransition(ctx.opts.nextQuestion),
     };
   }
 
   return {
     followupCount: 0,
-    currentQuestion: currentQ + 1,
+    currentQuestion: ctx.currentQ + 1,
     shouldContinue: true,
     // The model was told to acknowledge the previous answer before asking the
     // next one, but that compliance measured ~40% on a real interview. A reply
     // that is nothing but the question gets a neutral lead-in; anything with a
     // lead-in already is left exactly as written.
-    response: addContinuityLeadIn(smartResponse, nextQuestion),
+    response: addContinuityLeadIn(ctx.smartResponse, ctx.opts.nextQuestion),
+  };
+}
+
+/** Build a COMPLETED result, keeping the model's lead-in only for a genuine end. */
+function completionResult(
+  ctx: RouteContext,
+  nextQuestionIndex: number,
+  isGenuineEnd: boolean
+): ActionResult {
+  return {
+    followupCount: 0,
+    currentQuestion: nextQuestionIndex,
+    shouldContinue: false,
+    status: 'COMPLETED',
+    response: isGenuineEnd ? `${ctx.smartResponse}\n\n${ctx.closing}` : ctx.closing,
   };
 }
 
