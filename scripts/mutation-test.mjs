@@ -56,23 +56,42 @@ const REPORT_FILE = '.stryker-report.json';
  * Returns `null` when the report is missing or has no scored mutants, so the
  * caller can report "no evidence" rather than a fabricated 0% or a false pass.
  */
-export function summarizeMutationReport(report) {
+/** Does this report have a `files` object worth iterating? */
+function hasFiles(report) {
   const files = report?.files;
-  if (!files || typeof files !== 'object') return null;
+  return Boolean(files) && typeof files === 'object';
+}
 
-  let killed = 0;
-  let scored = 0;
-  for (const file of Object.values(files)) {
-    const mutants = file?.mutants;
-    if (!Array.isArray(mutants)) continue;
-    for (const mutant of mutants) {
-      if (!SCORED_EVENTS.has(mutant?.status)) continue;
-      scored += 1;
-      if (mutant.status === 'Killed' || mutant.status === 'Timeout') killed += 1;
-    }
-  }
-  if (scored === 0) return null;
-  return { score: (killed / scored) * 100, killed, scored };
+/** Count one mutant into `tally` when its status is one Stryker scores. */
+function tallyMutant(mutant, tally) {
+  if (!SCORED_EVENTS.has(mutant?.status)) return;
+  tally.scored += 1;
+  if (mutant.status === 'Killed' || mutant.status === 'Timeout') tally.killed += 1;
+}
+
+/** Count every mutant in one report file entry. */
+function tallyFile(entry, tally) {
+  const mutants = entry?.mutants;
+  if (!Array.isArray(mutants)) return;
+  for (const mutant of mutants) tallyMutant(mutant, tally);
+}
+
+/**
+ * Aggregate a Stryker JSON report into `{ score, killed, scored }`.
+ *
+ * The report is schema 1.0 — a raw `files[].mutants[]` list with no aggregate
+ * `mutationScore` field — so the score has to be computed here (issue #209
+ * documents the same discovery upstream).
+ *
+ * Returns `null` when the report is missing or has no scored mutants, so the
+ * caller can report "no evidence" rather than a fabricated 0% or a false pass.
+ */
+export function summarizeMutationReport(report) {
+  if (!hasFiles(report)) return null;
+  const tally = { killed: 0, scored: 0 };
+  for (const entry of Object.values(report.files)) tallyFile(entry, tally);
+  if (tally.scored === 0) return null;
+  return { score: (tally.killed / tally.scored) * 100, killed: tally.killed, scored: tally.scored };
 }
 
 /** Read and summarize the JSON report at `reportPath`; `null` if unreadable. */
@@ -146,38 +165,74 @@ function defaultGit(args) {
   return result.status === 0 ? result.stdout : null;
 }
 
+/** Add every mutable file from a `git diff --name-only` style listing. */
+function addFiles(files, listing) {
+  for (const file of selectMutableFiles(listing ?? '')) files.add(file);
+}
+
+/**
+ * The base range's diff, or `null` after reporting the failure.
+ *
+ * Three-dot means "merge-base(base, HEAD) vs HEAD" — exactly the PR's own
+ * changes. Git resolves the merge-base itself; computing it separately and
+ * feeding a two-dot range breaks when one side is an ancestor of the other.
+ */
+function baseRangeDiff(base, git) {
+  const listing = git(['diff', '--name-only', `${base}...HEAD`]);
+  if (listing !== null) return listing;
+  // A FAILED range (shallow clone without merge-base, orphan branch, typo'd ref)
+  // must not masquerade as "nothing changed" — that would be a green no-op,
+  // which is the worst possible outcome for a quality job.
+  console.error(
+    `mutation-test: ERROR: git diff ${base}...HEAD failed; cannot compute the incremental set.`
+  );
+  return null;
+}
+
 export function collectChangedFiles({ base, git = defaultGit }) {
   const files = new Set();
   let diffFailed = false;
   if (base) {
-    // Three-dot means "merge-base(base, HEAD) vs HEAD" — exactly the PR's own
-    // changes. Git resolves the merge-base itself; computing it separately and
-    // feeding a two-dot range breaks when one side is an ancestor of the other.
-    const rangeDiff = git(['diff', '--name-only', `${base}...HEAD`]);
-    if (rangeDiff === null) {
-      // A FAILED range (shallow clone without merge-base, orphan branch, typo'd
-      // ref) must not masquerade as "nothing changed" — that would be a green
-      // no-op, which is the worst possible outcome for a quality job.
-      diffFailed = true;
-      console.error(
-        `mutation-test: ERROR: git diff ${base}...HEAD failed; cannot compute the incremental set.`
-      );
-    }
-    for (const file of selectMutableFiles(rangeDiff ?? '')) {
-      files.add(file);
-    }
+    const listing = baseRangeDiff(base, git);
+    if (listing === null) diffFailed = true;
+    addFiles(files, listing);
   }
   // Working-tree changes (staged + unstaged) count too, for local pre-push use.
-  for (const file of selectMutableFiles(git(['diff', '--name-only', 'HEAD']) ?? ''))
-    files.add(file);
+  addFiles(files, git(['diff', '--name-only', 'HEAD']));
   // Untracked new files are invisible to git diff; list them explicitly.
-  for (const file of selectMutableFiles(
-    git(['ls-files', '--others', '--exclude-standard']) ?? ''
-  )) {
-    files.add(file);
-  }
+  addFiles(files, git(['ls-files', '--others', '--exclude-standard']));
   return { files: [...files].sort(), diffFailed };
 }
+
+/** Flags that take no value. */
+const BOOLEAN_OPTIONS = { '--full': 'full', '--verify-report': 'verifyReport' };
+
+/** Split a `--files a,b,c` payload into trimmed, non-empty paths. */
+function splitFileList(value) {
+  return (value ?? '')
+    .split(',')
+    .map((f) => f.trim())
+    .filter(Boolean);
+}
+
+/**
+ * How each value-taking flag stores its argument.
+ *
+ * A table rather than a chain of `else if`: an unknown flag must be IGNORED (the
+ * caller passes the whole argv, including flags meant for other tools), so the
+ * fallthrough case has to be "do nothing", not "assume --base".
+ */
+const VALUE_OPTIONS = {
+  '--base': (options, value) => {
+    options.base = value;
+  },
+  '--files': (options, value) => {
+    options.files = splitFileList(value);
+  },
+  '--concurrency': (options, value) => {
+    options.concurrency = value;
+  },
+};
 
 export function parseArgs(argv) {
   const options = {
@@ -189,15 +244,13 @@ export function parseArgs(argv) {
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--full') options.full = true;
-    else if (arg === '--verify-report') options.verifyReport = true;
-    else if (arg === '--base') options.base = argv[++i];
-    else if (arg === '--files')
-      options.files = (argv[++i] ?? '')
-        .split(',')
-        .map((f) => f.trim())
-        .filter(Boolean);
-    else if (arg === '--concurrency') options.concurrency = argv[++i];
+    if (arg in BOOLEAN_OPTIONS) {
+      options[BOOLEAN_OPTIONS[arg]] = true;
+      continue;
+    }
+    if (!(arg in VALUE_OPTIONS)) continue;
+    VALUE_OPTIONS[arg](options, argv[i + 1]);
+    i += 1;
   }
   return options;
 }
@@ -220,40 +273,94 @@ export function buildStrykerArgs({ files, concurrency }) {
  * flags and neither `npm run complexity` (TS-only) nor Gate 3 (Python-only)
  * would have caught on a .mjs file.
  */
-export function resolveTargets({ options, git, log = console.log }) {
-  if (options.full || options.files !== undefined) {
-    log(
-      options.full
-        ? 'mutation-test: full run over all configured sources.'
-        : `mutation-test: explicit run over ${options.files?.length ?? 0} file(s).`
-    );
-    return { files: options.files };
-  }
+/**
+ * The target set when the caller named one explicitly (`--full` or `--files`),
+ * or null when the incremental path should run instead.
+ */
+function explicitTargets(options, log) {
+  if (!options.full && options.files === undefined) return null;
+  log(
+    options.full
+      ? 'mutation-test: full run over all configured sources.'
+      : `mutation-test: explicit run over ${options.files?.length ?? 0} file(s).`
+  );
+  return { files: options.files };
+}
 
+/**
+ * The base ref to diff against.
+ *
+ * An empty or placeholder-resolved ref (e.g. GitHub's `${{ github.base_ref }}`
+ * expanding to "" on workflow_dispatch → "origin/") is not a real base — fall
+ * back to the candidate list instead of failing the diff silently.
+ */
+function resolveIncrementalBase(options, git) {
   const requestedBase = options.base ?? '';
-  // An empty or placeholder-resolved ref (e.g. GitHub's `${{ github.base_ref }}`
-  // expanding to "" on workflow_dispatch → "origin/") is not a real base —
-  // fall back to the candidate list instead of failing the diff silently.
   const usableBase = /^origin\/?$/.test(requestedBase) ? '' : requestedBase;
-  const base =
-    usableBase ||
-    resolveBaseRef(DEFAULT_BASE_CANDIDATES, (ref) => git(['rev-parse', '--verify', ref]) !== null);
-  const collected = collectChangedFiles({ base, git });
+  if (usableBase) return usableBase;
+  return resolveBaseRef(
+    DEFAULT_BASE_CANDIDATES,
+    (ref) => git(['rev-parse', '--verify', ref]) !== null
+  );
+}
 
-  if (collected.files.length === 0) {
-    if (collected.diffFailed) {
-      log(
-        'mutation-test: nothing mutable found AND the base diff failed — refusing to report success.'
-      );
-      return { exitCode: 3 };
-    }
-    log('mutation-test: no mutable source files changed — skipping Stryker run.');
-    return { exitCode: 0 };
+/**
+ * Turn an empty changed-file set into a verdict.
+ *
+ * An empty set is only good news when the diff actually succeeded: a failed base
+ * diff also yields nothing, and reporting that as "nothing to mutate" would turn
+ * an infrastructure problem into a green no-op.
+ */
+function emptyTargetVerdict(diffFailed, log) {
+  if (diffFailed) {
+    log(
+      'mutation-test: nothing mutable found AND the base diff failed — refusing to report success.'
+    );
+    return { exitCode: 3 };
   }
+  log('mutation-test: no mutable source files changed — skipping Stryker run.');
+  return { exitCode: 0 };
+}
+
+export function resolveTargets({ options, git, log = console.log }) {
+  const explicit = explicitTargets(options, log);
+  if (explicit) return explicit;
+
+  const collected = collectChangedFiles({ base: resolveIncrementalBase(options, git), git });
+  if (collected.files.length === 0) return emptyTargetVerdict(collected.diffFailed, log);
 
   log(`mutation-test: incremental run over ${collected.files.length} changed file(s):`);
   for (const file of collected.files) log(`  - ${file}`);
   return { files: collected.files };
+}
+
+/**
+ * Run Stryker over `files` and return the exit code for the run itself (before
+ * any threshold judgement).
+ *
+ * Split out because launch failure and a non-zero exit are different verdicts —
+ * `error` means the process never started (npx missing, bad args), which is an
+ * environment failure worth 2, while a non-zero status is Stryker's own report
+ * and is passed through unchanged.
+ */
+function runStryker({ files, concurrency, spawn, log }) {
+  const args = buildStrykerArgs({ files, concurrency });
+  log(`mutation-test: npx ${args.join(' ')} (workers=${concurrency})`);
+  const result = spawn('npx', args);
+  if (result.error) {
+    log(`mutation-test: failed to launch Stryker: ${result.error.message}`);
+    return 2;
+  }
+  return result.status ?? 2;
+}
+
+/** Resolve the run settings from argv, the environment and the filesystem. */
+function resolveRunSettings(argv, env, cwd, reportPath) {
+  return {
+    options: parseArgs(argv),
+    threshold: Number(env['MUTATION_THRESHOLD'] ?? DEFAULT_THRESHOLD),
+    reportPath: reportPath ?? path.join(cwd, REPORT_FILE),
+  };
 }
 
 export function main({
@@ -267,9 +374,11 @@ export function main({
   log = console.log,
   reportPath = null,
 } = {}) {
-  const options = parseArgs(argv);
-  const threshold = Number(env['MUTATION_THRESHOLD'] ?? DEFAULT_THRESHOLD);
-  const resolvedReportPath = reportPath ?? path.join(cwd, REPORT_FILE);
+  const {
+    options,
+    threshold,
+    reportPath: resolvedReportPath,
+  } = resolveRunSettings(argv, env, cwd, reportPath);
 
   // `--verify-report` re-checks an existing report without running Stryker. It
   // exists so a report produced elsewhere (CI artifact, a previous local run)
@@ -281,27 +390,15 @@ export function main({
 
   const resolved = resolveTargets({ options, git, log });
   if (resolved.exitCode !== undefined) return resolved.exitCode;
-  const { files } = resolved;
 
   const concurrency = resolveConcurrency(
     options.concurrency ?? env['STRYKER_CONCURRENCY'],
     cpuCount
   );
+  const runExitCode = runStryker({ files: resolved.files, concurrency, spawn, log });
+  if (runExitCode !== 0) return runExitCode;
 
-  const strykerArgs = buildStrykerArgs({ files, concurrency });
-  log(`mutation-test: npx ${strykerArgs.join(' ')} (workers=${concurrency})`);
-  const result = spawn('npx', strykerArgs);
-  if (result.error) {
-    log(`mutation-test: failed to launch Stryker: ${result.error.message}`);
-    return 2;
-  }
-  if (result.status !== 0) return result.status ?? 2;
-
-  return evaluateThreshold({
-    reportPath: reportPath ?? path.join(cwd, REPORT_FILE),
-    threshold,
-    log,
-  });
+  return evaluateThreshold({ reportPath: resolvedReportPath, threshold, log });
 }
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]).replace(/\\/g, '/') : '';
