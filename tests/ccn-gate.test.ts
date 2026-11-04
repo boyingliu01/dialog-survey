@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -44,6 +44,39 @@ function ccnOf(stdout: string, name: string): number | null {
   if (!line) return null;
   const m = line.match(/CCN\s+(\d+)/);
   return m ? Number(m[1]) : null;
+}
+
+/**
+ * Split one CSV line, honouring double-quote escaping.
+ *
+ * Deliberately a separate implementation from the one in `ccn-report.cjs`: a test
+ * that reused the production splitter would agree with it about what the output
+ * means, so a quoting bug would look like a correct round-trip.
+ */
+function splitCsv(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (quoted && ch === '"' && line[i + 1] === '"') {
+      cur += '"';
+      i += 1;
+      continue;
+    }
+    if (ch === '"') {
+      quoted = !quoted;
+      continue;
+    }
+    if (!quoted && ch === ',') {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
 }
 
 let fixture: string;
@@ -343,18 +376,17 @@ describe('ccn-report gate measurement', () => {
 
   describe('--csv-verified (what xp-gate Gate 3 pipes through)', () => {
     /** Feed a lizard-style CSV row through --csv-verified; return stdout+code. */
-    function verify(csv: string): { stdout: string; code: number } {
-      try {
-        const stdout = execFileSync(
-          process.execPath,
-          [SCRIPT, '--csv-verified', 'batch', '--root', fixture],
-          { cwd: fixture, encoding: 'utf8', input: csv, stdio: ['pipe', 'pipe', 'pipe'] }
-        );
-        return { stdout, code: 0 };
-      } catch (err) {
-        const e = err as { stdout?: string; status?: number };
-        return { stdout: e.stdout ?? '', code: e.status ?? 1 };
-      }
+    function verify(csv: string): { stdout: string; stderr: string; code: number } {
+      // spawnSync rather than execFileSync: the batch writes its explanatory
+      // reports (disagreements, dropped rows, unresolved rows) to stderr and
+      // still exits 0, so exception-based capture would never see them and every
+      // one of those channels would be untestable while stdout stayed green.
+      const result = spawnSync(
+        process.execPath,
+        [SCRIPT, '--csv-verified', 'batch', '--root', fixture],
+        { cwd: fixture, encoding: 'utf8', input: csv }
+      );
+      return { stdout: result.stdout ?? '', stderr: result.stderr ?? '', code: result.status ?? 1 };
     }
 
     /** Columns 1..11 of lizard's CSV, with a deliberately wrong CCN at index 1. */
@@ -388,9 +420,14 @@ describe('ccn-report gate measurement', () => {
         ].join('\n'),
         'utf8'
       );
-      const { stdout, code } = verify(lizardRow('real', 1, 2));
+      const { stdout, stderr, code } = verify(lizardRow('real', 1, 2));
       expect(code).toBe(0);
       expect(stdout.split(',')[1]).toBe('4');
+      // The disagreement is reported too, not just corrected: the count is the
+      // only signal that lizard and the AST disagree about this function, and a
+      // silent correction would hide a measurement bug behind a plausible number.
+      expect(stderr).toContain('lizard disagreed');
+      expect(stderr).toContain('real@1 lizard=2 ast=4');
     });
 
     it('drops a row for a simulated interface member rather than grading it', () => {
@@ -417,6 +454,135 @@ describe('ccn-report gate measurement', () => {
       const { stdout, code } = verify(lizardRow('value', 1, 2));
       expect(code).toBe(0);
       expect(stdout.trim()).toBe('');
+    });
+
+    it('keeps column alignment when lizard quotes fields that contain commas', () => {
+      // The path must ACTUALLY contain a comma, or lizard would not quote it and
+      // the parser's quoting rules would never run. A temp dir named `ccn-gate-*`
+      // has no comma, so the fixture here uses a dedicated subdirectory -- without
+      // that the row is unquoted, every column lands correctly under any parser,
+      // and the test passes even against a deliberately broken one.
+      const commaDir = join(fixture, 'dir,with,commas');
+      mkdirSync(commaDir, { recursive: true });
+      const sourcePath = join(commaDir, 'probe.ts');
+      writeFileSync(
+        sourcePath,
+        [
+          'export function quoted(a: number, b: number): number {',
+          '  if (a && b) { return 1; }',
+          '  return 0;',
+          '}',
+        ].join('\n'),
+        'utf8'
+      );
+      // A signature with a comma is quoted too, so two columns exercise quoting.
+      const columns = [
+        '4', // NLOC
+        '9', // CCN -- deliberately wrong, must be replaced by the AST value
+        '40', // token_len
+        '2', // param_count
+        '20',
+        `quoted@1-4@${sourcePath}`,
+        sourcePath,
+        'quoted',
+        'function quoted(a, b)',
+        '1',
+        '4',
+      ];
+      const row = columns.map((field) => (field.includes(',') ? `"${field}"` : field)).join(',');
+      // Sanity: the row really is quoted, so this test cannot silently degrade
+      // into the unquoted case it is meant to distinguish itself from.
+      expect(row).toContain('"');
+
+      const { stdout, code } = verify(row);
+      expect(code).toBe(0);
+      // Split the ANSWER the same way a CSV reader would. Using `split(',')` here
+      // would be the mirror image of the bug under test: the quoted path contains
+      // commas, so a naive split reports 16 columns and a correct parser 11.
+      const fields = splitCsv(stdout.trim());
+      expect(fields).toHaveLength(columns.length);
+      // CCN 3: one `if` plus `&&`. The assertion is about the column staying put.
+      expect(fields[1]).toBe('3');
+      // The round-trip preserves the path exactly -- re-quoting an already
+      // quoted field would double the escapes and break the next reader.
+      expect(fields[6]).toBe(sourcePath);
+    });
+
+    it('reads a doubled quote inside a quoted field as one literal quote', () => {
+      // CSV escaping: a field containing `"` is written `""`. Getting this wrong
+      // desynchronises the quote state, so every later comma is treated as being
+      // inside quotes and the whole row collapses into a single field.
+      writeFileSync(
+        join(fixture, 'src', 'probe.ts'),
+        ['export function dq(): void {', '  if (true) { return; }', '}'].join('\n'),
+        'utf8'
+      );
+      const path = join(fixture, 'src', 'probe.ts');
+      const columns = [
+        '3', // NLOC
+        '7', // CCN -- deliberately wrong
+        '9', // token_len
+        '0', // param_count
+        '5',
+        `dq@1-3@${path}`,
+        path,
+        'dq',
+        'function dq() /* says "hi" */',
+        '1',
+        '3',
+      ];
+      const row = columns
+        .map((field) => (field.includes('"') ? `"${field.replace(/"/g, '""')}"` : field))
+        .join(',');
+
+      const { stdout, code } = verify(row);
+      expect(code).toBe(0);
+      // Both the column COUNT and the CCN matter here: a parser that treats `""`
+      // as two separate quote toggles stays "in quotes" for the rest of the row,
+      // so it silently merges the trailing columns instead of failing outright.
+      // Asserting only column 1 would pass on that mutant.
+      const fields = splitCsv(stdout.trim());
+      expect(fields).toHaveLength(columns.length);
+      expect(fields[1]).toBe('2');
+      // The signature survives the round-trip with its literal quotes intact.
+      expect(fields[8]).toBe('function dq() /* says "hi" */');
+    });
+
+    it('reads the older location layout, which keeps line and path in later columns', () => {
+      // Newer lizard packs everything into column 5 as `fn@start-end@path`; the
+      // older one leaves column 5 as a bare name and puts the path in column 6
+      // and the line in column 9. Reading only the packed shape silently drops
+      // every row from an older lizard, which reports "no function measured".
+      writeFileSync(
+        join(fixture, 'src', 'probe.ts'),
+        [
+          'export function legacy(): number {',
+          '  if (true) { return 1; }',
+          '  return 0;',
+          '}',
+        ].join('\n'),
+        'utf8'
+      );
+      const path = join(fixture, 'src', 'probe.ts');
+      const columns = [
+        '4', // NLOC
+        '9', // CCN -- deliberately wrong
+        '40', // token_len
+        '0', // param_count
+        '20',
+        'legacy', // column 5: bare name, no packed location
+        path, // column 6: the path
+        'legacy',
+        'function legacy()',
+        '1', // column 9: the start line
+        '4',
+      ];
+
+      const { stdout, code } = verify(columns.join(','));
+      expect(code).toBe(0);
+      const fields = splitCsv(stdout.trim());
+      expect(fields).toHaveLength(columns.length);
+      expect(fields[1]).toBe('2');
     });
 
     it('keeps a row whose function the AST can measure', () => {

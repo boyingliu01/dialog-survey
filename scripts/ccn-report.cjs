@@ -37,25 +37,52 @@ const path = require('node:path');
  */
 const GRADED_EXTENSIONS = /\.(?:ts|tsx|js|jsx|mjs|cjs)$/;
 
+/** Directories never worth descending into: build output and generated code. */
+const SKIP_DIRECTORIES = new Set(['node_modules', 'dist', 'coverage', 'generated', '.stryker-tmp']);
+
+/**
+ * Is this filename something we grade?
+ *
+ * `.d.ts` is excluded separately from the extension check: declarations carry no
+ * implementation, so every function in one would measure CCN 1.
+ */
+function isGradableFile(name) {
+  return GRADED_EXTENSIONS.test(name) && !/\.d\.ts$/.test(name);
+}
+
+/** Read a directory's entries, or null when it cannot be read. */
+function readEntries(root) {
+  try {
+    return fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    // An unreadable directory contributes nothing rather than aborting the scan.
+    return null;
+  }
+}
+
 /** Recursively collect gradable files, skipping build output and generated code. */
 function collectFiles(root, acc = []) {
-  const skip = new Set(['node_modules', 'dist', 'coverage', 'generated', '.stryker-tmp']);
-  let entries;
-  try {
-    entries = fs.readdirSync(root, { withFileTypes: true });
-  } catch {
-    return acc;
-  }
+  const entries = readEntries(root);
+  if (!entries) return acc;
   for (const entry of entries) {
-    if (skip.has(entry.name)) continue;
-    const full = path.join(root, entry.name);
-    if (entry.isDirectory()) {
-      collectFiles(full, acc);
-    } else if (GRADED_EXTENSIONS.test(entry.name) && !/\.d\.ts$/.test(entry.name)) {
-      acc.push(full);
-    }
+    visitEntry(root, entry, acc);
   }
   return acc;
+}
+
+/**
+ * Take one directory entry: recurse into a directory, otherwise keep the file if
+ * it is gradable. Kept apart from the loop so `collectFiles` stays a plain
+ * "walk everything here" and the per-entry rules sit in one place.
+ */
+function visitEntry(root, entry, acc) {
+  if (SKIP_DIRECTORIES.has(entry.name)) return;
+  const full = path.join(root, entry.name);
+  if (entry.isDirectory()) {
+    collectFiles(full, acc);
+    return;
+  }
+  if (isGradableFile(entry.name)) acc.push(full);
 }
 // ---------------------------------------------------------------------------
 // Measurement core — TypeScript compiler AST.
@@ -217,22 +244,39 @@ function measureFileAst(ts, file, rootDir) {
     );
   }
 
+  /**
+   * Is this AST node a function whose body we should measure?
+   *
+   * All seven spellings are listed explicitly rather than testing for a `body`
+   * property in general: object-literal method shorthand, class fields holding
+   * arrows and accessors all nest differently, and a node type we did not name is
+   * a function the gate would silently never grade.
+   *
+   * The `body` check matters on its own -- an overload signature or an abstract
+   * method has a declared type but no body, so there is no complexity to count.
+   */
+  const FUNCTION_NODE_CHECKS = [
+    'isFunctionDeclaration',
+    'isMethodDeclaration',
+    'isConstructorDeclaration',
+    'isGetAccessorDeclaration',
+    'isSetAccessorDeclaration',
+    'isArrowFunction',
+    'isFunctionExpression',
+  ];
+
+  function isMeasureableFunction(ts, node) {
+    const matches = FUNCTION_NODE_CHECKS.some((name) => ts[name](node));
+    return matches && Boolean(node.body);
+  }
+
   const rows = [];
 
   const walk = (node) => {
-    const isFunction =
-      ts.isFunctionDeclaration(node) ||
-      ts.isMethodDeclaration(node) ||
-      ts.isConstructorDeclaration(node) ||
-      ts.isGetAccessorDeclaration(node) ||
-      ts.isSetAccessorDeclaration(node) ||
-      ts.isArrowFunction(node) ||
-      ts.isFunctionExpression(node);
-
     // Every function with a body is measured, whether the body is a block or a
     // concise expression. Skipping expression-bodied arrows left real callbacks
     // (`.filter((r) => a && b)`) entirely outside the gate.
-    if (isFunction && node.body) {
+    if (isMeasureableFunction(ts, node)) {
       const { line, character } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
       rows.push({
         file: relPath,
@@ -322,17 +366,40 @@ function baselineKey(relPath, name, line, duplicateNamesSet) {
  * production debt, and the reverse mistake (a `src/` file wrongly excused) would
  * have been invisible.
  */
-function bucketFor(relPath) {
-  const p = relPath.replace(/\\/g, '/');
-  if (/(^|\/)__tests?__\//.test(p) || /(^|\/)(tests?)\//.test(p)) return 'test';
-  if (/\.test\.[cm]?[jt]sx?$/.test(p) || /(^|\/)test_[^/]*\.py$/.test(p)) return 'test';
-  if (/_test\.(py|go)$/.test(p) || /Tests?\.java$/.test(p)) return 'test';
-  if (p.startsWith('src/npm-package/') || /^plugins\/[^/]+\/src\//.test(p)) return 'mirror';
+/**
+ * File patterns per bucket, in precedence order.
+ *
+ * Data rather than a chain of `if`s: these are transcriptions of the gate's
+ * regexes, and a table puts each clause on its own line next to the bucket it
+ * selects instead of packing two of them into every condition.
+ */
+const BUCKET_RULES = [
+  // `(^|/)(tests?)/` excludes the WHOLE tests/ directory, not just test files:
+  // that is what gate-3.sh does, and helpers there are not production code.
+  [
+    'test',
+    [
+      /(^|\/)__tests?__\//,
+      /(^|\/)(tests?)\//,
+      /\.test\.[cm]?[jt]sx?$/,
+      /(^|\/)test_[^/]*\.py$/,
+      /_test\.(py|go)$/,
+      /Tests?\.java$/,
+    ],
+  ],
+  ['mirror', [/^src\/npm-package\//, /^plugins\/[^/]+\/src\//]],
   // Machine-generated code (Prisma client, and anything else emitted into
   // src/generated) is not hand-written and is gitignored: grading it would hold
   // us to a formatter's output, and its dense type-level helpers are exactly what
   // lizard reports phantom functions for.
-  if (p.startsWith('src/generated/')) return 'generated';
+  ['generated', [/^src\/generated\//]],
+];
+
+function bucketFor(relPath) {
+  const p = relPath.replace(/\\/g, '/');
+  for (const [bucket, patterns] of BUCKET_RULES) {
+    if (patterns.some((pattern) => pattern.test(p))) return bucket;
+  }
   return 'production';
 }
 
@@ -345,34 +412,55 @@ function bucketFor(relPath) {
  * quote handling out of the loop body.
  */
 function parseCsvLine(line) {
-  const out = [];
-  let cur = '';
-  let quoted = false;
-  let i = 0;
-  while (i < line.length) {
-    const ch = line[i];
-    const next = line[i + 1];
-    if (quoted && ch === '"' && next === '"') {
-      cur += '"';
-      i += 2;
-      continue;
-    }
-    if (ch === '"') {
-      quoted = !quoted;
-      i += 1;
-      continue;
-    }
-    if (!quoted && ch === ',') {
-      out.push(cur);
-      cur = '';
-      i += 1;
-      continue;
-    }
-    cur += ch;
-    i += 1;
+  const state = { out: [], cur: '', quoted: false, i: 0 };
+  while (state.i < line.length) {
+    stepCsvParser(line, state);
   }
-  out.push(cur);
-  return out;
+  state.out.push(state.cur);
+  return state.out;
+}
+
+/**
+ * Consume one character of `line` into `state`, mutating it in place.
+ *
+ * A separate function because each escape advances by a different amount (two
+ * characters for a doubled quote, one otherwise), and expressing that as
+ * `continue` inside the loop makes every branch carry the same bookkeeping.
+ *
+ * The doubled-quote case is checked first and returns early: `""` is the only
+ * sequence that consumes two characters, so after it the index advance below is
+ * unconditional and the remaining branches cannot disagree about it.
+ */
+function stepCsvParser(line, state) {
+  const ch = line[state.i];
+
+  if (isDoubledQuote(line, state)) {
+    state.cur += '"';
+    state.i += 2;
+    return;
+  }
+
+  state.i += 1;
+  appendChar(state, ch);
+}
+
+/** Is the current position an escaped quote inside a quoted field? */
+function isDoubledQuote(line, state) {
+  return state.quoted && line[state.i] === '"' && line[state.i + 1] === '"';
+}
+
+/** Apply one non-escaped character to the parser state. */
+function appendChar(state, ch) {
+  if (ch === '"') {
+    state.quoted = !state.quoted;
+    return;
+  }
+  if (state.quoted || ch !== ',') {
+    state.cur += ch;
+    return;
+  }
+  state.out.push(state.cur);
+  state.cur = '';
 }
 
 /** Quote a CSV field when it contains a delimiter, quote, or newline. */
@@ -463,19 +551,37 @@ function hasFunctionStartingAtLine(ts, sf, want) {
 }
 
 /**
+ * Read lizard's packed location field.
+ *
+ * Two shapes ship: `fn@start-end@path` (three or more `@`-separated parts, where
+ * the path itself may contain `@` so the tail is re-joined) and an older one that
+ * omits it, leaving the line in column 9 and the path in column 6.
+ */
+/** Column value with a fallback for a short row. */
+function columnAt(cols, index, fallback = '') {
+  return cols[index] ?? fallback;
+}
+
+function lizardLocation(cols) {
+  const parts = columnAt(cols, 5).split('@');
+  const packed = parts.length >= 3;
+  return {
+    name: columnAt(parts, 0),
+    pathField: packed ? parts.slice(2).join('@') : columnAt(cols, 6),
+    lineField: packed ? parts[1] : columnAt(cols, 9, '0'),
+  };
+}
+
+/**
  * Parse one lizard CSV row into the coordinates we need to find its function.
  *
- * lizard's `fn@start-end@path` field packs three facts into one string, and the
- * middle one is a RANGE, so the start line is its head rather than the field
- * itself. Older lizard versions omit it and put the line in a later column.
+ * The line field is a RANGE (`start-end`), so the start line is its head rather
+ * than the field itself.
  */
 function parseLizardRow(cols, rootDir) {
-  const parts = (cols[5] ?? '').split('@');
-  const name = parts[0] ?? '';
-  const rawPath = parts.length >= 3 ? parts.slice(2).join('@') : (cols[6] ?? '');
-  const lineField = parts.length >= 3 ? parts[1] : (cols[9] ?? '0');
+  const { name, pathField, lineField } = lizardLocation(cols);
   const startLine = String(Number.parseInt(lineField.split('-')[0], 10));
-  const absPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(rootDir, rawPath);
+  const absPath = path.isAbsolute(pathField) ? pathField : path.resolve(rootDir, pathField);
   const relPath = path.relative(rootDir, absPath).replace(/\\/g, '/');
   return { name, absPath, relPath, startLine };
 }
@@ -522,6 +628,42 @@ function classifyUnresolvedRow(ts, measured, row) {
   return 'unresolved';
 }
 
+/** A row's identity in the reports: path, name, and start line. */
+function rowLabel(row, separator = '::') {
+  return `${row.relPath}${separator}${row.name}@${row.startLine}`;
+}
+
+/**
+ * Measure a file once per batch, caching the result (including failure).
+ *
+ * A file we could not parse is cached as null rather than re-parsed per row:
+ * without that, one unreadable file costs a parse attempt for every row in it.
+ */
+function measuredRowsFor(ts, row, rootDir, cache) {
+  if (!cache.has(row.absPath)) {
+    try {
+      cache.set(row.absPath, measureFileAst(ts, row.absPath, rootDir).rows);
+    } catch {
+      // Unreadable file: the gate must not proceed on an unmeasured number.
+      cache.set(row.absPath, null);
+    }
+  }
+  return cache.get(row.absPath);
+}
+
+/**
+ * Record a disagreement when both engines claim a measurement.
+ *
+ * A row lizard invents from a type declaration has no AST counterpart and was
+ * already dropped, so anything reaching here is a real disagreement about a real
+ * function.
+ */
+function recordDisagreement(cols, row, hit, acc) {
+  const lizardCcn = Number(cols[1]);
+  if (!Number.isFinite(lizardCcn) || lizardCcn === hit.ccn) return;
+  acc.disagreements.push(`${rowLabel(row)} lizard=${lizardCcn} ast=${hit.ccn}`);
+}
+
 /**
  * Rewrite one lizard CSV line so its CCN column carries the AST measurement.
  *
@@ -533,37 +675,23 @@ function verifyCsvRow(ts, cols, rootDir, cache, acc) {
   const row = parseLizardRow(cols, rootDir);
   // Generated code is never graded, so it is never resolved either.
   if (bucketFor(row.relPath) === 'generated') {
-    acc.dropped.push(`${row.relPath}::${row.name}@${row.startLine}`);
+    acc.dropped.push(rowLabel(row));
     return null;
   }
-  if (!cache.has(row.absPath)) {
-    try {
-      cache.set(row.absPath, measureFileAst(ts, row.absPath, rootDir).rows);
-    } catch {
-      // Unreadable file: the gate must not proceed on an unmeasured number.
-      cache.set(row.absPath, null);
-    }
-  }
-  const measured = cache.get(row.absPath);
+
+  const measured = measuredRowsFor(ts, row, rootDir, cache);
   if (!measured) {
-    acc.unresolved.push(`${row.relPath}:${row.name}@${row.startLine}`);
+    acc.unresolved.push(rowLabel(row, ':'));
     return null;
   }
+
   const hit = findMeasuredFunction(measured, row.name, row.startLine);
   if (!hit) {
-    const verdict = classifyUnresolvedRow(ts, measured, row);
-    const label = `${row.relPath}::${row.name}@${row.startLine}`;
-    acc[verdict].push(label);
+    acc[classifyUnresolvedRow(ts, measured, row)].push(rowLabel(row));
     return null;
   }
-  // Report only when both engines claim a measurement; a type-level row lizard
-  // invents has no AST counterpart and was rejected above.
-  const lizardCcn = Number(cols[1]);
-  if (Number.isFinite(lizardCcn) && lizardCcn !== hit.ccn) {
-    acc.disagreements.push(
-      `${row.relPath}::${row.name}@${row.startLine} lizard=${lizardCcn} ast=${hit.ccn}`
-    );
-  }
+
+  recordDisagreement(cols, row, hit, acc);
   cols[1] = String(hit.ccn);
   return cols.map(csvEscape).join(',');
 }
@@ -668,26 +796,32 @@ function writeBaselineFile(allRows, dups, rootDir) {
 }
 
 /** Print the threshold report and return the exit code it implies. */
+/** The human-readable over-threshold table. */
+function writeThresholdTable(results, threshold) {
+  write(`CCN threshold: ${threshold} (TypeScript AST measurement)`);
+  write('');
+  if (results.length === 0) {
+    write('No functions exceed the threshold.');
+    return;
+  }
+  for (const r of results) {
+    write(`  CCN ${String(r.ccn).padStart(3)}  ${r.name.padEnd(32)} ${r.file}:${r.line}`);
+  }
+  write('');
+  write(`${results.length} function(s) exceed CCN ${threshold}.`);
+}
+
 function reportThreshold(allRows, threshold, options) {
   const results = allRows.filter((r) => r.ccn > threshold).sort((a, b) => b.ccn - a.ccn);
   if (options.asJson) {
     write(JSON.stringify({ threshold, count: results.length, results }, null, 2));
   } else {
-    write(`CCN threshold: ${threshold} (TypeScript AST measurement)`);
-    write('');
-    if (results.length === 0) {
-      write('No functions exceed the threshold.');
-    } else {
-      for (const r of results) {
-        write(`  CCN ${String(r.ccn).padStart(3)}  ${r.name.padEnd(32)} ${r.file}:${r.line}`);
-      }
-      write('');
-      write(`${results.length} function(s) exceed CCN ${threshold}.`);
-    }
+    writeThresholdTable(results, threshold);
   }
   // --report-only prints the table without failing. `npm run complexity` uses
   // it for visibility; the gate itself converges via .ccn-baseline.json.
-  return options.reportOnly || results.length === 0 ? 0 : 1;
+  if (options.reportOnly) return 0;
+  return results.length === 0 ? 0 : 1;
 }
 
 /** Buffer stdin to a string and hand it to `onDone`. */
@@ -704,19 +838,23 @@ function readStdin(onDone) {
  * Entry point: parse arguments, then dispatch to the baseline writer, the
  * threshold report, or the `--csv-verified` batch.
  */
+/** Load the measurement engine, or fail closed. */
+function requireTypeScript() {
+  // The AST is the only measurement engine. Without it there is no honest number
+  // to report, so fail loudly instead of degrading to a regex guess.
+  const ts = loadTypeScript();
+  if (ts) return ts;
+  process.stderr.write(
+    'ccn-report: the typescript package is required to measure complexity (npm install).\n'
+  );
+  process.exitCode = 1;
+  return null;
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
-
-  // The AST is the only measurement engine. Without it there is no honest
-  // number to report, so fail loudly instead of degrading to a regex guess.
-  const ts = loadTypeScript();
-  if (!ts) {
-    process.stderr.write(
-      'ccn-report: the typescript package is required to measure complexity (npm install).\n'
-    );
-    process.exitCode = 1;
-    return;
-  }
+  const ts = requireTypeScript();
+  if (!ts) return;
 
   // --csv-verified batch: xp-gate pipes `lizard --csv` in on stdin and expects a
   // CSV back whose CCN column carries OUR measurement. Gate 3 fails closed when
@@ -749,27 +887,38 @@ function main() {
   // into the baseline, and test files are classified as `test` there. Scanning
   // them keeps `--json`/threshold reporting complete without widening the
   // ratchet.
-  const DEFAULT_ROOTS = ['src', 'scripts', 'prisma', 'tests'];
-  const roots = options.paths.length > 0 ? options.paths : DEFAULT_ROOTS;
-  // Collect every function; `--write-baseline` and the threshold filter both
-  // apply afterwards. Passing a huge threshold here would keep nothing.
-  const { rows: allRows, failures } = measureFilesAst(ts, resolveFiles(roots), options.rootDir);
-  // A file we could not parse is not a clean file. Silently skipping it is how a
-  // whole module can stay unmeasured while the gate reports success.
-  if (failures.length > 0) {
-    for (const f of failures) {
-      process.stderr.write(`ccn-report: failed to parse ${f.file}: ${f.error}\n`);
-    }
-    process.exitCode = 1;
-    return;
-  }
+  const allRows = measureWholeTree(ts, options);
+  if (!allRows) return;
 
-  const dups = duplicateNames(allRows);
   if (options.writeBaseline) {
-    writeBaselineFile(allRows, dups, options.rootDir);
+    writeBaselineFile(allRows, duplicateNames(allRows), options.rootDir);
     return;
   }
   process.exitCode = reportThreshold(allRows, options.threshold, options);
+}
+
+/** Default roots: every hand-written tree Gate 3 selects from. */
+const DEFAULT_ROOTS = ['src', 'scripts', 'prisma', 'tests'];
+
+/**
+ * Measure every function under the selected roots, or return null when any file
+ * failed to parse.
+ *
+ * A file we could not parse is not a clean file. Silently skipping it is how a
+ * whole module can stay unmeasured while the gate reports success, so a parse
+ * failure is fatal to the run rather than a warning.
+ */
+function measureWholeTree(ts, options) {
+  const roots = options.paths.length > 0 ? options.paths : DEFAULT_ROOTS;
+  // Collect every function; `--write-baseline` and the threshold filter both
+  // apply afterwards. Passing a huge threshold here would keep nothing.
+  const { rows, failures } = measureFilesAst(ts, resolveFiles(roots), options.rootDir);
+  if (failures.length === 0) return rows;
+  for (const f of failures) {
+    process.stderr.write(`ccn-report: failed to parse ${f.file}: ${f.error}\n`);
+  }
+  process.exitCode = 1;
+  return null;
 }
 
 main();
