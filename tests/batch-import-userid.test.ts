@@ -508,6 +508,31 @@ ${userId},张三`
 
   describe('commit contract (REQ-USERID-004)', () => {
     /**
+     * A well-formed body with NO rows is rejected.
+     *
+     * It is a 400 like a malformed body, but a different one -- and deleting the
+     * empty-list check passed the whole suite, because every existing case sends at
+     * least one row. Without it the import would run with nothing to import and
+     * report a cheerful zero.
+     */
+    it('rejects a commit whose rows array is empty', async () => {
+      const { planId, cleanup } = await createPlan('Commit Empty Rows');
+      try {
+        const res = await fastify.inject({
+          method: 'POST',
+          url: `/api/plans/${planId}/import-commit`,
+          headers: { 'x-admin-key': 'test-admin-key' },
+          payload: { rows: [] },
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body).error).toBe('no rows to import');
+      } finally {
+        await cleanup();
+      }
+    });
+
+    /**
      * @test REQ-USERID-004
      * @intent a userId-only row commits with no phone field
      * @covers AC-USERID-004-01
