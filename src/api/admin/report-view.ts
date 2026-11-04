@@ -45,17 +45,26 @@ export function analysisSectionLines(report: {
 }): string[] {
   const lines = ['---', '', '## 访谈分析总结', '', report.content ?? '', ''];
   if (report.sentiment) {
-    lines.push(`**情感分析**: ${SENTIMENT_LABELS[report.sentiment] ?? report.sentiment}`, '');
+    lines.push(`**情感分析**: ${labelSentiment(report.sentiment)}`, '');
   }
+  // Each block is "heading, blank line, bullets, blank line" -- trailing blank
+  // separators throughout, so the sections stay visually distinct in Markdown.
   if (report.keyFindings?.length) {
-    lines.push('**关键发现**：', '');
-    for (const f of report.keyFindings) lines.push(`- ${f}`);
-    lines.push('');
+    lines.push('**关键发现**：', '', ...report.keyFindings.map((f) => `- ${f}`), '');
   }
   if (report.recommendations?.length) {
-    lines.push('**建议**：', '');
-    for (const r of report.recommendations) lines.push(`- ${r}`);
-    lines.push('');
+    lines.push('**建议**：', '', ...report.recommendations.map((r) => `- ${r}`), '');
   }
   return lines;
+}
+
+/**
+ * The localised sentiment label, falling back to the raw value.
+ *
+ * Falls back rather than dropping the line: an unrecognised sentiment is still
+ * information the analyst supplied, and hiding it would make the section look
+ * like a report that simply had no sentiment.
+ */
+function labelSentiment(sentiment: string): string {
+  return SENTIMENT_LABELS[sentiment] ?? sentiment;
 }
