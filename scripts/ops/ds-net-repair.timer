@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically verify Docker per-network iptables rules
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=120s
+AccuracySec=10s
+Unit=ds-net-repair.service
+
+[Install]
+WantedBy=timers.target
