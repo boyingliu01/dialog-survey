@@ -182,6 +182,38 @@ describe('TemplateRepository', () => {
 
       await expect(repo.update('non-existent', { name: 'Fail' })).rejects.toThrow();
     });
+
+    /**
+     * `updateWithVersion` casts its argument to `Record<string, unknown>`, so a
+     * key outside the declared shape can reach the builder. Only the four real
+     * columns may be written: anything else either throws inside Prisma or
+     * silently updates a column the caller never meant to touch.
+     */
+    it('should ignore keys that are not real template columns', async () => {
+      mockPrisma.template.update.mockResolvedValueOnce(mockTemplate());
+
+      await repo.update('tpl-123', {
+        name: 'ok',
+        __proto__: { polluted: true },
+        notAColumn: 'nope',
+        updatedBy: 'attacker',
+      } as never);
+
+      expect(mockPrisma.template.update).toHaveBeenCalledWith({
+        where: { id: 'tpl-123' },
+        data: { name: 'ok', updatedBy: 'admin' },
+      });
+    });
+
+    it('should not blank a field the caller omitted', async () => {
+      mockPrisma.template.update.mockResolvedValueOnce(mockTemplate());
+
+      await repo.update('tpl-123', { description: 'kept' });
+
+      const payload = mockPrisma.template.update.mock.calls.at(-1)?.[0] as { data: unknown };
+      // Exactly description + updatedBy -- omitting `name` must not send name:''.
+      expect(Object.keys(payload.data as object).sort()).toEqual(['description', 'updatedBy']);
+    });
   });
 
   describe('delete', () => {

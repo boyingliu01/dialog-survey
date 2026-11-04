@@ -50,6 +50,33 @@ function assertVersionMatches(
   }
 }
 
+/** A persistence error the caller has declared worth retrying. */
+function isRetryablePersistenceError(err: unknown): err is StatePersistenceError {
+  return err instanceof StatePersistenceError && err.retryable;
+}
+
+/**
+ * Pass a persistence error through, wrapping anything else.
+ *
+ * The wrapping is what gives a caller a single error type to handle while still
+ * preserving an already-classified error's own code and retryability.
+ */
+function asPersistenceError(err: unknown, message: string): StatePersistenceError {
+  if (err instanceof StatePersistenceError) return err;
+  return new StatePersistenceError(message, 'TRANSACTION_ERROR', false);
+}
+
+/**
+ * An optimistic-lock conflict, which is NOT retried.
+ *
+ * A conflict means another writer committed first, so the state this call holds
+ * is already stale -- retrying would overwrite the newer version with older data.
+ * It is surfaced to the caller to re-read and decide.
+ */
+function isVersionConflict(err: unknown): err is StatePersistenceError {
+  return err instanceof StatePersistenceError && err.code === 'VERSION_CONFLICT';
+}
+
 export class InterviewStateRepository {
   private prisma: PrismaClient;
 
@@ -99,26 +126,46 @@ export class InterviewStateRepository {
 
       info('State saved successfully', { interviewId, version });
     } catch (err) {
-      if (err instanceof StatePersistenceError) {
-        if (err.retryable && retryCount < MAX_RETRIES) {
-          info('Retrying state save', {
-            interviewId,
-            retryCount: retryCount + 1,
-          });
-          return this.saveState(options, retryCount + 1);
-        }
-        if (err.code === 'VERSION_CONFLICT') {
-          error('Optimistic lock conflict', { interviewId, version });
-          throw err;
-        }
-      }
-      error('Failed to save state', {
-        interviewId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      throw new StatePersistenceError('Failed to save state', 'TRANSACTION_ERROR', false);
+      return this.handleSaveFailure(err, options, retryCount);
     }
   }
+
+  /**
+   * Decide what a failed save means: retry, surface the conflict, or give up.
+   *
+   * The three outcomes are exclusive and their ORDER is the rule. A retryable
+   * error is retried until the budget runs out and only THEN reported. A version
+   * conflict is never retried, because the state in hand is stale. Everything
+   * else is wrapped, so a caller always sees one error type.
+   */
+  private handleSaveFailure(
+    err: unknown,
+    options: SaveStateOptions,
+    retryCount: number
+  ): Promise<void> {
+    const { interviewId, version } = options;
+    if (isRetryablePersistenceError(err) && retryCount < MAX_RETRIES) {
+      info('Retrying state save', { interviewId, retryCount: retryCount + 1 });
+      return this.saveState(options, retryCount + 1);
+    }
+    if (isVersionConflict(err)) {
+      error('Optimistic lock conflict', { interviewId, version });
+      throw err;
+    }
+    error('Failed to save state', {
+      interviewId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw new StatePersistenceError('Failed to save state', 'TRANSACTION_ERROR', false);
+  }
+
+  /**
+   * Persist a full state snapshot, retrying the SAME way `saveState` does.
+   *
+   * Kept as a separate entry point because it takes an id rather than an options
+   * bag; the retry/conflict handling must stay identical, so it delegates to the
+   * shared tail instead of duplicating it.
+   */
 
   async loadState(options: LoadStateOptions): Promise<InterviewState | null> {
     const { interviewId, userId } = options;
@@ -219,27 +266,38 @@ export class InterviewStateRepository {
 
       return { success: true, newVersion: updatedInterview.version };
     } catch (err) {
-      if (err instanceof StatePersistenceError) {
-        if (err.retryable && retryCount < MAX_RETRIES) {
-          info('Retrying full state save', {
-            interviewId,
-            retryCount: retryCount + 1,
-          });
-          return this.saveFullState(interviewId, state, retryCount + 1);
-        }
-        error('State persistence error', {
-          interviewId,
-          code: err.code,
-          message: err.message,
-        });
-        throw err;
-      }
+      return this.handleFullSaveFailure(err, interviewId, state, retryCount);
+    }
+  }
+
+  /**
+   * The failure tail of `saveFullState`.
+   *
+   * Deliberately NOT shared with `handleSaveFailure`: this entry point takes
+   * pending deltas, so its caller already holds the authoritative version and a
+   * VERSION_CONFLICT carries no special meaning here. Every `StatePersistenceError`
+   * is therefore re-thrown as-is, preserving its own code and retryability rather
+   * than being flattened into a transaction error.
+   */
+  private handleFullSaveFailure(
+    err: unknown,
+    interviewId: string,
+    state: InterviewState,
+    retryCount: number
+  ): Promise<{ success: boolean; newVersion: number }> {
+    if (isRetryablePersistenceError(err) && retryCount < MAX_RETRIES) {
+      info('Retrying full state save', { interviewId, retryCount: retryCount + 1 });
+      return this.saveFullState(interviewId, state, retryCount + 1);
+    }
+    if (err instanceof StatePersistenceError) {
+      error('State persistence error', { interviewId, code: err.code, message: err.message });
+    } else {
       error('Failed to save full state', {
         interviewId,
         error: err instanceof Error ? err.message : String(err),
       });
-      throw new StatePersistenceError('Failed to save full state', 'TRANSACTION_ERROR', false);
     }
+    throw asPersistenceError(err, 'Failed to save full state');
   }
 
   async createInterview(userId: string, templateId: string): Promise<string> {

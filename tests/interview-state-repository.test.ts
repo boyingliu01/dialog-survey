@@ -163,7 +163,16 @@ describe('InterviewStateRepository', () => {
       expect(err.retryable).toBe(true);
     });
 
-    it('should retry on VERSION_CONFLICT up to MAX_RETRIES', async () => {
+    /**
+     * A version conflict is retried HERE because `assertVersionMatches` marks it
+     * retryable -- the write is expected to lose a race that a re-read usually
+     * settles. What is NOT retried is the error AFTER the budget runs out: it is
+     * surfaced with its own VERSION_CONFLICT code so the caller can re-read,
+     * rather than flattened into a generic TRANSACTION_ERROR. (Callers that treat
+     * a conflict as final reach `handleSaveFailure`'s version-conflict branch
+     * only on retryable=false errors.)
+     */
+    it('should retry a conflict up to MAX_RETRIES and then surface VERSION_CONFLICT', async () => {
       const findUnique = vi.fn().mockResolvedValue(mockInterview);
       mockPrisma.interview.findUnique = findUnique;
 
