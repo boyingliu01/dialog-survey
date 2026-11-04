@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { withRetry } from '../src/utils/retry.js';
+import { RetryError, withRetry } from '../src/utils/retry.js';
 
 describe('Retry Utility', () => {
   describe('withRetry', () => {
@@ -45,6 +45,43 @@ describe('Retry Utility', () => {
       );
 
       expect(fn).toHaveBeenCalledTimes(3); // initial + 2 retries
+    });
+
+    /**
+     * A non-retryable error is the whole point of the classification: retrying a
+     * 400 only delays the failure and burns the backoff budget on a request that
+     * can never succeed. Removing the `isRetryable` check here passed all ten
+     * existing tests, because every one of them used a plain `Error` (which is
+     * retryable) and only ever asserted the FINAL thrown error -- which is the
+     * same either way.
+     */
+    it.each([400, 401, 403, 404])(
+      'should fail immediately on a non-retryable %i instead of retrying',
+      async (status) => {
+        const fn = vi.fn().mockRejectedValue(new RetryError('nope', status, false));
+
+        await expect(withRetry(fn, { maxRetries: 3, initialDelayMs: 1 })).rejects.toThrow('nope');
+
+        expect(fn).toHaveBeenCalledTimes(1);
+      }
+    );
+
+    it('should still retry a retryable status', async () => {
+      const fn = vi
+        .fn()
+        .mockRejectedValueOnce(new RetryError('busy', 503, true))
+        .mockResolvedValue('ok');
+
+      await expect(withRetry(fn, { maxRetries: 3, initialDelayMs: 1 })).resolves.toBe('ok');
+      expect(fn).toHaveBeenCalledTimes(2);
+    });
+
+    it('should retry an error with no status code at all', async () => {
+      // A network failure carries no status, and is treated as transient.
+      const fn = vi.fn().mockRejectedValueOnce(new Error('ECONNRESET')).mockResolvedValue('ok');
+
+      await expect(withRetry(fn, { maxRetries: 3, initialDelayMs: 1 })).resolves.toBe('ok');
+      expect(fn).toHaveBeenCalledTimes(2);
     });
 
     /**

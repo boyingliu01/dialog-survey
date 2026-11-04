@@ -327,6 +327,18 @@ describe('verifyApiKey', () => {
     });
   });
 
+  /**
+   * Guard ORDER inside the lookup step, recorded because no test in this repo can
+   * observe it: `checkRateLimit` short-circuits to `true` when NODE_ENV=test, so
+   * swapping the two guards produces identical output under vitest. Verified by
+   * mutation -- the swap survives the whole suite.
+   *
+   * The order still matters in production: a request with NO key must not consume
+   * the per-IP failed-attempt budget, or an unauthenticated port scan would lock
+   * out a legitimate caller whose key is merely mistyped. The assertions below
+   * pin the OUTCOME of the missing-key case; the ordering itself is policy, not
+   * behaviour, as far as the test suite is concerned.
+   */
   it('should return 401 when API key is not found', async () => {
     const { createVerifyApiKey } = await import('../src/utils/security.js');
     mockPrisma.apiKey.findFirst.mockResolvedValue(null);
