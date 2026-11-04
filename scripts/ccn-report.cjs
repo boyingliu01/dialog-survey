@@ -12,8 +12,13 @@
  * before the ratchet grades them.
  *
  * Usage: node scripts/ccn-report.cjs [--threshold N] [--json] [--report-only]
- *                                 [--write-baseline] [--csv-verified] [--root DIR]
- *                                 [paths...]
+ *                                 [--write-baseline] [--csv-verified]
+ *                                 [--root DIR] [paths...]
+ *
+ * `--root DIR` re-bases RELATIVE scan roots (and the relative paths in the
+ * report) onto DIR, so `--root ../other-checkout` measures that checkout instead
+ * of this one. Absolute `paths...` are used as given, so pointing at one tree
+ * while measuring another is not something this flag can do by accident.
  */
 'use strict';
 
@@ -310,14 +315,27 @@ function measureFilesAst(ts, files, rootDir) {
   return { rows, failures };
 }
 
-/** Resolve the roots argument list to a flat file list. */
+/**
+ * Resolve the roots argument list to a flat file list.
+ *
+ * Returns the files plus any roots that did not exist. Callers must treat a
+ * non-empty `missing` as a failure: a tree nobody could read has not been shown
+ * to be clean.
+ */
 function resolveFiles(roots) {
   const files = [];
+  const missingRoots = [];
   for (const r of roots) {
     let stat;
     try {
       stat = fs.statSync(r);
     } catch {
+      // A requested root that does not exist is a measurement failure, not an
+      // empty tree. Skipping it silently is how `--root /typo` reported "0
+      // functions over 5" for a directory nothing had read -- the exact false
+      // clean bill this script exists to refuse. Recorded, and the caller turns
+      // it into a non-zero exit.
+      missingRoots.push(r);
       continue;
     }
     if (stat.isDirectory()) {
@@ -326,7 +344,7 @@ function resolveFiles(roots) {
       files.push(r);
     }
   }
-  return files;
+  return { files, missingRoots };
 }
 
 /**
@@ -901,6 +919,49 @@ function main() {
 const DEFAULT_ROOTS = ['src', 'scripts', 'prisma', 'tests'];
 
 /**
+ * Resolve relative scan roots against `--root`, leaving absolute ones alone.
+ *
+ * `--root` used to do nothing but compute relative paths, so pointing it at
+ * another checkout still measured THIS one and reported `0 functions over 5` --
+ * a wrong answer that looked like a clean bill of health. That is the failure
+ * mode this whole script exists to prevent (a clean verdict from a tree that was
+ * never read), so relative roots now follow the flag. Absolute roots are
+ * untouched: `ccn-report.cjs /other/checkout/src` was the only way to measure a
+ * different tree before, and it must keep working.
+ */
+function rootedPaths(paths, options) {
+  if (!options.rootDir) return paths;
+  return paths.map((p) => (path.isAbsolute(p) ? p : path.resolve(options.rootDir, p)));
+}
+
+/**
+ * Measure every function under the selected roots, or return null when any file
+ * failed to parse.
+ *
+ * A file we could not parse is not a clean file. Silently skipping it is how a
+ * whole module can stay unmeasured while the gate reports success, so a parse
+ * failure is fatal to the run rather than a warning.
+ */
+/**
+ * Report roots that were explicitly named but do not exist, returning whether the
+ * run must abort.
+ *
+ * An EXPLICIT root is a claim about a path, so a missing one is fatal. A DEFAULT
+ * root is merely "where debt usually lives": `prisma/` or `scripts/` legitimately
+ * may not exist in a given project, and failing on that would make the script
+ * unusable outside this repo. The distinction is what keeps a typo fatal while a
+ * project without a `tests/` directory still measures.
+ */
+function rejectMissingRoots(missingRoots, explicit) {
+  if (!explicit || missingRoots.length === 0) return false;
+  for (const r of missingRoots) {
+    process.stderr.write(`ccn-report: scan root does not exist: ${r}\n`);
+  }
+  process.exitCode = 2;
+  return true;
+}
+
+/**
  * Measure every function under the selected roots, or return null when any file
  * failed to parse.
  *
@@ -909,10 +970,14 @@ const DEFAULT_ROOTS = ['src', 'scripts', 'prisma', 'tests'];
  * failure is fatal to the run rather than a warning.
  */
 function measureWholeTree(ts, options) {
-  const roots = options.paths.length > 0 ? options.paths : DEFAULT_ROOTS;
+  const explicit = options.paths.length > 0;
+  const roots = rootedPaths(explicit ? options.paths : DEFAULT_ROOTS, options);
   // Collect every function; `--write-baseline` and the threshold filter both
   // apply afterwards. Passing a huge threshold here would keep nothing.
-  const { rows, failures } = measureFilesAst(ts, resolveFiles(roots), options.rootDir);
+  const { files, missingRoots } = resolveFiles(roots);
+  if (rejectMissingRoots(missingRoots, explicit)) return null;
+
+  const { rows, failures } = measureFilesAst(ts, files, options.rootDir);
   if (failures.length === 0) return rows;
   for (const f of failures) {
     process.stderr.write(`ccn-report: failed to parse ${f.file}: ${f.error}\n`);
