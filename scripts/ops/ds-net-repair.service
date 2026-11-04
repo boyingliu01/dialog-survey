@@ -1,0 +1,10 @@
+[Unit]
+Description=Verify and repair Docker per-network iptables rules for dialog-survey
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/dialog-survey-ops
+ExecStart=/usr/local/bin/ds-net-repair.sh
+TimeoutStartSec=180
