@@ -500,5 +500,48 @@ describe('ccn-report gate measurement', () => {
       expect(ccnOf(stdout, 'included')).toBe(2);
       expect(ccnOf(stdout, 'excluded')).toBeNull();
     });
+
+    it('classifies everything under tests/ as a test file, as Gate 3 does', () => {
+      // Gate 3's exclusion regex contains `(^|/)(tests?)/`, so a helper living
+      // under tests/ is never graded. `bucketFor` used to know only about
+      // `__tests__` and `.test.`, which made helpers such as
+      // tests/helpers/test-db.ts count as production debt and put them in the
+      // baseline -- work spent on code the gate will never look at.
+      const helpers = join(fixture, 'tests', 'helpers');
+      mkdirSync(helpers, { recursive: true });
+      writeFileSync(
+        join(helpers, 'support.ts'),
+        ['export function helper(a, b) {', '  return a && b ? 1 : 2;', '}'].join('\n'),
+        'utf8'
+      );
+
+      const json = run(['--threshold', '1', '--json'], fixture).stdout;
+      const parsed = JSON.parse(json) as {
+        results: Array<{ name: string; bucket: string }>;
+      };
+      const row = parsed.results.find((r) => r.name === 'helper');
+      expect(row, 'the helper should still be measured').toBeDefined();
+      expect(row?.bucket).toBe('test');
+    });
+
+    it('still treats a src/ file under a tests-named directory as production', () => {
+      // The new rule must not be a blunt "contains the word tests" match: a
+      // path like src/latest/ is production, and excusing it would hide real
+      // debt -- the failure mode this whole fix is about.
+      const dir = join(fixture, 'src', 'latest');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        join(dir, 'real.ts'),
+        ['export function realWork(a, b) {', '  return a && b ? 1 : 2;', '}'].join('\n'),
+        'utf8'
+      );
+
+      const json = run(['--threshold', '1', '--json'], fixture).stdout;
+      const parsed = JSON.parse(json) as {
+        results: Array<{ name: string; bucket: string }>;
+      };
+      const row = parsed.results.find((r) => r.name === 'realWork');
+      expect(row?.bucket).toBe('production');
+    });
   });
 });

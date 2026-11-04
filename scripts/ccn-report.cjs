@@ -310,10 +310,23 @@ function baselineKey(relPath, name, line, duplicateNamesSet) {
   return `${p}::${name}`;
 }
 
-/** Which population a file belongs to; only `production` enters the baseline. */
+/**
+ * Which population a file belongs to; only `production` enters the baseline.
+ *
+ * This MUST mirror `adapters/gate-3.sh`'s exclusion regex, because the gate
+ * decides what to grade and this decides what gets a baseline entry. When the
+ * two disagree the gap is silent in the worst direction: a file the gate selects
+ * but this script classifies as `test` never gets a baseline entry, so it is
+ * never graded and the gate passes it. `(^|/)(tests?)/` was missing here while
+ * the gate had it — six helper functions under `tests/` were being counted as
+ * production debt, and the reverse mistake (a `src/` file wrongly excused) would
+ * have been invisible.
+ */
 function bucketFor(relPath) {
   const p = relPath.replace(/\\/g, '/');
-  if (/(^|\/)__tests__?\//.test(p) || /\.test\.[cm]?[jt]sx?$/.test(p)) return 'test';
+  if (/(^|\/)__tests?__\//.test(p) || /(^|\/)(tests?)\//.test(p)) return 'test';
+  if (/\.test\.[cm]?[jt]sx?$/.test(p) || /(^|\/)test_[^/]*\.py$/.test(p)) return 'test';
+  if (/_test\.(py|go)$/.test(p) || /Tests?\.java$/.test(p)) return 'test';
   if (p.startsWith('src/npm-package/') || /^plugins\/[^/]+\/src\//.test(p)) return 'mirror';
   // Machine-generated code (Prisma client, and anything else emitted into
   // src/generated) is not hand-written and is gitignored: grading it would hold

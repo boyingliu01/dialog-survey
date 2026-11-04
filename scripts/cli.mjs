@@ -171,55 +171,67 @@ function logError(msg) {
  * Uses PM2 on Linux/macOS, falls back to direct node on Windows.
  * Shared between installCommand and startCommand.
  */
+/**
+ * Start under PM2. Fails loudly when the published entry point is missing,
+ * instead of letting PM2 report a cryptic "Script not found" after npm install
+ * and migrations have already run (issue #186).
+ */
+function startViaPm2() {
+  const entry = join(INSTALL_DIR, 'dist/src/server-entry.js');
+  if (!existsSync(entry)) {
+    logError(`Expected entry point not found in package: ${entry}`);
+    logError('The installed package is inconsistent — aborting PM2 start.');
+    process.exitCode = 1;
+    return;
+  }
+  try {
+    // Scrub secrets from the child env: PM2 persists the full env of every
+    // started process into ~/.pm2/dump.pm2 on `pm2 save` (0644 by default),
+    // which would leak keys the operator exported for the install (issue #193).
+    // The app reads its secrets from the 0600 .env file.
+    // --update-env matters on upgrades: when the app is already registered,
+    // `pm2 start` is a restart that silently keeps the OLD environment unless
+    // --update-env is given — stale secrets from a pre-#193 install would
+    // survive every re-install otherwise (review finding on #195).
+    exec(`pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production --update-env`, {
+      cwd: INSTALL_DIR,
+      env: scrubbedProcessEnv(),
+    });
+    log('PM2 process started ✓');
+  } catch (err) {
+    logError(`PM2 start failed: ${err.message}`);
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * Start the node process directly. PM2 is unstable on Windows, so this is the
+ * default there.
+ */
+function startDirectly() {
+  log('Starting service directly (PM2 is unstable on Windows, using direct node)...');
+  if (isDirectServiceRunning()) {
+    // Double-start guard: a second instance would die on the busy port and
+    // overwrite the pidfile with its own (dead) PID, corrupting stop/status.
+    log('  Direct process already running (pidfile) — keeping it. Run stop first for a restart.');
+    return;
+  }
+  try {
+    startViaNode(INSTALL_DIR);
+    log('Direct process started ✓');
+  } catch (err) {
+    logError(`Direct start failed: ${err.message}`);
+    process.exitCode = 1;
+  }
+}
+
 async function startViaServiceManager() {
   const platformCheck = checkPlatformDeps();
   if (platformCheck.serviceManager === 'pm2') {
-    // Fail loudly if the published entry point is missing, instead of letting
-    // PM2 report a cryptic "Script not found" after npm install / migrations
-    // have already run (issue #186).
-    const entry = join(INSTALL_DIR, 'dist/src/server-entry.js');
-    if (!existsSync(entry)) {
-      logError(`Expected entry point not found in package: ${entry}`);
-      logError('The installed package is inconsistent — aborting PM2 start.');
-      process.exitCode = 1;
-      return;
-    }
-    try {
-      // Scrub secrets from the child env: PM2 persists the full env of every
-      // started process into ~/.pm2/dump.pm2 on `pm2 save` (0644 by default),
-      // which would leak keys the operator exported for the install
-      // (issue #193). The app reads its secrets from the 0600 .env file.
-      // --update-env matters on upgrades: when the app is already registered,
-      // `pm2 start` is a restart that silently keeps the OLD environment
-      // unless --update-env is given — stale secrets from a pre-#193 install
-      // would survive every re-install otherwise (review finding on #195).
-      exec(`pm2 start ecosystem.config.cjs --name ${PM2_APP_NAME} --env production --update-env`, {
-        cwd: INSTALL_DIR,
-        env: scrubbedProcessEnv(),
-      });
-      log('PM2 process started ✓');
-    } catch (err) {
-      logError(`PM2 start failed: ${err.message}`);
-      process.exitCode = 1;
-      return;
-    }
-  } else {
-    log('Starting service directly (PM2 is unstable on Windows, using direct node)...');
-    if (isDirectServiceRunning()) {
-      // Double-start guard: a second instance would die on the busy port and
-      // overwrite the pidfile with its own (dead) PID, corrupting stop/status.
-      log('  Direct process already running (pidfile) — keeping it. Run stop first for a restart.');
-      return;
-    }
-    try {
-      startViaNode(INSTALL_DIR);
-      log('Direct process started ✓');
-    } catch (err) {
-      logError(`Direct start failed: ${err.message}`);
-      process.exitCode = 1;
-      return;
-    }
+    startViaPm2();
+    return;
   }
+  startDirectly();
 }
 
 // ─── Argument Parsing ────────────────────────────────────────────────────────
@@ -230,6 +242,20 @@ async function startViaServiceManager() {
  * @param {string[]} argv - process.argv.slice(2)
  * @returns {{ command: string, flags: Record<string, string>, positional: string[] }}
  */
+/**
+ * Read the value for a `--flag`, or 'true' when it takes none.
+ *
+ * Returns the index the caller should resume from, so the caller never has to
+ * reason about consuming the value itself.
+ */
+function readFlagValue(argv, index) {
+  const next = argv[index + 1];
+  if (next && !next.startsWith('--')) {
+    return { value: next, nextIndex: index + 1 };
+  }
+  return { value: 'true', nextIndex: index };
+}
+
 export function parseArgs(argv) {
   const command = argv[0] || 'help';
   const flags = {};
@@ -237,18 +263,13 @@ export function parseArgs(argv) {
 
   for (let i = 1; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg.startsWith('--')) {
-      const key = arg.slice(2);
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        flags[key] = next;
-        i++;
-      } else {
-        flags[key] = 'true';
-      }
-    } else {
+    if (!arg.startsWith('--')) {
       positional.push(arg);
+      continue;
     }
+    const consumed = readFlagValue(argv, i);
+    flags[arg.slice(2)] = consumed.value;
+    i = consumed.nextIndex;
   }
 
   return { command, flags, positional };
@@ -257,23 +278,38 @@ export function parseArgs(argv) {
 // ─── Config Generation ───────────────────────────────────────────────────────
 
 /**
+ * Which CLI flag fills each canonical config key.
+ *
+ * A table rather than nine `||` expressions: the mapping is data, and writing it
+ * as data means adding a key is one row instead of a parallel edit in three
+ * functions (this file used to list the nine keys in CONFIG_KEYS, here, and
+ * again in the env reader, with nothing tying them together).
+ */
+const FLAG_FOR_KEY = {
+  DATABASE_URL: 'db-url',
+  LLM_API_KEY: 'llm-api-key',
+  LLM_BASE_URL: 'llm-base-url',
+  LLM_MODEL: 'llm-model',
+  DINGTALK_CLIENT_ID: 'dingtalk-client-id',
+  DINGTALK_CLIENT_SECRET: 'dingtalk-client-secret',
+  DINGTALK_AGENT_ID: 'dingtalk-agent-id',
+  ADMIN_USERNAME: 'admin-username',
+  ADMIN_PASSWORD: 'admin-password',
+};
+
+/**
  * Generate config object from CLI flags.
  *
  * @param {Record<string, string>} flags
  * @returns {Record<string, string>}
  */
 export function generateConfigFromFlags(flags) {
-  return {
-    DATABASE_URL: flags['db-url'] || '',
-    LLM_API_KEY: flags['llm-api-key'] || '',
-    LLM_BASE_URL: flags['llm-base-url'] || '',
-    LLM_MODEL: flags['llm-model'] || '',
-    DINGTALK_CLIENT_ID: flags['dingtalk-client-id'] || '',
-    DINGTALK_CLIENT_SECRET: flags['dingtalk-client-secret'] || '',
-    DINGTALK_AGENT_ID: flags['dingtalk-agent-id'] || '',
-    ADMIN_USERNAME: flags['admin-username'] || '',
-    ADMIN_PASSWORD: flags['admin-password'] || '',
-  };
+  const config = {};
+  for (const key of CONFIG_KEYS) {
+    const flag = FLAG_FOR_KEY[key];
+    config[key] = (flag && flags[flag]) || '';
+  }
+  return config;
 }
 
 /**
@@ -310,19 +346,16 @@ export const CONFIG_KEYS = [
  * Build a config object from DIALOG_SURVEY_* environment variables. Reading
  * secrets from the environment (not argv) keeps them out of `ps` and the npm
  * debug logs under ~/.npm/_logs (issue #190).
+ *
+ * Driven off CONFIG_KEYS rather than a hand-written object, so the env reader
+ * cannot fall behind a key added to the flag reader.
  */
 export function generateConfigFromEnv() {
-  return {
-    DATABASE_URL: process.env['DIALOG_SURVEY_DATABASE_URL'] || '',
-    LLM_API_KEY: process.env['DIALOG_SURVEY_LLM_API_KEY'] || '',
-    LLM_BASE_URL: process.env['DIALOG_SURVEY_LLM_BASE_URL'] || '',
-    LLM_MODEL: process.env['DIALOG_SURVEY_LLM_MODEL'] || '',
-    DINGTALK_CLIENT_ID: process.env['DIALOG_SURVEY_DINGTALK_CLIENT_ID'] || '',
-    DINGTALK_CLIENT_SECRET: process.env['DIALOG_SURVEY_DINGTALK_CLIENT_SECRET'] || '',
-    DINGTALK_AGENT_ID: process.env['DIALOG_SURVEY_DINGTALK_AGENT_ID'] || '',
-    ADMIN_USERNAME: process.env['DIALOG_SURVEY_ADMIN_USERNAME'] || '',
-    ADMIN_PASSWORD: process.env['DIALOG_SURVEY_ADMIN_PASSWORD'] || '',
-  };
+  const config = {};
+  for (const key of CONFIG_KEYS) {
+    config[key] = process.env[`DIALOG_SURVEY_${key}`] || '';
+  }
+  return config;
 }
 
 /**
@@ -498,19 +531,19 @@ export async function resolveAdminCredentials(config = {}) {
  * Check Node.js version >= MIN_NODE_VERSION (semver compare, not major-only).
  * @returns {{ ok: boolean, message: string }}
  */
-export function checkNodeVersion(version = process.versions.node) {
-  const current = version.split('.').map((part) => Number.parseInt(part, 10));
-  const minimum = MIN_NODE_VERSION.split('.').map((part) => Number.parseInt(part, 10));
-  let meetsMinimum = true;
-  for (let i = 0; i < minimum.length; i += 1) {
-    const cur = current[i] ?? 0;
-    const min = minimum[i] ?? 0;
-    if (cur !== min) {
-      meetsMinimum = cur > min;
-      break;
-    }
+/** Compare two dotted numeric versions: negative, zero, or positive. */
+function compareDotted(a, b) {
+  const left = a.split('.').map((part) => Number.parseInt(part, 10));
+  const right = b.split('.').map((part) => Number.parseInt(part, 10));
+  for (let i = 0; i < Math.max(left.length, right.length); i += 1) {
+    const diff = (left[i] ?? 0) - (right[i] ?? 0);
+    if (diff !== 0) return diff;
   }
-  if (!meetsMinimum) {
+  return 0;
+}
+
+export function checkNodeVersion(version = process.versions.node) {
+  if (compareDotted(version, MIN_NODE_VERSION) < 0) {
     return {
       ok: false,
       message: `Node.js >= ${MIN_NODE_VERSION} required (current: ${process.versions.node})`,
@@ -657,9 +690,41 @@ export function verifyInstallation(installDir) {
  * @param {string} installDir
  * @returns {string[]} problems found (empty array = healthy)
  */
-export function verifyPackageManifest(installDir) {
-  const problems = [];
+/**
+ * Normalise package.json's `bin` field to name/path pairs.
+ *
+ * Accepts both documented shapes: a single string (which npm records under the
+ * package name) and a name-to-path map.
+ */
+function binEntriesOf(manifest) {
+  if (typeof manifest.bin === 'string') {
+    return [[manifest.name ?? 'app', manifest.bin]];
+  }
+  return Object.entries(manifest.bin ?? {});
+}
 
+/** Problems with `bin` targets that do not exist in the install dir. */
+function binProblems(installDir, manifest) {
+  const problems = [];
+  for (const [name, rel] of binEntriesOf(manifest)) {
+    if (typeof rel !== 'string') continue;
+    if (existsSync(join(installDir, rel))) continue;
+    problems.push(
+      `bin "${name}" points at ${rel}, which is missing from the install dir — CLI commands will not resolve there`
+    );
+  }
+  return problems;
+}
+
+/** Problem when the install dir has no VERSION file, or an empty list. */
+function versionProblems(installDir) {
+  if (existsSync(join(installDir, 'VERSION'))) return [];
+  return [
+    'VERSION is missing from the install dir — /health would fall back to package.json for the version (issue #191)',
+  ];
+}
+
+export function verifyPackageManifest(installDir) {
   let manifest;
   try {
     manifest = JSON.parse(readFileSync(join(installDir, 'package.json'), 'utf8'));
@@ -667,32 +732,54 @@ export function verifyPackageManifest(installDir) {
     return [`package.json is missing or unreadable in ${installDir}`];
   }
 
-  const binEntries =
-    typeof manifest.bin === 'string'
-      ? [[manifest.name ?? 'app', manifest.bin]]
-      : Object.entries(manifest.bin ?? {});
-  for (const [name, rel] of binEntries) {
-    if (typeof rel !== 'string') continue;
-    if (!existsSync(join(installDir, rel))) {
-      problems.push(
-        `bin "${name}" points at ${rel}, which is missing from the install dir — CLI commands will not resolve there`
-      );
-    }
-  }
-
-  if (!existsSync(join(installDir, 'VERSION'))) {
-    problems.push(
-      'VERSION is missing from the install dir — /health would fall back to package.json for the version (issue #191)'
-    );
-  }
-
-  return problems;
+  return [...binProblems(installDir, manifest), ...versionProblems(installDir)];
 }
 
 // ─── PM2 dump security (issue #193) ───────────────────────────────────────────
 
 /** Values shorter than this are treated as non-secrets for the dump scan. */
 const MIN_SECRET_VALUE_LENGTH = 8;
+
+/**
+ * Warning for a dump.pm2 whose mode lets group or other read it, or null.
+ *
+ * 0400 and 0600 are both acceptable — only the group/other bits matter, because
+ * the file holds the whole process environment after `pm2 save`.
+ */
+function pm2DumpModeWarning(dumpPath) {
+  let mode = 0;
+  try {
+    mode = statSync(dumpPath).mode & 0o777;
+  } catch {
+    return null;
+  }
+  if ((mode & 0o077) === 0) return null;
+  return `~/.pm2/dump.pm2 has mode 0${mode.toString(8)} (group/other-readable). PM2 persists the process environment there on \`pm2 save\` — tighten it with: chmod 700 ~/.pm2 && chmod 600 ~/.pm2/dump.pm2`;
+}
+
+/** The secret values declared in the install dir's .env, quotes stripped. */
+function secretValuesFrom(envPath) {
+  return [...readFileSync(envPath, 'utf-8').matchAll(secretEnvLineRegex)]
+    .map((m) => m[1].trim().replace(/^["'](.*)["']$/, '$1'))
+    .filter((v) => v.length >= MIN_SECRET_VALUE_LENGTH);
+}
+
+/**
+ * Warning when the dump still carries secrets from the service environment, or
+ * null.
+ *
+ * Two independent signals, because they answer different questions: a matching
+ * *value* proves the secret itself is in the file, while a matching *key name*
+ * proves the operator's shell env reached a PM2 daemon that dumps every app —
+ * and so may belong to a different app entirely.
+ */
+function pm2DumpLeakWarning(dump, envPath) {
+  const secretValues = secretValuesFrom(envPath);
+  const leakedValues = secretValues.filter((v) => dump.includes(v));
+  const leakedKeys = SCAN_SECRET_NAMES.filter((k) => dump.includes(k));
+  if (leakedValues.length === 0 && leakedKeys.length === 0) return null;
+  return `~/.pm2/dump.pm2 contains ${leakedValues.length} plaintext secret value(s) and ${leakedKeys.length} secret key name(s) from the service environment. Restart with \`pm2 restart ${PM2_APP_NAME} --update-env\` from a shell WITHOUT the secrets exported, re-run \`pm2 save\`, then rotate those secrets (issue #193; a shared PM2 daemon dumps every app, so key names may also belong to other PM2 apps).`;
+}
 
 /**
  * Inspect ~/.pm2/dump.pm2 (or $PM2_HOME/dump.pm2) — the file `pm2 save` writes
@@ -709,50 +796,33 @@ const MIN_SECRET_VALUE_LENGTH = 8;
  * @param {string} [home=homedir()]
  * @returns {string[]}
  */
-export function checkPm2DumpSecurity(installDir = INSTALL_DIR, home = homedir()) {
-  const warnings = [];
-  // Mode bits are meaningless on Windows and the PM2 path is not used there.
-  if (isWindows()) return warnings;
-
+/**
+ * The two files the dump scan reads, or null when either is absent.
+ *
+ * Both are optional: an operator who has not run `pm2 save` or written a .env
+ * has nothing to leak, and a missing file is not a warning.
+ */
+function pm2ScanPaths(installDir, home) {
   const pm2Home = process.env['PM2_HOME'] || join(home, '.pm2');
   const dumpPath = join(pm2Home, 'dump.pm2');
-  if (!existsSync(dumpPath)) return warnings;
-
-  let mode = 0;
-  try {
-    mode = statSync(dumpPath).mode & 0o777;
-  } catch {
-    return warnings;
-  }
-  // 0400 and 0600 are both fine — only group/other bits are a problem.
-  if ((mode & 0o077) !== 0) {
-    warnings.push(
-      `~/.pm2/dump.pm2 has mode 0${mode.toString(8)} (group/other-readable). PM2 persists the process environment there on \`pm2 save\` — tighten it with: chmod 700 ~/.pm2 && chmod 600 ~/.pm2/dump.pm2`
-    );
-  }
-
   const envPath = join(installDir, '.env');
-  if (!existsSync(envPath)) return warnings;
+  return existsSync(dumpPath) && existsSync(envPath) ? { dumpPath, envPath } : null;
+}
 
-  let dump = '';
+export function checkPm2DumpSecurity(installDir = INSTALL_DIR, home = homedir()) {
+  // Mode bits are meaningless on Windows and the PM2 path is not used there.
+  if (isWindows()) return [];
+
+  const paths = pm2ScanPaths(installDir, home);
+  if (!paths) return [];
+
+  const warnings = [pm2DumpModeWarning(paths.dumpPath)];
   try {
-    dump = readFileSync(dumpPath, 'utf-8');
+    warnings.push(pm2DumpLeakWarning(readFileSync(paths.dumpPath, 'utf-8'), paths.envPath));
   } catch {
-    return warnings;
+    // An unreadable dump is not a leak signal; keep whatever the mode check found.
   }
-
-  const secretValues = [...readFileSync(envPath, 'utf-8').matchAll(secretEnvLineRegex)]
-    .map((m) => m[1].trim().replace(/^["'](.*)["']$/, '$1'))
-    .filter((v) => v.length >= MIN_SECRET_VALUE_LENGTH);
-  const leakedValues = secretValues.filter((v) => dump.includes(v));
-  const leakedKeys = SCAN_SECRET_NAMES.filter((k) => dump.includes(k));
-  if (leakedValues.length > 0 || leakedKeys.length > 0) {
-    warnings.push(
-      `~/.pm2/dump.pm2 contains ${leakedValues.length} plaintext secret value(s) and ${leakedKeys.length} secret key name(s) from the service environment. Restart with \`pm2 restart ${PM2_APP_NAME} --update-env\` from a shell WITHOUT the secrets exported, re-run \`pm2 save\`, then rotate those secrets (issue #193; a shared PM2 daemon dumps every app, so key names may also belong to other PM2 apps).`
-    );
-  }
-
-  return warnings;
+  return warnings.filter(Boolean);
 }
 
 // ─── PM2 Helpers ─────────────────────────────────────────────────────────────
@@ -887,29 +957,48 @@ function isPidAlive(pid) {
  * processes started before the pidfile existed.
  * @returns {boolean}
  */
+/** Terminate one pid, using the platform's tree-kill on Windows. */
+function killPid(pid) {
+  if (isWindows()) {
+    exec(`taskkill /PID ${pid} /T /F`);
+    return;
+  }
+  process.kill(pid, 'SIGTERM');
+}
+
+/**
+ * Stop whichever node server is running: the pid from the pidfile when it is
+ * still alive, otherwise a pattern kill on POSIX. Windows has no portable
+ * pattern kill without a pidfile, so it stops there.
+ */
+function stopRunningServer(pid) {
+  if (pid !== null && isPidAlive(pid)) {
+    killPid(pid);
+    return;
+  }
+  if (!isWindows()) {
+    exec('pkill -f "node dist/src/server"');
+  }
+}
+
+/** Remove the pidfile; a stale one is harmless, so failure is ignored. */
+function removePidFile() {
+  try {
+    rmSync(join(INSTALL_DIR, 'logs', 'server.pid'), { force: true });
+  } catch {
+    // best effort — a stale pidfile is harmless
+  }
+}
+
 export function stopDirectService() {
   const pid = readServerPid();
   try {
-    if (pid !== null && isPidAlive(pid)) {
-      if (isWindows()) {
-        exec(`taskkill /PID ${pid} /T /F`);
-      } else {
-        process.kill(pid, 'SIGTERM');
-      }
-    } else if (!isWindows()) {
-      exec('pkill -f "node dist/src/server"');
-    }
+    stopRunningServer(pid);
     return true;
   } catch {
     return false;
   } finally {
-    if (pid !== null) {
-      try {
-        rmSync(join(INSTALL_DIR, 'logs', 'server.pid'), { force: true });
-      } catch {
-        // best effort — a stale pidfile is harmless
-      }
-    }
+    if (pid !== null) removePidFile();
   }
 }
 
@@ -984,6 +1073,14 @@ export function waitForHealth(
  * @param {Record<string, string>} config
  * @returns {string}
  */
+/**
+ * Env keys written only when the operator supplied a value.
+ *
+ * A list rather than two `if`s: the set of optional keys is data, and the
+ * template below is about layout, not about which keys exist.
+ */
+const OPTIONAL_ENV_KEYS = ['LLM_BASE_URL', 'LLM_MODEL'];
+
 export function generateEnvContent(config) {
   const lines = [
     '# Generated by dialog-survey CLI',
@@ -994,14 +1091,13 @@ export function generateEnvContent(config) {
     `DATABASE_URL="${config.DATABASE_URL}"`,
     '',
     '# LLM Configuration (OpenAI-compatible — local or cloud)',
-    `LLM_API_KEY=${config.LLM_API_KEY || ''}`,
+    `LLM_API_KEY=${config.LLM_API_KEY ?? ''}`,
   ];
-  if (config.LLM_BASE_URL) {
-    lines.push(`LLM_BASE_URL=${config.LLM_BASE_URL}`);
-  }
-  if (config.LLM_MODEL) {
-    lines.push(`LLM_MODEL=${config.LLM_MODEL}`);
-  }
+  // Optional keys are emitted only when set, so an unconfigured install does not
+  // get empty assignments that look like configuration.
+  lines.push(
+    ...OPTIONAL_ENV_KEYS.filter((key) => config[key]).map((key) => `${key}=${config[key]}`)
+  );
   lines.push(
     '',
     `DINGTALK_CLIENT_ID=${config.DINGTALK_CLIENT_ID}`,
@@ -1014,8 +1110,8 @@ export function generateEnvContent(config) {
     `ADMIN_API_KEY=${crypto.randomBytes(16).toString('hex')}`,
     '',
     '# Admin authentication (browser login at /admin/login)',
-    `ADMIN_USERNAME=${config.ADMIN_USERNAME || 'admin'}`,
-    `ADMIN_PASSWORD_HASH=${config.ADMIN_PASSWORD_HASH || ''}`,
+    `ADMIN_USERNAME=${config.ADMIN_USERNAME ?? 'admin'}`,
+    `ADMIN_PASSWORD_HASH=${config.ADMIN_PASSWORD_HASH ?? ''}`,
     `SESSION_SECRET=${crypto.randomBytes(32).toString('hex')}`,
     `SESSION_SALT=${crypto.randomBytes(16).toString('hex')}`,
     'SESSION_MAX_AGE=28800',
@@ -1148,27 +1244,42 @@ function rejectPartialFlags(missing) {
  * fallback. Only the dispatch lives here; the branches themselves do not, which
  * is what keeps this function readable as a table.
  */
+/**
+ * Should the installer skip its prompts?
+ *
+ * True when explicitly requested, when stdin is not a TTY (piped / CI / SSH),
+ * or when the caller asked for it by flag.
+ */
+function wantsNonInteractive(flags) {
+  if (flags['non-interactive'] === 'true' || flags['non-interactive'] === true) return true;
+  return !process.stdin.isTTY;
+}
+
+/** Did the caller supply a complete, non-empty config purely through flags? */
+function flagsFullyConfigure(flags, fromFlags) {
+  return validateConfig(fromFlags).valid && PROVIDED_FLAGS.some((f) => flags[f] !== undefined);
+}
+
+/**
+ * Pick the configuration source, in precedence order:
+ * explicit `--help`, complete flags, non-interactive fallbacks, partial flags
+ * (an error, since silently prompting would hide a typo'd flag), then prompts.
+ */
 async function resolveInstallConfig(flags) {
   const fromFlags = generateConfigFromFlags(flags);
-  const flagValidation = validateConfig(fromFlags);
-  const anyFlagProvided = PROVIDED_FLAGS.some((f) => flags[f] !== undefined);
 
   if (flags.help) {
     printInstallHelp();
     return null;
   }
-  if (flagValidation.valid && anyFlagProvided) {
+  if (flagsFullyConfigure(flags, fromFlags)) {
     log('Using configuration from CLI flags.\n');
     return fromFlags;
   }
-  // Non-interactive when explicitly requested, when stdin is not a TTY (piped /
-  // CI / SSH), or when there is nothing to fall back to interactively.
-  const nonInteractive =
-    flags['non-interactive'] === 'true' ||
-    flags['non-interactive'] === true ||
-    !process.stdin.isTTY;
-  if (nonInteractive) return resolveNonInteractiveConfig(flags, fromFlags);
-  if (anyFlagProvided) return rejectPartialFlags(flagValidation.missing);
+  if (wantsNonInteractive(flags)) return resolveNonInteractiveConfig(flags, fromFlags);
+  if (PROVIDED_FLAGS.some((f) => flags[f] !== undefined)) {
+    return rejectPartialFlags(validateConfig(fromFlags).missing);
+  }
   return resolveInteractiveConfig();
 }
 
@@ -1186,6 +1297,46 @@ async function resolveInstallConfig(flags) {
  * the one exception in the other direction: that is operator data predating any
  * package.json, so it is kept and the operator is told to inspect it.
  */
+/** Copy the package files into the install dir, logging each one. */
+async function copyPackageFiles(sourceDir) {
+  log('Copying package files...');
+  for (const file of filesToCopy) {
+    const src = join(sourceDir, file);
+    if (!existsSync(src)) continue;
+    await cp(src, join(INSTALL_DIR, file), { recursive: true });
+    log(`  Copied ${file}`);
+  }
+  // The published package excludes scripts/loadtest (see `files` in
+  // package.json); drop it if the installer ran from a source checkout that
+  // still has it, so the install dir matches the published layout.
+  await rm(join(INSTALL_DIR, 'scripts', 'loadtest'), { recursive: true, force: true });
+}
+
+/**
+ * React to an inconsistent install dir, then flag the failure.
+ *
+ * The cleanup policy is the subtle part: a FRESH directory is removed so a
+ * failed install leaves nothing behind, but an EXISTING one is only reported —
+ * deleting an operator's working install to punish a corrupt package would
+ * destroy data the package did not create. A fresh directory that already holds
+ * a `.env` is the one exception in the other direction: that is operator data
+ * predating any package.json, so it is kept and the operator is told to look.
+ */
+async function abortInconsistentInstall(installDirExisted) {
+  if (installDirExisted) {
+    log('  Existing installation was partially updated — fix the package and re-run install.');
+    process.exitCode = 1;
+    return;
+  }
+  if (existsSync(join(INSTALL_DIR, '.env'))) {
+    log('  Fresh install directory kept — it contains a pre-existing .env; inspect manually.');
+  } else {
+    await rm(INSTALL_DIR, { recursive: true, force: true });
+    log('  Fresh install directory cleaned up.');
+  }
+  process.exitCode = 1;
+}
+
 async function prepareInstallDirectory(sourceDir) {
   log('\nSetting up installation directory...');
   // An existing package.json marks a pre-existing installation (upgrade);
@@ -1194,20 +1345,7 @@ async function prepareInstallDirectory(sourceDir) {
   await mkdir(INSTALL_DIR, { recursive: true });
   log(`  Created ${INSTALL_DIR}`);
 
-  // Step 5: Copy package files
-  log('Copying package files...');
-  for (const file of filesToCopy) {
-    const src = join(sourceDir, file);
-    const dest = join(INSTALL_DIR, file);
-    if (existsSync(src)) {
-      await cp(src, dest, { recursive: true });
-      log(`  Copied ${file}`);
-    }
-  }
-  // The published package excludes scripts/loadtest (see `files` in
-  // package.json); drop it if the installer ran from a source checkout that
-  // still has it, so the install dir matches the published layout.
-  await rm(join(INSTALL_DIR, 'scripts', 'loadtest'), { recursive: true, force: true });
+  await copyPackageFiles(sourceDir);
 
   // Integrity gate: the install dir must be self-consistent with its own
   // package.json — every `bin` target present and VERSION shipped — otherwise
@@ -1219,19 +1357,7 @@ async function prepareInstallDirectory(sourceDir) {
       logError(`Installed package is inconsistent: ${problem}`);
     }
     logError('Aborting before dependency installation — the published package may be corrupt.');
-    if (!installDirExisted) {
-      // Fresh install: don't leave a half-populated directory behind — unless
-      // it already holds operator data (.env predating any package.json).
-      if (existsSync(join(INSTALL_DIR, '.env'))) {
-        log('  Fresh install directory kept — it contains a pre-existing .env; inspect manually.');
-      } else {
-        await rm(INSTALL_DIR, { recursive: true, force: true });
-        log('  Fresh install directory cleaned up.');
-      }
-    } else {
-      log('  Existing installation was partially updated — fix the package and re-run install.');
-    }
-    process.exitCode = 1;
+    await abortInconsistentInstall(installDirExisted);
     return null;
   }
   log('  Install manifest verified ✓ (bin target + VERSION present)');
@@ -1242,8 +1368,8 @@ async function prepareInstallDirectory(sourceDir) {
  * Steps 2-3: fill in the admin credentials, then verify the environment can
  * actually host the app (prerequisites + platform-specific dependencies).
  *
- * Returns the config with the credentials merged in, or `null` when a check
- * failed and the caller must stop.
+ * Returns the config with the credentials merged in plus the credentials
+ * themselves, or `null` when a check failed and the caller must stop.
  *
  * The credential resolution happens BEFORE the prerequisite check on purpose:
  * `checkPrerequisites` reads DATABASE_URL from the config, and resolving the
@@ -1277,7 +1403,10 @@ async function checkEnvironment(initialConfig, flags) {
     process.exitCode = 1;
     return null;
   }
-  return config;
+  // The credentials travel with the config: the success banner reports the
+  // generated password, and re-resolving here would mint a fresh one that no
+  // longer matches the hash written to .env.
+  return { config, credentials };
 }
 
 /**
@@ -1293,29 +1422,34 @@ async function checkEnvironment(initialConfig, flags) {
  * upgrade recipe, because the raw Prisma message names a table collision and not
  * the `migrate resolve --applied` command that fixes it.
  */
-async function installDependenciesAndMigrate(config) {
-  // Step 6: Generate .env (kept as-is on upgrades — see writeEnvFile)
+/** Step 6: generate .env, keeping an existing one intact (see writeEnvFile). */
+async function stepWriteEnv(config) {
   log('Generating .env file...');
-  const envResult = await writeEnvFile(INSTALL_DIR, config);
-  if (envResult.preserved) {
-    log(`  Existing ${envResult.path} kept — ENCRYPTION_KEY / SESSION_SECRET /`);
+  const result = await writeEnvFile(INSTALL_DIR, config);
+  if (result.preserved) {
+    log(`  Existing ${result.path} kept — ENCRYPTION_KEY / SESSION_SECRET /`);
     log('  ADMIN_API_KEY and all configuration values are preserved on upgrade.');
     log('  Edit the file directly to change configuration values.');
   } else {
-    log(`  Created ${envResult.path} (mode 0600)`);
+    log(`  Created ${result.path} (mode 0600)`);
   }
+}
 
-  // Step 7: npm install
-  // npm strips package-lock.json from published tarballs even when it is listed
-  // in `files`, so an npx-based install never has a lockfile and always takes
-  // the `npm install --omit=dev --legacy-peer-deps` path; `npm ci` only runs
-  // when the installer is executed from a source checkout that has one (issue
-  // #188). The fallback avoids the arborist `edgesOut` crash that bare
-  // `npm install --omit=dev` hit on 1.11.0.
+/**
+ * Step 7: npm install. Returns false when it failed and the caller must stop.
+ *
+ * npm strips package-lock.json from published tarballs even when it is listed in
+ * `files`, so an npx-based install never has a lockfile and always takes the
+ * `npm install --omit=dev --legacy-peer-deps` path; `npm ci` only runs when the
+ * installer is executed from a source checkout that has one (issue #188). The
+ * fallback avoids the arborist `edgesOut` crash that bare `npm install
+ * --omit=dev` hit on 1.11.0.
+ */
+function stepInstallDependencies() {
   log('Installing dependencies...');
   try {
-    const which = installDependencies(INSTALL_DIR);
-    log(`  Dependencies installed ✓ (${which})`);
+    log(`  Dependencies installed ✓ (${installDependencies(INSTALL_DIR)})`);
+    return true;
   } catch (err) {
     logError(`npm install failed: ${err.message}`);
     const npmLog = process.env['npm_config_logfile'];
@@ -1325,11 +1459,17 @@ async function installDependenciesAndMigrate(config) {
     logError('If the error mentions "edgesOut" or peer dependencies, retry with legacy-peer-deps:');
     logError('  echo "legacy-peer-deps=true" >> ~/.dialog-survey/.npmrc');
     process.exitCode = 1;
-    return;
+    return false;
   }
+}
 
-  // Step 7.5: Install Playwright browser for PDF export
-  // This is non-fatal — PDF export is an optional feature.
+/**
+ * Step 7.5: install the Playwright browser for PDF export.
+ *
+ * Deliberately non-fatal: the browser only powers PDF export, so a headless-CI
+ * or air-gapped install should still end up with a working interview bot.
+ */
+function stepInstallPlaywright() {
   log('Installing Playwright browser for PDF export...');
   try {
     exec('npx playwright install chromium', { cwd: INSTALL_DIR });
@@ -1338,14 +1478,47 @@ async function installDependenciesAndMigrate(config) {
     log('  ⚠ Playwright browser installation failed (PDF export unavailable)');
     log("    Run 'npx playwright install chromium' manually if PDF export is needed.");
   }
+}
 
-  // Step 9: prisma migrate deploy (issue #152)
-  // No generate step here: the package ships the compiled client
-  // (dist/src/generated/prisma) and devDeps are absent in the install.
-  // PRISMA_SKIP_GENERATE keeps the installed tree read-only — --no-generate
-  // does not exist in prisma@7.10.0 (spike #11 verified the env flag).
-  // Migrations ship inside prisma/ (filesToCopy); deploy replays them in
-  // order, which `db push` never did (no history, no rollback).
+/**
+ * The upgrade recipe for a database created by the old `prisma db push`.
+ *
+ * On upgrades from <=v1.9 the schema already exists but has no migration
+ * history, so deploying the init migration collides with existing tables.
+ * Prisma's raw P3005/P3018 message names the collision and not the command that
+ * fixes it, so the operator gets the actual recipe instead.
+ */
+function logMigrationConflictRecipe() {
+  logError(
+    [
+      'This database looks like it was created by the old `prisma db push`',
+      '(tables exist, but there is no migration history). To upgrade without',
+      'losing data, mark the initial migration as already applied once:',
+      '',
+      '  npx --yes prisma@7.10.0 migrate resolve --applied 20261004000000_init',
+      '',
+      'then re-run this installer. See DEPLOY.md "Database Rollback" for details.',
+    ].join('\n')
+  );
+}
+
+/** Does a Prisma failure look like the missing-migration-history collision? */
+function isMigrationConflict(err) {
+  const haystack = String(err.stdout ?? '') + String(err.stderr ?? '') + err.message;
+  return /already exists|P3005|P3018|migration.*conflict/i.test(haystack);
+}
+
+/**
+ * Step 9: prisma migrate deploy (issue #152). Returns false when it failed.
+ *
+ * No generate step here: the package ships the compiled client
+ * (dist/src/generated/prisma) and devDeps are absent in the install.
+ * PRISMA_SKIP_GENERATE keeps the installed tree read-only — --no-generate does
+ * not exist in prisma@7.10.0 (spike #11 verified the env flag). Migrations ship
+ * inside prisma/ (filesToCopy); deploy replays them in order, which `db push`
+ * never did (no history, no rollback).
+ */
+function stepMigrateDatabase() {
   log('Applying database migrations...');
   try {
     exec('npx --yes prisma@7.10.0 migrate deploy', {
@@ -1353,33 +1526,22 @@ async function installDependenciesAndMigrate(config) {
       env: { ...process.env, PRISMA_SKIP_GENERATE: '1' },
     });
     log('  Migrations applied ✓');
+    return true;
   } catch (err) {
     logError(`prisma migrate deploy failed: ${err.message}`);
-    // Most common cause on upgrades from <=v1.9: the DB schema already exists
-    // (created by the old `prisma db push`) but has no migration history, so
-    // deploying the init migration collides with existing tables. Tell the
-    // operator how to baseline it instead of leaving a raw P3005/P3018 dump.
-    if (
-      /already exists|P3005|P3018|migration.*conflict/i.test(
-        String(err.stdout ?? '') + String(err.stderr ?? '') + err.message
-      )
-    ) {
-      logError(
-        [
-          'This database looks like it was created by the old `prisma db push`',
-          '(tables exist, but there is no migration history). To upgrade without',
-          'losing data, mark the initial migration as already applied once:',
-          '',
-          '  npx --yes prisma@7.10.0 migrate resolve --applied 20261004000000_init',
-          '',
-          'then re-run this installer. See DEPLOY.md "Database Rollback" for details.',
-        ].join('\n')
-      );
+    if (isMigrationConflict(err)) {
+      logMigrationConflictRecipe();
     }
     process.exitCode = 1;
-    return;
+    return false;
   }
-  return true;
+}
+
+async function installDependenciesAndMigrate(config) {
+  await stepWriteEnv(config);
+  if (!stepInstallDependencies()) return false;
+  stepInstallPlaywright();
+  return stepMigrateDatabase();
 }
 
 /**
@@ -1397,6 +1559,44 @@ async function installDependenciesAndMigrate(config) {
  * gated the install, and re-resolving the credentials would generate a NEW
  * password after the hash had already been written to `.env`.
  */
+/**
+ * The success banner.
+ *
+ * Lifecycle hints must work INSIDE the install dir they print: `npx
+ * dialog-survey …` re-fetches the package from the registry instead of using
+ * the install dir (npm exec never resolves a root package's own bin), so the
+ * local equivalents are printed instead (issue #195).
+ */
+function logInstallSuccess(credentials, serviceManager) {
+  log('  Health check passed ✓');
+  log('\n✅ dialog-survey installed and running successfully!');
+  log(`   Install dir: ${INSTALL_DIR}`);
+  log(`   Health:      ${HEALTH_URL}`);
+  log('   Admin UI:    http://localhost:3001/admin');
+  log(`   Admin user:  ${credentials.username}`);
+  if (credentials.generated) {
+    log(`   Admin pass:  ${credentials.password}`);
+    log('                Store it now — it is shown only once and never written to disk.');
+  }
+  if (serviceManager === 'pm2') {
+    log(`   Logs:        pm2 logs ${PM2_APP_NAME}`);
+    log(`   Stop:        pm2 stop ${PM2_APP_NAME}`);
+    log(`   Status:      pm2 status ${PM2_APP_NAME}`);
+    return;
+  }
+  log('   Stop:        node scripts/cli.mjs stop');
+  log('   Status:      node scripts/cli.mjs status');
+}
+
+/** The "started but never became healthy" report. */
+function logInstallUnhealthy(serviceManager) {
+  logError('Health check timed out after 30s. Service may still be starting.');
+  if (serviceManager === 'pm2') {
+    log(`   Check logs: pm2 logs ${PM2_APP_NAME}`);
+  }
+  process.exitCode = 1;
+}
+
 async function startAndReport(credentials, platformCheck) {
   // Step 10: Start service (platform-aware)
   // Note: No build step needed — dist/ is pre-compiled in the npm package.
@@ -1406,35 +1606,10 @@ async function startAndReport(credentials, platformCheck) {
   log('Waiting for health check...');
   const healthy = await waitForHealth();
   if (healthy) {
-    log('  Health check passed ✓');
-    log('\n✅ dialog-survey installed and running successfully!');
-    log(`   Install dir: ${INSTALL_DIR}`);
-    log(`   Health:      ${HEALTH_URL}`);
-    log('   Admin UI:    http://localhost:3001/admin');
-    log(`   Admin user:  ${credentials.username}`);
-    if (credentials.generated) {
-      log(`   Admin pass:  ${credentials.password}`);
-      log('                Store it now — it is shown only once and never written to disk.');
-    }
-    // Lifecycle hints must work INSIDE the install dir they just printed.
-    // `npx dialog-survey …` re-fetches the package from the registry instead of
-    // using the install dir (npm exec never resolves a root package's own
-    // bin), so the local equivalents are printed instead (issue #195).
-    if (platformCheck.serviceManager === 'pm2') {
-      log(`   Logs:        pm2 logs ${PM2_APP_NAME}`);
-      log(`   Stop:        pm2 stop ${PM2_APP_NAME}`);
-      log(`   Status:      pm2 status ${PM2_APP_NAME}`);
-    } else {
-      log('   Stop:        node scripts/cli.mjs stop');
-      log('   Status:      node scripts/cli.mjs status');
-    }
+    logInstallSuccess(credentials, platformCheck.serviceManager);
     log('   Upgrade:     npx dialog-survey@latest install   (run from any directory)');
   } else {
-    logError('Health check timed out after 30s. Service may still be starting.');
-    if (platformCheck.serviceManager === 'pm2') {
-      log(`   Check logs: pm2 logs ${PM2_APP_NAME}`);
-    }
-    process.exitCode = 1;
+    logInstallUnhealthy(platformCheck.serviceManager);
   }
 
   // Warn when the PM2 dump file would persist secrets / is world-readable
@@ -1460,8 +1635,10 @@ export async function installCommand(flags) {
   if (config === null) return;
 
   // Steps 2-3: prerequisites + platform deps
-  config = await checkEnvironment(config, flags);
-  if (config === null) return;
+  const environment = await checkEnvironment(config, flags);
+  if (environment === null) return;
+  const { config: checkedConfig, credentials } = environment;
+  config = checkedConfig;
 
   // Steps 4-5: create the install directory, copy files, verify the manifest
   const sourceDir = join(__dirname, '..');
@@ -1479,22 +1656,24 @@ export async function installCommand(flags) {
   // Steps 10-12: start the service, wait for health, report the outcome
   const platformCheck = checkPlatformDeps();
   await startAndReport(credentials, platformCheck);
+  warnAboutSecretFlags(flags);
+}
 
-  // Security notice when secrets were passed on the command line. npm records the
-  // full argv (including flag values) in ~/.npm/_logs/*.debug-0.log, so prefer
-  // DIALOG_SURVEY_* environment variables or --config <file> next time (issue #190).
-  const usedSecretFlags = [
-    'db-url',
-    'llm-api-key',
-    'dingtalk-client-secret',
-    'admin-password',
-  ].some((f) => flags[f] !== undefined);
-  if (usedSecretFlags) {
-    log('\n⚠ Security notice: secrets were passed via CLI flags.');
-    log('  npm records the full command (including flag values) in ~/.npm/_logs/*.debug-0.log.');
-    log('  Prefer DIALOG_SURVEY_* environment variables or --config <file> next time.');
-    log('  Consider removing those log files and rotating the exposed secrets.');
-  }
+/**
+ * Warn when secrets were passed on the command line.
+ *
+ * npm records the full argv (including flag values) in
+ * ~/.npm/_logs/*.debug-0.log, so the honest advice is to use DIALOG_SURVEY_*
+ * environment variables or `--config <file>` and to rotate what leaked (issue
+ * #190).
+ */
+function warnAboutSecretFlags(flags) {
+  const secretFlags = ['db-url', 'llm-api-key', 'dingtalk-client-secret', 'admin-password'];
+  if (!secretFlags.some((f) => flags[f] !== undefined)) return;
+  log('\n⚠ Security notice: secrets were passed via CLI flags.');
+  log('  npm records the full command (including flag values) in ~/.npm/_logs/*.debug-0.log.');
+  log('  Prefer DIALOG_SURVEY_* environment variables or --config <file> next time.');
+  log('  Consider removing those log files and rotating the exposed secrets.');
 }
 
 /**
@@ -1539,6 +1718,31 @@ export async function uninstallCommand(flags) {
 /**
  * Start command — start service via PM2.
  */
+/** Is this a broken install that predates the #195 packaging fix? */
+function predatesPackagingFix(missing) {
+  return missing.includes('scripts/cli.mjs') || missing.includes('VERSION');
+}
+
+/**
+ * Report an incomplete installation and flag the failure.
+ *
+ * The two messages differ because the remedy does: a pre-#195 install is
+ * missing exactly the files that fix introduced, so re-running install repairs
+ * it in place and keeps the existing .env, whereas anything else is a generic
+ * repair prompt.
+ */
+function reportIncompleteInstall(missing) {
+  logError(`Installation is incomplete. Missing: ${missing.join(', ')}`);
+  if (predatesPackagingFix(missing)) {
+    logError(
+      '  This install predates the #195 packaging fix. Re-run `npx dialog-survey install` to repair — the existing .env is preserved.'
+    );
+  } else {
+    logError("Run 'npx dialog-survey install' to repair the installation.");
+  }
+  process.exitCode = 1;
+}
+
 export async function startCommand() {
   log('▶️  Starting dialog-survey...\n');
 
@@ -1550,19 +1754,7 @@ export async function startCommand() {
 
   const verification = verifyInstallation(INSTALL_DIR);
   if (!verification.ok) {
-    logError(`Installation is incomplete. Missing: ${verification.missing.join(', ')}`);
-    if (
-      verification.missing.includes('scripts/cli.mjs') ||
-      verification.missing.includes('VERSION')
-    ) {
-      // Installations made before the #195 packaging fix lack these two files.
-      logError(
-        '  This install predates the #195 packaging fix. Re-run `npx dialog-survey install` to repair — the existing .env is preserved.'
-      );
-    } else {
-      logError("Run 'npx dialog-survey install' to repair the installation.");
-    }
-    process.exitCode = 1;
+    reportIncompleteInstall(verification.missing);
     return;
   }
 
@@ -1607,6 +1799,48 @@ export async function stopCommand() {
 /**
  * Status command — show service status.
  */
+/** Uptime as an ISO string, or the placeholder PM2 uses before first start. */
+function pm2Uptime(app) {
+  const started = app.pm2_env?.pm_uptime;
+  return started ? new Date(started).toISOString() : 'N/A';
+}
+
+/** Resident memory in whole megabytes, or the placeholder. */
+function pm2Memory(app) {
+  const bytes = app.monit?.memory;
+  return bytes ? `${Math.round(bytes / 1024 / 1024)}MB` : 'N/A';
+}
+
+/**
+ * Log every PM2 dump security problem.
+ *
+ * Called on both the running and the stopped path: `dump.pm2` persists on disk
+ * even while the app is stopped, so a world-readable dump is still a finding
+ * (issue #193).
+ */
+function logPm2DumpWarnings() {
+  for (const warning of checkPm2DumpSecurity()) {
+    log(`  ⚠️ ${warning}`);
+  }
+}
+
+/** Log one PM2 process's live metrics. */
+function logPm2Metrics(app) {
+  log(`  PM2 process: ${app.pm2_env?.status || 'unknown'}`);
+  log(`  PID: ${app.pid || 'N/A'}`);
+  log(`  Uptime: ${pm2Uptime(app)}`);
+  log(`  Restarts: ${app.pm2_env?.restart_time ?? 'N/A'}`);
+  log(`  Memory: ${pm2Memory(app)}`);
+}
+
+/** Log the "nothing is running" report for the PM2 path. */
+function logPm2NotRunning() {
+  log('  PM2 process: not found');
+  log('  Status: stopped\n');
+  log("  Run 'npx dialog-survey start' to start the service.");
+  logPm2DumpWarnings();
+}
+
 /**
  * Report the PM2-managed process. Returns `false` when nothing is installed, so
  * the caller can stop instead of printing a health line for a service it has no
@@ -1617,38 +1851,24 @@ export async function stopCommand() {
  * world-readable is still a leaked-secret finding (issue #193).
  */
 function reportPm2Status() {
+  let processes;
   try {
-    const processes = JSON.parse(exec('pm2 jlist'));
-    const app = processes.find((p) => p.name === PM2_APP_NAME);
-
-    if (!app) {
-      log('  PM2 process: not found');
-      log('  Status: stopped\n');
-      log("  Run 'npx dialog-survey start' to start the service.");
-      for (const warning of checkPm2DumpSecurity()) {
-        log(`  ⚠️ ${warning}`);
-      }
-      return false;
-    }
-
-    log(`  PM2 process: ${app.pm2_env?.status || 'unknown'}`);
-    log(`  PID: ${app.pid || 'N/A'}`);
-    log(
-      `  Uptime: ${app.pm2_env?.pm_uptime ? new Date(app.pm2_env.pm_uptime).toISOString() : 'N/A'}`
-    );
-    log(`  Restarts: ${app.pm2_env?.restart_time ?? 'N/A'}`);
-    log(
-      `  Memory: ${app.monit?.memory ? `${Math.round(app.monit.memory / 1024 / 1024)}MB` : 'N/A'}`
-    );
-    // Surface PM2 dump security problems on every status check (issue #193).
-    for (const warning of checkPm2DumpSecurity()) {
-      log(`  ⚠️ ${warning}`);
-    }
-    return true;
+    processes = JSON.parse(exec('pm2 jlist'));
   } catch (err) {
     logError(`PM2 status check failed: ${err.message}`);
     return false;
   }
+
+  const app = processes.find((p) => p.name === PM2_APP_NAME);
+  if (!app) {
+    logPm2NotRunning();
+    return false;
+  }
+
+  logPm2Metrics(app);
+  // Surface PM2 dump security problems on every status check (issue #193).
+  logPm2DumpWarnings();
+  return true;
 }
 
 /**
@@ -1803,29 +2023,29 @@ Examples:
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
+/**
+ * Command dispatch table.
+ *
+ * A table rather than a `switch`: the set of commands is data, and a lookup
+ * makes "what commands exist" answerable in one place instead of by reading
+ * branch bodies. Every entry takes the same argument, so adding one is a row.
+ */
+const COMMANDS = {
+  install: (flags) => installCommand(flags),
+  uninstall: (flags) => uninstallCommand(flags),
+  start: () => startCommand(),
+  stop: () => stopCommand(),
+  status: () => statusCommand(),
+};
+
 export async function main(argv) {
   const { command, flags } = parseArgs(argv);
-
-  switch (command) {
-    case 'install':
-      await installCommand(flags);
-      break;
-    case 'uninstall':
-      await uninstallCommand(flags);
-      break;
-    case 'start':
-      await startCommand();
-      break;
-    case 'stop':
-      await stopCommand();
-      break;
-    case 'status':
-      await statusCommand();
-      break;
-    default:
-      printHelp();
-      break;
+  const run = COMMANDS[command];
+  if (!run) {
+    printHelp();
+    return;
   }
+  await run(flags);
 }
 
 // Run if invoked directly
