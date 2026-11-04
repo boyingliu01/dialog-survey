@@ -23,7 +23,7 @@
   36 次健康请求挂起），于是每次慢都变成一次「中断」。
 - 修正三件事：探测超时提高到 40s；**连续 2 次**异常才告警；告警文案区分「/health 超时（端口可连，疑似上游 LLM 慢）」与
   「端口不可连」。修完当天再无误报。
-- 遗留改进（未做，属于应用代码）：`/health` 对 LLM 的探测应加并发去重 + 失败短缓存，避免健康检查被上游拖成 30s。
+- 遗留改进（属于应用代码，已立项 [#227](https://github.com/boyingliu01/dialog-survey/issues/227)）：`/health` 对 LLM 的探测应加并发去重 + 失败短缓存，避免健康检查被上游拖成 30s。
 
 ## 2. 监控平面
 
@@ -109,10 +109,11 @@ bash /usr/local/bin/ds-restore-drill.sh                                  # 期�
   `br-b164630542dc` 的 `FORWARD/CT/BRIDGE` 三条规则同时消失，`/health` 立即变成 db 超时 + llm fetch failed；
   14:07 自愈定时器重启 dockerd 后恢复，期间用户收到一条「异常」和一条「已恢复」）。
   因此恢复演练要放在业务空闲时段（cron 里是每月 1 日 03:00），且必须与 `ds-net-repair.timer` 同时在线；
-  单独立项跟踪（见 [issues](https://github.com/boyingliu01/dialog-survey/issues)）。
+  上游缺陷已单独立项跟踪：[#226](https://github.com/boyingliu01/dialog-survey/issues/226)。
 - WSL 整机被升级/重启期间 VM 内监控不可用，Windows 侧要连续 2 次（约 10 分钟）才告警——夜间故障可能只有日报可见。
 - `ds-net-repair.sh` 的自愈动作是重启 dockerd，会让全部容器短暂断连；已用 `DS_REPAIR_MIN_INTERVAL`（默认 600s）防止重启循环。
 - `/health` 内含真实 LLM 调用，任何监控该端口的系统都要按「可容忍几十秒」设计（本套用 40s 超时 + 连续 2 次阈值）。
+  探针本身缺并发去重与失败缓存，是 [#227](https://github.com/boyingliu01/dialog-survey/issues/227) 跟踪的上游缺陷。
   端口语义见 AGENTS.md：`/health` 是 liveness（仅 DB 不可用才 503），`/health/ready` 是 readiness。
   看门狗默认探 liveness 以少误报；若要让「LLM/钉钉不可用」也算故障，把 `DS_HEALTH_URL` 指向 `/health/ready`。
 - 备份文件含访谈正文与用户标识，属 PII：备份目录保持 0700/0600，异地副本目录不要共享给他人；日志只记录文件名与大小。
