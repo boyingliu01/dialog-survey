@@ -107,6 +107,28 @@ describe('Branch Coverage: followup.service.ts', () => {
       expect(result?.thinking).toBe('');
       expect(result?.strategy).toBe(1);
     });
+
+    /**
+     * @test REQ-004-3-01
+     * @intent a bare JSON `null` is rejected, not read from (it used to throw)
+     */
+    it('should return null for a bare JSON null instead of throwing', () => {
+      // `null` parses fine, so the parse succeeds and the failure would happen on
+      // the very next field access -- a TypeError escaping the try/catch, which
+      // killed the turn. Models do emit a bare `null`.
+      expect(() => parseLLMResponse('null')).not.toThrow();
+      expect(parseLLMResponse('null')).toBeNull();
+    });
+
+    /**
+     * @test REQ-004-3-01
+     * @intent non-object JSON scalars and arrays are rejected rather than read
+     */
+    it('should return null for JSON that is not an object', () => {
+      for (const payload of ['123', '"a string"', 'true', '[1,2]']) {
+        expect(parseLLMResponse(payload), payload).toBeNull();
+      }
+    });
   });
 
   describe('generateSmartResponse - Custom Prompt Path', () => {
