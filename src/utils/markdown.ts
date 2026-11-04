@@ -33,9 +33,7 @@ function escapeHtml(input: string): string {
 }
 
 export function renderMarkdown(input: string | null | undefined): string {
-  if (input === null || input === undefined || input === '') {
-    return '';
-  }
+  if (!input) return '';
   try {
     return marked.parse(input, { async: false }) as string;
   } catch (e) {

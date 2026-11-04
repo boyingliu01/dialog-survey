@@ -102,6 +102,27 @@ export function totalActivePlanUsage(usage: PlanUsage): number {
   return usage.running + usage.pending + usage.ready + usage.paused;
 }
 
+/**
+ * The columns `update()` is allowed to write.
+ *
+ * A whitelist rather than "whatever the caller passed", because one call site
+ * casts its argument to `Record<string, unknown>`: without this, any stray key on
+ * that object would reach Prisma and either throw or write a column the caller
+ * never meant to touch. `updatedBy` and `version` are set separately.
+ */
+const UPDATABLE_FIELDS = new Set(['name', 'description', 'content', 'status']);
+
+/**
+ * Copy one supplied field onto the Prisma update payload.
+ *
+ * `content` is stored as a JSON string, so it cannot simply be spread through.
+ * Any other allowed key is passed as-is; anything else is ignored.
+ */
+function assignField(updateData: Record<string, unknown>, key: string, value: unknown): void {
+  if (!UPDATABLE_FIELDS.has(key)) return;
+  updateData[key] = key === 'content' ? JSON.stringify(value) : value;
+}
+
 export class TemplateRepository {
   private readonly prisma: PrismaClient;
 
@@ -123,13 +144,13 @@ export class TemplateRepository {
     options?: { incrementVersion?: boolean }
   ): Parameters<typeof this.prisma.template.update>[0]['data'] {
     const updateData: Parameters<typeof this.prisma.template.update>[0]['data'] = {};
-    if (data.name) updateData.name = data.name;
-    if (data.description) updateData.description = data.description;
-    if (data.content) updateData.content = JSON.stringify(data.content);
-    if (data.status) updateData.status = data.status as TemplateStatus;
-    if (options?.incrementVersion) {
-      updateData.version = { increment: 1 };
+    // Only fields the caller actually supplied are written, so a partial update
+    // never blanks a column by omission. `??` is wrong here: an empty string is
+    // a supplied value that must still be rejected, hence `if (value)`.
+    for (const [key, value] of Object.entries(data)) {
+      if (value) assignField(updateData, key, value);
     }
+    if (options?.incrementVersion) updateData.version = { increment: 1 };
     updateData.updatedBy = 'admin';
     return updateData;
   }
