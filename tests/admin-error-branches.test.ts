@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrismaClient } from '../src/utils/prisma-client.js';
 import { getSharedTestPrisma } from './helpers/create-test-prisma.js';
 
@@ -223,6 +223,50 @@ describe('admin-templates error branches', () => {
     expect(res.statusCode).toBe(422);
     expect(res.body).toContain('Version number is required');
   });
+
+  /**
+   * A create that fails for any reason OTHER than validation must be a 500.
+   *
+   * Reclassifying it as a 422 survives the rest of this file, because every other
+   * create case in the suite either succeeds or fails validation before reaching
+   * the repository. The distinction is what the admin UI keys on: 422 means "fix
+   * your form", 500 means "the server is broken and retrying the form will not
+   * help".
+   */
+  it('the template create route reports a repository failure as 500', async () => {
+    const deps = failingDeps();
+    const app = await createFailingApp(deps);
+    try {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/admin/api/templates',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        payload: '&name=x&invitationPrompt=y&questions[0][text]=q',
+      });
+      expect(res.statusCode).toBe(500);
+      expect(res.body).toContain('injected failure');
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('the template create route reports a validation error as 422', async () => {
+    const app = await createFailingApp();
+    try {
+      // No questions: rejected by validateTemplateContent before any repository
+      // call, so this must be 422 even though every dep is a failing stub.
+      const res = await app.inject({
+        method: 'POST',
+        url: '/admin/api/templates',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        payload: 'name=x&invitationPrompt=y',
+      });
+      expect(res.statusCode).toBe(422);
+      expect(res.body).toContain('请至少添加一个问题');
+    } finally {
+      await app.close();
+    }
+  });
 });
 
 /**
@@ -312,5 +356,116 @@ describe('admin-templates render helpers', () => {
     expect(res.body).toContain('-');
     expect(res.body).not.toContain('undefined');
     expect(res.body).not.toContain('null');
+  });
+});
+
+/**
+ * Deletion blocking rules.
+ *
+ * A template that is in use must not be deletable, and the message has to say
+ * WHICH usage blocks it. Two mutants survived the whole suite before these tests
+ * existed: dropping `cancelled` from the interview count, and reporting plans
+ * before interviews. Both change what an admin is told (or whether the delete
+ * succeeds at all), and neither is visible from `getUsageStats`'s own tests --
+ * those stop at the repository, which is exactly where the rule used to live.
+ */
+describe('admin template deletion blockers', () => {
+  /** Deps where only the usage counters vary; everything else succeeds. */
+  function depsWithUsage(usage: {
+    interviews: Record<string, number>;
+    plans: Record<string, number>;
+  }) {
+    const base = failingDeps();
+    return {
+      ...base,
+      templateRepo: {
+        ...base.templateRepo,
+        findById: () => Promise.resolve({ id: 'tpl-1', name: 'T', version: 1 }),
+        getUsageStats: () => Promise.resolve(usage),
+        deleteAndVerify: ((id: string) => {
+          deleted.push(id);
+          return Promise.resolve(true);
+        }) as never,
+      },
+    };
+  }
+  const deleted: string[] = [];
+
+  // These tests build their own app, so they cannot rely on the outer suite's
+  // beforeAll stub: afterAll there calls unstubAllEnvs.
+  beforeEach(() => {
+    vi.stubEnv('ADMIN_API_KEY', 'test-secret-key');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  async function deleteTemplate(usage: {
+    interviews: Record<string, number>;
+    plans: Record<string, number>;
+  }) {
+    deleted.length = 0;
+    const app = await createFailingApp(depsWithUsage(usage));
+    try {
+      return await app.inject({ method: 'DELETE', url: '/admin/api/templates/tpl-1' });
+    } finally {
+      await app.close();
+    }
+  }
+
+  const noUsage = {
+    interviews: { active: 0, pending: 0, waiting: 0, completed: 0, cancelled: 0 },
+    plans: { running: 0, pending: 0, ready: 0, paused: 0, completed: 0 },
+  };
+
+  it('deletes a template that nothing references', async () => {
+    const res = await deleteTemplate(noUsage);
+    expect(res.statusCode).toBe(200);
+    expect(deleted).toEqual(['tpl-1']);
+  });
+
+  it.each([
+    ['active', 1],
+    ['pending', 2],
+    ['waiting', 3],
+    ['completed', 4],
+    // A cancelled interview still holds the user's answers, and the foreign key
+    // would break regardless of its status reading as inactive.
+    ['cancelled', 5],
+  ])('refuses to delete when %s interviews exist', async (status, count) => {
+    const res = await deleteTemplate({
+      ...noUsage,
+      interviews: { ...noUsage.interviews, [status]: count },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.body).toContain('访谈记录');
+    expect(res.body).toContain(String(count));
+    expect(deleted).toEqual([]);
+  });
+
+  it('refuses to delete when plans reference it', async () => {
+    const res = await deleteTemplate({
+      ...noUsage,
+      plans: { ...noUsage.plans, running: 2, completed: 1 },
+    });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.body).toContain('访谈计划');
+    expect(res.body).toContain('3');
+    expect(deleted).toEqual([]);
+  });
+
+  it('reports interviews before plans when both block the delete', async () => {
+    const res = await deleteTemplate({
+      interviews: { ...noUsage.interviews, active: 1 },
+      plans: { ...noUsage.plans, running: 7 },
+    });
+
+    expect(res.statusCode).toBe(409);
+    // Interviews are the more specific evidence of real data loss, so their
+    // message wins even when the plan count is larger.
+    expect(res.body).toContain('访谈记录');
+    expect(res.body).not.toContain('访谈计划');
   });
 });

@@ -24,33 +24,74 @@ export const updateTemplateSchema = z.object({
 
 export const versionSchema = z.object({ version: z.coerce.number().int().positive() });
 
+/** Content fields copied through only when the form supplied them. */
+const OPTIONAL_CONTENT_FIELDS = ['closingMessage', 'llmPromptTemplate'] as const;
+
+/**
+ * The questions from whichever shape the body uses.
+ *
+ * The rendered form sends flat `questions[0][text]` fields; the JSON API sends a
+ * keyed object. Both collapse to the same array, and the object shape wins when
+ * present because that is the one the API documents.
+ */
+function questionsFromBody(body: Record<string, unknown>): string[] {
+  const questionsObj = body['questions'];
+  if (questionsObj && typeof questionsObj === 'object') {
+    return extractStructuredQuestions(questionsObj as Record<string, { text: string }>);
+  }
+  return extractFlatFormQuestions(body);
+}
+
 /** Questions submitted as a keyed object (`questions: { 0: { text } }`). */
 function extractStructuredQuestions(questionsObj: Record<string, { text: string }>): string[] {
   const questions: string[] = [];
+  // Sorted by KEY, not by the numeric value: the keys are stringified indices and
+  // a plain Object.keys order would put "10" before "2".
   for (const key of Object.keys(questionsObj).sort()) {
-    const q = questionsObj[key];
-    if (q && typeof q === 'object' && typeof q.text === 'string') {
-      const trimmed = q.text.trim();
-      if (trimmed) questions.push(trimmed);
-    }
+    const text = questionTextOf(questionsObj[key]);
+    if (text) questions.push(text);
   }
   return questions;
+}
+
+/**
+ * The question text carried by one submitted entry, trimmed, or ''.
+ *
+ * Accepts anything object-like because the body is user-controlled: the rendered
+ * form sends `{ text }`, but an empty slot arrives as `{}` and must simply be
+ * skipped rather than crash the import.
+ */
+function questionTextOf(entry: unknown): string {
+  const obj = asRecord(entry);
+  if (!obj) return '';
+  const text = obj['text'];
+  return typeof text === 'string' ? text.trim() : '';
+}
+
+/** The value as an object, or null when it is not object-like. */
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') return null;
+  return value as Record<string, unknown>;
 }
 
 /** Questions submitted as flat `questions[i][text]` form fields. */
 function extractFlatFormQuestions(body: Record<string, unknown>): string[] {
   const questions: string[] = [];
   for (const [key, value] of Object.entries(body)) {
-    const match = key.match(/^questions\[(\d+)\]\[text\]$/);
-    if (match && typeof value === 'string') {
-      const index = Number.parseInt(match[1], 10);
-      const trimmed = value.trim();
-      if (trimmed) {
-        questions[index] = trimmed;
-      }
-    }
+    const index = flatQuestionIndex(key);
+    if (index === null || typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed) questions[index] = trimmed;
   }
+  // Sparse: a blank slot leaves a hole, and a hole must not become a question.
   return questions.filter((q): q is string => q !== undefined);
+}
+
+/** The array index encoded in a `questions[i][text]` field name, or null. */
+function flatQuestionIndex(key: string): number | null {
+  const match = key.match(/^questions\[(\d+)\]\[text\]$/);
+  if (!match) return null;
+  return Number.parseInt(match[1], 10);
 }
 
 function buildDefaultContent(body: Record<string, unknown>): Record<string, unknown> {
@@ -59,15 +100,10 @@ function buildDefaultContent(body: Record<string, unknown>): Record<string, unkn
     questions: [],
   };
 
-  if (body['closingMessage']) content['closingMessage'] = body['closingMessage'];
-  if (body['llmPromptTemplate']) content['llmPromptTemplate'] = body['llmPromptTemplate'];
-
-  const questionsObj = body['questions'] as Record<string, { text: string }> | undefined;
-  if (questionsObj && typeof questionsObj === 'object') {
-    content['questions'] = extractStructuredQuestions(questionsObj);
-  } else {
-    content['questions'] = extractFlatFormQuestions(body);
+  for (const key of OPTIONAL_CONTENT_FIELDS) {
+    if (body[key]) content[key] = body[key];
   }
+  content['questions'] = questionsFromBody(body);
 
   return content;
 }
@@ -115,28 +151,63 @@ function optionalTrimmed(value: unknown): string | undefined {
 
 /** Validate an already-parsed import document. */
 function validateImportedTemplate(parsed: Record<string, unknown>): TemplateImportResult {
+  const shape = importShapeProblem(parsed);
+  if (typeof shape === 'string') return { error: shape };
+
+  const input = importInputOf(parsed, shape);
+  const dimensions = usableDimensions(parsed['dimensions']);
+  return dimensions ? { input, dimensions } : { input };
+}
+
+/**
+ * The first reason the pasted document is not a template, or the pieces needed
+ * to build one.
+ *
+ * Ordered so the user gets the most actionable message first: a wrong NAME field
+ * is a typo they can see, while a bad content body needs the content rules run.
+ */
+function importShapeProblem(parsed: Record<string, unknown>): string | ImportShape {
   const name = optionalTrimmed(parsed['name']);
-  if (!name) return { error: 'JSON 缺少 name 字段' };
+  if (!name) return 'JSON 缺少 name 字段';
 
-  const content = parsed['content'] as Record<string, unknown> | undefined;
-  if (!content || typeof content !== 'object') return { error: 'JSON 缺少 content 字段' };
+  const content = parsed['content'];
+  if (!content || typeof content !== 'object') return 'JSON 缺少 content 字段';
 
-  const validationError = validateTemplateContent(content);
-  if (validationError) return { error: validationError };
+  const contentError = validateTemplateContent(content as Record<string, unknown>);
+  if (contentError) return contentError;
 
+  return { name, content: content as Record<string, unknown> };
+}
+
+/** A validated import document, before dimensions are considered. */
+interface ImportShape {
+  name: string;
+  content: Record<string, unknown>;
+}
+
+/** The create input for a validated document, with description when supplied. */
+function importInputOf(
+  parsed: Record<string, unknown>,
+  shape: ImportShape
+): ImportShape & {
+  description?: string;
+} {
   const description = optionalTrimmed(parsed['description']);
-  const input: { name: string; description?: string; content: Record<string, unknown> } = {
-    name,
-    content,
-  };
-  if (description) input.description = description;
+  if (!description) return shape;
+  return { ...shape, description };
+}
 
-  const dimensions = parsed['dimensions'] as
-    | Array<{ id: string; label: string; keywords?: string[] }>
-    | undefined;
-  if (!Array.isArray(dimensions) || dimensions.length === 0) return { input };
-
-  return { input, dimensions };
+/**
+ * The dimensions carried by the document, or undefined.
+ *
+ * An absent or empty list is not an error -- a template with no dimensions is
+ * legitimate -- but a non-empty one is passed through for the caller to persist.
+ */
+function usableDimensions(
+  value: unknown
+): Array<{ id: string; label: string; keywords?: string[] }> | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  return value as Array<{ id: string; label: string; keywords?: string[] }>;
 }
 
 /**
@@ -174,15 +245,33 @@ function isStaleRecordError(e: unknown): boolean {
  * else is a 500 with the original message surfaced for debugging.
  */
 export function mapUpdateError(e: unknown): { status: number; body: string } {
-  if (e instanceof z.ZodError) {
-    return { status: 422, body: htmlError(e.issues[0]?.message ?? 'Validation failed') };
-  }
-  if (isStaleRecordError(e)) {
-    return { status: 409, body: '<div class="text-red-600">模板已被他人修改，请刷新后重试</div>' };
-  }
-  if (e instanceof Error && e.message.includes('find')) {
-    return { status: 404, body: htmlError('Template not found') };
-  }
+  if (e instanceof z.ZodError) return validationFailure(e);
+  if (isStaleRecordError(e)) return staleFailure();
+  if (isLookupFailure(e)) return { status: 404, body: htmlError('Template not found') };
+  return serverFailure(e);
+}
+
+/** 422 with the first Zod issue, which is the one the form highlights. */
+function validationFailure(e: z.ZodError): { status: number; body: string } {
+  return { status: 422, body: htmlError(e.issues[0]?.message ?? 'Validation failed') };
+}
+
+/** 409: another admin committed first, so the form is holding a stale version. */
+function staleFailure(): { status: number; body: string } {
+  return { status: 409, body: '<div class="text-red-600">模板已被他人修改，请刷新后重试</div>' };
+}
+
+/**
+ * A thrown message mentioning `find`, which is this codebase's shape for a
+ * failed lookup. Kept as a predicate so the ordering in `mapUpdateError` stays
+ * readable.
+ */
+function isLookupFailure(e: unknown): boolean {
+  return e instanceof Error && e.message.includes('find');
+}
+
+/** 500 with the original message surfaced, so the cause is visible in the UI. */
+function serverFailure(e: unknown): { status: number; body: string } {
   const errMsg = e instanceof Error ? e.message : 'Failed to update template';
   return { status: 500, body: htmlError(errMsg) };
 }
