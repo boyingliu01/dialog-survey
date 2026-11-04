@@ -44,24 +44,40 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 /** Specifier prefixes that are never npm packages. */
 const NON_PACKAGE_PREFIX = /^(node:|data:|file:|https?:)/;
 
+const USAGE =
+  'Usage: node scripts/prune-runtime-deps.mjs [--dir <installDir>] [--dry-run] [--verbose]\n';
+
+/** Flags that take no value and are simply turned on. */
+const BOOLEAN_FLAGS = { '--dry-run': 'dryRun', '--verbose': 'verbose' };
+
+/** Read the value following `--dir`, rejecting a missing one. */
+function readDirValue(argv, index) {
+  const value = argv[index + 1];
+  if (!value) throw new Error('--dir requires a value');
+  return value;
+}
+
+/** Handle a flag that consumes no value; return false when it is not one. */
+function applySimpleFlag(arg, flags) {
+  if (arg in BOOLEAN_FLAGS) {
+    flags[BOOLEAN_FLAGS[arg]] = true;
+    return true;
+  }
+  if (arg !== '-h' && arg !== '--help') return false;
+  process.stdout.write(USAGE);
+  process.exit(0);
+}
+
 function parseArgs(argv) {
   const flags = { dir: process.cwd(), dryRun: false, verbose: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--dry-run') flags.dryRun = true;
-    else if (arg === '--verbose') flags.verbose = true;
-    else if (arg === '--dir') {
-      flags.dir = argv[i + 1];
+    if (arg === '--dir') {
+      flags.dir = readDirValue(argv, i);
       i += 1;
-      if (!flags.dir) throw new Error('--dir requires a value');
-    } else if (arg === '-h' || arg === '--help') {
-      process.stdout.write(
-        'Usage: node scripts/prune-runtime-deps.mjs [--dir <installDir>] [--dry-run] [--verbose]\n'
-      );
-      process.exit(0);
-    } else {
-      throw new Error(`unknown argument: ${arg}`);
+      continue;
     }
+    if (!applySimpleFlag(arg, flags)) throw new Error(`unknown argument: ${arg}`);
   }
   return flags;
 }
@@ -80,15 +96,43 @@ function packageNameOf(specifier) {
   return specifier.startsWith('@') ? `${parts[0]}/${parts[1]}` : parts[0];
 }
 
+/** Keys of a manifest field, or an empty list when it is absent. */
+function keysOfField(manifest, field) {
+  return Object.keys(manifest[field] ?? {});
+}
+
 /** `dependencies` + non-optional `peerDependencies`. */
 function runtimeDepsOf(manifest) {
-  const deps = new Set(Object.keys(manifest.dependencies ?? {}));
+  const deps = new Set(keysOfField(manifest, 'dependencies'));
   const peerMeta = manifest.peerDependenciesMeta ?? {};
-  for (const peer of Object.keys(manifest.peerDependencies ?? {})) {
-    if (peerMeta[peer]?.optional === true) continue;
-    deps.add(peer);
+  for (const peer of keysOfField(manifest, 'peerDependencies')) {
+    if (peerMeta[peer]?.optional !== true) deps.add(peer);
   }
   return [...deps];
+}
+
+/** Regex matching an ESM or CJS import specifier. */
+const IMPORT_PATTERN = /(?:from\s*|import\s*\(\s*|require\s*\(\s*)['"]([^'"]+)['"]/g;
+
+/** Collect package names from one compiled file. */
+function packageNamesInFile(file, roots) {
+  for (const match of readFileSync(file, 'utf8').matchAll(IMPORT_PATTERN)) {
+    const spec = match[1];
+    if (spec.startsWith('.') || NON_PACKAGE_PREFIX.test(spec)) continue;
+    roots.add(packageNameOf(spec));
+  }
+}
+
+/** Record every package name imported under `dir`, recursing into subdirectories. */
+function collectRootsIn(dir, roots) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      collectRootsIn(full, roots);
+      continue;
+    }
+    if (/\.(js|mjs|cjs)$/.test(entry.name)) packageNamesInFile(full, roots);
+  }
 }
 
 /**
@@ -97,24 +141,7 @@ function runtimeDepsOf(manifest) {
  */
 function collectAppRoots(distDir) {
   const roots = new Set();
-  const importPattern = /(?:from\s*|import\s*\(\s*|require\s*\(\s*)['"]([^'"]+)['"]/g;
-  const walk = (dir) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full);
-        continue;
-      }
-      if (!/\.(js|mjs|cjs)$/.test(entry.name)) continue;
-      for (const match of readFileSync(full, 'utf8').matchAll(importPattern)) {
-        const spec = match[1];
-        if (spec.startsWith('.')) continue;
-        if (NON_PACKAGE_PREFIX.test(spec)) continue;
-        roots.add(packageNameOf(spec));
-      }
-    }
-  };
-  walk(distDir);
+  collectRootsIn(distDir, roots);
   return roots;
 }
 
@@ -128,18 +155,37 @@ function nameFromDir(nodeModulesDir, dir) {
  * `<fromDir>/node_modules/<dep>`, then walk up to each ancestor `node_modules`
  * and try again. npm hoists most packages but keeps conflicting versions nested.
  */
+/** Does `dir` hold an installed copy of some package? */
+function isInstalledPackage(dir) {
+  return existsSync(join(dir, 'package.json'));
+}
+
+/** The next ancestor directory to search for a nested `node_modules`, if any. */
+function ancestorFor(nodeModulesDir, dir) {
+  if (resolve(dir) === resolve(nodeModulesDir)) return undefined;
+  const parent = dirname(dir);
+  return parent === dir ? undefined : parent;
+}
+
+/**
+ * Every directory whose `node_modules` Node would consult, from `fromDir` up to
+ * the installation root.
+ */
+function searchPathFor(nodeModulesDir, fromDir) {
+  const path_ = [];
+  for (let dir = fromDir; dir !== undefined; dir = ancestorFor(nodeModulesDir, dir)) {
+    path_.push(dir);
+  }
+  return path_;
+}
+
 function resolveFrom(nodeModulesDir, fromDir, dep) {
-  let dir = fromDir;
-  while (true) {
+  for (const dir of searchPathFor(nodeModulesDir, fromDir)) {
     const candidate = join(dir, 'node_modules', dep);
-    if (existsSync(join(candidate, 'package.json'))) return candidate;
-    if (resolve(dir) === resolve(nodeModulesDir)) break;
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
+    if (isInstalledPackage(candidate)) return candidate;
   }
   const top = join(nodeModulesDir, dep);
-  return existsSync(join(top, 'package.json')) ? top : undefined;
+  return isInstalledPackage(top) ? top : undefined;
 }
 
 /**
@@ -155,33 +201,56 @@ function reachableFrom(nodeModulesDir, roots) {
     if (dir) queue.push(dir);
   }
   while (queue.length > 0) {
-    const dir = queue.shift();
-    if (seen.has(dir)) continue;
-    const manifest = readJson(join(dir, 'package.json'));
-    if (!manifest) continue;
-    seen.add(dir);
-    for (const dep of runtimeDepsOf(manifest)) {
-      const depDir = resolveFrom(nodeModulesDir, dir, dep);
-      if (depDir && !seen.has(depDir)) queue.push(depDir);
-    }
+    visitNode(queue.shift(), { nodeModulesDir, seen, queue });
   }
   return seen;
 }
 
+/**
+ * Mark one package directory as reached and enqueue its dependencies.
+ *
+ * Takes a `state` bag rather than three positional arguments because the caller
+ * is a drain loop that only owns "what is next"; the frontier, the visited set
+ * and the installation root all belong together.
+ */
+function visitNode(dir, state) {
+  if (state.seen.has(dir)) return;
+  const manifest = readJson(join(dir, 'package.json'));
+  if (!manifest) return;
+  state.seen.add(dir);
+  enqueueDependencies(dir, manifest, state);
+}
+
+/** Resolve each real dependency of `dir` and queue the ones not yet visited. */
+function enqueueDependencies(dir, manifest, state) {
+  for (const dep of runtimeDepsOf(manifest)) {
+    const depDir = resolveFrom(state.nodeModulesDir, dir, dep);
+    if (depDir && !state.seen.has(depDir)) state.queue.push(depDir);
+  }
+}
+
+/** Package directories inside a `@scope/` directory. */
+function scopedPackageDirs(scopeDir) {
+  const dirs = [];
+  for (const sub of readdirSync(scopeDir, { withFileTypes: true })) {
+    if (sub.isDirectory()) dirs.push(join(scopeDir, sub.name));
+  }
+  return dirs;
+}
+
+/** Package directories a single top-level entry contributes. */
+function packageDirsFrom(nodeModulesDir, entry) {
+  if (entry.name.startsWith('.') || !entry.isDirectory()) return [];
+  const full = join(nodeModulesDir, entry.name);
+  return entry.name.startsWith('@') ? scopedPackageDirs(full) : [full];
+}
+
 /** Every package directory installed in `nodeModulesDir`. */
 function listInstalledDirs(nodeModulesDir) {
+  if (!existsSync(nodeModulesDir)) return [];
   const dirs = [];
-  if (!existsSync(nodeModulesDir)) return dirs;
   for (const entry of readdirSync(nodeModulesDir, { withFileTypes: true })) {
-    if (entry.name.startsWith('.') || !entry.isDirectory()) continue;
-    const scopeDir = join(nodeModulesDir, entry.name);
-    if (entry.name.startsWith('@')) {
-      for (const sub of readdirSync(scopeDir, { withFileTypes: true })) {
-        if (sub.isDirectory()) dirs.push(join(scopeDir, sub.name));
-      }
-    } else {
-      dirs.push(scopeDir);
-    }
+    dirs.push(...packageDirsFrom(nodeModulesDir, entry));
   }
   return dirs;
 }
@@ -205,6 +274,29 @@ function dirSize(dir) {
   return total;
 }
 
+/** How many package names to list before summarising the rest. */
+const NAME_LIST_LIMIT = 12;
+
+/** Print the removed packages, elapsed verb and freed size. */
+function reportRemoved(toRemove, freed, flags, nodeModulesDir) {
+  const verb = flags.dryRun ? 'would remove' : 'removed';
+  process.stdout.write(
+    `[prune] ${verb} ${toRemove.length} package(s), ${(freed / 1048576).toFixed(1)} MB\n`
+  );
+  listRemovedNames(toRemove, flags, nodeModulesDir);
+}
+
+/** Print the removed package names, truncated unless --verbose. */
+function listRemovedNames(toRemove, flags, nodeModulesDir) {
+  const names = toRemove.map((d) => nameFromDir(nodeModulesDir, d));
+  const shown = flags.verbose ? names : names.slice(0, NAME_LIST_LIMIT);
+  for (const name of shown) process.stdout.write(`  - ${name}\n`);
+  const hidden = names.length - NAME_LIST_LIMIT;
+  if (!flags.verbose && hidden > 0) {
+    process.stdout.write(`  … and ${hidden} more (--verbose for all)\n`);
+  }
+}
+
 /** Report what would be (or was) removed, and answer whether anything was. */
 function reportRemoval(installed, keep, flags, nodeModulesDir) {
   // `installed` holds only top-level (hoisted) packages. A nested copy
@@ -224,34 +316,21 @@ function reportRemoval(installed, keep, flags, nodeModulesDir) {
     for (const dir of toRemove) rmSync(dir, { recursive: true, force: true });
   }
 
-  const verb = flags.dryRun ? 'would remove' : 'removed';
-  process.stdout.write(
-    `[prune] ${verb} ${toRemove.length} package(s), ${(freed / 1048576).toFixed(1)} MB\n`
-  );
+  reportRemoved(toRemove, freed, flags, nodeModulesDir);
+}
 
-  const names = toRemove.map((d) => nameFromDir(nodeModulesDir, d));
-  const shown = flags.verbose ? names : names.slice(0, 12);
-  for (const name of shown) process.stdout.write(`  - ${name}\n`);
-  if (!flags.verbose && names.length > 12) {
-    process.stdout.write(`  … and ${names.length - 12} more (--verbose for all)\n`);
-  }
+/** Report the dependencies of one kept package that no longer resolve. */
+function danglingDepsOf(dir, nodeModulesDir) {
+  const manifest = readJson(join(dir, 'package.json'));
+  if (!manifest) return [`${nameFromDir(nodeModulesDir, dir)} (manifest unreadable)`];
+  return runtimeDepsOf(manifest)
+    .filter((dep) => !resolveFrom(nodeModulesDir, dir, dep))
+    .map((dep) => `${manifest.name} -> ${dep}`);
 }
 
 /** Every dependency of every kept package must still resolve, or the tree is broken. */
 function assertKeptPackagesResolve(keep, nodeModulesDir) {
-  const dangling = [];
-  for (const dir of keep) {
-    const manifest = readJson(join(dir, 'package.json'));
-    if (!manifest) {
-      dangling.push(`${nameFromDir(nodeModulesDir, dir)} (manifest unreadable)`);
-      continue;
-    }
-    for (const dep of runtimeDepsOf(manifest)) {
-      if (!resolveFrom(nodeModulesDir, dir, dep)) {
-        dangling.push(`${manifest.name} -> ${dep}`);
-      }
-    }
-  }
+  const dangling = [...keep].flatMap((dir) => danglingDepsOf(dir, nodeModulesDir));
 
   if (dangling.length > 0) {
     process.stderr.write('[prune] FAILED — kept packages lost dependencies:\n');
@@ -260,40 +339,64 @@ function assertKeptPackagesResolve(keep, nodeModulesDir) {
   }
 }
 
+/**
+ * Fail with exit code 2 unless the install tree is complete enough to reason
+ * about.
+ *
+ * A table because each row is the same shape — a condition, and the message that
+ * explains why the script refuses to continue without it. The messages matter:
+ * "no dist/" is the common failure (someone ran the script before building) and
+ * silently pruning against an unknown import set would delete live packages.
+ */
+const PRECONDITIONS = [
+  {
+    ok: (dirs) => existsSync(dirs.nodeModulesDir),
+    message: (dirs) => `[prune] no node_modules at ${dirs.nodeModulesDir}\n`,
+  },
+  {
+    ok: (dirs) => existsSync(dirs.distDir),
+    message: (dirs) =>
+      `[prune] no dist/ at ${dirs.distDir} — build first, otherwise the app's real imports are unknowable\n`,
+  },
+];
+
+/** Fail with exit code 2 when the install tree is not usable. */
+function requireUsableTree(dirs) {
+  for (const check of PRECONDITIONS) {
+    if (check.ok(dirs)) continue;
+    process.stderr.write(check.message(dirs));
+    process.exit(2);
+  }
+}
+
+/** In verbose mode, list the package roots parsed out of `dist/`. */
+function reportAppRoots(appRoots) {
+  process.stdout.write(`[prune] app imports ${appRoots.size} package(s) from dist/\n`);
+  for (const root of [...appRoots].sort()) process.stdout.write(`  + ${root}\n`);
+}
+
 function main() {
   const flags = parseArgs(process.argv.slice(2));
   const installDir = resolve(flags.dir);
-  const nodeModulesDir = join(installDir, 'node_modules');
-  const distDir = join(installDir, 'dist');
+  const dirs = {
+    nodeModulesDir: join(installDir, 'node_modules'),
+    distDir: join(installDir, 'dist'),
+  };
+  requireUsableTree(dirs);
 
-  if (!existsSync(nodeModulesDir)) {
-    process.stderr.write(`[prune] no node_modules at ${nodeModulesDir}\n`);
-    process.exit(2);
-  }
-  if (!existsSync(distDir)) {
-    process.stderr.write(
-      `[prune] no dist/ at ${distDir} — build first, otherwise the app's real imports are unknowable\n`
-    );
-    process.exit(2);
-  }
-
-  const appRoots = collectAppRoots(distDir);
+  const appRoots = collectAppRoots(dirs.distDir);
   if (appRoots.size === 0) {
-    process.stderr.write(`[prune] parsed 0 imports from ${distDir} — refusing to guess\n`);
+    process.stderr.write(`[prune] parsed 0 imports from ${dirs.distDir} — refusing to guess\n`);
     process.exit(2);
   }
 
-  const keep = reachableFrom(nodeModulesDir, appRoots);
-  const installed = listInstalledDirs(nodeModulesDir);
+  const keep = reachableFrom(dirs.nodeModulesDir, appRoots);
+  const installed = listInstalledDirs(dirs.nodeModulesDir);
 
-  reportRemoval(installed, keep, flags, nodeModulesDir);
+  reportRemoval(installed, keep, flags, dirs.nodeModulesDir);
+  if (flags.verbose) reportAppRoots(appRoots);
 
-  if (flags.verbose) {
-    process.stdout.write(`[prune] app imports ${appRoots.size} package(s) from dist/\n`);
-    for (const root of [...appRoots].sort()) process.stdout.write(`  + ${root}\n`);
-  }
-
-  assertKeptPackagesResolve(keep, nodeModulesDir);
+  assertKeptPackagesResolve(keep, dirs.nodeModulesDir);
 
   process.stdout.write(
     `[prune] verified: ${keep.size} kept package(s), all dependencies resolve\n`
