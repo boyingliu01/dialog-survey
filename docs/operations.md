@@ -1,6 +1,11 @@
 # Operations Runbook — Dialog Survey
 
 > Updated: 2026-10-08 (issues #178 #179). Covers scheduled backups, restore drill, and Prometheus scraping.
+>
+> For the WSL2 + Docker deployment shape (container watchdog, DingTalk alerting,
+> dockerd per-network iptables self-heal, Windows-side fallback) see
+> [ops-watchdog-alerting.md](./ops-watchdog-alerting.md); the scripts live in
+> [`scripts/ops/`](../scripts/ops/README.md).
 
 ## 0. Before you rely on this
 
