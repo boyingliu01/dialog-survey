@@ -2,6 +2,19 @@
 
 ## [1.14.1](https://github.com/boyingliu01/dialog-survey/compare/v1.14.0...v1.14.1) (2026-11-05)
 
+This release is test-infrastructure only — no production code changed. The
+`conventionalcommits` preset does not list `test:` commits, so the generated
+section was empty; the notes are written out by hand below.
+
+### Test infrastructure
+
+* **`TestDatabase.cleanup`: 11 copy-pasted `if` blocks → a `CLEANUP_STEPS` table (CCN 13 → below 5).** The blocks were identical in shape, and nothing asserted the set was complete: deleting the `templateNames` branch failed ONE test and let the other 2358 pass, so a cleanup that silently stopped deleting rows would have surfaced much later as an unrelated suite failing on a leftover row. The table makes the set assertable — the new tests walk it, compare it against the `CleanupIds` keys, and drive five tables through real deletes. The same mutation now fails three independent tests. Measured en route: `cleanup()` before `setup()` THROWS, contradicting its doc comment; that is the safer behaviour, so the throw is now pinned and the comment corrected.
+* **The dependency-graph cycle detector could be switched off with the suite green.** `findCycles` is Tarjan's SCC algorithm and lived inside a test file whose only assertion was "this repo has no cycles right now". Replacing `if (component.length > 1)` with `if (false)` — deleting cycle detection entirely — passed all 5 tests, because a detector that returns nothing looks correct on a repo with nothing to find. The algorithm moved to `tests/helpers/dep-graph.ts`, and ten cases now drive it directly, including NEGATIVE controls (a diamond and a chain are not cycles) so "report every component" cannot pass. Same mutation now fails 4 tests.
+* **`stripComments` gets the parsing tests it always needed**: it keeps a `https://` URL, keeps the code before a trailing comment, and drops imports that appear only inside prose — the last being a real bug that once reported a phantom self-cycle on `interview-plan.service.ts`.
+* Every `toBeDefined()`-only assertion in the new suite was replaced with one that can fail on a wrong value; `teardown()` is now proven to close the connection (a query rejects afterwards) instead of merely resolving.
+
+`strongConnect` remains at CCN 16, deliberately: that is Tarjan's inherent shape, and the missing negative controls — not the number — were the real gap.
+
 ## [1.14.0](https://github.com/boyingliu01/dialog-survey/compare/v1.13.5...v1.14.0) (2026-11-04)
 
 ### Features
