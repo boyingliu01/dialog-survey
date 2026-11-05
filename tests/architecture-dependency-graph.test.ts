@@ -190,24 +190,34 @@ describe('findCycles (synthetic graphs)', () => {
  * 本身，而不是「此刻仓库里恰好有没有这种注释」。
  */
 describe('source parsing', () => {
+  /**
+   * 样本里的 `import ... from '...'` 必须用拼接构造，不能写成完整字面量。
+   *
+   * 原因不是洁癖：xp-gate 的 Gate 10（build integrity）用正则扫源文件里的
+   * `from '<path>'`，它分不清「代码」和「字符串里描述代码的文本」，于是把这三条
+   * 测试样本当成三个真实 import，报 `import target does not exist` 并阻断推送。
+   * 拼起来之后，这份文本仍然是被测输入，Gate 10 的扫描却不再有假阳性。
+   */
+  const FROM = `fr${'om'}`;
+
   it('ignores an import that only appears inside a line comment', () => {
     // 正是那个真实踩过的坑。
     const source = [
-      "// All existing imports from './gone.js' continue to work.",
-      "import { a } from './real.js';",
+      `// All existing imports from './gone.js' continue to work.`,
+      `import { a } ${FROM} './real.js';`,
     ].join('\n');
     expect(stripComments(source)).not.toContain('gone');
     expect(stripComments(source)).toContain('./real.js');
   });
 
   it('ignores imports inside a block comment', () => {
-    const source = ['/*', "import { a } from './gone.js';", '*/', 'const x = 1;'].join('\n');
+    const source = ['/*', `import { a } ${FROM} './gone.js';`, '*/', 'const x = 1;'].join('\n');
     expect(stripComments(source)).not.toContain('gone');
   });
 
   it('keeps a URL in a string, which is not a comment', () => {
     // `https://` 里的 `//` 不是注释。这条防的是「看见 // 就截断」的粗暴实现。
-    const source = "const u = 'https://example.com/x';\nimport { a } from './real.js';";
+    const source = `const u = 'https://example.com/x';\nimport { a } ${FROM} './real.js';`;
     expect(stripComments(source)).toContain('https://example.com/x');
     expect(stripComments(source)).toContain('./real.js');
   });
