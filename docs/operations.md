@@ -26,6 +26,21 @@
 - **Scale assumption**: these docs assume a single app instance. With multiple
   replicas, scrape each instance separately (`static_configs` with one target per
   replica) — counters and gauges are per-process.
+- **Alert on consecutive failures, not on a single `/health` timeout (issue #227).**
+  `/health` probes the LLM upstream live, so its latency is the upstream's latency.
+  A single slow response is not an outage: three independent monitors poll this
+  route on their own schedules (compose healthcheck, the Windows watchdog, the
+  in-container cron check), and treating each timeout as an alert produced 8 false
+  "interrupted / recovered" pairs in two hours on 2026-11-04 while the service
+  never stopped answering. Two rules for any monitor pointed at `/health`:
+  **(1)** require N consecutive failures before alerting (this repo's watchdog
+  uses `FAIL_THRESHOLD=2`) and only send a recovery notice after a real alert was
+  raised; **(2)** give the client timeout headroom over the probe's own 30s LLM
+  timeout (`HEALTH_TIMEOUT=40` here), or every slow upstream reads as a dead
+  service. The service now collapses concurrent probes and reuses a failure for
+  5s, which bounds the damage — but a monitor that alerts on the first timeout
+  can still manufacture noise from a genuinely degraded dependency.
+
 - **A backup or restore drill briefly interrupts a Docker deployment (issue #226).**
   The backup and restore-drill scripts run `docker exec` plus one-shot
   `docker run --network none` containers. On dockerd builds where those commands
