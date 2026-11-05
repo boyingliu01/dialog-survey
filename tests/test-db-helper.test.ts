@@ -107,11 +107,20 @@ describe('TestDatabase', () => {
       ).resolves.toBeUndefined();
     });
 
-    it('tolerates ids that do not exist', async () => {
+    it('tolerates ids that do not exist, and leaves real rows intact', async () => {
       // deleteMany on a missing id is not an error in SQL; asserting it keeps a
-      // future switch to `delete` (which throws) from slipping through.
+      // future switch to `delete` (which throws) from slipping through. The
+      // second half is the part that has teeth: a cleanup that fell back to an
+      // unscoped deleteMany would "tolerate" the missing id by emptying the table.
       const local = await fresh();
-      await expect(local.cleanup({ interviews: ['no-such-id'] })).resolves.toBeUndefined();
+      const prisma = local.getPrisma();
+      const keep = await prisma.template.create({
+        data: { name: 'survives-missing-id', description: 'x', content: '[]' },
+      });
+
+      await expect(local.cleanup({ templates: ['no-such-id'] })).resolves.toBeUndefined();
+
+      expect(await prisma.template.findUnique({ where: { id: keep.id } })).not.toBeNull();
     });
 
     it('deletes across several tables in one call', async () => {
