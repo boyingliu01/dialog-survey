@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.14.1](https://github.com/boyingliu01/dialog-survey/compare/v1.14.0...v1.14.1) (2026-11-05)
+
 ## [1.14.0](https://github.com/boyingliu01/dialog-survey/compare/v1.13.5...v1.14.0) (2026-11-04)
 
 ### Features
