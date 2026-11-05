@@ -191,8 +191,8 @@ LOADTEST_USE_REAL_PG=1 npm run loadtest   # 真实 PostgreSQL 口径（CI 同款
 
 | 口径 | 环境 | 结果 JSON |
 |---|---|---|
-| CI postgres:16 | GitHub hosted runner | `loadtest-results-2026-10-22T02-05-18.860Z.json`（`loadtest-baseline` 分支） |
-| 服务器侧 PG14 | 部署机（WSL2 Ubuntu-22.04，6 vCPU），独立 PG 14.24 实例（5435 loopback，压测专用库） | `loadtest-results-2026-10-22T02-15-06.754Z.json`（`loadtest-baseline` 分支） |
+| CI postgres:16 | GitHub hosted runner | `loadtest-results-2026-10-22T02-05-18.860Z.json`（已回填 master；`loadtest-baseline` 分支为 CI 追加序列） |
+| 服务器侧 PG14 | 部署机（WSL2 Ubuntu-22.04，6 vCPU），独立 PG 14.24 实例（5435 loopback，压测专用库） | `loadtest-results-2026-10-22T02-15-06.754Z.json`（已回填 master；同上） |
 
 ### 6.1 结果对照（RPS；PGlite 基线 / CI / 服务器侧）
 
