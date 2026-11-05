@@ -1,6 +1,14 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import type { Graph } from './helpers/dep-graph.js';
+import {
+  buildGraph,
+  collectSources,
+  findCycles,
+  resolveSpecifier,
+  stripComments,
+} from './helpers/dep-graph.js';
 
 /**
  * @intent 架构基线（.architecture-baseline.json）只有在「账实相符」时才有意义。
@@ -15,126 +23,6 @@ import { describe, expect, it } from 'vitest';
 
 const SRC = resolve('src');
 const BASELINE = resolve('.architecture-baseline.json');
-
-/** 收集 src/ 下所有 .ts 文件，跳过生成物与 node_modules。 */
-function collectSources(root: string): string[] {
-  const out: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === 'generated' || entry.name === 'node_modules') continue;
-        walk(full);
-        continue;
-      }
-      if (entry.name.endsWith('.ts')) out.push(full);
-    }
-  };
-  walk(root);
-  return out;
-}
-
-/**
- * 把 ESM 的相对 specifier 解析回 `.ts` 源文件。
- *
- * 这里的顺序是有意的：先看字面量再剥 `.js`。反过来先剥后缀的话，
- * `'./interview-plan-base.service.js'` 会变成 `'./interview-plan-base.service'`，
- * 在某些写法下会被误归到自身，凭空造出一个自环 —— 那正是本测试要防的假象。
- */
-function resolveSpecifier(fromFile: string, specifier: string): string | null {
-  const base = resolve(dirname(fromFile), specifier);
-  const candidates = [base, base.replace(/\.js$/, '.ts'), `${base}.ts`, join(base, 'index.ts')];
-  for (const candidate of candidates) {
-    if (candidate.endsWith('.ts') && existsSync(candidate)) return candidate;
-  }
-  return null;
-}
-
-/**
- * 去掉注释，只留代码。
- *
- * 这不是洁癖，是必需的：`interview-plan.service.ts` 的头部有一行说明性注释
- * `// All existing imports from './interview-plan.service.js' continue to work.`，
- * 正则直接扫原文会把它当成一次真实的 import，于是那个文件看起来是自环。
- * 一个「扫描器把散文当成代码」的假阳性会让这个测试报出一个不存在的架构缺陷，
- * 然后把无关的重构拦下来 —— 比没有测试更糟。
- *
- * 块注释用 `[^]*?` 而不是 `[\s\S]*?`：两者等价，前者在 Biome 的规则下更明确是
- * 「任意字符」。字符串字面量里的 `//` 不在本仓库的 specifier 里出现，且万一误删
- * 也只会少一条边、不会凭空多一条，所以不做完整的分词。
- */
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-}
-
-interface Graph {
-  readonly nodes: readonly string[];
-  readonly edges: ReadonlyMap<string, readonly string[]>;
-}
-
-function buildGraph(files: readonly string[]): Graph {
-  const edges = new Map<string, readonly string[]>();
-  const fileSet = new Set(files);
-  for (const file of files) {
-    const source = stripComments(readFileSync(file, 'utf8'));
-    const targets = new Set<string>();
-    for (const match of source.matchAll(/from\s+['"](\.[^'"]+)['"]/g)) {
-      const target = resolveSpecifier(file, match[1]);
-      // 只保留 src/ 内部的边：跨包依赖不是本测试的范围，也不会构成环。
-      if (target !== null && fileSet.has(target)) targets.add(target);
-    }
-    edges.set(file, [...targets]);
-  }
-  return { nodes: files, edges };
-}
-
-/** Tarjan 强连通分量；任何 size>1 的分量（或自环）都是一个真实循环。 */
-function findCycles(graph: Graph): string[][] {
-  const index = new Map<string, number>();
-  const low = new Map<string, number>();
-  const onStack = new Set<string>();
-  const stack: string[] = [];
-  const cycles: string[][] = [];
-  let counter = 0;
-
-  const strongConnect = (node: string): void => {
-    index.set(node, counter);
-    low.set(node, counter);
-    counter += 1;
-    stack.push(node);
-    onStack.add(node);
-
-    for (const next of graph.edges.get(node) ?? []) {
-      if (!index.has(next)) {
-        strongConnect(next);
-        low.set(node, Math.min(low.get(node) ?? 0, low.get(next) ?? 0));
-      } else if (onStack.has(next)) {
-        low.set(node, Math.min(low.get(node) ?? 0, index.get(next) ?? 0));
-      }
-    }
-
-    if (low.get(node) === index.get(node)) {
-      const component: string[] = [];
-      let member = '';
-      do {
-        member = stack.pop() ?? '';
-        onStack.delete(member);
-        component.push(relative('.', member));
-      } while (member !== node && stack.length > 0);
-      if (component.length > 1) {
-        cycles.push(component);
-      } else if ((graph.edges.get(node) ?? []).includes(node)) {
-        // 单文件自环：真的 import 了自己，同样是一个循环。
-        cycles.push(component);
-      }
-    }
-  };
-
-  for (const node of graph.nodes) {
-    if (!index.has(node)) strongConnect(node);
-  }
-  return cycles;
-}
 
 describe('architecture dependency graph', () => {
   const files = collectSources(SRC);
@@ -178,5 +66,173 @@ describe('architecture baseline freshness', () => {
 
   it('pins a concrete commit rather than a placeholder', () => {
     expect(baseline.commit).toMatch(/^[0-9a-f]{7,40}$/);
+  });
+});
+
+/**
+ * 反向验证：检测器必须能**发现**环，而不只是在当前无环的仓库上返回空。
+ *
+ * 之前的测试只断言 `has no circular dependency between src modules` 的结果为空，
+ * 于是「禁用整个检测器」也照样通过 —— 实测把 `if (component.length > 1)` 改成
+ * `if (false)` 后，5 个测试全绿。那种测试证明的是「仓库此刻无环」，而不是
+ * 「这个函数能识别环」，两者只有在真的出现环时才分得开，而那时已经晚了。
+ *
+ * 下面用合成的图直接驱动同一个 `findCycles`：图是输入，环是可预期的输出，
+ * 检测器被阉割就必然失败。
+ */
+describe('findCycles (synthetic graphs)', () => {
+  /** 由 "a -> b" 这样的边列表构造图，节点取所有出现过的名字。 */
+  function graphOf(edges: ReadonlyArray<readonly [string, string]>): Graph {
+    const adjacency = new Map<string, string[]>();
+    for (const [from, to] of edges) {
+      adjacency.set(from, [...(adjacency.get(from) ?? []), to]);
+      if (!adjacency.has(to)) adjacency.set(to, []);
+    }
+    return { nodes: [...adjacency.keys()], edges: adjacency };
+  }
+
+  it('reports a two-node cycle', () => {
+    // 最小可能的环。检测器若被禁用，这里得到 []。
+    expect(
+      findCycles(
+        graphOf([
+          ['a', 'b'],
+          ['b', 'a'],
+        ])
+      )
+    ).toHaveLength(1);
+  });
+
+  it('reports a three-node cycle as ONE component, not three', () => {
+    // 强连通分量是整个 {a,b,c}，逐个上报会把一个环算成三个缺陷。
+    const cycles = findCycles(
+      graphOf([
+        ['a', 'b'],
+        ['b', 'c'],
+        ['c', 'a'],
+      ])
+    );
+    expect(cycles).toHaveLength(1);
+    expect(cycles[0]).toHaveLength(3);
+  });
+
+  it('reports a self-loop', () => {
+    // 单文件 import 自己：size 为 1 但不是「无环」，必须单独判。
+    expect(findCycles(graphOf([['a', 'a']]))).toHaveLength(1);
+  });
+
+  it('finds NOTHING in a diamond, which is not a cycle', () => {
+    // a→b, a→c, b→d, c→d 有多条路径但没有回到起点的话，不是环。
+    // 没有这条，「把所有分量都当成环」的实现也能通过前三条。
+    expect(
+      findCycles(
+        graphOf([
+          ['a', 'b'],
+          ['a', 'c'],
+          ['b', 'd'],
+          ['c', 'd'],
+        ])
+      )
+    ).toEqual([]);
+  });
+
+  it('finds nothing in a straight chain', () => {
+    expect(
+      findCycles(
+        graphOf([
+          ['a', 'b'],
+          ['b', 'c'],
+          ['c', 'd'],
+        ])
+      )
+    ).toEqual([]);
+  });
+
+  it('finds TWO separate cycles independently', () => {
+    // 一个环的检测成功不能掩盖另一个环被漏掉。
+    const cycles = findCycles(
+      graphOf([
+        ['a', 'b'],
+        ['b', 'a'],
+        ['x', 'y'],
+        ['y', 'z'],
+        ['z', 'x'],
+      ])
+    );
+    expect(cycles).toHaveLength(2);
+  });
+
+  it('finds a cycle that hangs off a longer acyclic tail', () => {
+    // 环不在入口处：根→a 无环，环在 b↔c。
+    const cycles = findCycles(
+      graphOf([
+        ['root', 'a'],
+        ['a', 'b'],
+        ['b', 'c'],
+        ['c', 'b'],
+      ])
+    );
+    expect(cycles).toHaveLength(1);
+    expect(cycles[0]).toHaveLength(2);
+  });
+});
+
+/**
+ * 解析层的直接覆盖。
+ *
+ * `findCycles` 有了合成图的反向验证，但**喂给它的图**同样会出错，而且历史上错过
+ * 一次：`interview-plan.service.ts` 头部有一行说明性注释
+ * `// All existing imports from './interview-plan.service.js' continue to work.`，
+ * 正则直接扫原文会把它当成一次真实的 import，于是那个文件看起来是自环。一个
+ * 「扫描器把散文当成代码」的假阳性会报出根本不存在的架构缺陷，比没有测试更糟。
+ *
+ * 下面这几条钉的就是这件事，用的是内联源码而不是仓库当前内容，所以被测的是解析器
+ * 本身，而不是「此刻仓库里恰好有没有这种注释」。
+ */
+describe('source parsing', () => {
+  it('ignores an import that only appears inside a line comment', () => {
+    // 正是那个真实踩过的坑。
+    const source = [
+      "// All existing imports from './gone.js' continue to work.",
+      "import { a } from './real.js';",
+    ].join('\n');
+    expect(stripComments(source)).not.toContain('gone');
+    expect(stripComments(source)).toContain('./real.js');
+  });
+
+  it('ignores imports inside a block comment', () => {
+    const source = ['/*', "import { a } from './gone.js';", '*/', 'const x = 1;'].join('\n');
+    expect(stripComments(source)).not.toContain('gone');
+  });
+
+  it('keeps a URL in a string, which is not a comment', () => {
+    // `https://` 里的 `//` 不是注释。这条防的是「看见 // 就截断」的粗暴实现。
+    const source = "const u = 'https://example.com/x';\nimport { a } from './real.js';";
+    expect(stripComments(source)).toContain('https://example.com/x');
+    expect(stripComments(source)).toContain('./real.js');
+  });
+
+  it('keeps the code before a trailing line comment', () => {
+    // `[^:]` 那一段回退必须把前缀还回来，否则 `const x = 1 // note` 会整行消失。
+    expect(stripComments('const x = 1; // note')).toContain('const x = 1;');
+  });
+
+  it('collects only .ts files and skips generated/', () => {
+    // 用真实的 src/ 走一遍：生成物必须被排除，否则依赖图上会多出几百个伪节点。
+    const files = collectSources(SRC);
+    expect(files.length).toBeGreaterThan(0);
+    expect(files.every((f) => f.endsWith('.ts'))).toBe(true);
+    expect(files.some((f) => f.includes('generated'))).toBe(false);
+  });
+
+  it('builds edges only between files in the scanned set', () => {
+    // 跨包依赖不是本测试的范围，也不会构成环；一条指向集合外的边必须被丢掉。
+    const graph = buildGraph(collectSources(SRC));
+    const known = new Set(graph.nodes);
+    for (const targets of graph.edges.values()) {
+      for (const target of targets) {
+        expect(known.has(target)).toBe(true);
+      }
+    }
   });
 });
