@@ -179,3 +179,120 @@ describe('health readiness vs liveness (issue #218)', () => {
     expect({ ...live, timestamp: '<t>' }).toEqual({ ...ready, timestamp: '<t>' });
   });
 });
+
+/**
+ * Issue #227: the LLM probe cached only SUCCESSES and had no in-flight
+ * deduplication, so a slow upstream turned every poll into another 30s request.
+ * Measured on 2026-11-04: 36 health requests pending at once, and 8 pairs of
+ * false "interrupted / recovered" alerts while the service was never down.
+ *
+ * These four cases exist because the fix is easy to write and easy to lose: a
+ * mutation that caches failures was NOT caught by the 28 tests above, since
+ * every one of them polls a healthy upstream exactly once.
+ */
+describe('LLM probe stampede control (issue #227)', () => {
+  const apps: FastifyInstance[] = [];
+  const mockFetch = vi.fn();
+
+  async function app(): Promise<FastifyInstance> {
+    const built = await buildHealthApp({ status: 'ok', latencyMs: 1 });
+    apps.push(built);
+    return built;
+  }
+
+  beforeEach(() => {
+    resetHealthProbeCacheForTests();
+    vi.stubGlobal('fetch', mockFetch);
+    mockFetch.mockReset();
+    vi.useRealTimers();
+  });
+
+  afterEach(async () => {
+    for (const built of apps.splice(0)) await built.close();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('collapses concurrent probes into a single upstream request', async () => {
+    stubEnv();
+    // A gate that needs the outer fetch count to stay at 1: the promise is
+    // resolved only after every request has started, so an implementation
+    // without dedup would have issued (and awaited) three separate calls.
+    let release: (value: unknown) => void = () => {};
+    mockFetch.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ ok: true, status: 200 });
+        })
+    );
+
+    const server = await app();
+    const probes = [
+      server.inject({ method: 'GET', url: '/health' }),
+      server.inject({ method: 'GET', url: '/health' }),
+      server.inject({ method: 'GET', url: '/health' }),
+    ];
+
+    // Let all three reach checkLLM before any of them resolves.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    release(undefined);
+    const responses = await Promise.all(probes);
+    for (const response of responses) {
+      expect(JSON.parse(response.body).checks.llm.status).toBe('ok');
+    }
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses a recent FAILURE instead of re-probing immediately', async () => {
+    stubEnv();
+    mockFetch.mockRejectedValue(new Error('upstream exploded'));
+    const server = await app();
+
+    const first = await server.inject({ method: 'GET', url: '/health' });
+    const second = await server.inject({ method: 'GET', url: '/health' });
+
+    expect(JSON.parse(first.body).checks.llm.status).toBe('error');
+    // The second poll reads the cached failure — it must NOT have probed again.
+    // Without the failure cache this is 2, and every poll in an outage waits the
+    // full timeout, which is the defect.
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(second.body).checks.llm.error).toBe('upstream exploded');
+  });
+
+  it('re-probes once the failure cache expires, so recovery is noticed', async () => {
+    stubEnv();
+    mockFetch.mockRejectedValueOnce(new Error('still down'));
+    const server = await app();
+
+    const first = await server.inject({ method: 'GET', url: '/health' });
+    expect(JSON.parse(first.body).checks.llm.status).toBe('error');
+
+    // Cross the 5s failure TTL. A cache that never expires would pin the
+    // deployment as degraded forever, which is worse than the original bug.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(Date.now() + 6000);
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
+
+    const second = await server.inject({ method: 'GET', url: '/health' });
+    expect(JSON.parse(second.body).checks.llm.status).toBe('ok');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears the failure cache on success so a later failure is not suppressed', async () => {
+    stubEnv();
+    mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
+    const server = await app();
+
+    const healthy = await server.inject({ method: 'GET', url: '/health' });
+    expect(JSON.parse(healthy.body).checks.llm.status).toBe('ok');
+
+    resetHealthProbeCacheForTests();
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500, text: async () => 'quota' });
+    const failed = await server.inject({ method: 'GET', url: '/health' });
+    expect(JSON.parse(failed.body).checks.llm.status).toBe('degraded');
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+});

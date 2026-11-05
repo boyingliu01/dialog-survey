@@ -48,7 +48,33 @@ function statusCodeFor(status: HealthStatus, readiness: boolean): number {
 let llmCacheTime: number | null = null;
 
 /**
- * Drop the 60s LLM probe cache.
+ * The last FAILED probe, kept briefly (issue #227).
+ *
+ * Caching only successes meant a degraded upstream was re-probed on every poll,
+ * and each probe may wait the full 30s timeout. Three independent monitors
+ * (compose healthcheck, the Windows watchdog, the in-container cron check) poll
+ * on their own schedules, so one slow upstream became a burst of
+ * "interrupted / recovered" alerts while the service was never down — measured
+ * at 8 false pairs in two hours on 2026-11-04.
+ *
+ * The TTL is deliberately short: long enough that a stampede of polls collapses
+ * onto one verdict, short enough that recovery is noticed within seconds.
+ */
+let llmFailureTime: number | null = null;
+let llmFailureResult: LlmCheckResult | null = null;
+
+/**
+ * The probe currently in flight, if any (issue #227).
+ *
+ * Without this, N concurrent polls issue N upstream requests and all of them
+ * queue behind the provider: the measured incident showed 36 health requests
+ * pending at once. Sharing one promise bounds upstream calls to the number of
+ * polls that START while nothing is in flight — a burst costs one request.
+ */
+let inflightLlmProbe: Promise<LlmCheckResult> | null = null;
+
+/**
+ * Drop every LLM probe cache (success, failure and in-flight).
  *
  * Without this, a suite that asserts "no key means degraded" passes only by
  * ordering luck: an earlier `healthy` case caches its verdict for a minute and
@@ -58,12 +84,24 @@ let llmCacheTime: number | null = null;
  */
 export function resetHealthProbeCacheForTests(): void {
   llmCacheTime = null;
+  llmFailureTime = null;
+  llmFailureResult = null;
+  inflightLlmProbe = null;
 }
 
 type LlmCheckResult = HealthResponse['checks']['llm'];
 
 /** How long a successful LLM probe stays authoritative. */
 const LLM_CACHE_MS = 60000;
+
+/**
+ * How long a failed probe stays authoritative.
+ *
+ * Short on purpose: a failure is evidence about the last few seconds, not about
+ * the next minute. Five seconds still collapses a poll stampede (the container
+ * healthcheck alone fires every few seconds) while keeping recovery prompt.
+ */
+const LLM_FAILURE_CACHE_MS = 5000;
 
 const DEFAULT_LLM_ENDPOINT = 'https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions';
 
@@ -128,20 +166,75 @@ async function degradeFromResponse(
   return result;
 }
 
+/**
+ * Probe the LLM, sharing one in-flight request and caching the failure briefly.
+ *
+ * Three layers, each earning its place (issue #227):
+ *   1. a fresh SUCCESS verdict short-circuits (60s) — /health is polled every few
+ *      seconds, and an unguarded 30s probe per poll exhausts the provider quota;
+ *   2. a recent FAILURE short-circuits (5s) — otherwise every poll in an outage
+ *      waits the full timeout, which is what turned one slow upstream into 36
+ *      stacked requests and a stream of false alerts;
+ *   3. concurrent callers share ONE in-flight promise — the first caller pays,
+ *      the rest ride along.
+ *
+ * Only the probe is shared, never the config resolution: a key removed mid-flight
+ * must still be reported as "not configured" rather than served from a cached
+ * `ok`.
+ */
 async function checkLLM(): Promise<LlmCheckResult> {
   if (isLlmCacheFresh()) return { status: 'ok' };
 
   const config = resolveLlmConfig();
   if (!isLlmConfig(config)) return config;
 
+  const cachedFailure = recentLlmFailure();
+  if (cachedFailure) return cachedFailure;
+
+  if (inflightLlmProbe) return inflightLlmProbe;
+
+  inflightLlmProbe = runLlmProbe(config).finally(() => {
+    inflightLlmProbe = null;
+  });
+  return inflightLlmProbe;
+}
+
+/** Issue one probe and record its verdict in the appropriate cache. */
+async function runLlmProbe(config: LlmConfig): Promise<LlmCheckResult> {
+  let result: LlmCheckResult;
   try {
     const { response, latencyMs } = await probeLlm(config);
-    if (!response.ok) return degradeFromResponse(response, latencyMs, config.baseUrl);
-    llmCacheTime = Date.now();
-    return { status: 'ok', latencyMs, endpoint: config.baseUrl };
+    result = response.ok
+      ? { status: 'ok', latencyMs, endpoint: config.baseUrl }
+      : await degradeFromResponse(response, latencyMs, config.baseUrl);
   } catch (e) {
-    return classifyLlmError(e);
+    result = classifyLlmError(e);
   }
+
+  if (result.status === 'ok') {
+    llmCacheTime = Date.now();
+  } else {
+    llmFailureTime = Date.now();
+    llmFailureResult = result;
+  }
+  return result;
+}
+
+/**
+ * The last failure while it is still young enough to reuse, else null.
+ *
+ * No success-path cleanup is needed, and adding one would be dead code:
+ * `LLM_FAILURE_CACHE_MS` (5s) is far shorter than `LLM_CACHE_MS` (60s), so by
+ * the time a success verdict stops being authoritative, any recorded failure is
+ * long past its own TTL. A `clearFailure()` call on success looked defensive but
+ * had no observable effect — a mutation deleting it left all 12 tests passing,
+ * which is the signature of a branch that cannot matter. If those two constants
+ * are ever reordered so a failure outlives a success, this reasoning breaks and
+ * the guard must come back WITH a test.
+ */
+function recentLlmFailure(): LlmCheckResult | null {
+  if (!llmFailureTime || !llmFailureResult) return null;
+  return Date.now() - llmFailureTime < LLM_FAILURE_CACHE_MS ? llmFailureResult : null;
 }
 
 /**

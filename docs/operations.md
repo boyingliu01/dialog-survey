@@ -26,6 +26,21 @@
 - **Scale assumption**: these docs assume a single app instance. With multiple
   replicas, scrape each instance separately (`static_configs` with one target per
   replica) — counters and gauges are per-process.
+- **A backup or restore drill briefly interrupts a Docker deployment (issue #226).**
+  The backup and restore-drill scripts run `docker exec` plus one-shot
+  `docker run --network none` containers. On dockerd builds where those commands
+  drop the compose network's per-network iptables chains (observed on WSL2 with
+  `FORWARD` policy `DROP`, 2026-11-04), `app → postgres` and `app → LLM` both fail
+  within seconds while the containers stay `Up (healthy)` — the failure is
+  invisible from inside the container. Two consequences for scheduling:
+  **(1)** run the backup timer and the restore drill in a business-quiet window
+  (this repo uses 02:30 and 03:00 on the 1st), and **(2)** keep
+  `ds-net-repair.timer` enabled and running alongside them, because that timer is
+  what detects the missing rules and restarts dockerd to restore them (measured
+  recovery: ~2 minutes, with one alert pair emitted). If you run this stack on a
+  host without those ops scripts, verify `iptables -S DOCKER-FORWARD` after a
+  backup before trusting the deployment. This is an upstream dockerd behaviour,
+  not something this repo can fix from inside the container.
 
 ## 1. Automated backups (issue #179)
 
