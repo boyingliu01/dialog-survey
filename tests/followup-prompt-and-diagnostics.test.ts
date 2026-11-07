@@ -93,7 +93,7 @@ describe('follow-up prompt construction', () => {
     expect(prompt).toContain('主持人: 主持人说话');
   });
 
-  it('renders only the last six turns', async () => {
+  it('renders the whole conversation, not just the last six turns', async () => {
     const many = Array.from({ length: 10 }, (_, i) => ({
       role: 'user' as const,
       content: `turn-${i}`,
@@ -102,9 +102,12 @@ describe('follow-up prompt construction', () => {
     await generateSmartResponse(state({ messages: many } as Partial<InterviewState>), 'a', 'q');
 
     const prompt = sentPrompt();
-    // The four oldest turns are dropped, the six newest kept.
-    expect(prompt).not.toContain('turn-0');
-    expect(prompt).not.toContain('turn-3');
+    // Issue #230: the old `slice(-6)` window erased a role clarification four turns
+    // after it was made, so the interviewee had to repeat himself. Every turn of a
+    // normal interview now reaches the model; the budget only bites on transcripts
+    // far longer than this. See followup-cross-turn-memory.test.ts for the case that
+    // motivated it and for the trimming direction.
+    expect(prompt).toContain('turn-0');
     expect(prompt).toContain('turn-4');
     expect(prompt).toContain('turn-9');
   });

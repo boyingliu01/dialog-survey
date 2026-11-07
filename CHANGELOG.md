@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.16.0](https://github.com/boyingliu01/dialog-survey/compare/v1.15.0...v1.16.0) (2026-11-07)
+
+Second batch of the interviewee-experience fixes (issues #229 and #230). Both address
+the same failure: the bot asked a question the interviewee had already answered, and
+made him repeat himself.
+
+### Features
+
+* **The prompt now carries the whole conversation instead of the last six messages (#230).** Measured cost in interview `18811eb7`: the interviewee said "我不是团队负责人，也不是质量接口人，我只是PQA" at 17:28 and again at 17:29; by q9 (17:42) that clarification had slid out of a fixed six-message window, so the bot asked about "您团队" and he corrected it a fourth time. The window was a memory eraser whose size had nothing to do with how much context the model can accept. The renderer now uses a character budget (24k) instead of a turn count, so a normal 14-question interview is recalled in full; only a pathologically long transcript trims, and it trims from the OLDEST end because the latest answer is what the reply must reason about.
+
+* **A tenth prompt strategy: 已答 / 前提已锁定 (#229).** The built-in strategies covered 敷衍/困惑/拒绝/情绪/要求结束/要求跳过/质疑边界/跑题 — but not "this question's premise has already been answered". In the same family of interviews, q4 elicited exactly two layers ("基层和中层") and q5 then asked "如果只能挑两个层级，您会选哪两个": the interviewee answered "基层", and a follow-up was needed to recover the half he had already given. Two turns and two `Response` rows bought back an answer the system already held. Strategy 10 tells the model to ask only the uncovered half, or to replace the question with a statement and move on. It is a numbered rule rather than a soft hint because #203 measured ~40% compliance for soft prompt wording on this stack.
+
+### Notes
+
+* 2429 tests pass. Both changes are mutation-verified, and the check exposed a real gap: the first version of the memory regression test used a transcript that a `slice(-6)` mutant still passed, so the test was protecting nothing. Widening the transcript to 16 messages kills that mutant across 3 assertions; deleting strategy 10 fails the fourth.
+* Template copy still needs an ops change: the deployed `Template.content.llmPromptTemplate` overrides `prompt.service.ts`, so the four templates need strategy 10 added in the database before it takes effect. That is a data update, not a code deploy.
+
 ## [1.15.0](https://github.com/boyingliu01/dialog-survey/compare/v1.14.1...v1.15.0) (2026-11-07)
 
 First batch of the interviewee-experience fixes from the 2026-11-03 interview
