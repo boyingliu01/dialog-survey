@@ -11,6 +11,7 @@ import {
   type NodeOutput,
   type TemplateContent,
 } from '../types/index.js';
+import { withProgressFooter } from './progress.js';
 import { loadTemplateContent } from './template-utils.js';
 
 type ResponseEntry = {
@@ -240,8 +241,27 @@ function buildFallbackResponse(
     currentQuestion: currentQ + 1,
     followupCount: 0,
     shouldContinue: !!nextQuestion,
-    response: nextQuestion || DEFAULT_CLOSING_MESSAGE,
+    // The LLM failing must not cost the interviewee their progress marker: this
+    // is the same "how far along am I" signal, on the turn it matters most.
+    response: withProgressFooter(
+      nextQuestion || DEFAULT_CLOSING_MESSAGE,
+      currentQ + 1,
+      content.questions.length
+    ),
   };
+}
+
+/**
+ * Attach the progress marker to a routed reply (#228).
+ *
+ * Runs at the node's single exit, AFTER routing, so no branch can forget it and the
+ * marker always describes the question the reply actually asks (an advanced pointer
+ * for NEXT, the same one for FOLLOWUP/STAY). A completed interview is left alone:
+ * there is no progress left to show, and the closing copy is already terminal.
+ */
+function withTurnProgress(handled: ActionResult, totalQuestions: number): string {
+  if (handled.status === 'COMPLETED') return handled.response;
+  return withProgressFooter(handled.response, handled.currentQuestion, totalQuestions);
 }
 
 export async function interviewingNode(
@@ -317,6 +337,7 @@ export async function interviewingNode(
     return {
       responses: newResponses,
       ...handled,
+      response: withTurnProgress(handled, content.questions.length),
     };
   } catch (e) {
     info('Smart response generation failed, falling back to next question', {

@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.15.0](https://github.com/boyingliu01/dialog-survey/compare/v1.14.1...v1.15.0) (2026-11-07)
+
+First batch of the interviewee-experience fixes from the 2026-11-03 interview
+post-mortem (issues #228 and #231).
+
+### Features
+
+* **The interviewee can see their progress and the total question count (#228).** `questionProgress` was already computed — and injected only into the LLM prompt, never into the reply, so a 14-question interview felt open-ended. In interview `18811eb7` the opening message promised "25-35 minutes", the interview ran 48, and the interviewee asked twice whether it would ever end. All three stalled interviews had `nudgeCount = 0` because nothing ever reached out. Two changes, both composed by code rather than by the model — #203 measured ~40% compliance for a prompt-level soft requirement on this stack, and a progress marker has to appear on every turn:
+  * `progress.ts#withProgressFooter` appends a quiet footer line (`— 3/14`). It is applied at the SINGLE exit of `interviewingNode`, after routing, so no branch can forget it and it always describes the question the reply actually asks. A COMPLETED interview gets none, and the LLM-failure fallback keeps it — that is the turn where a canned reply most needs to say where the interviewee is.
+  * `planningNode` states the total, derived from `questions.length` rather than template copy: a hand-written estimate is a promise the code cannot keep, while a count is checkable. Omitted for an empty question list, which would otherwise read "共 0 个话题".
+  * Deliberately a trailing line, not a `[3/14]` prefix: a prefix injects machine noise exactly where the assistant is trying to sound like a person, fighting its own "chat naturally" principle. A test asserts the conversational text stays byte-identical.
+
+* **A bare "开始" after the greeting no longer eats a question slot (#231).** Templates close their invitation with "准备好了直接回复任意消息，我们就开始", so the system invites a message that must not be recorded — but every inbound text was written to `Response` and advanced the pointer. In `18811eb7` the sequence after the greeting was "开始" → role clarification → "开始", so q0 was stored as the literal string "开始" and q1 held the clarification: two of 14 slots carried no data, and a report taking the first answer per `questionId` reads noise. `start-signal.ts#isStartSignal` recognises a bare signal phrase (optional leading filler/punctuation, bounded length), acknowledges it, and leaves the pointer alone. Only NON-first turns qualify — on a first turn the message is what triggers the greeting. The classifier is deliberately narrow: a false positive would discard a real answer, so `开始我的工作汇报吧…` is still recorded. Regression cover includes the exact measured sequence, asserting the pointer stays at q0 and the only `Response` is the clarification.
+
+### Notes
+
+* 2425 tests pass. Both fixes were mutation-checked rather than assumed: removing the footer append fails 5 tests, and disabling the start-signal guard fails 3 — including the pointer assertions that #200's `questionId`-uniqueness check cannot reach.
+
 ## [1.14.1](https://github.com/boyingliu01/dialog-survey/compare/v1.14.0...v1.14.1) (2026-11-05)
 
 This release is test-infrastructure only — no production code changed. The

@@ -5,6 +5,7 @@ import { InterviewStateRepository } from '../repositories/interview-state.reposi
 import { TemplateRepository } from '../repositories/template.repository.js';
 import { error, info } from '../utils/logger.js';
 import type { PrismaClient } from '../utils/prisma-client.js';
+import { START_SIGNAL_REPLY, isStartSignal } from './start-signal.js';
 import {
   type ParsedStreamMessage,
   type ProcessResult,
@@ -257,6 +258,55 @@ export class StreamMessageService {
     return current;
   }
 
+  /**
+   * The two refusals that must happen before any turn work starts.
+   *
+   * Returns the reply to send when the turn must not proceed, or null to continue.
+   * Ordered: a start signal is acknowledged BEFORE the PROCESSING pre-write, because
+   * acknowledging it must not flip the state nor reach the graph (#231); the pre-write
+   * itself then aborts the turn if persistence is unavailable.
+   */
+  private async rejectBeforeTurn(
+    state: InterviewState,
+    parsed: { userId: string; content: string; sessionWebhook?: string },
+    wasPending: boolean
+  ): Promise<ProcessResult | null> {
+    const acknowledged = await this.acknowledgeStartSignal(state, parsed, wasPending);
+    if (acknowledged) return acknowledged;
+    return this.markProcessing(state, parsed.userId);
+  }
+
+  /**
+   * Answer a bare start signal without recording it as an answer (#231).
+   *
+   * Templates close their invitation with "准备好了直接回复任意消息，我们就开始", so the
+   * system explicitly invites a message that must not be stored — yet everything the
+   * interviewee sent became a `Response` and advanced the pointer. In the measured
+   * interview the greeting was followed by "开始", a role clarification, then "开始"
+   * again: q0 was stored as the literal string "开始", so two of 14 slots held no data.
+   *
+   * Returns the reply when the turn was a start signal, or null to let the caller
+   * process it as an answer. Only a NON-first turn qualifies: on a first turn the
+   * message is what triggers the greeting, and the graph still has to run planningNode
+   * to produce it.
+   */
+  private async acknowledgeStartSignal(
+    state: InterviewState,
+    parsed: { userId: string; content: string; sessionWebhook?: string },
+    wasPending: boolean
+  ): Promise<ProcessResult | null> {
+    if (wasPending || state.status !== 'ACTIVE') return null;
+    if (!isStartSignal(parsed.content)) return null;
+
+    info('Start signal acknowledged without consuming a question', {
+      userId: parsed.userId,
+      interviewId: state.interviewId,
+      currentQuestion: state.currentQuestion,
+      content: parsed.content,
+    });
+    return this.finishWithReply(parsed.sessionWebhook, START_SIGNAL_REPLY);
+  }
+
   private async processMessageInternal(
     parsed: { userId: string; content: string; messageId?: string; sessionWebhook?: string },
     message: { data: string; headers: { messageId: string } },
@@ -267,10 +317,8 @@ export class StreamMessageService {
     if ('refusal' in opened) return opened.refusal;
     const { state, wasPending } = opened;
 
-    // Two-phase persistence: save PROCESSING before the LLM call, then ACTIVE after.
-    const preWriteError = await this.markProcessing(state, parsed.userId);
-    if (preWriteError) return preWriteError;
-
+    const rejection = await this.rejectBeforeTurn(state, parsed, wasPending);
+    if (rejection) return rejection;
     const graphResult: GraphResult = await runInterviewGraph(
       state,
       {

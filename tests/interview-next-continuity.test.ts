@@ -223,7 +223,8 @@ describe('#203 FOLLOWUP→NEXT coercion: reply and question index describe the s
       );
 
       expect(result.currentQuestion).toBe(0);
-      expect(result.response).toBe('关于问题一，您能再展开讲讲当时的场景吗？');
+      expect(result.response).toBe(`关于问题一，您能再展开讲讲当时的场景吗？
+— 1/3`);
     });
   });
 });
@@ -371,7 +372,10 @@ describe('#203 the NEXT path routes bare-question replies through the lead-in', 
       content: '我的回答',
     });
 
-    expect(result.response).toBe(text);
+    // The model's own wording must survive byte-for-byte; the progress footer
+    // (#228) is appended AFTER it, never woven in, so the natural lead-in the
+    // model produced is exactly what the interviewee reads.
+    expect(result.response).toBe(`${text}\n— 2/3`);
   });
 
   it('does not add a lead-in to a genuine END or the closing copy', async () => {

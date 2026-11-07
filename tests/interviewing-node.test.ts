@@ -69,7 +69,8 @@ describe('interviewingNode', () => {
     expect(firstResponse?.content).toBe('我的回答');
     expect(firstResponse?.isFollowup).toBe(false);
     expect(result.currentQuestion).toBe(1);
-    expect(result.response).toBe('您在工作中遇到过最大的挑战是什么？');
+    expect(result.response).toBe(`您在工作中遇到过最大的挑战是什么？
+— 2/4`);
     expect(result.shouldContinue).toBe(true);
   });
 
@@ -136,7 +137,8 @@ describe('interviewingNode', () => {
     const result = await interviewingNode(state, { content: '挑战回答' });
 
     expect(result.currentQuestion).toBe(2);
-    expect(result.response).toBe('您是如何解决这个挑战的？');
+    expect(result.response).toBe(`您是如何解决这个挑战的？
+— 3/4`);
     expect(result.shouldContinue).toBe(true);
   });
 
@@ -149,7 +151,8 @@ describe('interviewingNode', () => {
     const result = await interviewingNode(state, { content: '解决方案' });
 
     expect(result.currentQuestion).toBe(3);
-    expect(result.response).toBe('您对未来的职业规划是什么？');
+    expect(result.response).toBe(`您对未来的职业规划是什么？
+— 4/4`);
     expect(result.shouldContinue).toBe(true);
   });
 
@@ -193,7 +196,8 @@ describe('interviewingNode', () => {
 
     expect(result.followupCount).toBe(1);
     expect(result.shouldContinue).toBe(true);
-    expect(result.response).toBe('您能再详细说明一下吗？');
+    expect(result.response).toBe(`您能再详细说明一下吗？
+— 1/4`);
   });
 
   /**
@@ -213,7 +217,8 @@ describe('interviewingNode', () => {
     expect(result.responses).toBeDefined();
     expect(result.responses).toHaveLength(1);
     expect(result.shouldContinue).toBe(true);
-    expect(result.response).toBe('请继续补充您的想法。');
+    expect(result.response).toBe(`请继续补充您的想法。
+— 1/4`);
     // STAY now emits currentQuestion explicitly (0), fixing bug C-1a
     expect(result.currentQuestion).toBe(0);
   });
@@ -252,7 +257,8 @@ describe('interviewingNode', () => {
     expect(result.responses).toHaveLength(1);
     expect(result.currentQuestion).toBe(1);
     expect(result.shouldContinue).toBe(true);
-    expect(result.response).toBe('您在工作中遇到过最大的挑战是什么？');
+    expect(result.response).toBe(`您在工作中遇到过最大的挑战是什么？
+— 2/4`);
   });
 
   /**
@@ -451,6 +457,7 @@ describe('interviewingNode', () => {
     // The response should NOT contain the next question text (LLM handles transition)
     expect(result.response).not.toContain('您在工作中遇到过最大的挑战是什么');
     // Only LLM's own text, no extra question appended
-    expect(result.response).toBe('感谢您的分享，您提到了工作中的一些挑战。');
+    expect(result.response).toBe(`感谢您的分享，您提到了工作中的一些挑战。
+— 2/4`);
   });
 });
