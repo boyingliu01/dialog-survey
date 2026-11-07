@@ -32,11 +32,12 @@ import { interviewPlanRoutes, isAdministrativePlanMutation } from './api/plans.j
 import { templateRoutes } from './api/templates.js';
 import { DEFAULT_SESSION_MAX_AGE } from './config/constants.js';
 import { dingTalkCredentialsFromEnv } from './integrations/dingtalk/client.js';
-import { DingTalkMessageSender } from './integrations/dingtalk/message-sender.js';
+import { DingTalkMessageSender, messageSender } from './integrations/dingtalk/message-sender.js';
 import { DingTalkStreamClient } from './integrations/dingtalk/stream-client.js';
 import { tokenManager } from './integrations/dingtalk/token-manager.js';
 import { DatabaseHealthRepository } from './repositories/database-health.repository.js';
 import { InterviewPlanRepository } from './repositories/interview-plan.repository.js';
+import { InterviewStateRepository } from './repositories/interview-state.repository.js';
 import { InterviewRepository } from './repositories/interview.repository.js';
 import { TemplateRepository } from './repositories/template.repository.js';
 import { adminAuthRoutes } from './routes/admin-auth.js';
@@ -51,6 +52,7 @@ import { AnalyticsService } from './services/analytics.service.js';
 import { AuditCleanupService } from './services/audit-cleanup.service.js';
 import { ExportService } from './services/export.service.js';
 import { InterviewPlanService } from './services/interview-plan.service.js';
+import { InterviewTimeoutService } from './services/interview-timeout.service.js';
 import { type StreamMessage, processStreamMessage } from './services/stream-message.service.js';
 import { TemplateDimensionService } from './services/template-dimension.service.js';
 import { getAppVersion } from './utils/app-version.js';
@@ -450,6 +452,85 @@ function scheduleAuditCleanup(
   return task;
 }
 
+/**
+ * Schedule the hourly sweep that reminds, then closes, stalled interviews (#232).
+ *
+ * Hourly rather than per-minute on purpose: the idle threshold defaults to ONE HOUR,
+ * so a tighter interval would just re-scan the same quiet interviews 59 times for no
+ * new decision — and every nudge it did send needs `nudgeCount` persisted, which is a
+ * write against the row it just scanned.
+ *
+ * Same task-tracking as the audit cleanup: a sweep in flight must be awaited during
+ * shutdown rather than having Prisma disconnected underneath it.
+ */
+/**
+ * Deliver a timeout nudge through the normal DingTalk sender (#232).
+ *
+ * A zero success count is logged rather than thrown: the sweep has already recorded
+ * `nudgeCount`, so a failed delivery counts against the cap on purpose — otherwise a
+ * broken credential would resend the same nudge every hour until the interview ended.
+ */
+async function sendTimeoutNudge(userId: string, content: string): Promise<void> {
+  const result = await messageSender.sendTextMessage([userId], content);
+  if (result.successCount === 0) {
+    warn('Timeout nudge could not be delivered', { userId, errors: result.errors });
+  }
+}
+
+/** Question count from a template's stored content JSON, or 0 when it is unusable. */
+function questionsInContent(content: string): number {
+  try {
+    const parsed = JSON.parse(content) as { questions?: unknown };
+    return Array.isArray(parsed.questions) ? parsed.questions.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * How many questions the interview's template has, for the progress copy (#232).
+ *
+ * Returns 0 when the template is gone or unparseable, and `nudgeMessage` degrades to
+ * the progress-free wording rather than printing "第 1/0 题".
+ */
+async function totalQuestionsOf(
+  prisma: PrismaClient,
+  templateId: string | undefined
+): Promise<number> {
+  if (!templateId) return 0;
+  try {
+    const template = await new TemplateRepository(prisma).findById(templateId);
+    return template ? questionsInContent(template.content) : 0;
+  } catch (err) {
+    warn('Could not read template question count for the timeout nudge', {
+      templateId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return 0;
+  }
+}
+
+function scheduleTimeoutSweep(
+  timeoutService: InterviewTimeoutService,
+  activeTasks: Set<Promise<unknown>>
+): ReturnType<typeof cron.schedule> {
+  const task = cron.schedule('0 * * * *', async () => {
+    const sweepRun = timeoutService.sweep().catch((err: unknown) => {
+      error('Interview timeout sweep failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+    activeTasks.add(sweepRun);
+    try {
+      await sweepRun;
+    } finally {
+      activeTasks.delete(sweepRun);
+    }
+  });
+  info('Interview timeout sweep scheduled (hourly)');
+  return task;
+}
+
 export async function buildApp(options: BuildAppOptions = {}) {
   const fastify = (options.fastifyFactory ?? createFastify)({
     logger: createLoggerConfig(NODE_ENV === 'production'),
@@ -457,14 +538,14 @@ export async function buildApp(options: BuildAppOptions = {}) {
   let prisma: PrismaClient | undefined;
   const activeAuditCleanups = new Set<Promise<unknown>>();
   const activeMessageHandlers = new Set<Promise<unknown>>();
-  let auditCleanupTask: ReturnType<typeof cron.schedule> | undefined;
+  const cronTasks: Array<ReturnType<typeof cron.schedule>> = [];
   let applicationStream: DingTalkStreamClient | undefined;
   const cleanup = createApplicationCleanup({
     activeTasks: activeAuditCleanups,
     disconnect: async () => {
       if (prisma) await prisma.$disconnect();
     },
-    getScheduledTask: () => auditCleanupTask,
+    getScheduledTasks: () => cronTasks,
     getStream: () => applicationStream,
     messageTasks: activeMessageHandlers,
   });
@@ -483,7 +564,17 @@ export async function buildApp(options: BuildAppOptions = {}) {
     await registerAdminAndRateLimit(fastify);
 
     const auditCleanup = new AuditCleanupService(applicationPrisma);
-    auditCleanupTask = scheduleAuditCleanup(auditCleanup, activeAuditCleanups);
+    cronTasks.push(scheduleAuditCleanup(auditCleanup, activeAuditCleanups));
+    cronTasks.push(
+      scheduleTimeoutSweep(
+        new InterviewTimeoutService({
+          repo: new InterviewStateRepository(applicationPrisma),
+          send: (userId, content) => sendTimeoutNudge(userId, content),
+          totalQuestions: (templateId) => totalQuestionsOf(applicationPrisma, templateId),
+        }),
+        activeAuditCleanups
+      )
+    );
 
     await registerApiRoutes(fastify, deps, createVerifyApiKey(applicationPrisma));
 

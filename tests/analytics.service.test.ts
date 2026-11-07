@@ -149,7 +149,7 @@ describe('AnalyticsService', () => {
   });
 
   describe('getStatusDistribution', () => {
-    it('should return zeros for all 5 statuses when empty', async () => {
+    it('should return zeros for every status when empty', async () => {
       mockPrisma.interview.groupBy.mockResolvedValue([]);
 
       const result = await service.getStatusDistribution();
@@ -160,6 +160,7 @@ describe('AnalyticsService', () => {
         WAITING: 0,
         COMPLETED: 0,
         CANCELLED: 0,
+        INTERRUPTED: 0,
       });
     });
 
@@ -184,7 +185,7 @@ describe('AnalyticsService', () => {
 
       const result = await service.getStatusDistribution();
 
-      expect(Object.keys(result)).toHaveLength(5);
+      expect(Object.keys(result)).toHaveLength(6);
       expect(result['CANCELLED']).toBe(2);
       expect(result['PENDING']).toBe(0);
     });
@@ -354,6 +355,7 @@ describe('AnalyticsService', () => {
           WAITING: 0,
           COMPLETED: 0,
           CANCELLED: 0,
+          INTERRUPTED: 0,
         },
       });
     });
@@ -389,6 +391,7 @@ describe('AnalyticsService', () => {
         WAITING: 0,
         COMPLETED: 2,
         CANCELLED: 1,
+        INTERRUPTED: 0,
       });
     });
 

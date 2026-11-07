@@ -4,7 +4,7 @@ import type { ScheduledTask } from 'node-cron';
 export type ApplicationResources = {
   readonly activeTasks: ReadonlySet<Promise<unknown>>;
   readonly disconnect: () => Promise<void>;
-  readonly getScheduledTask: () => Pick<ScheduledTask, 'destroy'> | undefined;
+  readonly getScheduledTasks: () => ReadonlyArray<Pick<ScheduledTask, 'destroy'>>;
   readonly getStream?: () => { readonly disconnect: () => void | Promise<void> } | undefined;
   readonly messageTasks?: ReadonlySet<Promise<unknown>>;
 };
@@ -66,7 +66,7 @@ async function step(sink: unknown[], action: () => unknown): Promise<void> {
 async function cleanupApplicationResources(resources: ApplicationResources): Promise<void> {
   const cleanupErrors: unknown[] = [];
   const stream = resources.getStream?.();
-  const scheduledTask = resources.getScheduledTask();
+  const scheduledTasks = resources.getScheduledTasks();
 
   if (stream) {
     await step(cleanupErrors, () => stream.disconnect());
@@ -74,7 +74,7 @@ async function cleanupApplicationResources(resources: ApplicationResources): Pro
 
   collectRejections(await Promise.allSettled([...(resources.messageTasks ?? [])]), cleanupErrors);
 
-  if (scheduledTask) {
+  for (const scheduledTask of scheduledTasks) {
     await step(cleanupErrors, () => scheduledTask.destroy());
   }
 

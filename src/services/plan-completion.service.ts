@@ -6,8 +6,13 @@ import type { PlanStatus, PrismaClient } from '../utils/prisma-client.js';
  * Interview states that count as finished. A plan is done when every interview
  * it owns has reached one of these — an in-flight interview (PENDING, ACTIVE,
  * PROCESSING, WAITING) means more answers may still arrive.
+ *
+ * INTERRUPTED (#232) is terminal: the interviewee stopped replying and the timeout
+ * job closed the interview. It is NOT COMPLETED — there is no report and the question
+ * set is unfinished — but it can never receive another answer either, so leaving it
+ * out left the plan waiting forever on a conversation nobody was having.
  */
-const TERMINAL_INTERVIEW_STATUSES = ['COMPLETED', 'CANCELLED'] as const;
+export const TERMINAL_INTERVIEW_STATUSES = ['COMPLETED', 'CANCELLED', 'INTERRUPTED'] as const;
 
 /**
  * Plan states the automatic completion may act on. Deliberately narrow: the

@@ -48,8 +48,22 @@ export interface PlanStats {
   statusDistribution: StatusDistribution;
 }
 
-/** Every interview status, so a status with zero rows still appears in output. */
-const ALL_STATUSES = ['PENDING', 'ACTIVE', 'WAITING', 'COMPLETED', 'CANCELLED'] as const;
+/**
+ * Every interview status, so a status with zero rows still appears in output.
+ *
+ * INTERRUPTED (#232) must be listed or it is silently dropped from the distribution:
+ * callers iterate this array, so a missing status does not report zero, it reports
+ * nothing — and the interviews that stalled would vanish from the one chart built to
+ * show where they stall.
+ */
+const ALL_STATUSES = [
+  'PENDING',
+  'ACTIVE',
+  'WAITING',
+  'COMPLETED',
+  'CANCELLED',
+  'INTERRUPTED',
+] as const;
 
 /** Minutes between two instants, or null when either is missing. */
 function minutesBetween(startedAt: Date | null, completedAt: Date | null): number | null {

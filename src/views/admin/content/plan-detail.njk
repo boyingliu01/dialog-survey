@@ -200,6 +200,10 @@
             <div class="text-xs text-gray-500">已取消</div>
             <div class="font-semibold text-gray-400">{{ planStats.statusDistribution.CANCELLED }}</div>
           </div>
+          <div class="border rounded p-2 text-center" title="受访者中途停止回复，已由超时任务收尾">
+            <div class="text-xs text-gray-500">已中断</div>
+            <div class="font-semibold text-orange-500">{{ planStats.statusDistribution.INTERRUPTED }}</div>
+          </div>
         </div>
       </div>
     </div>

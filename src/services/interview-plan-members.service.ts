@@ -10,6 +10,7 @@ import type { Prisma, PrismaClient } from '../utils/prisma-client.js';
 import type { InviteeData } from './interview-plan-base.service.js';
 import { InterviewPlanSendService } from './interview-plan-send.service.js';
 import { verifyPhoneToName } from './member-verification.service.js';
+import { TERMINAL_INTERVIEW_STATUSES } from './plan-completion.service.js';
 
 /**
  * Read `plan.inviteeData` as an invitee list. The column is untyped JSON, so a
@@ -192,7 +193,7 @@ async function assertNoMemberConflict(
     where: {
       userId,
       planId: { not: planId },
-      status: { notIn: ['COMPLETED', 'CANCELLED'] },
+      status: { notIn: [...TERMINAL_INTERVIEW_STATUSES] },
     },
     select: { planId: true },
   });
@@ -397,7 +398,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
   /** Every still-open interview in the plan — the "remind everyone" mode. */
   private async unfinishedTargets(planId: string): Promise<Array<{ id: string; userId: string }>> {
     return this.prisma.interview.findMany({
-      where: { planId, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+      where: { planId, status: { notIn: [...TERMINAL_INTERVIEW_STATUSES] } },
       select: { id: true, userId: true },
     });
   }
@@ -626,7 +627,7 @@ export class InterviewPlanService extends InterviewPlanSendService {
       where: {
         userId: { in: userIds },
         planId: { not: planId },
-        status: { notIn: ['COMPLETED', 'CANCELLED'] },
+        status: { notIn: [...TERMINAL_INTERVIEW_STATUSES] },
       },
       select: { userId: true, planId: true },
     });

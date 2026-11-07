@@ -15,6 +15,7 @@ enum InterviewStatus {
   WAITING
   COMPLETED
   CANCELLED
+  INTERRUPTED
 }
 
 enum SendStatus {

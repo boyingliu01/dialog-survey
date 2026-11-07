@@ -34,10 +34,10 @@
   <div class="bg-white rounded-lg shadow-sm p-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-4">状态分布</h2>
     <div class="space-y-3">
-      {% set statusColors = { "PENDING": "bg-gray-400", "ACTIVE": "bg-blue-500", "WAITING": "bg-yellow-400", "COMPLETED": "bg-green-500", "CANCELLED": "bg-red-500" } %}
-      {% set statusLabels = { "PENDING": "待开始", "ACTIVE": "进行中", "WAITING": "等待回复", "COMPLETED": "已完成", "CANCELLED": "已取消" } %}
+      {% set statusColors = { "PENDING": "bg-gray-400", "ACTIVE": "bg-blue-500", "WAITING": "bg-yellow-400", "COMPLETED": "bg-green-500", "CANCELLED": "bg-red-500", "INTERRUPTED": "bg-orange-400" } %}
+      {% set statusLabels = { "PENDING": "待开始", "ACTIVE": "进行中", "WAITING": "等待回复", "COMPLETED": "已完成", "CANCELLED": "已取消", "INTERRUPTED": "已中断" } %}
       {% set totalInterviews = kpis.totalInterviews %}
-      {% for status in ["PENDING", "ACTIVE", "WAITING", "COMPLETED", "CANCELLED"] %}
+      {% for status in ["PENDING", "ACTIVE", "WAITING", "COMPLETED", "CANCELLED", "INTERRUPTED"] %}
         {% set count = statusDistribution[status] | default(0) %}
         {% set pct = 0 %}
         {% if totalInterviews > 0 %}

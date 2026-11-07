@@ -15,7 +15,7 @@ type StreamHandler = (message: unknown) => void;
 type CompleteApplicationResources = {
   readonly activeTasks: ReadonlySet<Promise<unknown>>;
   readonly disconnect: () => Promise<void>;
-  readonly getScheduledTask: () => DestroyableScheduledTask | undefined;
+  readonly getScheduledTasks: () => ReadonlyArray<DestroyableScheduledTask>;
   readonly getStream: () => { readonly disconnect: () => void | Promise<void> } | undefined;
   readonly messageTasks: ReadonlySet<Promise<unknown>>;
 };
@@ -372,7 +372,7 @@ describe('server resource lifecycle', () => {
     const cleanup = createApplicationCleanup({
       activeTasks: new Set([Promise.reject(taskError)]),
       disconnect: vi.fn().mockRejectedValue(databaseError),
-      getScheduledTask: () => ({ destroy: vi.fn().mockRejectedValue(cronError) }),
+      getScheduledTasks: () => [{ destroy: vi.fn().mockRejectedValue(cronError) }],
       getStream: () => ({ disconnect: vi.fn(() => Promise.reject(streamError)) }),
       messageTasks: new Set(),
     });

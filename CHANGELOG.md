@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.18.0](https://github.com/boyingliu01/dialog-survey/compare/v1.17.0...v1.18.0) (2026-11-07)
+
+Fourth batch (issue #232): the abandonment-recovery path that could never fire, and the
+terminal state its absence required.
+
+### Features
+
+* **The timeout check now runs from a cron job, decoupled from inbound messages (#232).** `checkTimeoutNudge` worked correctly, but its only caller was `processMessageInternal` — the handler for a message that ARRIVES. Abandonment is defined by no message arriving, so the check could never run on the case it was written for. `INTERVIEW_TIMEOUT_HOURS` (1) and `INTERVIEW_TIMEOUT_MAX_NUDGES` (3) were dead configuration, and there was no timer, cron or batch job anywhere in the repository that called it. Measured: all three stalled production interviews still had `nudgeCount = 0` after 18, 41 and 48 minutes of silence, and one abandoned on 2026-11-03 was still `ACTIVE` when this was written. `InterviewTimeoutService` is now swept hourly alongside the existing nightly audit cleanup, using the same shutdown-tracking so a sweep in flight is awaited rather than having Prisma disconnected underneath it.
+
+* **The nudge copy carries the progress the interviewee stalled at.** "您的访谈还在进行中，请继续回答" gave a stalled interviewee no information about whether this ends soon — the exact reason they stalled (#228 is the same defect in the conversation itself). It now reads "您进行到第 5/14 题，还剩 9 题" and offers an explicit way out, because a reply of "结束" is handled by the graph while silence is not. Position is clamped to the total, so the last question says "第 14/14 题" and never "15/14".
+
+* **A new terminal state, `INTERRUPTED`, and the interview is closed rather than "skipped".** The exhausted-nudge branch logged "will skip to next question" and did nothing at all. Advancing the question pointer was the alternative and is worse: it fabricates an answer nobody gave, and the report would then claim coverage of a question that was never answered. Advancing would also have been undetectable afterwards — the row would look exactly like a normally-completed question. The write is guarded by the interview's version, so a reply landing mid-decision wins and the sweep leaves it alone.
+
+* **`INTERRUPTED` is threaded through everything that classified statuses.** `TERMINAL_INTERVIEW_STATUSES` includes it, so plan completion no longer waits forever on a conversation nobody is having, and — the sharper consequence — the `MemberConflictError` check no longer permanently blocks re-interviewing someone whose interview was abandoned. `unfinishedTargets` and `assertNoCrossPlanDuplicates` use the same list, so the "remind everyone" button stops nagging a person who is not replying. `ALL_STATUSES` in analytics includes it, plus the status distribution on both the analytics page and the plan detail card: a status missing from that array is not reported as zero, it is reported as nothing at all, so the interviews that stalled would have vanished from the one chart built to show where they stall.
+
+### Notes
+
+* 2451 tests (2438 passing, 13 skipped). Mutation-verified on the branches that matter: removing the interrupt branch fails 2 tests, ignoring the idle window fails 3, never incrementing `nudgeCount` fails 1, and dropping the version guard leaves the "resumed mid-decision" test unprotected.
+* Deliberately hourly, not per-minute: the idle threshold defaults to one hour, so a tighter interval would re-scan the same quiet interviews 59 times for no new decision.
+* One `e2e/admin-ui-coverage.e2e.test.ts` run failed inside the full parallel suite and passed in isolation (54s vs a contention-heavy full run). Not related to this change — it exercises admin forms, none of which touch the timeout path.
+
 ## [1.17.0](https://github.com/boyingliu01/dialog-survey/compare/v1.16.0...v1.17.0) (2026-11-07)
 
 Third batch (issue #233): three interview-rhythm columns that were declared, documented,
