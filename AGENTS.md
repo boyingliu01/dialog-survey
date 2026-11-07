@@ -1,6 +1,6 @@
 # AGENTS.md — Dialog Survey Project Knowledge Base
 
-> Updated: 2026-11-07 (v1.16.0). 79 source TS files (src/, excluding generated), 191 test files (179 + 12 e2e), 2429 passing tests. Tests need no PostgreSQL (PGlite).
+> Updated: 2026-11-07 (v1.17.0). 79 source TS files (src/, excluding generated), 192 test files (180 + 12 e2e), 2435 passing tests. Tests need no PostgreSQL (PGlite).
 
 ## Overview
 
@@ -18,7 +18,7 @@ AI-powered survey dialog bot — async multi-turn conversations via DingTalk wit
 | Nunjucks views | `src/views/` | Admin UI via HTMX fragments + Alpine.js |
 | Utilities | `src/utils/` | Logger, security, retry, markdown, PII |
 | Prisma client | `src/generated/prisma` (generated, gitignored) | Facade `src/utils/prisma-client.ts` + factory `src/utils/prisma-factory.ts`; run `npx prisma generate` after checkout |
-| Tests | `tests/` | 191 files (179 unit/integration + 12 e2e), flat structure, Vitest 4.x; needs no PostgreSQL |
+| Tests | `tests/` | 192 files (180 unit/integration + 12 e2e), flat structure, Vitest 4.x; needs no PostgreSQL |
 
 ## Code Map (Top-Level Symbols)
 
