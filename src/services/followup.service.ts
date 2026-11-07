@@ -317,12 +317,48 @@ interface PromptVars {
   nextQuestionFlag: string;
 }
 
-/** Last 6 turns rendered for the prompt, oldest first. */
+/**
+ * Messages rendered into the prompt.
+ *
+ * Issue #230: this used to be a fixed `slice(-6)` window, and the measured
+ * consequence was a compliant interviewee repeating himself four times. In interview
+ * `18811eb7` he said "我不是团队负责人，也不是质量接口人，我只是PQA" at 17:28 and again at
+ * 17:29; by q9 (17:42) that clarification had slid out of the window, so the bot
+ * asked about "您团队" and he had to correct it a fourth time. The window is a
+ * memory eraser whose size has nothing to do with how much context the model can
+ * take.
+ *
+ * The limit is a character budget rather than a turn count, because what matters is
+ * prompt size. It is generous enough to hold a whole 14-question interview, so the
+ * normal case is complete recall; it only trims on a pathologically long transcript,
+ * where keeping the OLDEST messages and dropping the NEWEST would be worst of all.
+ */
+const HISTORY_CHAR_BUDGET = 24_000;
+
+/**
+ * Index of the first line to keep, given the rendered transcript.
+ *
+ * Trims from the front only when over budget: the most recent exchange is what the
+ * model must reason about, while older material is what it tends to forget. Always
+ * keeps at least the newest line, so an oversized single message still reaches the
+ * model rather than rendering an empty history.
+ */
+function firstLineWithinBudget(lines: string[]): number {
+  let total = lines.reduce((n, line) => n + line.length + 1, 0);
+  let start = 0;
+  while (total > HISTORY_CHAR_BUDGET && start < lines.length - 1) {
+    total -= lines[start].length + 1;
+    start += 1;
+  }
+  return start;
+}
+
+/** Render the conversation for the prompt, oldest first. */
 function renderHistory(state: InterviewState): string {
-  return state.messages
-    .slice(-6)
-    .map((m) => `${m.role === 'user' ? '用户' : '主持人'}: ${m.content}`)
-    .join('\n');
+  const rendered = state.messages.map(
+    (m) => `${m.role === 'user' ? '用户' : '主持人'}: ${m.content}`
+  );
+  return rendered.slice(firstLineWithinBudget(rendered)).join('\n');
 }
 
 function lastQuestionFlag(isLastQuestion: boolean | undefined): string {
