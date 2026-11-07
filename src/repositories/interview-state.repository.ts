@@ -3,6 +3,17 @@ import { error, info } from '../utils/logger.js';
 import type { PrismaClient } from '../utils/prisma-client.js';
 import { mapInterviewToInterviewState } from './interview-state-mapper.js';
 
+/**
+ * When an interview actually finished, for the cooldown check (#200, #233).
+ *
+ * `completedAt` is preferred now that #233 writes it. The `updatedAt` fallback is
+ * deliberate: interviews completed before that fix have no `completedAt`, and
+ * returning null for them would silently disable the cooldown on every existing row.
+ */
+function completionInstant(interview: { completedAt: Date | null; updatedAt: Date }): Date {
+  return interview.completedAt ?? interview.updatedAt;
+}
+
 export class StatePersistenceError extends Error {
   constructor(
     message: string,
@@ -26,6 +37,42 @@ export interface LoadStateOptions {
 }
 
 const MAX_RETRIES = 3;
+
+/** Terminal statuses: no further conversation, so the end time is meaningful. */
+const ENDED_STATUSES = new Set<InterviewState['status']>(['COMPLETED', 'CANCELLED']);
+
+/**
+ * `startedAt` / `completedAt` for an interview write, or an empty patch (issue #233).
+ *
+ * Neither column was ever written by ANY code path: of 19 COMPLETED interviews in
+ * production, 0 had a `completedAt`. Two consequences. The admin page's "average
+ * interview duration" was permanently 0 — the one number that would answer "are
+ * these interviews too long". And `findCompletedInterview` had to substitute
+ * `updatedAt`, which stops equalling the completion time as soon as a message
+ * arrives afterwards (in interview 18811eb7 the conversation continued at 18:14
+ * after finishing), so the cooldown window #200 computes and the "wait 29 minutes"
+ * notice #132 shows were both derived from the wrong instant.
+ *
+ * Both values are WRITE-ONCE: a resend or a later save must not move them, because
+ * the first ACTIVITY is what defines when the interview actually began. `startedAt`
+ * is also set on a terminal write, so an interview that is cancelled before its
+ * first answer still records when it was opened.
+ */
+function lifecycleTimestamps(
+  existing: { startedAt: Date | null; completedAt: Date | null } | null,
+  state: InterviewState
+): { startedAt?: Date; completedAt?: Date } {
+  // A missing row is `assertVersionMatches`' NOT_FOUND, raised before this is called;
+  // accepting null here only keeps the type honest rather than asserting past it.
+  if (!existing) return {};
+  const now = new Date();
+  return {
+    ...(existing.startedAt === null ? { startedAt: now } : {}),
+    ...(existing.completedAt === null && ENDED_STATUSES.has(state.status)
+      ? { completedAt: now }
+      : {}),
+  };
+}
 
 /**
  * Optimistic-locking precondition shared by `saveState` and `saveFullState`:
@@ -235,6 +282,14 @@ export class InterviewStateRepository {
               questionId: r.questionId,
               content: r.content,
               isFollowup: r.isFollowup,
+              // Issue #233: the field was in `InterviewState` and documented, but the
+              // payload stopped at `isFollowup`, so `@default(0)` silently wrote 0 for
+              // every follow-up. Measured: all 3 real follow-ups in interview
+              // 7837c84b have depth=0, and no row in the database had ever been 1.
+              // Nothing failed — the column merely stayed at its default forever.
+              // `?? 0` rather than the raw optional: states persisted before the field
+              // existed have no key, and an answer to the question itself is round 0.
+              followupDepth: r.followupDepth ?? 0,
             })),
           });
         }
@@ -247,6 +302,7 @@ export class InterviewStateRepository {
             followupCount: state.followupCount,
             maxFollowups: state.maxFollowups,
             nudgeCount: state.nudgeCount,
+            ...lifecycleTimestamps(interview, state),
             version: { increment: 1 },
           },
         });
@@ -341,15 +397,29 @@ export class InterviewStateRepository {
     return mapInterviewToInterviewState(interview);
   }
 
+  /**
+   * The most recently completed interview for a user, for the cooldown check (#200).
+   *
+   * `completedAt` is preferred now that #233 actually writes it. The `updatedAt`
+   * fallback is kept deliberately: interviews completed before that fix have no
+   * `completedAt`, and returning null for them would silently disable the cooldown
+   * on every existing row. For a correctly-written row the two differ, and the
+   * difference is the bug — in interview 18811eb7 the conversation continued at
+   * 18:14 after the interview finished, so `updatedAt` was a later instant than the
+   * real completion and the cooldown had already expired when it should not have.
+   */
   async findCompletedInterview(
     userId: string
   ): Promise<{ completedAt: Date; templateId: string } | null> {
     const interview = await this.prisma.interview.findFirst({
       where: { userId, status: 'COMPLETED' },
       orderBy: { updatedAt: 'desc' },
-      select: { updatedAt: true, templateId: true },
+      select: { updatedAt: true, completedAt: true, templateId: true },
     });
     if (!interview) return null;
-    return { completedAt: interview.updatedAt, templateId: interview.templateId };
+    return {
+      completedAt: completionInstant(interview),
+      templateId: interview.templateId,
+    };
   }
 }

@@ -294,6 +294,8 @@ describe('InterviewStateRepository', () => {
             questionId: 'q1',
             content: 'new answer',
             isFollowup: false,
+            // Issue #233: dropped from the payload, so @default(0) wrote 0 forever.
+            followupDepth: 0,
           },
         ],
       });
@@ -419,11 +421,14 @@ describe('InterviewStateRepository', () => {
      * @intent 验证findCompletedInterview能找到COMPLETED状态的访谈，
      *        返回updatedAt和templateId用于冷却期检查
      */
-    it('should return completed interview with updatedAt and templateId', async () => {
+    it('falls back to updatedAt when completedAt is null (rows written before #233)', async () => {
       const completedInterview = {
         ...mockInterview,
         status: 'COMPLETED',
         updatedAt: new Date('2026-06-25T10:00:00Z'),
+        // Pre-#233 interviews have no completion timestamp at all. Returning null for
+        // them would silently disable the cooldown on every existing row.
+        completedAt: null,
         templateId: 'template-42',
       };
       mockPrisma.interview.findFirst.mockResolvedValue(completedInterview);
@@ -436,7 +441,7 @@ describe('InterviewStateRepository', () => {
       expect(mockPrisma.interview.findFirst).toHaveBeenCalledWith({
         where: { userId: 'user-123', status: 'COMPLETED' },
         orderBy: { updatedAt: 'desc' },
-        select: { updatedAt: true, templateId: true },
+        select: { updatedAt: true, completedAt: true, templateId: true },
       });
     });
 

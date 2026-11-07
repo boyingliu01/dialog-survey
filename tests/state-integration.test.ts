@@ -218,6 +218,10 @@ describe('InterviewStateRepository - Missing Coverage Tests', () => {
             questionId: 'q1',
             content: 'Pending response',
             isFollowup: false,
+            // Issue #233: `followupDepth` was missing from this payload, so the
+            // column's @default(0) absorbed every follow-up and no row in production
+            // had ever recorded a non-zero depth.
+            followupDepth: 0,
           },
         ],
       });

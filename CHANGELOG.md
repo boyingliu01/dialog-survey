@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.17.0](https://github.com/boyingliu01/dialog-survey/compare/v1.16.0...v1.17.0) (2026-11-07)
+
+Third batch (issue #233): three interview-rhythm columns that were declared, documented,
+and never written. The interview data had no memory of how long it took or how often it
+had to ask again — and nothing failed while that was true.
+
+### Features
+
+* **`Response.followupDepth` is written (#233).** `InterviewState` carried the field and `src/core/types/index.ts` documented it, but the `createMany` payload in `interview-state.repository.ts` stopped at `isFollowup`, so the column's `@default(0)` absorbed every follow-up. Measured in interview `7837c84b`: three genuine follow-ups, all with `followupDepth=0` and `isFollowup=true`; no row in the database had ever held a 1. This is the prerequisite for any "which question needed three attempts" analysis, including #229's proposed programmatic duplicate check.
+
+* **`Interview.startedAt` and `completedAt` are written (#233).** Neither column had any code path that wrote it, so of 19 `COMPLETED` interviews in production, 0 had a `completedAt`. Two visible consequences. The admin dashboard's "average interview duration" was permanently 0 — the single number a manager would use to answer "are these interviews too long". And `findCompletedInterview` had to substitute `updatedAt`, which stops equalling the completion time the moment a message arrives afterwards; the real interviews measured for this fix did exactly that (interview `18811eb7` kept talking at 18:14 after finishing), so the #200 cooldown and the #132 "wait 29 minutes" notice were both computed from the wrong instant. Both timestamps are write-once: a resend or a later turn must not redefine when the interview began.
+
+* **`findCompletedInterview` prefers the real `completedAt`, with `updatedAt` kept as a fallback.** Dropping the fallback would have been the tidier diff and a worse change: every interview completed before this fix has a NULL `completedAt`, so returning null for them would silently disable the cooldown on all existing rows.
+
+### Notes
+
+* 2448 tests (2432 passing, 13 skipped). `tests/interview-rhythm-columns.integration.test.ts` drives the real Prisma schema against PGlite, because none of the three defects was visible without a database — a mocked Prisma would have asserted the mock. Mutation-verified: dropping `followupDepth` from the payload fails 1 test, dropping the lifecycle timestamps fails 3, reverting the cooldown to `updatedAt` fails 1.
+* `DEFAULT_MAX_FOLLOWUPS` stays at 5 rather than dropping to 2 as #233 suggested. The real defect was the contradiction — four deployed templates say "最多 2 次" while the enforced limit is 5, so the model cannot tell when to stop — and that is a template-copy fix, not a code change. Lowering the default would additionally change how deep every new interview digs, which is a product decision and not this fix's to make. The built-in prompt in `prompt.service.ts` already interpolates `{{maxFollowups}}` and was never inconsistent.
+* Still an ops action: the deployed `Template.content.llmPromptTemplate` overrides `prompt.service.ts`, so the four templates need "最多 2 次" corrected in the database.
+
 ## [1.16.0](https://github.com/boyingliu01/dialog-survey/compare/v1.15.0...v1.16.0) (2026-11-07)
 
 Second batch of the interviewee-experience fixes (issues #229 and #230). Both address
