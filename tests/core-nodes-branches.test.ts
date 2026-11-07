@@ -134,7 +134,8 @@ describe('Core Nodes Branch Coverage', () => {
       expect(result.responses).toHaveLength(1);
       expect(result.followupCount).toBe(1);
       expect(result.shouldContinue).toBe(true);
-      expect(result.response).toBe('请继续说明您的想法。');
+      expect(result.response).toBe(`请继续说明您的想法。
+— 1/4`);
     });
   });
 });

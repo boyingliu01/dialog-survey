@@ -108,7 +108,8 @@ describe('interviewingNode - Smart Response Branches', () => {
 
       expect(result.followupCount).toBe(1);
       expect(result.shouldContinue).toBe(true);
-      expect(result.response).toBe('可以详细说明一下吗？');
+      expect(result.response).toBe(`可以详细说明一下吗？
+— 1/4`);
     });
 
     it('should proceed to next question when followup limit exceeded', async () => {
@@ -166,7 +167,8 @@ describe('interviewingNode - Smart Response Branches', () => {
       });
 
       expect(result.shouldContinue).toBe(true);
-      expect(result.response).toBe('我理解您的疑惑，让我解释一下...');
+      expect(result.response).toBe(`我理解您的疑惑，让我解释一下...
+— 1/4`);
       expect(result.followupCount).toBe(1);
     });
   });

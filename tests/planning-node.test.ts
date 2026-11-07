@@ -50,9 +50,46 @@ describe('planningNode', () => {
   it('should return invitation prompt as response', async () => {
     const result = await planningNode(baseState, mockPrisma);
 
-    expect(result.response).toBe('您好！欢迎参与本次访谈。\n\n请简单介绍一下您的工作经历？');
+    // The greeting is still first and the first question still last; the promise
+    // line sits between them (#228). Asserting the ORDER rather than one byte-exact
+    // string keeps this from breaking on every copy tweak.
+    const response = result.response as string;
+    expect(response.startsWith('您好！欢迎参与本次访谈。')).toBe(true);
+    expect(response.endsWith('请简单介绍一下您的工作经历？')).toBe(true);
+    expect(response).toContain('本次访谈共 4 个话题');
     expect(result.shouldContinue).toBe(true);
     expect(result.currentQuestion).toBe(0);
+  });
+
+  /**
+   * @test REQ-228
+   * @intent 开场白必须由代码告知总话题数，而不是依赖模板作者手写的时长描述
+   *
+   * Issue #228: the interviewee was never told how many topics existed, so a
+   * 14-question interview felt open-ended and two interviews died mid-way for it.
+   * The count has to come from `questions.length` -- a template can be re-imported
+   * with a different list, and a hard-coded sentence would then lie.
+   */
+  it('states the total question count derived from the template', async () => {
+    const result = await planningNode(baseState, mockPrisma);
+
+    expect(result.response).toContain('本次访谈共 4 个话题');
+    expect(result.response).toContain('3/4');
+  });
+
+  /**
+   * @test REQ-228
+   * @intent 空题单不得承诺"共 0 个话题"
+   */
+  it('omits the promise line when the template has no questions', async () => {
+    mockFindById.mockResolvedValueOnce({
+      id: 'x',
+      name: 'n',
+      content: JSON.stringify({ invitationPrompt: '您好！', questions: [] }),
+    });
+    const result = await planningNode(baseState, mockPrisma);
+
+    expect(result.response).not.toContain('个话题');
   });
 
   /**
@@ -65,7 +102,7 @@ describe('planningNode', () => {
     const msgs = result.messages as NonNullable<typeof result.messages>;
     expect(msgs).toHaveLength(1);
     expect(msgs[0].role).toBe('assistant');
-    expect(msgs[0].content).toBe('您好！欢迎参与本次访谈。\n\n请简单介绍一下您的工作经历？');
+    expect(msgs[0].content).toContain('请简单介绍一下您的工作经历？');
     expect(msgs[0].timestamp).toBeDefined();
   });
 
@@ -95,7 +132,7 @@ describe('planningNode', () => {
     const stateWithoutTemplate = { ...baseState, templateId: undefined };
     const result = await planningNode(stateWithoutTemplate, mockPrisma);
 
-    expect(result.response).toBe('您好！欢迎参与本次访谈。\n\n请简单介绍一下您的工作经历？');
+    expect(result.response).toContain('请简单介绍一下您的工作经历？');
     expect(result.shouldContinue).toBe(true);
   });
 

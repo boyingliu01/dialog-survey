@@ -277,7 +277,10 @@ describe('interviewing routing', () => {
 
       expect(result.currentQuestion).toBe(1);
       expect(result.shouldContinue).toBe(true);
-      expect(result.response).toBe('问题二？');
+      // The progress footer (#228) survives an LLM failure on purpose: the turn
+      // where the model is unavailable is exactly when a canned reply must still
+      // tell the interviewee where they are.
+      expect(result.response).toBe('问题二？\n— 2/3');
     });
 
     it('closes the interview on the final question', async () => {
