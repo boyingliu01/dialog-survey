@@ -283,7 +283,7 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
       expect(result).toEqual({ reminded: 0, failed: 0 });
     });
 
-    it('should send reminder only to non-COMPLETED, non-CANCELLED members', async () => {
+    it('should send reminder only to members who can still reply', async () => {
       mockPrisma.interviewPlan.findUnique.mockResolvedValue({
         id: 'plan-1',
         name: 'Q2 Survey',
@@ -301,7 +301,9 @@ describe('InterviewPlanService - Member Management (Issue #10)', () => {
       expect(mockPrisma.interview.findMany).toHaveBeenCalledWith({
         where: {
           planId: 'plan-1',
-          status: { notIn: ['COMPLETED', 'CANCELLED'] },
+          // INTERRUPTED (#232) is terminal too: reminding someone whose interview was
+          // closed as abandoned is nagging about a conversation the system ended.
+          status: { notIn: ['COMPLETED', 'CANCELLED', 'INTERRUPTED'] },
         },
         select: { id: true, userId: true },
       });

@@ -377,6 +377,61 @@ export class InterviewStateRepository {
     return interview?.version || 0;
   }
 
+  /**
+   * Load a full state by interview id alone, with no owner check (#232).
+   *
+   * Every other loader takes a `userId` because it serves a request from that user.
+   * The timeout job is not acting on behalf of anyone — it is the system noticing that
+   * an interview stopped — so there is no owner to check against. Kept as its own
+   * method rather than a flag on `loadFullState`, so the owner check cannot be switched
+   * off accidentally by an ordinary caller.
+   */
+  async findStateById(interviewId: string): Promise<InterviewState | null> {
+    const interview = await this.prisma.interview.findUnique({
+      where: { id: interviewId },
+      include: {
+        messages: { orderBy: { createdAt: 'asc' } },
+        responses: { orderBy: { createdAt: 'asc' } },
+      },
+    });
+    return interview ? mapInterviewToInterviewState(interview) : null;
+  }
+
+  /**
+   * Interviews that owe a reply and have not moved since `idleSince` (#232).
+   *
+   * Returns ids only: the caller decides one at a time what to do, and loading the
+   * full message history for every stalled interview at once would pull the whole
+   * conversation table into memory on the first run after a deployment.
+   */
+  async findStalledInterviewIds(idleSince: Date): Promise<string[]> {
+    const rows = await this.prisma.interview.findMany({
+      where: {
+        status: { in: ['ACTIVE', 'WAITING'] },
+        updatedAt: { lt: idleSince },
+      },
+      select: { id: true },
+      orderBy: { updatedAt: 'asc' },
+    });
+    return rows.map((r) => r.id);
+  }
+
+  /**
+   * Close a stalled interview as INTERRUPTED (#232), guarded by its current version.
+   *
+   * Returns false when the version moved — the interviewee answered while the job was
+   * deciding — and the caller must leave it alone. The version check is what keeps the
+   * timeout job from overwriting a live turn; without it, a reply that lands between
+   * the scan and the write would close a conversation that had just resumed.
+   */
+  async markInterrupted(interviewId: string, expectedVersion: number): Promise<boolean> {
+    const { count } = await this.prisma.interview.updateMany({
+      where: { id: interviewId, version: expectedVersion, status: { in: ['ACTIVE', 'WAITING'] } },
+      data: { status: 'INTERRUPTED', completedAt: new Date(), version: { increment: 1 } },
+    });
+    return count === 1;
+  }
+
   async findActiveInterview(userId: string): Promise<InterviewState | null> {
     const interview = await this.prisma.interview.findFirst({
       where: {
