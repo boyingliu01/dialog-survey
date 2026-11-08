@@ -759,6 +759,10 @@ function pm2DumpModeWarning(dumpPath) {
 
 /** The secret values declared in the install dir's .env, quotes stripped. */
 function secretValuesFrom(envPath) {
+  // A missing .env is the ordinary case on a host that has not been installed
+  // yet, not an exceptional one: it contributes no known values, but the leak
+  // check must still run on key NAMES, which do not come from .env at all.
+  if (!existsSync(envPath)) return [];
   return [...readFileSync(envPath, 'utf-8').matchAll(secretEnvLineRegex)]
     .map((m) => m[1].trim().replace(/^["'](.*)["']$/, '$1'))
     .filter((v) => v.length >= MIN_SECRET_VALUE_LENGTH);
@@ -797,16 +801,25 @@ function pm2DumpLeakWarning(dump, envPath) {
  * @returns {string[]}
  */
 /**
- * The two files the dump scan reads, or null when either is absent.
+ * The two files the dump scan reads, or null when there is no dump to scan.
  *
- * Both are optional: an operator who has not run `pm2 save` or written a .env
- * has nothing to leak, and a missing file is not a warning.
+ * `dump.pm2` is REQUIRED, `.env` is OPTIONAL, and the distinction is load-bearing.
+ *
+ * The mode check and the leak check answer different questions. The mode check
+ * asks "is this snapshot readable by anyone else?" and needs only the dump. The
+ * leak check asks "does this snapshot contain env secrets?" and needs both. A
+ * refactor here (#226 follow-up) required both paths up front, so when `.env`
+ * was absent the whole function returned early and the MODE check never ran —
+ * exactly backwards, because a host that has lost its `.env` is the one whose
+ * dump is most likely to be both world-readable and full of stale secrets.
+ * `tests/cli.test.ts` "should still check permissions when .env is absent" is
+ * the control for that branch.
  */
 function pm2ScanPaths(installDir, home) {
   const pm2Home = process.env['PM2_HOME'] || join(home, '.pm2');
   const dumpPath = join(pm2Home, 'dump.pm2');
-  const envPath = join(installDir, '.env');
-  return existsSync(dumpPath) && existsSync(envPath) ? { dumpPath, envPath } : null;
+  if (!existsSync(dumpPath)) return null;
+  return { dumpPath, envPath: join(installDir, '.env') };
 }
 
 export function checkPm2DumpSecurity(installDir = INSTALL_DIR, home = homedir()) {
