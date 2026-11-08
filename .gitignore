@@ -160,3 +160,6 @@ docs/reports/loadtest-results-*.json
 .commitmsg*
 
 .acl-recovery/
+
+# xp-gate local audit ledger (append-only, per-machine)
+.audit-log.jsonl
