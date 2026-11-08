@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.19.0](https://github.com/boyingliu01/dialog-survey/compare/v1.14.1...v1.19.0) (2026-11-08)
+
+### Features
+
+* **interview:** full cross-turn memory and an already-answered strategy ([#229](https://github.com/boyingliu01/dialog-survey/issues/229), [#230](https://github.com/boyingliu01/dialog-survey/issues/230)) ([298fa2c](https://github.com/boyingliu01/dialog-survey/commit/298fa2cb2fbc4918b23c5372b8103fd2395d626d)), closes [#203](https://github.com/boyingliu01/dialog-survey/issues/203)
+* **interview:** hourly abandonment sweep and an INTERRUPTED terminal state ([#232](https://github.com/boyingliu01/dialog-survey/issues/232)) ([f592007](https://github.com/boyingliu01/dialog-survey/commit/f5920070e8c9db117f3d4c0e633f5f4d8013db33)), closes [#228](https://github.com/boyingliu01/dialog-survey/issues/228)
+* **interview:** show progress and stop counting start signals as answers ([#228](https://github.com/boyingliu01/dialog-survey/issues/228), [#231](https://github.com/boyingliu01/dialog-survey/issues/231)) ([0a6292f](https://github.com/boyingliu01/dialog-survey/commit/0a6292fd327d2ab615ea3fc244c243d37819e237)), closes [#203](https://github.com/boyingliu01/dialog-survey/issues/203)
+
+### Bug Fixes
+
+* **health:** cache LLM failures briefly and share one in-flight probe ([#227](https://github.com/boyingliu01/dialog-survey/issues/227)) ([64afc57](https://github.com/boyingliu01/dialog-survey/commit/64afc5727a3fb5d468958f4ed76e0703df482545)), closes [#226](https://github.com/boyingliu01/dialog-survey/issues/226)
+* **repository:** write followupDepth, startedAt and completedAt ([#233](https://github.com/boyingliu01/dialog-survey/issues/233)) ([92b9cf4](https://github.com/boyingliu01/dialog-survey/commit/92b9cf42717ae8f740a39b739ea0384382ac9d4f)), closes [#200](https://github.com/boyingliu01/dialog-survey/issues/200) [#132](https://github.com/boyingliu01/dialog-survey/issues/132)
+
 ## [1.18.0](https://github.com/boyingliu01/dialog-survey/compare/v1.17.0...v1.18.0) (2026-11-07)
 
 Fourth batch (issue #232): the abandonment-recovery path that could never fire, and the
