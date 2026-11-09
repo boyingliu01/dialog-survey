@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.19.1](https://github.com/boyingliu01/dialog-survey/compare/v1.19.0...v1.19.1) (2026-11-09)
+
 ## [1.19.0](https://github.com/boyingliu01/dialog-survey/compare/v1.14.1...v1.19.0) (2026-11-08)
 
 ### Features
