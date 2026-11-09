@@ -1,8 +1,8 @@
 {
   "$comment": "Pinned versions of the Python-installed xp-gate tools. These live outside the repo (~/.local/bin, ~/bin and the Windows Python Scripts dir), so package.json cannot pin them. scripts/verify-gate-tools.cjs compares this file against what is actually on PATH and fails on a mismatch. Bump deliberately.",
   "lizard": {
-    "pinned": "1.25.0",
-    "why": "1.24.1 added cognitive complexity (-Ecognitive, --CogC default 15). 1.24.2 and 1.25.0 changed CCN for ??, ??=, default parameters and callback boundaries; the upstream CHANGELOG says existing scores may rise OR fall, so raw lizard CCN is not comparable across versions. 1.21.3 additionally inflated nested functions by charging inner branches to the outer one (collectAppRoots measured 53 there, 7 on 1.25.0, and 1 by TypeScript AST).",
+    "pinned": "1.25.1",
+    "why": "1.24.1 added cognitive complexity (-Ecognitive, --CogC default 15). 1.24.2 and 1.25.0 changed CCN for ??, ??=, default parameters and callback boundaries; the upstream CHANGELOG says existing scores may rise OR fall, so raw lizard CCN is not comparable across versions. 1.21.3 additionally inflated nested functions by charging inner branches to the outer one (collectAppRoots measured 53 there, 7 on 1.25.0, and 1 by TypeScript AST). 1.25.1 was compared against 1.25.0 over all 77 src/*.ts files (959 lizard rows each) before being pinned: 745 of 866 functions scored identically, and every difference was a boundary change, not a scoring change -- 1.25.1 attributes 4 previously-nested functions to themselves (arrayField, executeWithConcurrencyLimit, runAttempts, runWithTimeout) instead of folding their branches into the enclosing function, which is why batch-aggregation.service.ts's average moves 6.5 -> 7.3. That is the same over-charging 1.21.3 exhibited, so this bump makes Gate 3 MORE accurate, and .ccn-baseline.json needed no recomputation (scripts/ccn-report.cjs --threshold 5 reports the same 41 functions, all under tests/, none in src/).",
     "minimum": "1.24.1"
   },
   "semgrep": {
