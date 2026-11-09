@@ -2,6 +2,14 @@
 
 ## [1.19.1](https://github.com/boyingliu01/dialog-survey/compare/v1.19.0...v1.19.1) (2026-11-09)
 
+### Maintenance
+
+Written by hand: the only commit in this release is `chore(gates):`, and `chore` is not in the `conventionalcommits` preset's type list, so the generated section would have been a bare heading. See the v1.14.1 note in AGENTS.md.
+
+* **gates:** pin lizard 1.25.1 and record the version comparison ([df58543](https://github.com/boyingliu01/dialog-survey/commit/df5854334487a586dd38b9155a1e757b6a41de8f)). This machine had lizard 1.21.3 installed against a 1.25.0 pin, so `verify-gate-tools.cjs` had been reporting *"older than the required minimum 1.24.1 — features the gates rely on are missing"*, and two `gate-tools-pin` cases had been red in CI since v1.14.1 — the reason v1.14.1 and v1.19.0 published nothing to npm. The pin was not bumped on faith: 1.25.0 and 1.25.1 were both run over all 77 `src/**/*.ts` files and compared first. 745 of 866 functions scored identically and every difference was a *boundary* change — 1.25.1 attributes four previously-nested functions (`arrayField`, `executeWithConcurrencyLimit`, `runAttempts`, `runWithTimeout`) to themselves instead of folding their branches into the enclosing function. That is the same over-charging 1.21.3 exhibited, so the bump makes Gate 3 more accurate rather than more permissive, and `.ccn-baseline.json` needed no recomputation: `ccn-report.cjs --threshold 5` still reports the same 41 functions, all under `tests/`, none in `src/`.
+* **gates:** `-Ecognitive` is now measurable here for the first time. The highest cognitive score in `src/` is **9** (`remindViaWorkNotification`), well under lizard's default threshold of 15 — the code is cognitively clean as well as cyclomatic-clean, so adding a `--CogC 15` gate would add no signal today. Recorded in AGENTS.md, which had previously stated the metric could not be measured.
+* Full suite after the change: 193 files, 2451 passed, 13 skipped, **0 failed** — the first fully green run.
+
 ## [1.19.0](https://github.com/boyingliu01/dialog-survey/compare/v1.14.1...v1.19.0) (2026-11-08)
 
 ### Features
