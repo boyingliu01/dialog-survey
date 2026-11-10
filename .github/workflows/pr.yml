@@ -494,6 +494,34 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      # `npm run smoke` runs scripts/verify-gate-tools.cjs, which FAILS when a
+      # pinned tool is absent. That is deliberate (a missing tool must never be
+      # a silent pass), so the runner has to actually provide them.
+      #
+      # Versions are read from tools/gate-tools.json rather than repeated here:
+      # the pin is the single source of truth, and a CI that installed its own
+      # hardcoded version would drift from it silently.
+      #
+      # Note the package names are NOT all the tool names. `detect-secrets-hook`
+      # ships in `bc-detect-secrets` (currently 1.5.52, which is what the pin
+      # records); PyPI's `detect-secrets` stopped at 1.5.0, so installing that
+      # would pin-proof nothing and report a version that can never match.
+      - name: Install the pinned gate toolchain
+        run: |
+          set -euo pipefail
+          read_pin() { node -p "require('./tools/gate-tools.json')['$1'].pinned"; }
+          LIZARD=$(read_pin lizard)
+          SEMGREP=$(read_pin semgrep)
+          DETECT=$(read_pin detect-secrets)
+          echo "Installing lizard=$LIZARD semgrep=$SEMGREP bc-detect-secrets=$DETECT"
+          python -m pip install --upgrade --quiet \
+            "lizard==${LIZARD}" "semgrep==${SEMGREP}" "bc-detect-secrets==${DETECT}"
+          echo "--- resolved on PATH ---"
+          command -v lizard semgrep detect-secrets-hook
+          lizard --version
+          semgrep --version
+          detect-secrets-hook --version
+
       - name: Run smoke test
         run: npm run smoke
 
