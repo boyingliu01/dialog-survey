@@ -6,6 +6,10 @@
 
 * **ops:** add a script to sync production template prompts with [#229](https://github.com/boyingliu01/dialog-survey/issues/229)/[#233](https://github.com/boyingliu01/dialog-survey/issues/233) ([35b13a4](https://github.com/boyingliu01/dialog-survey/commit/35b13a45dc8fb9de36c1db4e3e4477a40cb78779))
 
+### Bug Fixes
+
+* **ci:** install the pinned gate toolchain in the smoke job ([35b13a4](https://github.com/boyingliu01/dialog-survey/commit/35b13a45dc8fb9de36c1db4e3e4477a40cb78779)). `npm run smoke` runs `verify-gate-tools.cjs`, which fails when a pinned tool is absent — deliberately, so a missing tool can never read as a pass — but the job ran on `ubuntu-latest`, where lizard, semgrep and the detect-secrets hook were never installed. The policy was right; the installation step was missing, and the Smoke Test job had been red on every push. Two details that are easy to get wrong: the pin's `detect-secrets` entry is satisfied by `bc-detect-secrets` (PyPI's `detect-secrets` stopped at 1.5.0 and can never match the pinned 1.5.52), and versions are read from `tools/gate-tools.json` rather than repeated in the workflow, so CI cannot drift from the pin it exists to enforce. All 12 CI jobs are green.
+
 ## [1.19.1](https://github.com/boyingliu01/dialog-survey/compare/v1.19.0...v1.19.1) (2026-11-09)
 
 ### Maintenance
