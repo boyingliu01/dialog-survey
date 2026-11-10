@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.2](https://github.com/boyingliu01/dialog-survey/compare/v1.19.1...v1.19.2) (2026-11-10)
+
+### Features
+
+* **ops:** add a script to sync production template prompts with [#229](https://github.com/boyingliu01/dialog-survey/issues/229)/[#233](https://github.com/boyingliu01/dialog-survey/issues/233) ([35b13a4](https://github.com/boyingliu01/dialog-survey/commit/35b13a45dc8fb9de36c1db4e3e4477a40cb78779))
+
 ## [1.19.1](https://github.com/boyingliu01/dialog-survey/compare/v1.19.0...v1.19.1) (2026-11-09)
 
 ### Maintenance
