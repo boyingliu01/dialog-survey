@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.19.3](https://github.com/boyingliu01/dialog-survey/compare/v1.19.2...v1.19.3) (2026-11-11)
+
+### Features
+
+* **docker:** ship the template prompt sync tool so the data migration needs no docker cp ([c888ceb](https://github.com/boyingliu01/dialog-survey/commit/c888ceb22001eb617a16c7266302320da91dfef4))
+
 ## [1.19.2](https://github.com/boyingliu01/dialog-survey/compare/v1.19.1...v1.19.2) (2026-11-10)
 
 ### Features
