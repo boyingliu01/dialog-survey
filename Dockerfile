@@ -79,6 +79,13 @@ RUN mkdir -p /app/reports && chown -R nodejs:nodejs /app/reports /app/assets
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/scripts/migrate-deploy.mjs ./scripts/migrate-deploy.mjs
 COPY --from=builder /app/scripts/verify-font-asset.mjs ./scripts/verify-font-asset.mjs
+# Data-migration tool for stored Template prompts (#229/#233). The prompts live
+# per row and OVERRIDE `prompt.service.ts`, so a code fix alone never reaches a
+# deployment that has templates — this has to be runnable inside the container,
+# where `pg` and DATABASE_URL already are. Skipping it here is how it ends up
+# needing a manual `docker cp` on the deployment host, which is exactly the
+# hand-carried step it exists to remove.
+COPY --from=builder /app/scripts/sync-template-prompts.mjs ./scripts/sync-template-prompts.mjs
 
 # Re-assert the font here, not only in the builder (issue #217): this is the
 # stage that actually ships, so the check belongs on the bytes the runner
