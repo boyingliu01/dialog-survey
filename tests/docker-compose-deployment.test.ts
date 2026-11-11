@@ -129,6 +129,18 @@ describe('Dockerfile deployment defaults (issues #217, #218)', () => {
     expect(dockerfile).toMatch(/COPY --from=builder \/app\/scripts\/verify-font-asset\.mjs/);
   });
 
+  it('ships the Template prompt sync tool, so the data migration needs no docker cp', () => {
+    // `Template.content.llmPromptTemplate` overrides `prompt.service.ts`, so the
+    // #229/#233 code fixes do nothing on a deployment until this runs. The
+    // runner stage copies scripts BY FILENAME, so omitting this line does not
+    // break the build — it just leaves the tool absent from the image, which
+    // surfaces much later as "run docker cp on the deployment host", the exact
+    // hand-carried step the container is supposed to make unnecessary.
+    expect(dockerfile).toMatch(
+      /COPY --from=builder \/app\/scripts\/sync-template-prompts\.mjs \.\/scripts\/sync-template-prompts\.mjs/
+    );
+  });
+
   it('probes /health/ready in HEALTHCHECK and parses the body', () => {
     const healthcheck = /HEALTHCHECK[\s\S]*?CMD node -e "(.*)"/.exec(dockerfile)?.[1];
 
